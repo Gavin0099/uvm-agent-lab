@@ -11,9 +11,9 @@
 # ── PROVENANCE ────────────────────────────────────────────────────────────────
 schema_version: "1"
 baseline_version: 1.0.0
-source_commit: cb9073b73e60af835bfd5f0fc83c5aedf4202fe7
+source_commit: 20539aa5701b10e3134e1b85351041060bce6924
 framework_root: D:\uvm-agent-lab\additional\ai-governance-framework
-initialized_at: 2026-08-14T17:05:17Z
+initialized_at: 2026-08-14T17:12:24Z
 initialized_by: governance_tools/adopt_governance.py
 
 # ── INTEGRITY ─────────────────────────────────────────────────────────────────
