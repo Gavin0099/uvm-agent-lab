@@ -1,0 +1,84 @@
+# Role-Based Access Control (RBAC) Policy
+policy_name: "agent_rbac_policy"
+version: "1.0.0"
+description: "Defines granular tool permissions, allowed paths, and forbidden paths per Agent Role."
+
+roles:
+  TestcaseGeneratorAgent:
+    description: "Creates and updates UVM testcases for specific requirement IDs."
+    allowed_paths:
+      - "uvm/tests/"
+      - "uvm/sequences/"
+      - "uvm/ral/"
+      - "uvm/assertions/"
+    forbidden_paths:
+      - "rtl/"
+      - "uvm/env/"
+      - "uvm/agents/"
+      - "governance/"
+    allowed_tools:
+      - "read_file"
+      - "write_file"
+      - "search_code"
+      - "compile"
+      - "simulate"
+      - "query_spec"
+
+  SequenceAuthorAgent:
+    description: "Authors randomized, constrained, or backpressure sequences."
+    allowed_paths:
+      - "uvm/sequences/"
+    forbidden_paths:
+      - "rtl/"
+      - "uvm/tests/"
+      - "uvm/env/"
+      - "uvm/agents/"
+    allowed_tools:
+      - "read_file"
+      - "write_file"
+      - "search_code"
+      - "compile"
+      - "simulate"
+      - "query_spec"
+
+  CompileFixAgent:
+    description: "Fixes compilation syntax, missing macros, or interface mismatches."
+    allowed_paths:
+      - "uvm/"
+    forbidden_paths:
+      - "rtl/"
+      - "governance/"
+    allowed_tools:
+      - "read_file"
+      - "write_file"
+      - "search_code"
+      - "compile"
+      - "read_log"
+
+  SimDebugAgent:
+    description: "Root causes simulation mismatches and patches testbench timing/sampling."
+    allowed_paths:
+      - "uvm/"
+    forbidden_paths:
+      - "rtl/"
+    allowed_tools:
+      - "read_file"
+      - "write_file"
+      - "search_code"
+      - "simulate"
+      - "read_log"
+
+  CoverageClosureAgent:
+    description: "Adds covergroups, bins, and cross-coverage without changing RTL logic."
+    allowed_paths:
+      - "uvm/coverage/"
+      - "uvm/env/"
+      - "uvm/sequences/"
+    forbidden_paths:
+      - "rtl/"
+      - "uvm/agents/"
+    allowed_tools:
+      - "read_file"
+      - "write_file"
+      - "simulate"
+      - "read_log"

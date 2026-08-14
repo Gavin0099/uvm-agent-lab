@@ -1,0 +1,30 @@
+# Scope & Path Boundary Policy
+policy_name: "scope_boundary_policy"
+version: "1.0.0"
+description: "Enforces strict sandbox filesystem boundaries, file extension permissions, and write size limits."
+
+rules:
+  global_forbidden_paths:
+    - "rtl/"
+    - ".git/"
+    - ".github/"
+    - "governance/policies/"
+    - "deploy/"
+
+  max_write_bytes_per_file: 524288  # 512 KB
+  max_files_modified_per_task: 10
+
+  allowed_file_extensions:
+    - ".sv"
+    - ".svh"
+    - ".v"
+    - ".yaml"
+    - ".json"
+    - ".md"
+    - ".txt"
+    - ".log"
+
+  path_traversal_protection:
+    disallow_parent_references: true  # Disallow '../'
+    disallow_absolute_escape: true
+    disallow_symlink_redirection: true

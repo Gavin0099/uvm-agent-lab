@@ -1,0 +1,12 @@
+# .governance/version_manifest.yaml
+#
+# Repo-side governance layout version declaration for uvm-agent-lab.
+schema_version: "1.0"
+last_updated: "2026-08-15"
+governance_version: "1.0.0"
+
+contract_schema_version: "1.2.0"
+runtime_entrypoint_version: "1.1.0"
+hook_wiring_version: "1.0.0"
+artifact_layout_version: "1.0.0"
+memory_layout_version: "1.0.0"

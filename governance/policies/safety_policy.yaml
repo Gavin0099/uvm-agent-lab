@@ -1,0 +1,30 @@
+# Safety, Anti-Jailbreak, and Secret Protection Policy
+policy_name: "safety_security_policy"
+version: "1.0.0"
+description: "Detects prompt injection attempts, jailbreaks, intellectual property leakage, and prohibited system operations."
+
+jailbreak_patterns:
+  - "ignore previous instructions"
+  - "ignore all previous rules"
+  - "override governance"
+  - "act as a root administrator"
+  - "disable guardrails"
+  - "bypass allowed_paths"
+  - "modify rtl directly"
+
+secret_patterns:
+  - "api_key"
+  - "secret_key"
+  - "ghp_[a-zA-Z0-9]{36}"
+  - "aws_secret_access_key"
+  - "-----BEGIN PRIVATE KEY-----"
+  - "-----BEGIN RSA PRIVATE KEY-----"
+
+prohibited_system_commands:
+  - "rm -rf"
+  - "format"
+  - "mkfs"
+  - "curl | sh"
+  - "wget | sh"
+  - "git push --force"
+  - "chmod 777"

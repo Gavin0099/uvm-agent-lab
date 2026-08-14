@@ -1,0 +1,131 @@
+# AGENTS.base.md
+<!-- governance-baseline: protected -->
+<!-- baseline_version: 1.0.0 -->
+<!-- DO NOT EDIT — managed by ai-governance-framework -->
+<!-- To add repo-specific rules, create AGENTS.md and extend this file's sections. -->
+<!-- Hash is recorded in .governance/baseline.yaml and verified on every drift check. -->
+
+## Level Alignment
+
+- Declared L0 but involves domain logic, boundary crossing, or behavior change → upgrade to L1
+- Declared L1 but involves core domain, security, data integrity, or irreversible state → upgrade to L2
+- Uncertain classification → upgrade, do not downgrade
+
+## Execution Pipeline
+
+For L1+, the default workflow is:
+
+1. **Analyze** — understand behavior and constraints before touching code
+2. **Define** — contracts, boundaries, failure paths
+3. **Verify Plan** — what evidence will prove the change is safe
+4. **Implement** — minimum compliant change
+5. **Refactor** — only under evidence protection
+
+Do not skip a step when the omission would hide risk.
+
+## Forbidden Behaviors
+
+- Expand scope beyond what was explicitly instructed
+- Refactor unrelated areas for cleanliness or taste
+- Add speculative abstractions for hypothetical future requirements
+- Fake, inflate, or omit evidence
+- Assume intent when the instruction is ambiguous — ask instead
+
+## Secret Handling
+
+- Never commit tokens, API keys, credentials, or secrets to the repo
+- Never write tokens or credentials into memory/ files or logs
+- If a secret appears in conversation context, do not persist it anywhere
+- `.env` files and credentials must be in `.gitignore` and never staged
+
+## AI Governance Update Routing
+
+When the user says "幫我更新最新版 AI Governance" or uses equivalent update
+wording, route the request to `governance_tools.f7_full_update` even if F-7 was
+not named explicitly. The governed updater is an F-7 backend, not the complete
+update-report surface.
+
+For updated, already-current, blocked, and fallback/manual terminal results,
+relay the complete `[human_readable_adoption_summary]` table when available.
+If it is unavailable or omitted, report
+`human_readable_adoption_summary: NOT REPORTED`,
+`update_report_complete=false`, and `completion_claim_allowed=false`; do not
+claim a complete AI Governance update report.
+
+## Memory Update Triggers
+
+The following events require updating PLAN.md and/or the relevant memory/ file:
+
+| Event | Required update |
+|-------|----------------|
+| Milestone reached | PLAN.md phase/sprint + memory/active_task |
+| Architecture decision made | PLAN.md decision log + memory/knowledge_base |
+| Bug fixed with root cause identified | memory/knowledge_base |
+| Risk or incident encountered | PLAN.md risk section + memory/active_task |
+| Session end | canonical `memory/YYYY-MM-DD.md` record when closeout is non-stateless |
+
+Automatic closeout has one write boundary: `session_end` may append the daily
+canonical record through `governance_tools.memory_record`. Pre-commit and
+`memory_workflow` only inspect or validate memory state; they do not write it.
+`memory/01_active_task.md`, `memory/03_knowledge_base.md`, and `PLAN.md` remain
+milestone, decision, or human-curation surfaces and are not rewritten after
+every session.
+
+When an implementation requires a canonical closeout companion, keep the
+implementation and closeout as separate commits on the same branch and in one
+pull request by default. A successful merge, push, or remote verification is
+delivery evidence only; it must not create another memory commit or second pull
+request. Open a follow-up slice only for a new defect, omitted required
+governance state, or explicit owner authorization.
+
+## Session Closeout Obligation
+
+Writing `artifacts/session-closeout.txt` before session end is a **governance
+obligation**, not a suggestion.
+
+The stop hook always calls `session_end` at session end. If the closeout artifact
+is missing or insufficient, the runtime records `closeout_missing` or
+`closeout_insufficient` in the verdict and writes a fail-closed canonical daily
+record when the session is non-stateless. The invalid closeout content is not
+promoted. The gap remains auditable and visible to reviewers.
+
+### Required fields
+
+All fields must be present. Vague values are flagged as insufficient.
+
+```
+TASK_INTENT: <one sentence — declared goal of this session>
+WORK_COMPLETED: <what was actually done — verifiable claims only>
+FILES_TOUCHED: <comma-separated file list, or NONE>
+CHECKS_RUN: <specific commands or checks run, or NONE>
+OPEN_RISKS: <what might be wrong or incomplete, or NONE>
+NOT_DONE: <what was not completed this session, or NONE>
+RECOMMENDED_MEMORY_UPDATE: <what memory/ file should change and why, or NO_UPDATE>
+```
+
+### Rules
+
+- `WORK_COMPLETED` must contain verifiable claims. Do not write "made improvements"
+  or "worked on things" — these are vague and will be rejected as insufficient.
+- `CHECKS_RUN` must name specific commands if non-`NONE`.
+- If there was no material progress, write `WORK_COMPLETED: NONE` — do not
+  fabricate completions.
+- `NOT_DONE` and `OPEN_RISKS` are the most important fields. AI agents tend to
+  omit failures. Do not.
+
+### If you cannot write the closeout
+
+Write it anyway with `WORK_COMPLETED: NONE` and explain in `OPEN_RISKS` why
+the session produced no verifiable output. This is a valid closeout.
+
+See `docs/session-closeout-schema.md` for examples and field constraints.
+
+## Definition of Done
+
+A task is done when:
+
+- Behavior is explicit and observable
+- Failure paths are guarded
+- Architecture boundaries remain intact
+- Evidence matches the declared risk level
+- PLAN.md and memory/ reflect the new state

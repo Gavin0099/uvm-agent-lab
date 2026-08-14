@@ -1,0 +1,18 @@
+# Token & Rate Limit Governance Policy
+policy_name: "token_budget_policy"
+version: "1.0.0"
+description: "Sets hard token limits, cost controls, turn budgets, and rate limiting."
+
+limits:
+  max_prompt_tokens_per_task: 16384
+  max_completion_tokens_per_task: 4096
+  max_total_tokens_per_task: 20480
+
+  max_turns_per_task: 8
+  max_tool_retries_per_step: 3
+  max_execution_time_seconds: 120
+
+penalties:
+  turn_overage_penalty_per_turn: 5.0
+  token_budget_breach_penalty: 50.0
+  timeout_penalty: 100.0

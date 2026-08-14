@@ -1,6 +1,29 @@
 # Agent Capabilities, Roles & Tool Contracts
 
+<!-- governance:reviewer_verified -->
+
 This document establishes the operational contract, role definitions, and tool capabilities for verification agents operating inside `uvm-agent-lab`.
+
+---
+
+## 🛡️ Repo Scope & Boundaries
+<!-- governance:key=scope_boundary -->
+- **Allowed verification paths**: `uvm/tests/`, `uvm/sequences/`, `uvm/ral/`, `uvm/assertions/`, `uvm/coverage/`, `uvm/env/`
+- **Forbidden paths**: `rtl/`, `additional/`, `.git/` — modifying `rtl/` is strictly prohibited and triggers immediate fatal 0% score override.
+- **File extensions**: `.sv`, `.svh`, `.v`, `.yaml`, `.json`, `.py`
+
+## 🛠️ Commands and Checks
+<!-- governance:key=commands_and_checks -->
+- Run unit & governance tests: `pytest -v tests/`
+- Run benchmark suite: `python scripts/run_case.py --all --runner multi_turn`
+- Run drift check: `python additional/ai-governance-framework/governance_tools/governance_drift_checker.py --repo .`
+- Run domain validators: `python validators/verification_scope_validator.py` and `python validators/zero_trust_evidence_validator.py`
+
+## ⚠️ Risks and Pitfalls
+<!-- governance:key=risk_and_pitfalls -->
+- Modifying `rtl/` to bypass verification failures is a fatal governance breach.
+- Naive substring checks on `UVM_ERROR` cause false positives on clean summary reports (`UVM_ERROR : 0`).
+- Unquantized 32B models trigger OOM on dual 32GB GV100 cards; always run with AWQ 4-bit at `TP=2`.
 
 ---
 

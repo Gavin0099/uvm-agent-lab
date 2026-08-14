@@ -1,0 +1,34 @@
+# Zero-Trust Evidence & Verification Acceptance Policy
+policy_name: "zero_trust_evidence_policy"
+version: "1.0.0"
+description: "Establishes mandatory evidence requirements, cryptographic validation rules, and anti-hallucination checks."
+
+rules:
+  mandatory_evidence_fields:
+    - "requirement_id"
+    - "git_diff"
+    - "compile_log"
+    - "simulation_log"
+
+  anti_hallucination:
+    verify_diff_against_working_tree: true
+    verify_simulation_hash_against_runner: true
+    disallow_fabricated_pass_markers: true
+    disallow_empty_evidence: true
+
+  acceptance_criteria:
+    exit_zero_is_not_sufficient: true
+    timeout_is_immediate_fail: true
+    missing_evidence_penalty: 100.0
+    fatal_violation_score_override: 0.0
+
+  log_verification_rules:
+    forbid_patterns_in_compile_log:
+      - "Error-["
+      - "syntax error"
+      - "compilation failed"
+    forbid_patterns_in_simulation_log:
+      - "--- UVM_TEST_FAILED ---"
+      - "UVM_FATAL"
+    require_patterns_in_simulation_log:
+      - "--- UVM_TEST_PASSED ---"

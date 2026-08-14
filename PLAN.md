@@ -1,5 +1,9 @@
 # UVM Agent Lab — Master Project Plan (PLAN.md)
 
+> **最後更新**: 2026-08-15
+> **Owner**: Gavin0099
+> **Freshness**: Phase (30d)
+> **Status**: Active (Phase 1, 2, 3 Delivered)
 > **Deterministic Evaluation, AI Governance, and Runtime Qualification for UVM AI Verification Agents**
 
 ---
