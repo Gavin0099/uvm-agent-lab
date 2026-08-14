@@ -1,0 +1,39 @@
+# Compatibility Matrix
+
+This document tracks supported and tested configurations across EDA Simulators, Model Runtimes, and Knowledge Layer Adapters.
+
+---
+
+## 💻 EDA Tool & Simulator Matrix
+
+| Simulator | Type | Status | Supported Verification Tasks | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **SimStub (Built-in)** | Deterministic Mock | ✅ Native | All (UVM-001 ~ UVM-005) | Zero external EDA dependencies required. |
+| **Synopsys VCS** | Commercial EDA | 🔄 Planned | Full IEEE 1800.2 UVM | Standard industry reference. |
+| **Cadence Xcelium** | Commercial EDA | 🔄 Planned | Full IEEE 1800.2 UVM | Commercial multi-core runner. |
+| **Siemens Questa** | Commercial EDA | 🔄 Planned | Full IEEE 1800.2 UVM | Native SystemVerilog engine. |
+| **Verilator** | Open-Source | 🔄 Planned | C++ translation / Lint | Good for fast linting & C++ co-sim. |
+| **Icarus Verilog** | Open-Source | 🔄 Planned | Basic SV / Test | Lightweight smoke testing. |
+
+---
+
+## 🧠 Model Runtime & LLM Inference Matrix
+
+| Runtime | Protocol | Supported Formats | Recommended Model Target |
+| :--- | :--- | :--- | :--- |
+| **Mock / Baseline** | Python In-Memory | N/A | Deterministic pipeline & harness testing |
+| **vLLM** | OpenAI Compatible REST | FP16, AWQ, GPTQ | Qwen 2.5 Coder 32B (TP=2 NVLink) |
+| **SGLang** | OpenAI Compatible REST | FP16, FP8, AWQ | Ultra-low latency tool calling |
+| **Ollama** | Local REST | GGUF (Q4_K_M, Q8_0) | Fast local iteration |
+| **llama.cpp** | CLI / HTTP | GGUF | Memory-constrained execution |
+
+---
+
+## 📚 Knowledge Layer Adapters
+
+| Adapter Type | Protocol | Target System | Governance Status |
+| :--- | :--- | :--- | :--- |
+| **Canonical Spec** | Python / JSON | `spec-reference-kit` | Certified Authoritative |
+| **BM25 Keyword** | Python In-Memory | Local text index | Baseline |
+| **Vector RAG** | Embedding Cosine | Local / Remote Vector DB | Baseline |
+| **MCP Adapter** | JSON-RPC (Model Context Protocol) | External Knowledge Server | Standardized Interoperability |

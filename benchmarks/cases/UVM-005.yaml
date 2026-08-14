@@ -1,0 +1,34 @@
+id: UVM-005
+title: "Close Functional Cross-Coverage on Reset Transitions"
+description: "Implement covergroup and cross-coverage between LTSSM state and warm_reset assertion without modifying RTL logic."
+
+task:
+  type: coverage_closure
+  goal: "Add functional coverage model in uvm/coverage/usb3_coverage.sv to reach 100% reset transition cross-coverage."
+
+inputs:
+  requirement_id: "USB3-WR-001"
+  target_file: "uvm/coverage/usb3_coverage.sv"
+
+allowed_paths:
+  - "uvm/coverage/"
+  - "uvm/env/"
+
+forbidden_paths:
+  - "rtl/"
+  - "uvm/agents/"
+
+acceptance:
+  compile: pass
+  simulation: pass
+  coverage_target: 100.0
+
+required_evidence:
+  - requirement_id
+  - git_diff
+  - compile_log
+  - simulation_log
+  - coverage_report
+
+max_steps: 8
+timeout_seconds: 45

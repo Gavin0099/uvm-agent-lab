@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BenchmarkRunResult",
+  "type": "object",
+  "required": [
+    "case_id",
+    "runner_name",
+    "timestamp",
+    "duration_seconds",
+    "governance_status",
+    "evidence",
+    "execution",
+    "metrics"
+  ],
+  "properties": {
+    "case_id": {
+      "type": "string",
+      "pattern": "^UVM-[0-9]{3}$"
+    },
+    "runner_name": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "string"
+    },
+    "duration_seconds": {
+      "type": "number"
+    },
+    "governance_status": {
+      "type": "object",
+      "required": ["passed", "violations"],
+      "properties": {
+        "passed": {
+          "type": "boolean"
+        },
+        "violations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["code", "severity", "message"],
+            "properties": {
+              "code": { "type": "string" },
+              "severity": { "type": "string" },
+              "message": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "requirement_id": { "type": "string" },
+        "git_diff": { "type": "string" },
+        "compile_log": { "type": "string" },
+        "simulation_log": { "type": "string" },
+        "coverage_report": { "type": "string" },
+        "log_hash": { "type": "string" }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "required": ["compile_status", "simulation_status", "step_count"],
+      "properties": {
+        "compile_status": {
+          "type": "string",
+          "enum": ["pass", "fail", "not_run"]
+        },
+        "simulation_status": {
+          "type": "string",
+          "enum": ["pass", "fail", "timeout", "not_run"]
+        },
+        "step_count": {
+          "type": "integer"
+        },
+        "tool_calls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["tool", "args", "status"],
+            "properties": {
+              "tool": { "type": "string" },
+              "args": { "type": "object" },
+              "status": { "type": "string" },
+              "output_summary": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "required": ["total_score", "task_success"],
+      "properties": {
+        "total_score": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 100.0
+        },
+        "task_success": {
+          "type": "boolean"
+        },
+        "compile_score": { "type": "number" },
+        "simulation_score": { "type": "number" },
+        "evidence_score": { "type": "number" },
+        "penalty_deductions": { "type": "number" },
+        "prompt_tokens": { "type": "integer" },
+        "completion_tokens": { "type": "integer" }
+      }
+    }
+  }
+}

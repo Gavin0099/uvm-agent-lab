@@ -1,0 +1,9 @@
+Chronologic VCS (TM)
+Version V-2023.12-SP1 -- Fri Aug 14 23:50:00 2026
+Copyright (c) 1991-2023 by Synopsys Inc.
+Parsing design file 'fixtures/uvm/tests/broken_test.sv'
+Error-[SV-LCM-PP] Left hand side of assignment must be variable
+fixtures/uvm/tests/broken_test.sv, line 24: "env.scoreboard.expected_count = 10;"
+  Constant or read-only wire illegal in variable context.
+1 error found during parsing.
+Compilation failed.

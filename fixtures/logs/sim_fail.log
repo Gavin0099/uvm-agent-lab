@@ -1,0 +1,12 @@
+UVM_INFO @ 0: reporter [RNTST] Running test axi_backpressure_test...
+UVM_INFO fixtures/uvm/tests/axi_backpressure_test.sv(15) @ 10ns: uvm_test_top [TEST] Starting Backpressure Stress Test...
+UVM_ERROR fixtures/uvm/env/axi_scoreboard.sv(88) @ 420ns: uvm_test_top.env.scoreboard [SCBD_MISMATCH] Data mismatch at packet #14: Expected 0xDEADBEEF, Got 0x00000000 (Beat dropped during backpressure deassertion).
+UVM_INFO /tools/synopsys/uvm-1.2/src/base/uvm_report_server.svh(847) @ 600ns: reporter [UVM/REPORT/SERVER] 
+--- UVM Report Summary ---
+** Report counts by severity
+UVM_INFO :    3
+UVM_WARNING :    0
+UVM_ERROR :    1
+UVM_FATAL :    0
+--- UVM_TEST_FAILED ---
+Simulation failed at 600ns.

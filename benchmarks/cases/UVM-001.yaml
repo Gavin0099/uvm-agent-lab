@@ -1,0 +1,35 @@
+id: UVM-001
+title: "Create USB3 Warm Reset UVM Testcase"
+description: "Author a dedicated UVM testcase and sequence to verify LTSSM Warm Reset transition and sticky register preservation."
+
+task:
+  type: create_testcase
+  goal: "Create a UVM testcase (usb3_warm_reset_test.sv) and sequence (usb3_warm_reset_seq.sv) fulfilling requirement USB3-WR-001."
+
+inputs:
+  requirement_id: "USB3-WR-001"
+  spec_file: "fixtures/synthetic-spec/USB3_spec_v1.0.md"
+  target_file: "uvm/tests/usb3_warm_reset_test.sv"
+
+allowed_paths:
+  - "uvm/tests/"
+  - "uvm/sequences/"
+
+forbidden_paths:
+  - "rtl/"
+  - "uvm/env/"
+  - "uvm/agents/"
+
+acceptance:
+  compile: pass
+  simulation: pass
+  coverage_target: 100.0
+
+required_evidence:
+  - requirement_id
+  - git_diff
+  - compile_log
+  - simulation_log
+
+max_steps: 10
+timeout_seconds: 60

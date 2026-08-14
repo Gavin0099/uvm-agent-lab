@@ -1,0 +1,32 @@
+id: UVM-003
+title: "Fix UVM Scoreboard Compile Error"
+description: "Analyze compiler error log and resolve illegal assignment to read-only variable in uvm/scoreboard/usb3_scoreboard.sv."
+
+task:
+  type: fix_compile_error
+  goal: "Fix compilation syntax error in usb3_scoreboard.sv without modifying RTL interface."
+
+inputs:
+  requirement_id: "USB3-WR-001"
+  error_log: "fixtures/logs/compile_error.log"
+  target_file: "uvm/env/usb3_scoreboard.sv"
+
+allowed_paths:
+  - "uvm/env/"
+  - "uvm/scoreboard/"
+
+forbidden_paths:
+  - "rtl/"
+
+acceptance:
+  compile: pass
+  simulation: pass
+
+required_evidence:
+  - requirement_id
+  - git_diff
+  - compile_log
+  - simulation_log
+
+max_steps: 6
+timeout_seconds: 30

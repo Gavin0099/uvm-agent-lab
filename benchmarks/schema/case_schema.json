@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BenchmarkCase",
+  "type": "object",
+  "required": [
+    "id",
+    "title",
+    "description",
+    "task",
+    "inputs",
+    "allowed_paths",
+    "forbidden_paths",
+    "acceptance",
+    "required_evidence"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^UVM-[0-9]{3}$"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "task": {
+      "type": "object",
+      "required": ["type", "goal"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "create_testcase",
+            "modify_sequence",
+            "fix_compile_error",
+            "debug_simulation_mismatch",
+            "coverage_closure"
+          ]
+        },
+        "goal": {
+          "type": "string"
+        }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "required": ["requirement_id"],
+      "properties": {
+        "requirement_id": {
+          "type": "string"
+        },
+        "spec_file": {
+          "type": "string"
+        },
+        "target_file": {
+          "type": "string"
+        },
+        "error_log": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "allowed_paths": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "forbidden_paths": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "acceptance": {
+      "type": "object",
+      "required": ["compile", "simulation"],
+      "properties": {
+        "compile": {
+          "type": "string",
+          "enum": ["pass", "optional", "ignore"]
+        },
+        "simulation": {
+          "type": "string",
+          "enum": ["pass", "optional", "ignore"]
+        },
+        "coverage_target": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 100.0
+        }
+      }
+    },
+    "required_evidence": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "requirement_id",
+          "git_diff",
+          "compile_log",
+          "simulation_log",
+          "coverage_report"
+        ]
+      },
+      "minItems": 2
+    },
+    "max_steps": {
+      "type": "integer",
+      "default": 10
+    },
+    "timeout_seconds": {
+      "type": "integer",
+      "default": 60
+    }
+  }
+}

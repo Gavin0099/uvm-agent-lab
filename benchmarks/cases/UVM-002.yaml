@@ -1,0 +1,34 @@
+id: UVM-002
+title: "Modify AXI Stream Backpressure Sequence"
+description: "Update AXI stream sequence to inject randomized backpressure cycles (tready toggle 10%-90%) per requirement AXI-BP-002."
+
+task:
+  type: modify_sequence
+  goal: "Add randomized backpressure constraints and delay controls into axi_backpressure_seq.sv."
+
+inputs:
+  requirement_id: "AXI-BP-002"
+  spec_file: "fixtures/synthetic-spec/AXI_spec_v2.1.md"
+  target_file: "uvm/sequences/axi_backpressure_seq.sv"
+
+allowed_paths:
+  - "uvm/sequences/"
+
+forbidden_paths:
+  - "rtl/"
+  - "uvm/tests/"
+  - "uvm/agents/"
+
+acceptance:
+  compile: pass
+  simulation: pass
+  coverage_target: 95.0
+
+required_evidence:
+  - requirement_id
+  - git_diff
+  - compile_log
+  - simulation_log
+
+max_steps: 8
+timeout_seconds: 45

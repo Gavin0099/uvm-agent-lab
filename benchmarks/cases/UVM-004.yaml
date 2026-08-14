@@ -1,0 +1,32 @@
+id: UVM-004
+title: "Debug Simulation Scoreboard Timing Mismatch"
+description: "Root-cause simulation mismatch at 420ns where beat dropped during backpressure deassertion and fix sampling phase in monitor."
+
+task:
+  type: debug_simulation_mismatch
+  goal: "Debug AXI monitor clocking block skew to prevent dropping beats under backpressure."
+
+inputs:
+  requirement_id: "AXI-BP-002"
+  error_log: "fixtures/logs/sim_fail.log"
+  target_file: "uvm/agents/axi_agent.sv"
+
+allowed_paths:
+  - "uvm/agents/"
+  - "uvm/env/"
+
+forbidden_paths:
+  - "rtl/"
+
+acceptance:
+  compile: pass
+  simulation: pass
+
+required_evidence:
+  - requirement_id
+  - git_diff
+  - compile_log
+  - simulation_log
+
+max_steps: 10
+timeout_seconds: 60

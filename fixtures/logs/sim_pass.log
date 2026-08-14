@@ -1,0 +1,14 @@
+UVM_INFO @ 0: reporter [RNTST] Running test usb3_warm_reset_test...
+UVM_INFO fixtures/uvm/tests/usb3_warm_reset_test.sv(18) @ 10ns: uvm_test_top [TEST] Starting Warm Reset Verification sequence...
+UVM_INFO fixtures/uvm/sequences/usb3_warm_reset_seq.sv(42) @ 150ns: uvm_test_top.env.u3_agent.seq [SEQ] Asserting warm_reset_n for 12 cycles...
+UVM_INFO fixtures/uvm/sequences/usb3_warm_reset_seq.sv(55) @ 300ns: uvm_test_top.env.u3_agent.seq [SEQ] Observed LTSSM state transition: U0 -> Rx.Detect in 8 cycles (Req: <=12 cycles).
+UVM_INFO fixtures/uvm/sequences/usb3_warm_reset_seq.sv(60) @ 310ns: uvm_test_top.env.u3_agent.seq [SEQ] Sticky register check: 0xA5 == 0xA5 (PASSED).
+UVM_INFO /tools/synopsys/uvm-1.2/src/base/uvm_report_server.svh(847) @ 500ns: reporter [UVM/REPORT/SERVER] 
+--- UVM Report Summary ---
+** Report counts by severity
+UVM_INFO :    5
+UVM_WARNING :    0
+UVM_ERROR :    0
+UVM_FATAL :    0
+--- UVM_TEST_PASSED ---
+Simulation finished at 500ns.
