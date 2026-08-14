@@ -35,6 +35,11 @@ uvm/*
 !uvm/.gitkeep
 !uvm/*/.gitkeep
 
+# Checkpoints & Model weights
+checkpoints/
+datasets/
+dataset_gen/output/
+
 # OS
 .DS_Store
 Thumbs.db

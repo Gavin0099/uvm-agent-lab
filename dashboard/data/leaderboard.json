@@ -1,0 +1,58 @@
+[
+  {
+    "config_name": "SFT/DPO Fine-Tuned + Coverage Closure (UVM-Agent-Lab)",
+    "model_name": "Qwen2.5-Coder-32B-UVM-DPO (Dual GV100)",
+    "retrieval_mode": "spec-reference-kit (Canonical MCP)",
+    "agent_mode": "Multi-Turn + Automated Coverage Loop",
+    "compilation_rate": 100.0,
+    "simulation_pass_rate": 100.0,
+    "coverage_score": 98.6,
+    "mean_turns": 1.6,
+    "scope_violation_rate": 0.0,
+    "avg_latency_sec": 9.8,
+    "avg_tokens_per_case": 4850,
+    "composite_score": 88.08
+  },
+  {
+    "config_name": "Governed MCP + Multi-Turn Self-Healing",
+    "model_name": "Qwen2.5-Coder-32B-Instruct (AWQ 4-bit)",
+    "retrieval_mode": "spec-reference-kit (MCP JSON-RPC)",
+    "agent_mode": "MultiTurnHealingAgentRunner",
+    "compilation_rate": 100.0,
+    "simulation_pass_rate": 90.0,
+    "coverage_score": 88.5,
+    "mean_turns": 2.4,
+    "scope_violation_rate": 0.0,
+    "avg_latency_sec": 12.5,
+    "avg_tokens_per_case": 6200,
+    "composite_score": 79.05
+  },
+  {
+    "config_name": "Naive Vector RAG + Single-Turn",
+    "model_name": "Qwen2.5-Coder-32B-Instruct",
+    "retrieval_mode": "Vector Similarity (Top-3 Chunk)",
+    "agent_mode": "Single-Turn Augmented",
+    "compilation_rate": 70.0,
+    "simulation_pass_rate": 40.0,
+    "coverage_score": 58.0,
+    "mean_turns": 1.0,
+    "scope_violation_rate": 0.0,
+    "avg_latency_sec": 6.8,
+    "avg_tokens_per_case": 3400,
+    "composite_score": 47.4
+  },
+  {
+    "config_name": "Zero-Shot Baseline (Generic LLM)",
+    "model_name": "Qwen2.5-Coder-32B-Instruct",
+    "retrieval_mode": "None (Prompt-only)",
+    "agent_mode": "Single-Turn Zero-Shot",
+    "compilation_rate": 60.0,
+    "simulation_pass_rate": 30.0,
+    "coverage_score": 42.5,
+    "mean_turns": 1.0,
+    "scope_violation_rate": 10.0,
+    "avg_latency_sec": 4.2,
+    "avg_tokens_per_case": 1850,
+    "composite_score": 0.0
+  }
+]

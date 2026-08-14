@@ -10,6 +10,7 @@ on:
       - "PLAN.md"
       - "contract.yaml"
       - "governance/**"
+      - "validators/**"
   pull_request:
     branches: [main]
     paths:
@@ -19,6 +20,7 @@ on:
       - "PLAN.md"
       - "contract.yaml"
       - "governance/**"
+      - "validators/**"
   workflow_dispatch:
 
 jobs:
@@ -29,14 +31,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       - name: Run governance drift check
         run: |
-          python governance/governance_tools/governance_drift_checker.py \
+          python additional/ai-governance-framework/governance_tools/governance_drift_checker.py \
             --repo . \
-            --framework-root governance \
+            --framework-root additional/ai-governance-framework \
             --format human

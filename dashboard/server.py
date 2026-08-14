@@ -32,6 +32,17 @@ class DashboardAPIHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(data).encode("utf-8"))
             return
 
+        if self.path == "/api/leaderboard":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            leaderboard_file = DASHBOARD_DIR / "data" / "leaderboard.json"
+            if leaderboard_file.exists():
+                self.wfile.write(leaderboard_file.read_bytes())
+            else:
+                self.wfile.write(json.dumps([]).encode("utf-8"))
+            return
+
         super().do_GET()
 
 
