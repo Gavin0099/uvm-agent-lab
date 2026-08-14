@@ -2,25 +2,30 @@
 
 <!-- governance:reviewer_verified -->
 
+> **最後更新**: 2026-08-15
+> **Owner**: Gavin0099
+> **狀態**: Active
+
 ## 🛠️ Routine Developer Commands
 
 ### 1. Test Suite & Validation
 ```bash
-# Run all unit and governance integration tests
+# Run all unit, benchmark, and governance integration tests (35 tests)
 pytest -v tests/
 
 # Run a specific test module
 pytest -v tests/test_coverage_closure.py
 pytest -v tests/test_ai_governance_framework_integration.py
+pytest -v tests/test_benchmark_leaderboard_and_training.py
 ```
 
-### 2. Benchmark Execution
+### 2. Benchmark Execution & Leaderboard
 ```bash
 # Run all 10 benchmark cases with multi-turn self-healing runner
 python scripts/run_case.py --all --runner multi_turn
 
-# Run a single benchmark case
-python scripts/run_case.py --case UVM-001 --runner multi_turn
+# Generate comparative leaderboard (Markdown & JSON)
+python scripts/generate_leaderboard.py --output-md benchmarks/LEADERBOARD.md --output-json dashboard/data/leaderboard.json
 
 # Run live evaluation harness with custom model
 python scripts/run_live_eval.py --cases UVM-001 UVM-006 --runner multi_turn --mock
@@ -34,10 +39,13 @@ python dashboard/server.py --port 8000
 # Open browser to http://localhost:8000
 ```
 
-### 4. Fine-Tuning Dataset Generation
+### 4. Fine-Tuning Dataset Generation & DPO Configurator
 ```bash
 # Export SFT and DPO datasets from benchmark runs
 python dataset_gen/export_dataset.py --output-dir datasets/ --sft-count 50 --dpo-count 50
+
+# Generate DPO training recipe for Dual GV100
+python scripts/train_dpo_qwen.py --model Qwen/Qwen2.5-Coder-32B-Instruct --dataset-dir datasets
 ```
 
 ### 5. Dual GV100 vLLM Serving

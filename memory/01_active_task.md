@@ -2,6 +2,10 @@
 
 <!-- governance:reviewer_verified -->
 
+> **最後更新**: 2026-08-15
+> **Owner**: Gavin0099
+> **狀態**: Active
+
 ## 📌 Project Overview
 `uvm-agent-lab` is an industrial-grade evaluation and self-healing agent testbed for LLM-assisted IEEE 1800.2 UVM digital chip verification. It features deterministic benchmarking, multi-turn syntax/timing self-healing, functional coverage closure, real EDA toolchain adapters, MCP protocol knowledge integration, and zero-trust AI governance.
 
@@ -36,17 +40,18 @@
 ### ✅ Phase 3: Web Dashboard, SFT/DPO Kit & Coverage Closure
 - **Interactive Web Dashboard (`dashboard/`)**:
   - Single-page application built with Vanilla CSS / JS featuring dark telemetry aesthetics, responsive layout, real-time benchmark execution, case inspector, pass rate charts, and token cost breakdown.
-  - Python REST API server (`dashboard/server.py`) serving dashboard assets and `/api/run`, `/api/cases`, `/api/results`, `/api/summary` endpoints.
-- **UVM Fine-Tuning Kit (`dataset_gen/`)**:
+  - Python REST API server (`dashboard/server.py`) serving dashboard assets, `/api/leaderboard`, `/api/summary`, etc.
+- **UVM Fine-Tuning Kit (`dataset_gen/` & `scripts/train_dpo_qwen.py`)**:
   - `sft_generator.py`: Generates instruction-tuning datasets for UVM testbench and sequence authoring.
-  - `dpo_generator.py`: Generates Direct Preference Optimization (DPO) chosen vs rejected pairs (rewarding zero-trust scope compliance, penalizing RTL tampering and hallucinatory spec assumptions).
+  - `dpo_generator.py`: Generates Direct Preference Optimization (DPO) chosen vs rejected pairs (rewarding zero-trust scope compliance, penalizing RTL tampering).
   - `export_dataset.py`: CLI for generating formatted JSONL datasets with train/eval splits.
+  - `train_dpo_qwen.py`: Generates complete QLoRA 4-bit NF4 / FP16 DPO training recipes for Qwen-32B on Dual GV100.
 - **Automated Functional Coverage Closure (`agent/coverage/`)**:
   - `coverage_parser.py`: Analyzes coverage databases and extracts unhit bins and cross-coverage holes.
   - `directed_seq_generator.py`: Autonomously synthesizes targeted SystemVerilog sequences with constrained randomization to hit specific unhit bins.
   - `closure_loop.py`: Executes iterative closed-loop coverage closure cycles until target coverage goals (e.g. 100%) are achieved.
-- **Live Evaluation Harness (`scripts/run_live_eval.py`)**:
-  - CLI runner for evaluating real and simulated agent models across benchmark suites.
+- **Benchmark Leaderboard (`scripts/generate_leaderboard.py`)**:
+  - Generates cross-configuration benchmark matrices and ranking (`benchmarks/LEADERBOARD.md`).
 
 ### ✅ Full AI Governance Framework Integration
 - Pinned `https://github.com/Gavin0099/ai-governance-framework.git` as a Git submodule at `additional/ai-governance-framework`.
@@ -55,11 +60,11 @@
   - `validators/verification_scope_validator.py` (enforcing anti-RTL tampering and scope boundaries)
   - `validators/zero_trust_evidence_validator.py` (enforcing evidence packet integrity)
 - Installed `.git/hooks/pre-commit` and `.git/hooks/pre-push` runtime hooks.
-- Attained **`full_candidate`** status in `human_readable_adoption_summary` with **18/18 drift checks PASS** and **32/32 pytest tests PASS**.
+- Configured GitHub Actions CI/CD workflows (`.github/workflows/ci.yml`, `.github/workflows/governance-drift.yml`).
+- Attained **`full_candidate`** status in `human_readable_adoption_summary` with **18/18 drift checks PASS** and **35/35 pytest tests PASS**.
 
 ---
 
 ## 🎯 Next Steps & Future Roadmap
-1. **Cloud CI/CD Workflow**: Configure GitHub Actions matrix (`.github/workflows/ci.yml`) to run `pytest -v tests/` and `governance_drift_checker.py` on all Pull Requests.
-2. **Live EDA Cluster Integration**: Connect `SynopsysVCSAdapter` and `VerilatorAdapter` to live compute nodes with licensed VCS / Verdi toolchains.
-3. **Model Fine-Tuning Run**: Train a dedicated domain model (e.g. `Qwen2.5-Coder-32B-UVM`) on the generated DPO/SFT datasets and evaluate on Dual GV100.
+1. **Live EDA Cluster Integration**: Connect `SynopsysVCSAdapter` and `VerilatorAdapter` to live compute nodes with licensed VCS / Verdi toolchains.
+2. **Model Fine-Tuning Execution**: Execute `train_dpo_qwen.py` on real Dual GV100 hardware to train `Qwen2.5-Coder-32B-UVM-DPO`.

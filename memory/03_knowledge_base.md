@@ -2,6 +2,10 @@
 
 <!-- governance:reviewer_verified -->
 
+> **最後更新**: 2026-08-15
+> **Owner**: Gavin0099
+> **狀態**: Active
+
 ## ⚠️ Critical Verification & Toolchain Gotchas
 
 ### 1. UVM Simulation Log Parsing & False Positives

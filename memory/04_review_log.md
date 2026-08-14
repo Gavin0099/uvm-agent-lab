@@ -2,7 +2,17 @@
 
 <!-- governance:reviewer_verified -->
 
+> **最後更新**: 2026-08-15
+> **Owner**: Gavin0099
+> **狀態**: Active
+
 ## 📝 Milestone History
+
+### 2026-08-15 — CI/CD Governance Gate, Benchmark Leaderboard & DPO Pipeline
+- **GitHub Actions CI/CD**: Established `.github/workflows/ci.yml` and `.github/workflows/governance-drift.yml` running 35 pytest tests, drift checks, and smoke tests.
+- **Benchmark Leaderboard**: Implemented `scripts/generate_leaderboard.py`, generated `benchmarks/LEADERBOARD.md` and `dashboard/data/leaderboard.json`, wired `/api/leaderboard` in `dashboard/server.py`.
+- **DPO Pipeline**: Implemented `scripts/train_dpo_qwen.py` providing complete QLoRA 4-bit NF4 / FP16 DPO training recipe targeting Dual GV100 (`TP=2`).
+- **Test Suite**: Expanded test suite to **35 / 35 PASSED**.
 
 ### 2026-08-15 — Full AI Governance Framework Submodule Integration
 - **Framework Authority**: Submodule integration of `https://github.com/Gavin0099/ai-governance-framework.git` at `additional/ai-governance-framework` (Commit: `3305b640d17ca253e632093d434ae029f920c3e3`).
@@ -11,7 +21,7 @@
   - Created `contract.yaml` for `digital-verification` with validators `verification_scope_validator.py` and `zero_trust_evidence_validator.py`.
   - Aligned `AGENTS.md` and `PLAN.md` with required governance sections and freshness metadata.
   - Installed `.git/hooks/pre-commit` and `.git/hooks/pre-push`.
-- **Status Outcome**: Drift checks passed (**18 / 18 PASS**), smoke tests passed (**ok = True**), maturity summary reached **`full_candidate`**, and all **32 pytest tests passed**.
+- **Status Outcome**: Drift checks passed (**18 / 18 PASS**), smoke tests passed (**ok = True**), maturity summary reached **`full_candidate`**, and all tests passed.
 
 ### 2026-08-14 — Phase 3: Web Dashboard, SFT/DPO Fine-Tuning Kit & Coverage Closure Loop
 - **Interactive Web Dashboard**: Built single-page app in `dashboard/` with telemetry styling, benchmark launcher, live progress tracking, and Python HTTP server.

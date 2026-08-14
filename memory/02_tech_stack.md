@@ -2,6 +2,10 @@
 
 <!-- governance:reviewer_verified -->
 
+> **最後更新**: 2026-08-15
+> **Owner**: Gavin0099
+> **狀態**: Active
+
 ## 🛠️ System Specifications
 
 - **Target Domain**: IEEE 1800.2 UVM (Universal Verification Methodology) & Digital ASIC/SoC Design Verification.
@@ -30,7 +34,7 @@
 | **`validators/`** | Domain verification validators: `verification_scope_validator.py`, `zero_trust_evidence_validator.py`. |
 | **`governance/`** | AI Governance Policy-as-Code pack: `TESTING.md`, `ARCHITECTURE.md`, `framework.lock.json`, policies and rules. |
 | **`memory/`** | Four-tier persistent memory layer (`01_active_task.md`, `02_tech_stack.md`, `02_workflow.md`, `03_knowledge_base.md`, `04_review_log.md`). |
-| **`tests/`** | Comprehensive pytest suite (32 unit and governance integration tests). |
+| **`tests/`** | Comprehensive pytest suite (35 unit, benchmark, and governance integration tests). |
 
 ---
 
