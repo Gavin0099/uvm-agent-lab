@@ -1,21 +1,23 @@
 """
-Gate 1: Spec / Retrieval Evaluation Suite
+Gate 1: Spec / Retrieval Comprehensive Evaluation Suite
 Compares spec-reference-kit vs BM25 vs Vector RAG vs Hybrid across:
-- Recall@1
-- Recall@3
-- Wrong-version rate
-- Wrong-authority rate
-- Wrong-customer leak rate
+- Recall@1 (%)
+- Recall@3 (%)
+- MRR (Mean Reciprocal Rank)
+- Wrong-Version Rate (%)
+- Wrong-Authority Rate (%)
+- Customer-Leak Rate (%)
 """
 
 import sys
+import json
 from pathlib import Path
+from typing import Dict, Any, List
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from typing import Dict, Any, List
 from retrieval.canonical.retriever import CanonicalSpecRetriever
 from retrieval.bm25.retriever import BM25Retriever
 from retrieval.vector.retriever import VectorRetrieverStub
@@ -23,7 +25,9 @@ from retrieval.hybrid.retriever import HybridRetriever
 
 
 class Gate1RetrievalEvaluator:
-    def __init__(self, spec_dir: str = "fixtures/synthetic-spec"):
+    def __init__(self, spec_dir: str = "fixtures/synthetic-spec", queries_path: str = "benchmarks/retrieval/queries.json"):
+        self.spec_dir = spec_dir
+        self.queries_path = Path(queries_path)
         self.retrievers = {
             "spec-reference-kit": CanonicalSpecRetriever(spec_dir=spec_dir),
             "bm25": BM25Retriever(doc_dir=spec_dir),
@@ -31,66 +35,87 @@ class Gate1RetrievalEvaluator:
             "hybrid": HybridRetriever(doc_dir=spec_dir),
         }
 
+    def load_queries(self) -> List[Dict[str, Any]]:
+        if self.queries_path.exists():
+            with open(self.queries_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return []
+
     def evaluate(self, test_queries: List[Dict[str, Any]] = None) -> Dict[str, Any]:
-        if test_queries is None:
-            test_queries = [
-                {
-                    "query": "USB3-WR-001 Warm Reset Rx.Detect transition",
-                    "expected_id": "USB3-WR-001",
-                    "expected_ver": "1.0",
-                    "expected_file": "USB3_spec_v1.0.md"
-                },
-                {
-                    "query": "AXI-BP-002 randomized backpressure tready",
-                    "expected_id": "AXI-BP-002",
-                    "expected_ver": "2.1",
-                    "expected_file": "AXI_spec_v2.1.md"
-                }
-            ]
+        queries = test_queries or self.load_queries()
+        if not queries:
+            raise ValueError("No retrieval test queries provided.")
 
         results = {}
+        total = len(queries)
+
         for name, retriever in self.retrievers.items():
             recall_1 = 0
             recall_3 = 0
-            wrong_ver = 0
-            wrong_auth = 0
-            total = len(test_queries)
+            mrr_total = 0.0
+            wrong_ver_count = 0
+            wrong_auth_count = 0
+            cust_leak_count = 0
 
-            for q in test_queries:
-                hits = retriever.query(q["query"], top_k=3)
+            for q in queries:
+                kwargs = {}
+                if name in ["spec-reference-kit", "hybrid"]:
+                    kwargs["target_version"] = q.get("expected_ver")
+                    kwargs["caller_customer_tier"] = q.get("target_customer_tier")
+
+                hits = retriever.query(q["query"], top_k=3, **kwargs)
+
                 if hits:
-                    # Check top 1
-                    if q["expected_id"] in hits[0].get("snippet", "") or q["expected_file"] == hits[0].get("file", ""):
+                    # 1. Rank tracking & Recall
+                    hit_rank = None
+                    for idx, h in enumerate(hits):
+                        is_target = (
+                            q["expected_id"] in h.get("snippet", "")
+                            or q["expected_file"] == h.get("file", "")
+                        )
+                        if is_target:
+                            hit_rank = idx + 1
+                            break
+
+                    if hit_rank == 1:
                         recall_1 += 1
-                    # Check top 3
-                    found_in_3 = any(
-                        q["expected_id"] in h.get("snippet", "") or q["expected_file"] == h.get("file", "")
-                        for h in hits
-                    )
-                    if found_in_3:
+                    if hit_rank is not None and hit_rank <= 3:
                         recall_3 += 1
+                        mrr_total += 1.0 / hit_rank
 
-                    # Check version governance (if retriever supports version metadata)
-                    top_ver = hits[0].get("version")
-                    if top_ver and top_ver != q.get("expected_ver"):
-                        wrong_ver += 1
+                    # 2. Check Top-1 Governance attributes
+                    top_hit = hits[0]
+                    top_ver = top_hit.get("version", "unknown")
+                    top_auth = top_hit.get("authority", "unknown").lower()
+                    top_cust = top_hit.get("customer_tier", "unknown").lower()
 
-                    top_auth = hits[0].get("authority")
-                    if top_auth and top_auth != "authoritative":
-                        wrong_auth += 1
+                    # Wrong Version detection
+                    if top_ver != "unknown" and top_ver != q.get("expected_ver"):
+                        wrong_ver_count += 1
+
+                    # Wrong Authority (e.g. unapproved draft or deprecated cited)
+                    if top_auth != "unknown" and top_auth != q.get("expected_authority", "authoritative").lower():
+                        wrong_auth_count += 1
+
+                    # Customer Leak (restricted tier leaked to standard tier query)
+                    expected_tier = q.get("target_customer_tier", "tier_1_partner")
+                    if top_cust == "tier_a_partner_restricted" and expected_tier != "tier_a_partner_restricted":
+                        cust_leak_count += 1
 
             results[name] = {
-                "recall@1": (recall_1 / total) * 100.0,
-                "recall@3": (recall_3 / total) * 100.0,
-                "wrong_version_rate": (wrong_ver / total) * 100.0,
-                "wrong_authority_rate": (wrong_auth / total) * 100.0,
+                "queries_evaluated": total,
+                "recall@1": round((recall_1 / total) * 100.0, 2),
+                "recall@3": round((recall_3 / total) * 100.0, 2),
+                "mrr": round(mrr_total / total, 3),
+                "wrong_version_rate": round((wrong_ver_count / total) * 100.0, 2),
+                "wrong_authority_rate": round((wrong_auth_count / total) * 100.0, 2),
+                "customer_leak_rate": round((cust_leak_count / total) * 100.0, 2),
             }
 
         return results
 
 
 if __name__ == "__main__":
-    import json
     evaluator = Gate1RetrievalEvaluator()
     summary = evaluator.evaluate()
     print(json.dumps(summary, indent=2))

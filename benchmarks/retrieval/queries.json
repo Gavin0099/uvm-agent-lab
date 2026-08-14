@@ -1,0 +1,152 @@
+[
+  {
+    "id": "Q-001",
+    "query": "USB3-WR-001 Warm Reset Rx.Detect transition",
+    "expected_id": "USB3-WR-001",
+    "expected_ver": "1.0",
+    "expected_file": "USB3_spec_v1.0.md",
+    "expected_authority": "authoritative",
+    "target_customer_tier": "tier_1_partner",
+    "category": "standard_lookup"
+  },
+  {
+    "id": "Q-002",
+    "query": "AXI-BP-002 randomized backpressure tready duty cycle",
+    "expected_id": "AXI-BP-002",
+    "expected_ver": "2.1",
+    "expected_file": "AXI_spec_v2.1.md",
+    "expected_authority": "authoritative",
+    "target_customer_tier": "internal_engineering",
+    "category": "standard_lookup"
+  },
+  {
+    "id": "Q-003",
+    "query": "Warm Reset state machine transition 12 cycles sticky register",
+    "expected_id": "USB3-WR-001",
+    "expected_ver": "1.0",
+    "expected_file": "USB3_spec_v1.0.md",
+    "expected_authority": "authoritative",
+    "target_customer_tier": "tier_1_partner",
+    "category": "keyword_semantic"
+  },
+  {
+    "id": "Q-004",
+    "query": "AXI stream FIFO tready tvalid in-flight beats",
+    "expected_id": "AXI-BP-002",
+    "expected_ver": "2.1",
+    "expected_file": "AXI_spec_v2.1.md",
+    "expected_authority": "authoritative",
+    "target_customer_tier": "internal_engineering",
+    "category": "keyword_semantic"
+  },
+  {
+    "id": "Q-005",
+    "query": "USB 3.2 version 1.0 Warm Reset specification requirement",
+    "expected_id": "USB3-WR-001",
+    "expected_ver": "1.0",
+    "expected_file": "USB3_spec_v1.0.md",
+    "expected_authority": "authoritative",
+    "target_customer_tier": "tier_1_partner",
+    "category": "version_pinned"
+  },
+  {
+    "id": "Q-006",
+    "query": "AXI4 Stream FIFO Controller v2.1 flow control",
+    "expected_id": "AXI-BP-002",
+    "expected_ver": "2.1",
+    "expected_file": "AXI_spec_v2.1.md",
+    "expected_authority": "authoritative",
+    "target_customer_tier": "internal_engineering",
+    "category": "version_pinned"
+  },
+  {
+    "id": "Q-007",
+    "query": "USB3 Warm Reset 20 clock cycles draft proposal",
+    "expected_id": "USB3-WR-001",
+    "expected_ver": "1.0",
+    "expected_file": "USB3_spec_v1.0.md",
+    "expected_authority": "authoritative",
+    "target_customer_tier": "tier_1_partner",
+    "category": "adversarial_draft_rejection"
+  },
+  {
+    "id": "Q-008",
+    "query": "AXI stream legacy 4-cycle timeout deprecated clause",
+    "expected_id": "AXI-BP-002",
+    "expected_ver": "2.1",
+    "expected_file": "AXI_spec_v2.1.md",
+    "expected_authority": "authoritative",
+    "target_customer_tier": "internal_engineering",
+    "category": "deprecated_avoidance"
+  },
+  {
+    "id": "Q-009",
+    "query": "USB3 LTSSM Rx.Detect state transition timeout",
+    "expected_id": "USB3-WR-001",
+    "expected_ver": "1.0",
+    "expected_file": "USB3_spec_v1.0.md",
+    "expected_authority": "authoritative",
+    "target_customer_tier": "tier_1_partner",
+    "category": "keyword_semantic"
+  },
+  {
+    "id": "Q-010",
+    "query": "AXI FIFO depth and count pointer wrap flow control",
+    "expected_id": "AXI-BP-002",
+    "expected_ver": "2.1",
+    "expected_file": "AXI_spec_v2.1.md",
+    "expected_authority": "authoritative",
+    "target_customer_tier": "internal_engineering",
+    "category": "keyword_semantic"
+  },
+  {
+    "id": "Q-011",
+    "query": "cfg_port_id sticky configuration register link_speed_cap",
+    "expected_id": "USB3-WR-001",
+    "expected_ver": "1.0",
+    "expected_file": "USB3_spec_v1.0.md",
+    "expected_authority": "authoritative",
+    "target_customer_tier": "tier_1_partner",
+    "category": "register_disambiguation"
+  },
+  {
+    "id": "Q-012",
+    "query": "Tier-A proprietary register secret key access",
+    "expected_id": "USB3-TIERA-001",
+    "expected_ver": "2.1",
+    "expected_file": "USB3_spec_v2.1_customer_restricted.md",
+    "expected_authority": "authoritative",
+    "target_customer_tier": "tier_a_partner_restricted",
+    "category": "customer_permission_check"
+  },
+  {
+    "id": "Q-013",
+    "query": "USB 3.2 cold reset power on default value vs warm reset",
+    "expected_id": "USB3-WR-001",
+    "expected_ver": "1.0",
+    "expected_file": "USB3_spec_v1.0.md",
+    "expected_authority": "authoritative",
+    "target_customer_tier": "tier_1_partner",
+    "category": "spec_section_lookup"
+  },
+  {
+    "id": "Q-014",
+    "query": "AXI tready toggle duty cycle from 10% to 90%",
+    "expected_id": "AXI-BP-002",
+    "expected_ver": "2.1",
+    "expected_file": "AXI_spec_v2.1.md",
+    "expected_authority": "authoritative",
+    "target_customer_tier": "internal_engineering",
+    "category": "verification_criteria_query"
+  },
+  {
+    "id": "Q-015",
+    "query": "Link Power Management & Reset Section 6.4",
+    "expected_id": "USB3-WR-001",
+    "expected_ver": "1.0",
+    "expected_file": "USB3_spec_v1.0.md",
+    "expected_authority": "authoritative",
+    "target_customer_tier": "tier_1_partner",
+    "category": "section_hierarchy_lookup"
+  }
+]

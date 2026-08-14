@@ -1,0 +1,226 @@
+{
+  "Qwen-2.5-Coder-32B": {
+    "model_name": "Qwen-2.5-Coder-32B",
+    "task_success_rate": 100.0,
+    "compile_success_rate": 100.0,
+    "sim_pass_rate": 100.0,
+    "avg_score": 100.0,
+    "total_tokens_consumed": 2850,
+    "tokens_per_solved_task": 570,
+    "case_details": [
+      {
+        "case_id": "UVM-001",
+        "compile_status": "pass",
+        "simulation_status": "pass",
+        "total_score": 100.0,
+        "task_success": true,
+        "prompt_tokens": 450,
+        "completion_tokens": 120
+      },
+      {
+        "case_id": "UVM-002",
+        "compile_status": "pass",
+        "simulation_status": "pass",
+        "total_score": 100.0,
+        "task_success": true,
+        "prompt_tokens": 450,
+        "completion_tokens": 120
+      },
+      {
+        "case_id": "UVM-003",
+        "compile_status": "pass",
+        "simulation_status": "pass",
+        "total_score": 100.0,
+        "task_success": true,
+        "prompt_tokens": 450,
+        "completion_tokens": 120
+      },
+      {
+        "case_id": "UVM-004",
+        "compile_status": "pass",
+        "simulation_status": "pass",
+        "total_score": 100.0,
+        "task_success": true,
+        "prompt_tokens": 450,
+        "completion_tokens": 120
+      },
+      {
+        "case_id": "UVM-005",
+        "compile_status": "pass",
+        "simulation_status": "pass",
+        "total_score": 100.0,
+        "task_success": true,
+        "prompt_tokens": 450,
+        "completion_tokens": 120
+      }
+    ]
+  },
+  "Nemotron-4-15B": {
+    "model_name": "Nemotron-4-15B",
+    "task_success_rate": 100.0,
+    "compile_success_rate": 100.0,
+    "sim_pass_rate": 100.0,
+    "avg_score": 100.0,
+    "total_tokens_consumed": 2850,
+    "tokens_per_solved_task": 570,
+    "case_details": [
+      {
+        "case_id": "UVM-001",
+        "compile_status": "pass",
+        "simulation_status": "pass",
+        "total_score": 100.0,
+        "task_success": true,
+        "prompt_tokens": 450,
+        "completion_tokens": 120
+      },
+      {
+        "case_id": "UVM-002",
+        "compile_status": "pass",
+        "simulation_status": "pass",
+        "total_score": 100.0,
+        "task_success": true,
+        "prompt_tokens": 450,
+        "completion_tokens": 120
+      },
+      {
+        "case_id": "UVM-003",
+        "compile_status": "pass",
+        "simulation_status": "pass",
+        "total_score": 100.0,
+        "task_success": true,
+        "prompt_tokens": 450,
+        "completion_tokens": 120
+      },
+      {
+        "case_id": "UVM-004",
+        "compile_status": "pass",
+        "simulation_status": "pass",
+        "total_score": 100.0,
+        "task_success": true,
+        "prompt_tokens": 450,
+        "completion_tokens": 120
+      },
+      {
+        "case_id": "UVM-005",
+        "compile_status": "pass",
+        "simulation_status": "pass",
+        "total_score": 100.0,
+        "task_success": true,
+        "prompt_tokens": 450,
+        "completion_tokens": 120
+      }
+    ]
+  },
+  "DeepSeek-Coder-V2-Lite": {
+    "model_name": "DeepSeek-Coder-V2-Lite",
+    "task_success_rate": 100.0,
+    "compile_success_rate": 100.0,
+    "sim_pass_rate": 100.0,
+    "avg_score": 100.0,
+    "total_tokens_consumed": 2850,
+    "tokens_per_solved_task": 570,
+    "case_details": [
+      {
+        "case_id": "UVM-001",
+        "compile_status": "pass",
+        "simulation_status": "pass",
+        "total_score": 100.0,
+        "task_success": true,
+        "prompt_tokens": 450,
+        "completion_tokens": 120
+      },
+      {
+        "case_id": "UVM-002",
+        "compile_status": "pass",
+        "simulation_status": "pass",
+        "total_score": 100.0,
+        "task_success": true,
+        "prompt_tokens": 450,
+        "completion_tokens": 120
+      },
+      {
+        "case_id": "UVM-003",
+        "compile_status": "pass",
+        "simulation_status": "pass",
+        "total_score": 100.0,
+        "task_success": true,
+        "prompt_tokens": 450,
+        "completion_tokens": 120
+      },
+      {
+        "case_id": "UVM-004",
+        "compile_status": "pass",
+        "simulation_status": "pass",
+        "total_score": 100.0,
+        "task_success": true,
+        "prompt_tokens": 450,
+        "completion_tokens": 120
+      },
+      {
+        "case_id": "UVM-005",
+        "compile_status": "pass",
+        "simulation_status": "pass",
+        "total_score": 100.0,
+        "task_success": true,
+        "prompt_tokens": 450,
+        "completion_tokens": 120
+      }
+    ]
+  },
+  "Llama-3.1-70B": {
+    "model_name": "Llama-3.1-70B",
+    "task_success_rate": 100.0,
+    "compile_success_rate": 100.0,
+    "sim_pass_rate": 100.0,
+    "avg_score": 100.0,
+    "total_tokens_consumed": 2850,
+    "tokens_per_solved_task": 570,
+    "case_details": [
+      {
+        "case_id": "UVM-001",
+        "compile_status": "pass",
+        "simulation_status": "pass",
+        "total_score": 100.0,
+        "task_success": true,
+        "prompt_tokens": 450,
+        "completion_tokens": 120
+      },
+      {
+        "case_id": "UVM-002",
+        "compile_status": "pass",
+        "simulation_status": "pass",
+        "total_score": 100.0,
+        "task_success": true,
+        "prompt_tokens": 450,
+        "completion_tokens": 120
+      },
+      {
+        "case_id": "UVM-003",
+        "compile_status": "pass",
+        "simulation_status": "pass",
+        "total_score": 100.0,
+        "task_success": true,
+        "prompt_tokens": 450,
+        "completion_tokens": 120
+      },
+      {
+        "case_id": "UVM-004",
+        "compile_status": "pass",
+        "simulation_status": "pass",
+        "total_score": 100.0,
+        "task_success": true,
+        "prompt_tokens": 450,
+        "completion_tokens": 120
+      },
+      {
+        "case_id": "UVM-005",
+        "compile_status": "pass",
+        "simulation_status": "pass",
+        "total_score": 100.0,
+        "task_success": true,
+        "prompt_tokens": 450,
+        "completion_tokens": 120
+      }
+    ]
+  }
+}

@@ -12,6 +12,7 @@ import yaml
 from datetime import datetime, timezone
 
 from agent.runners.fake_runner import FakeAgentRunner
+from agent.runners.multi_turn_runner import MultiTurnHealingAgentRunner
 from agent.runners.llm_stub import LLMAgentRunnerStub
 from agent.governance.guardrails import ScopeGuardrail
 from agent.governance.evidence_verifier import EvidenceVerifier
@@ -30,6 +31,8 @@ def run_benchmark(case_path: str, runner_name: str, fault_mode: str = None) -> d
     # Select runner
     if runner_name == "mock":
         runner = FakeAgentRunner(name="mock_baseline_agent", fault_mode=fault_mode)
+    elif runner_name == "multi_turn":
+        runner = MultiTurnHealingAgentRunner(name="multi_turn_healing_agent")
     elif runner_name == "llm":
         runner = LLMAgentRunnerStub()
     else:
@@ -99,7 +102,7 @@ def main():
     parser.add_argument("--case", type=str, help="Path to single benchmark case YAML")
     parser.add_argument("--all", action="store_true", help="Run all cases in benchmarks/cases/")
     parser.add_argument("--cases-dir", type=str, default="benchmarks/cases", help="Directory containing case YAMLs")
-    parser.add_argument("--runner", type=str, default="mock", choices=["mock", "llm"], help="Runner to evaluate")
+    parser.add_argument("--runner", type=str, default="mock", choices=["mock", "multi_turn", "llm"], help="Runner to evaluate")
     parser.add_argument("--fault-mode", type=str, default=None, help="Inject governance fault for testing")
     parser.add_argument("--output", type=str, help="Output JSON path for single case run")
     parser.add_argument("--output-dir", type=str, default="results", help="Directory to save run results")

@@ -1,0 +1,182 @@
+[
+  {
+    "model": "Qwen-2.5-Coder-32B",
+    "precision": "AWQ_4BIT",
+    "context": "32K",
+    "tp": "TP=2",
+    "result": {
+      "model_name": "Qwen-2.5-Coder-32B",
+      "context_length": 32768,
+      "precision": "AWQ_4BIT",
+      "tensor_parallel": 2,
+      "weights_vram_per_gpu_gb": 8.94,
+      "kv_cache_vram_per_gpu_gb": 4.0,
+      "total_vram_per_gpu_gb": 14.44,
+      "gpu_capacity_gb": 32.0,
+      "fits_in_memory": true,
+      "headroom_gb": 17.56,
+      "est_ttft_ms": 689408.6,
+      "est_tokens_per_sec": 43.8
+    }
+  },
+  {
+    "model": "Qwen-2.5-Coder-32B",
+    "precision": "AWQ_4BIT",
+    "context": "64K",
+    "tp": "TP=2",
+    "result": {
+      "model_name": "Qwen-2.5-Coder-32B",
+      "context_length": 65536,
+      "precision": "AWQ_4BIT",
+      "tensor_parallel": 2,
+      "weights_vram_per_gpu_gb": 8.94,
+      "kv_cache_vram_per_gpu_gb": 8.0,
+      "total_vram_per_gpu_gb": 18.44,
+      "gpu_capacity_gb": 32.0,
+      "fits_in_memory": true,
+      "headroom_gb": 13.56,
+      "est_ttft_ms": 1378817.2,
+      "est_tokens_per_sec": 43.8
+    }
+  },
+  {
+    "model": "Qwen-2.5-Coder-32B",
+    "precision": "AWQ_4BIT",
+    "context": "128K",
+    "tp": "TP=2",
+    "result": {
+      "model_name": "Qwen-2.5-Coder-32B",
+      "context_length": 131072,
+      "precision": "AWQ_4BIT",
+      "tensor_parallel": 2,
+      "weights_vram_per_gpu_gb": 8.94,
+      "kv_cache_vram_per_gpu_gb": 16.0,
+      "total_vram_per_gpu_gb": 26.44,
+      "gpu_capacity_gb": 32.0,
+      "fits_in_memory": true,
+      "headroom_gb": 5.56,
+      "est_ttft_ms": 2757634.4,
+      "est_tokens_per_sec": 43.8
+    }
+  },
+  {
+    "model": "Qwen-2.5-Coder-32B",
+    "precision": "INT8",
+    "context": "32K",
+    "tp": "TP=2",
+    "result": {
+      "model_name": "Qwen-2.5-Coder-32B",
+      "context_length": 32768,
+      "precision": "INT8",
+      "tensor_parallel": 2,
+      "weights_vram_per_gpu_gb": 16.25,
+      "kv_cache_vram_per_gpu_gb": 4.0,
+      "total_vram_per_gpu_gb": 21.75,
+      "gpu_capacity_gb": 32.0,
+      "fits_in_memory": true,
+      "headroom_gb": 10.25,
+      "est_ttft_ms": 1253470.2,
+      "est_tokens_per_sec": 24.1
+    }
+  },
+  {
+    "model": "Qwen-2.5-Coder-32B",
+    "precision": "FP16",
+    "context": "32K",
+    "tp": "TP=1",
+    "result": {
+      "model_name": "Qwen-2.5-Coder-32B",
+      "context_length": 32768,
+      "precision": "FP16",
+      "tensor_parallel": 1,
+      "weights_vram_per_gpu_gb": 65.0,
+      "kv_cache_vram_per_gpu_gb": 8.0,
+      "total_vram_per_gpu_gb": 74.5,
+      "gpu_capacity_gb": 32.0,
+      "fits_in_memory": false,
+      "headroom_gb": -42.5,
+      "est_ttft_ms": 2506940.3,
+      "est_tokens_per_sec": 15.0
+    }
+  },
+  {
+    "model": "Qwen-2.5-Coder-32B",
+    "precision": "FP16",
+    "context": "32K",
+    "tp": "TP=2",
+    "result": {
+      "model_name": "Qwen-2.5-Coder-32B",
+      "context_length": 32768,
+      "precision": "FP16",
+      "tensor_parallel": 2,
+      "weights_vram_per_gpu_gb": 32.5,
+      "kv_cache_vram_per_gpu_gb": 4.0,
+      "total_vram_per_gpu_gb": 38.0,
+      "gpu_capacity_gb": 32.0,
+      "fits_in_memory": false,
+      "headroom_gb": -6.0,
+      "est_ttft_ms": 2506940.3,
+      "est_tokens_per_sec": 15.0
+    }
+  },
+  {
+    "model": "Nemotron-4-15B",
+    "precision": "FP16",
+    "context": "32K",
+    "tp": "TP=2",
+    "result": {
+      "model_name": "Nemotron-4-15B",
+      "context_length": 32768,
+      "precision": "FP16",
+      "tensor_parallel": 2,
+      "weights_vram_per_gpu_gb": 15.0,
+      "kv_cache_vram_per_gpu_gb": 2.5,
+      "total_vram_per_gpu_gb": 19.0,
+      "gpu_capacity_gb": 32.0,
+      "fits_in_memory": true,
+      "headroom_gb": 13.0,
+      "est_ttft_ms": 1157049.4,
+      "est_tokens_per_sec": 26.1
+    }
+  },
+  {
+    "model": "Nemotron-4-15B",
+    "precision": "FP16",
+    "context": "64K",
+    "tp": "TP=2",
+    "result": {
+      "model_name": "Nemotron-4-15B",
+      "context_length": 65536,
+      "precision": "FP16",
+      "tensor_parallel": 2,
+      "weights_vram_per_gpu_gb": 15.0,
+      "kv_cache_vram_per_gpu_gb": 5.0,
+      "total_vram_per_gpu_gb": 21.5,
+      "gpu_capacity_gb": 32.0,
+      "fits_in_memory": true,
+      "headroom_gb": 10.5,
+      "est_ttft_ms": 2314098.8,
+      "est_tokens_per_sec": 26.1
+    }
+  },
+  {
+    "model": "DeepSeek-Coder-V2-Lite",
+    "precision": "FP16",
+    "context": "64K",
+    "tp": "TP=2",
+    "result": {
+      "model_name": "DeepSeek-Coder-V2-Lite",
+      "context_length": 65536,
+      "precision": "FP16",
+      "tensor_parallel": 2,
+      "weights_vram_per_gpu_gb": 15.7,
+      "kv_cache_vram_per_gpu_gb": 7.0,
+      "total_vram_per_gpu_gb": 24.2,
+      "gpu_capacity_gb": 32.0,
+      "fits_in_memory": true,
+      "headroom_gb": 7.8,
+      "est_ttft_ms": 2422090.0,
+      "est_tokens_per_sec": 24.9
+    }
+  }
+]

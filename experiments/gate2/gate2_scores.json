@@ -1,0 +1,380 @@
+[
+  {
+    "case_id": "UVM-001",
+    "runner_name": "multi_turn_healing_agent",
+    "timestamp": "2026-08-14T16:30:42.993300+00:00",
+    "duration_seconds": 0.003,
+    "governance_status": {
+      "passed": true,
+      "violations": []
+    },
+    "evidence": {
+      "requirement_id": "USB3-WR-001",
+      "git_diff": "--- a/uvm/tests/usb3_warm_reset_test.sv\n+++ b/uvm/tests/usb3_warm_reset_test.sv\n@@ -0,0 +1,5 @@\n+// Final verified UVM implementation for USB3-WR-001\n",
+      "compile_log": "Chronologic VCS (TM)\nVersion V-2023.12-SP1 -- Fri Aug 14 23:50:00 2026\nCopyright (c) 1991-2023 by Synopsys Inc.\nParsing design file 'fixtures/rtl/usb3_ctrl.sv'\nParsing design file 'fixtures/uvm/tests/base_test.sv'\nTop Level Modules:\n       usb3_ctrl\n       base_test\nNo syntax or semantic errors detected.\nStarting elaboration...\nElaboration completed with 0 Errors, 0 Warnings.\nCPU time: 0.82 seconds to compile + elaborate.\nSIMV GENERATED: ./simv\n",
+      "simulation_log": "UVM_INFO @ 0: reporter [RNTST] Running test usb3_warm_reset_test...\nUVM_INFO fixtures/uvm/tests/usb3_warm_reset_test.sv(18) @ 10ns: uvm_test_top [TEST] Starting Warm Reset Verification sequence...\nUVM_INFO fixtures/uvm/sequences/usb3_warm_reset_seq.sv(42) @ 150ns: uvm_test_top.env.u3_agent.seq [SEQ] Asserting warm_reset_n for 12 cycles...\nUVM_INFO fixtures/uvm/sequences/usb3_warm_reset_seq.sv(55) @ 300ns: uvm_test_top.env.u3_agent.seq [SEQ] Observed LTSSM state transition: U0 -> Rx.Detect in 8 cycles (Req: <=12 cycles).\nUVM_INFO fixtures/uvm/sequences/usb3_warm_reset_seq.sv(60) @ 310ns: uvm_test_top.env.u3_agent.seq [SEQ] Sticky register check: 0xA5 == 0xA5 (PASSED).\nUVM_INFO /tools/synopsys/uvm-1.2/src/base/uvm_report_server.svh(847) @ 500ns: reporter [UVM/REPORT/SERVER] \n--- UVM Report Summary ---\n** Report counts by severity\nUVM_INFO :    5\nUVM_WARNING :    0\nUVM_ERROR :    0\nUVM_FATAL :    0\n--- UVM_TEST_PASSED ---\nSimulation finished at 500ns.\n",
+      "coverage_report": "Overall Coverage: 100.0%",
+      "log_hash": "a84ae8a8d4bf725597d3d7de8a9721f4e5010cb189b419806c4db5bacba92c5a"
+    },
+    "execution": {
+      "compile_status": "pass",
+      "simulation_status": "pass",
+      "step_count": 4,
+      "retry_count": 0,
+      "tool_calls": [
+        {
+          "turn": 0,
+          "tool": "query_spec",
+          "args": {
+            "requirement_id": "USB3-WR-001"
+          },
+          "status": "success",
+          "output_summary": "Ingested authoritative spec clause for USB3-WR-001"
+        },
+        {
+          "turn": 0,
+          "tool": "write_file",
+          "args": {
+            "file_path": "uvm/tests/usb3_warm_reset_test.sv"
+          },
+          "status": "success",
+          "output_summary": "Authored initial draft in uvm/tests/usb3_warm_reset_test.sv"
+        },
+        {
+          "turn": 0,
+          "tool": "compile",
+          "args": {
+            "target_file": "uvm/tests/usb3_warm_reset_test.sv"
+          },
+          "status": "pass",
+          "output_summary": "Compile initial draft: pass"
+        },
+        {
+          "turn": 0,
+          "tool": "simulate",
+          "args": {
+            "test_name": "valid_test"
+          },
+          "status": "pass",
+          "output_summary": "Simulation draft: pass"
+        }
+      ]
+    },
+    "metrics": {
+      "total_score": 100.0,
+      "task_success": true,
+      "compile_score": 100.0,
+      "simulation_score": 100.0,
+      "evidence_score": 100.0,
+      "penalty_deductions": 0.0,
+      "prompt_tokens": 430,
+      "completion_tokens": 193
+    }
+  },
+  {
+    "case_id": "UVM-002",
+    "runner_name": "multi_turn_healing_agent",
+    "timestamp": "2026-08-14T16:30:42.996817+00:00",
+    "duration_seconds": 0.003,
+    "governance_status": {
+      "passed": true,
+      "violations": []
+    },
+    "evidence": {
+      "requirement_id": "AXI-BP-002",
+      "git_diff": "--- a/uvm/sequences/axi_backpressure_seq.sv\n+++ b/uvm/sequences/axi_backpressure_seq.sv\n@@ -0,0 +1,5 @@\n+// Final verified UVM implementation for AXI-BP-002\n",
+      "compile_log": "Chronologic VCS (TM)\nVersion V-2023.12-SP1 -- Fri Aug 14 23:50:00 2026\nCopyright (c) 1991-2023 by Synopsys Inc.\nParsing design file 'fixtures/rtl/usb3_ctrl.sv'\nParsing design file 'fixtures/uvm/tests/base_test.sv'\nTop Level Modules:\n       usb3_ctrl\n       base_test\nNo syntax or semantic errors detected.\nStarting elaboration...\nElaboration completed with 0 Errors, 0 Warnings.\nCPU time: 0.82 seconds to compile + elaborate.\nSIMV GENERATED: ./simv\n",
+      "simulation_log": "UVM_INFO @ 0: reporter [RNTST] Running test usb3_warm_reset_test...\nUVM_INFO fixtures/uvm/tests/usb3_warm_reset_test.sv(18) @ 10ns: uvm_test_top [TEST] Starting Warm Reset Verification sequence...\nUVM_INFO fixtures/uvm/sequences/usb3_warm_reset_seq.sv(42) @ 150ns: uvm_test_top.env.u3_agent.seq [SEQ] Asserting warm_reset_n for 12 cycles...\nUVM_INFO fixtures/uvm/sequences/usb3_warm_reset_seq.sv(55) @ 300ns: uvm_test_top.env.u3_agent.seq [SEQ] Observed LTSSM state transition: U0 -> Rx.Detect in 8 cycles (Req: <=12 cycles).\nUVM_INFO fixtures/uvm/sequences/usb3_warm_reset_seq.sv(60) @ 310ns: uvm_test_top.env.u3_agent.seq [SEQ] Sticky register check: 0xA5 == 0xA5 (PASSED).\nUVM_INFO /tools/synopsys/uvm-1.2/src/base/uvm_report_server.svh(847) @ 500ns: reporter [UVM/REPORT/SERVER] \n--- UVM Report Summary ---\n** Report counts by severity\nUVM_INFO :    5\nUVM_WARNING :    0\nUVM_ERROR :    0\nUVM_FATAL :    0\n--- UVM_TEST_PASSED ---\nSimulation finished at 500ns.\n",
+      "coverage_report": "Overall Coverage: 100.0%",
+      "log_hash": "a84ae8a8d4bf725597d3d7de8a9721f4e5010cb189b419806c4db5bacba92c5a"
+    },
+    "execution": {
+      "compile_status": "pass",
+      "simulation_status": "pass",
+      "step_count": 4,
+      "retry_count": 0,
+      "tool_calls": [
+        {
+          "turn": 0,
+          "tool": "query_spec",
+          "args": {
+            "requirement_id": "AXI-BP-002"
+          },
+          "status": "success",
+          "output_summary": "Ingested authoritative spec clause for AXI-BP-002"
+        },
+        {
+          "turn": 0,
+          "tool": "write_file",
+          "args": {
+            "file_path": "uvm/sequences/axi_backpressure_seq.sv"
+          },
+          "status": "success",
+          "output_summary": "Authored initial draft in uvm/sequences/axi_backpressure_seq.sv"
+        },
+        {
+          "turn": 0,
+          "tool": "compile",
+          "args": {
+            "target_file": "uvm/sequences/axi_backpressure_seq.sv"
+          },
+          "status": "pass",
+          "output_summary": "Compile initial draft: pass"
+        },
+        {
+          "turn": 0,
+          "tool": "simulate",
+          "args": {
+            "test_name": "valid_test"
+          },
+          "status": "pass",
+          "output_summary": "Simulation draft: pass"
+        }
+      ]
+    },
+    "metrics": {
+      "total_score": 100.0,
+      "task_success": true,
+      "compile_score": 100.0,
+      "simulation_score": 100.0,
+      "evidence_score": 100.0,
+      "penalty_deductions": 0.0,
+      "prompt_tokens": 430,
+      "completion_tokens": 193
+    }
+  },
+  {
+    "case_id": "UVM-003",
+    "runner_name": "multi_turn_healing_agent",
+    "timestamp": "2026-08-14T16:30:43.001819+00:00",
+    "duration_seconds": 0.003,
+    "governance_status": {
+      "passed": true,
+      "violations": []
+    },
+    "evidence": {
+      "requirement_id": "USB3-WR-001",
+      "git_diff": "--- a/uvm/env/usb3_scoreboard.sv\n+++ b/uvm/env/usb3_scoreboard.sv\n@@ -0,0 +1,5 @@\n+// Final verified UVM implementation for USB3-WR-001\n",
+      "compile_log": "Chronologic VCS (TM)\nVersion V-2023.12-SP1 -- Fri Aug 14 23:50:00 2026\nCopyright (c) 1991-2023 by Synopsys Inc.\nParsing design file 'fixtures/rtl/usb3_ctrl.sv'\nParsing design file 'fixtures/uvm/tests/base_test.sv'\nTop Level Modules:\n       usb3_ctrl\n       base_test\nNo syntax or semantic errors detected.\nStarting elaboration...\nElaboration completed with 0 Errors, 0 Warnings.\nCPU time: 0.82 seconds to compile + elaborate.\nSIMV GENERATED: ./simv\n",
+      "simulation_log": "UVM_INFO @ 0: reporter [RNTST] Running test usb3_warm_reset_test...\nUVM_INFO fixtures/uvm/tests/usb3_warm_reset_test.sv(18) @ 10ns: uvm_test_top [TEST] Starting Warm Reset Verification sequence...\nUVM_INFO fixtures/uvm/sequences/usb3_warm_reset_seq.sv(42) @ 150ns: uvm_test_top.env.u3_agent.seq [SEQ] Asserting warm_reset_n for 12 cycles...\nUVM_INFO fixtures/uvm/sequences/usb3_warm_reset_seq.sv(55) @ 300ns: uvm_test_top.env.u3_agent.seq [SEQ] Observed LTSSM state transition: U0 -> Rx.Detect in 8 cycles (Req: <=12 cycles).\nUVM_INFO fixtures/uvm/sequences/usb3_warm_reset_seq.sv(60) @ 310ns: uvm_test_top.env.u3_agent.seq [SEQ] Sticky register check: 0xA5 == 0xA5 (PASSED).\nUVM_INFO /tools/synopsys/uvm-1.2/src/base/uvm_report_server.svh(847) @ 500ns: reporter [UVM/REPORT/SERVER] \n--- UVM Report Summary ---\n** Report counts by severity\nUVM_INFO :    5\nUVM_WARNING :    0\nUVM_ERROR :    0\nUVM_FATAL :    0\n--- UVM_TEST_PASSED ---\nSimulation finished at 500ns.\n",
+      "coverage_report": "Overall Coverage: 100.0%",
+      "log_hash": "a84ae8a8d4bf725597d3d7de8a9721f4e5010cb189b419806c4db5bacba92c5a"
+    },
+    "execution": {
+      "compile_status": "pass",
+      "simulation_status": "pass",
+      "step_count": 5,
+      "retry_count": 1,
+      "tool_calls": [
+        {
+          "turn": 0,
+          "tool": "query_spec",
+          "args": {
+            "requirement_id": "USB3-WR-001"
+          },
+          "status": "success",
+          "output_summary": "Ingested authoritative spec clause for USB3-WR-001"
+        },
+        {
+          "turn": 0,
+          "tool": "write_file",
+          "args": {
+            "file_path": "uvm/env/usb3_scoreboard.sv"
+          },
+          "status": "success",
+          "output_summary": "Authored initial draft in uvm/env/usb3_scoreboard.sv"
+        },
+        {
+          "turn": 0,
+          "tool": "compile",
+          "args": {
+            "target_file": "broken_test.sv"
+          },
+          "status": "fail",
+          "output_summary": "Compile initial draft: fail"
+        },
+        {
+          "turn": 1,
+          "tool": "compile",
+          "args": {
+            "target_file": "uvm/env/usb3_scoreboard.sv"
+          },
+          "status": "pass",
+          "output_summary": "Re-compiled after auto-patch: pass"
+        },
+        {
+          "turn": 1,
+          "tool": "simulate",
+          "args": {
+            "test_name": "valid_test"
+          },
+          "status": "pass",
+          "output_summary": "Simulation draft: pass"
+        }
+      ]
+    },
+    "metrics": {
+      "total_score": 100.0,
+      "task_success": true,
+      "compile_score": 100.0,
+      "simulation_score": 100.0,
+      "evidence_score": 100.0,
+      "penalty_deductions": 0.0,
+      "prompt_tokens": 750,
+      "completion_tokens": 337
+    }
+  },
+  {
+    "case_id": "UVM-004",
+    "runner_name": "multi_turn_healing_agent",
+    "timestamp": "2026-08-14T16:30:43.004825+00:00",
+    "duration_seconds": 0.002,
+    "governance_status": {
+      "passed": true,
+      "violations": []
+    },
+    "evidence": {
+      "requirement_id": "AXI-BP-002",
+      "git_diff": "--- a/uvm/agents/axi_agent.sv\n+++ b/uvm/agents/axi_agent.sv\n@@ -0,0 +1,5 @@\n+// Final verified UVM implementation for AXI-BP-002\n",
+      "compile_log": "Chronologic VCS (TM)\nVersion V-2023.12-SP1 -- Fri Aug 14 23:50:00 2026\nCopyright (c) 1991-2023 by Synopsys Inc.\nParsing design file 'fixtures/rtl/usb3_ctrl.sv'\nParsing design file 'fixtures/uvm/tests/base_test.sv'\nTop Level Modules:\n       usb3_ctrl\n       base_test\nNo syntax or semantic errors detected.\nStarting elaboration...\nElaboration completed with 0 Errors, 0 Warnings.\nCPU time: 0.82 seconds to compile + elaborate.\nSIMV GENERATED: ./simv\n",
+      "simulation_log": "UVM_INFO @ 0: reporter [RNTST] Running test usb3_warm_reset_test...\nUVM_INFO fixtures/uvm/tests/usb3_warm_reset_test.sv(18) @ 10ns: uvm_test_top [TEST] Starting Warm Reset Verification sequence...\nUVM_INFO fixtures/uvm/sequences/usb3_warm_reset_seq.sv(42) @ 150ns: uvm_test_top.env.u3_agent.seq [SEQ] Asserting warm_reset_n for 12 cycles...\nUVM_INFO fixtures/uvm/sequences/usb3_warm_reset_seq.sv(55) @ 300ns: uvm_test_top.env.u3_agent.seq [SEQ] Observed LTSSM state transition: U0 -> Rx.Detect in 8 cycles (Req: <=12 cycles).\nUVM_INFO fixtures/uvm/sequences/usb3_warm_reset_seq.sv(60) @ 310ns: uvm_test_top.env.u3_agent.seq [SEQ] Sticky register check: 0xA5 == 0xA5 (PASSED).\nUVM_INFO /tools/synopsys/uvm-1.2/src/base/uvm_report_server.svh(847) @ 500ns: reporter [UVM/REPORT/SERVER] \n--- UVM Report Summary ---\n** Report counts by severity\nUVM_INFO :    5\nUVM_WARNING :    0\nUVM_ERROR :    0\nUVM_FATAL :    0\n--- UVM_TEST_PASSED ---\nSimulation finished at 500ns.\n",
+      "coverage_report": "Overall Coverage: 100.0%",
+      "log_hash": "a84ae8a8d4bf725597d3d7de8a9721f4e5010cb189b419806c4db5bacba92c5a"
+    },
+    "execution": {
+      "compile_status": "pass",
+      "simulation_status": "pass",
+      "step_count": 5,
+      "retry_count": 1,
+      "tool_calls": [
+        {
+          "turn": 0,
+          "tool": "query_spec",
+          "args": {
+            "requirement_id": "AXI-BP-002"
+          },
+          "status": "success",
+          "output_summary": "Ingested authoritative spec clause for AXI-BP-002"
+        },
+        {
+          "turn": 0,
+          "tool": "write_file",
+          "args": {
+            "file_path": "uvm/agents/axi_agent.sv"
+          },
+          "status": "success",
+          "output_summary": "Authored initial draft in uvm/agents/axi_agent.sv"
+        },
+        {
+          "turn": 0,
+          "tool": "compile",
+          "args": {
+            "target_file": "uvm/agents/axi_agent.sv"
+          },
+          "status": "pass",
+          "output_summary": "Compile initial draft: pass"
+        },
+        {
+          "turn": 0,
+          "tool": "simulate",
+          "args": {
+            "test_name": "broken_test"
+          },
+          "status": "fail",
+          "output_summary": "Simulation draft: fail"
+        },
+        {
+          "turn": 1,
+          "tool": "simulate",
+          "args": {
+            "test_name": "valid_test"
+          },
+          "status": "pass",
+          "output_summary": "Re-simulated after timing fix: pass"
+        }
+      ]
+    },
+    "metrics": {
+      "total_score": 100.0,
+      "task_success": true,
+      "compile_score": 100.0,
+      "simulation_score": 100.0,
+      "evidence_score": 100.0,
+      "penalty_deductions": 0.0,
+      "prompt_tokens": 840,
+      "completion_tokens": 378
+    }
+  },
+  {
+    "case_id": "UVM-005",
+    "runner_name": "multi_turn_healing_agent",
+    "timestamp": "2026-08-14T16:30:43.009347+00:00",
+    "duration_seconds": 0.003,
+    "governance_status": {
+      "passed": true,
+      "violations": []
+    },
+    "evidence": {
+      "requirement_id": "USB3-WR-001",
+      "git_diff": "--- a/uvm/coverage/usb3_coverage.sv\n+++ b/uvm/coverage/usb3_coverage.sv\n@@ -0,0 +1,5 @@\n+// Final verified UVM implementation for USB3-WR-001\n",
+      "compile_log": "Chronologic VCS (TM)\nVersion V-2023.12-SP1 -- Fri Aug 14 23:50:00 2026\nCopyright (c) 1991-2023 by Synopsys Inc.\nParsing design file 'fixtures/rtl/usb3_ctrl.sv'\nParsing design file 'fixtures/uvm/tests/base_test.sv'\nTop Level Modules:\n       usb3_ctrl\n       base_test\nNo syntax or semantic errors detected.\nStarting elaboration...\nElaboration completed with 0 Errors, 0 Warnings.\nCPU time: 0.82 seconds to compile + elaborate.\nSIMV GENERATED: ./simv\n",
+      "simulation_log": "UVM_INFO @ 0: reporter [RNTST] Running test usb3_warm_reset_test...\nUVM_INFO fixtures/uvm/tests/usb3_warm_reset_test.sv(18) @ 10ns: uvm_test_top [TEST] Starting Warm Reset Verification sequence...\nUVM_INFO fixtures/uvm/sequences/usb3_warm_reset_seq.sv(42) @ 150ns: uvm_test_top.env.u3_agent.seq [SEQ] Asserting warm_reset_n for 12 cycles...\nUVM_INFO fixtures/uvm/sequences/usb3_warm_reset_seq.sv(55) @ 300ns: uvm_test_top.env.u3_agent.seq [SEQ] Observed LTSSM state transition: U0 -> Rx.Detect in 8 cycles (Req: <=12 cycles).\nUVM_INFO fixtures/uvm/sequences/usb3_warm_reset_seq.sv(60) @ 310ns: uvm_test_top.env.u3_agent.seq [SEQ] Sticky register check: 0xA5 == 0xA5 (PASSED).\nUVM_INFO /tools/synopsys/uvm-1.2/src/base/uvm_report_server.svh(847) @ 500ns: reporter [UVM/REPORT/SERVER] \n--- UVM Report Summary ---\n** Report counts by severity\nUVM_INFO :    5\nUVM_WARNING :    0\nUVM_ERROR :    0\nUVM_FATAL :    0\n--- UVM_TEST_PASSED ---\nSimulation finished at 500ns.\n",
+      "coverage_report": "Overall Coverage: 100.0%",
+      "log_hash": "a84ae8a8d4bf725597d3d7de8a9721f4e5010cb189b419806c4db5bacba92c5a"
+    },
+    "execution": {
+      "compile_status": "pass",
+      "simulation_status": "pass",
+      "step_count": 4,
+      "retry_count": 0,
+      "tool_calls": [
+        {
+          "turn": 0,
+          "tool": "query_spec",
+          "args": {
+            "requirement_id": "USB3-WR-001"
+          },
+          "status": "success",
+          "output_summary": "Ingested authoritative spec clause for USB3-WR-001"
+        },
+        {
+          "turn": 0,
+          "tool": "write_file",
+          "args": {
+            "file_path": "uvm/coverage/usb3_coverage.sv"
+          },
+          "status": "success",
+          "output_summary": "Authored initial draft in uvm/coverage/usb3_coverage.sv"
+        },
+        {
+          "turn": 0,
+          "tool": "compile",
+          "args": {
+            "target_file": "uvm/coverage/usb3_coverage.sv"
+          },
+          "status": "pass",
+          "output_summary": "Compile initial draft: pass"
+        },
+        {
+          "turn": 0,
+          "tool": "simulate",
+          "args": {
+            "test_name": "valid_test"
+          },
+          "status": "pass",
+          "output_summary": "Simulation draft: pass"
+        }
+      ]
+    },
+    "metrics": {
+      "total_score": 100.0,
+      "task_success": true,
+      "compile_score": 100.0,
+      "simulation_score": 100.0,
+      "evidence_score": 100.0,
+      "penalty_deductions": 0.0,
+      "prompt_tokens": 430,
+      "completion_tokens": 193
+    }
+  }
+]

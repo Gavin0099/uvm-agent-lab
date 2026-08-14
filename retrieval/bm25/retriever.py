@@ -5,30 +5,70 @@ from typing import List, Dict, Any
 
 class BM25Retriever:
     """
-    Standard BM25 keyword-based baseline retriever.
-    Lacks governance awareness (version pinning or customer restriction checking).
+    Standard BM25 Keyword Baseline Retriever.
+    Note: Lacks version-pinning, authority awareness, and customer-tier boundary enforcement.
     """
 
-    def __init__(self, doc_dir: str = "fixtures/synthetic-spec"):
+    def __init__(self, doc_dir: str = "fixtures/synthetic-spec", k1: float = 1.5, b: float = 0.75):
         self.doc_dir = Path(doc_dir).resolve()
+        self.k1 = k1
+        self.b = b
         self.docs = []
-        for f in self.doc_dir.glob("*.md"):
+        self._build_index()
+
+    def _build_index(self):
+        for f in sorted(self.doc_dir.glob("*.md")):
             try:
-                self.docs.append({"name": f.name, "text": f.read_text(encoding="utf-8")})
+                text = f.read_text(encoding="utf-8")
+                words = [w.lower() for w in text.split() if len(w) > 1]
+                self.docs.append({
+                    "file": f.name,
+                    "text": text,
+                    "words": words,
+                    "len": len(words)
+                })
             except Exception:
                 pass
+        self.avg_doc_len = sum(d["len"] for d in self.docs) / max(1, len(self.docs))
+        self.num_docs = len(self.docs)
 
-    def query(self, query_str: str, top_k: int = 3) -> List[Dict[str, Any]]:
-        tokens = query_str.lower().split()
-        results = []
+    def query(self, query_str: str, top_k: int = 3, **kwargs) -> List[Dict[str, Any]]:
+        query_tokens = [q.lower() for q in query_str.split() if len(q) > 1]
+        scores = []
+
         for d in self.docs:
-            text_lower = d["text"].lower()
-            match_count = sum(text_lower.count(t) for t in tokens)
-            if match_count > 0:
-                results.append({
-                    "score": float(match_count),
-                    "file": d["name"],
-                    "snippet": d["text"][:300]
+            score = 0.0
+            doc_words = d["words"]
+            doc_len = d["len"]
+            
+            for q in query_tokens:
+                freq = doc_words.count(q)
+                if freq > 0:
+                    df = sum(1 for other in self.docs if q in other["words"])
+                    idf = math.log(1 + (self.num_docs - df + 0.5) / (df + 0.5))
+                    tf_component = (freq * (self.k1 + 1)) / (freq + self.k1 * (1 - self.b + self.b * (doc_len / max(1, self.avg_doc_len))))
+                    score += idf * tf_component
+
+            if score > 0:
+                # Extract meta attributes if present in markdown text
+                ver = "unknown"
+                auth = "unknown"
+                cust = "unknown"
+                if "version: \"" in d["text"]:
+                    ver = d["text"].split("version: \"")[1].split("\"")[0]
+                if "authority: \"" in d["text"]:
+                    auth = d["text"].split("authority: \"")[1].split("\"")[0]
+                if "customer_tier: \"" in d["text"]:
+                    cust = d["text"].split("customer_tier: \"")[1].split("\"")[0]
+
+                scores.append({
+                    "score": round(score, 3),
+                    "file": d["file"],
+                    "version": ver,
+                    "authority": auth,
+                    "customer_tier": cust,
+                    "snippet": d["text"][:350].strip()
                 })
-        results.sort(key=lambda x: x["score"], reverse=True)
-        return results[:top_k]
+
+        scores.sort(key=lambda x: x["score"], reverse=True)
+        return scores[:top_k]
