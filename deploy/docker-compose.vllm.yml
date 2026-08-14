@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  vllm-dual-gv100:
+    image: vllm/vllm-openai:latest
+    container_name: uvm_agent_vllm_server
+    restart: unless-stopped
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=0,1
+      - NCCL_P2P_DISABLE=0          # Enable NVLink P2P
+      - VLLM_ATTENTION_BACKEND=FLASH_ATTN
+    ports:
+      - "8000:8000"
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+      - ./vllm_config.yaml:/etc/vllm/config.yaml
+    ipc: host
+    command: >
+      --model Qwen/Qwen2.5-Coder-32B-Instruct-AWQ
+      --quantization awq
+      --tensor-parallel-size 2
+      --max-model-len 32768
+      --gpu-memory-utilization 0.90
+      --host 0.0.0.0
+      --port 8000

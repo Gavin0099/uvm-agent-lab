@@ -1,0 +1,12 @@
+# vLLM Configuration for Dual Tesla/Quadro GV100 (64GB Total VRAM, NVLink)
+model: "Qwen/Qwen2.5-Coder-32B-Instruct-AWQ"
+quantization: "awq"
+tensor_parallel_size: 2
+max_model_len: 32768
+gpu_memory_utilization: 0.90
+swap_space: 4  # GB CPU swap
+enforce_eager: false
+disable_custom_all_reduce: false
+trust_remote_code: true
+host: "0.0.0.0"
+port: 8000

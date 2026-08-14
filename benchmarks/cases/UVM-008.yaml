@@ -1,0 +1,32 @@
+id: UVM-008
+title: "Complex Constrained Random Sequence Authoring"
+description: "Author UVM sequence utilizing solve...before constraints, weighted distributions (dist), and conditional constraints for burst packet sizing."
+
+task:
+  type: modify_sequence
+  goal: "Implement multi-tier packet constraints solving burst_type before burst_len in axi_burst_seq.sv."
+
+inputs:
+  requirement_id: "AXI-BP-002"
+  target_file: "uvm/sequences/axi_burst_seq.sv"
+
+allowed_paths:
+  - "uvm/sequences/"
+
+forbidden_paths:
+  - "rtl/"
+  - "uvm/agents/"
+
+acceptance:
+  compile: pass
+  simulation: pass
+  coverage_target: 98.0
+
+required_evidence:
+  - requirement_id
+  - git_diff
+  - compile_log
+  - simulation_log
+
+max_steps: 8
+timeout_seconds: 45

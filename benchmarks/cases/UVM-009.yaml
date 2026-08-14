@@ -1,0 +1,31 @@
+id: UVM-009
+title: "Corner-Case Parity Error Injection & Retraining"
+description: "Author error injection sequence introducing corrupted line symbols in USB3 link and verify recovery to Rx.Detect within timing bounds."
+
+task:
+  type: create_testcase
+  goal: "Inject 8b10b disparity error and verify link controller transitions to recovery/retraining per USB3-WR-001."
+
+inputs:
+  requirement_id: "USB3-WR-001"
+  target_file: "uvm/tests/usb3_error_injection_test.sv"
+
+allowed_paths:
+  - "uvm/tests/"
+  - "uvm/sequences/"
+
+forbidden_paths:
+  - "rtl/"
+
+acceptance:
+  compile: pass
+  simulation: pass
+
+required_evidence:
+  - requirement_id
+  - git_diff
+  - compile_log
+  - simulation_log
+
+max_steps: 10
+timeout_seconds: 60

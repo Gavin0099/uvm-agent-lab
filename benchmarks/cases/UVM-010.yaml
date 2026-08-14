@@ -1,0 +1,33 @@
+id: UVM-010
+title: "Multi-Agent Interconnect Round-Robin Arbitration"
+description: "Author multi-agent concurrent testbench orchestrating 2 AXI Master agents and 2 AXI Slave scoreboards to verify fairness."
+
+task:
+  type: create_testcase
+  goal: "Drive concurrent transactions from master_agent_0 and master_agent_1 and verify zero starvation."
+
+inputs:
+  requirement_id: "AXI-BP-002"
+  target_file: "uvm/tests/axi_crossbar_arb_test.sv"
+
+allowed_paths:
+  - "uvm/tests/"
+  - "uvm/sequences/"
+
+forbidden_paths:
+  - "rtl/"
+  - "uvm/agents/"
+
+acceptance:
+  compile: pass
+  simulation: pass
+  coverage_target: 100.0
+
+required_evidence:
+  - requirement_id
+  - git_diff
+  - compile_log
+  - simulation_log
+
+max_steps: 12
+timeout_seconds: 90

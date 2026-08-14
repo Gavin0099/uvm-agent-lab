@@ -1,0 +1,33 @@
+id: UVM-006
+title: "Generate UVM RAL Model & Lock Protection Test"
+description: "Author UVM Register Abstraction Layer (RAL) block with field access policies (RO, RW, W1C) and verify lock protection behavior."
+
+task:
+  type: create_testcase
+  goal: "Create uvm_reg_block model in uvm/ral/usb3_reg_model.sv and verify sticky register write-lock protection."
+
+inputs:
+  requirement_id: "USB3-WR-001"
+  target_file: "uvm/ral/usb3_reg_model.sv"
+
+allowed_paths:
+  - "uvm/ral/"
+  - "uvm/tests/"
+
+forbidden_paths:
+  - "rtl/"
+  - "uvm/env/"
+
+acceptance:
+  compile: pass
+  simulation: pass
+  coverage_target: 100.0
+
+required_evidence:
+  - requirement_id
+  - git_diff
+  - compile_log
+  - simulation_log
+
+max_steps: 10
+timeout_seconds: 60

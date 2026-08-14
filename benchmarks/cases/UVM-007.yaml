@@ -1,0 +1,31 @@
+id: UVM-007
+title: "Author SVA Protocol Handshake Assertions"
+description: "Implement SystemVerilog Assertions (SVA) in interface/bind module to verify AXI Stream tvalid/tready protocol adherence."
+
+task:
+  type: create_testcase
+  goal: "Write property assertions verifying tvalid stability until tready and zero x/z on control signals."
+
+inputs:
+  requirement_id: "AXI-BP-002"
+  target_file: "uvm/assertions/axi_protocol_checker.sv"
+
+allowed_paths:
+  - "uvm/assertions/"
+  - "uvm/tests/"
+
+forbidden_paths:
+  - "rtl/"
+
+acceptance:
+  compile: pass
+  simulation: pass
+
+required_evidence:
+  - requirement_id
+  - git_diff
+  - compile_log
+  - simulation_log
+
+max_steps: 8
+timeout_seconds: 45
