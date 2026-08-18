@@ -4,79 +4,133 @@ import hashlib
 import tempfile
 import subprocess
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
-
+from typing import List, Tuple, Optional
 from agent.governance.guardrails import ScopeGuardrail
-from gv100h.telemetry.schema import FailureClass
+
+
+class FatalWorktreeError(Exception):
+    """Raised when Git worktree creation, status, or diff extraction fails."""
+    pass
 
 
 class GitWorktreeRunner:
     """
-    Executes tasks in disposable Git worktrees or isolated sandboxes.
-    Extracts authentic binary git diffs and independently computes verification hashes.
+    Manages ephemeral Git worktrees for zero-trust sandbox execution.
+    Enforces real worktree isolation, captures untracked files, and extracts binary diffs.
     """
 
-    def __init__(self, repo_root: str, guardrail: Optional[ScopeGuardrail] = None):
-        self.repo_root = Path(repo_root).resolve()
+    def __init__(self, repo_root: Optional[str] = None, guardrail: Optional[ScopeGuardrail] = None):
+        self.repo_root = Path(repo_root).resolve() if repo_root else Path(__file__).resolve().parent.parent.parent
         self.guardrail = guardrail
+        if not (self.repo_root / ".git").exists():
+            # Allow fallback for isolated mock testdirs if initialized
+            pass
 
     @staticmethod
     def compute_sha256(content: bytes) -> str:
         return hashlib.sha256(content).hexdigest()
 
-    def get_current_commit_sha(self) -> str:
+    def verify_changed_paths(self, changed_paths: List[str]) -> Tuple[bool, Optional[str]]:
+        if not self.guardrail:
+            return True, None
+        for p in changed_paths:
+            res = self.guardrail.check_path_access(p)
+            is_allowed = res[0] if isinstance(res, tuple) else res
+            if not is_allowed:
+                return False, f"Scope violation: Forbidden or out-of-scope path access: {p}"
+        return True, None
+
+    def create_worktree(self, base_sha: str = "HEAD") -> Tuple[Path, str]:
+        """
+        Creates a real disposable detached Git worktree.
+        Returns: (worktree_path, resolved_base_sha)
+        """
         try:
-            res = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
+            rev_res = subprocess.run(
+                ["git", "rev-parse", base_sha],
                 cwd=str(self.repo_root),
                 capture_output=True,
                 text=True,
                 check=True
             )
-            return res.stdout.strip()
-        except Exception:
-            return "0000000000000000000000000000000000000000"
+            resolved_sha = rev_res.stdout.strip()
+        except subprocess.CalledProcessError as e:
+            raise FatalWorktreeError(f"Failed to resolve base SHA '{base_sha}': {e.stderr.strip()}")
 
-    def create_disposable_sandbox(self) -> Path:
         temp_dir = Path(tempfile.mkdtemp(prefix="gv100h_worktree_"))
-        return temp_dir
-
-    def extract_git_diff(self, worktree_dir: Path) -> Tuple[bytes, List[str], str]:
-        """
-        Runs git diff in the worktree directory and returns:
-        (raw_diff_bytes, changed_file_paths, diff_sha256)
-        """
+        
         try:
-            # Get binary diff
-            res_diff = subprocess.run(
-                ["git", "diff", "--binary", "HEAD"],
-                cwd=str(worktree_dir),
-                capture_output=True,
-                check=False
-            )
-            raw_diff = res_diff.stdout
-
-            # Get list of changed file names
-            res_names = subprocess.run(
-                ["git", "diff", "--name-only", "HEAD"],
-                cwd=str(worktree_dir),
+            subprocess.run(
+                ["git", "worktree", "add", "--detach", str(temp_dir), resolved_sha],
+                cwd=str(self.repo_root),
                 capture_output=True,
                 text=True,
-                check=False
+                check=True
             )
-            changed_files = [line.strip() for line in res_names.stdout.splitlines() if line.strip()]
-            diff_hash = self.compute_sha256(raw_diff)
-            return raw_diff, changed_files, diff_hash
-        except Exception as e:
-            empty_bytes = b""
-            return empty_bytes, [], self.compute_sha256(empty_bytes)
+        except subprocess.CalledProcessError as e:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            raise FatalWorktreeError(f"git worktree add failed for SHA '{resolved_sha}': {e.stderr.strip()}")
 
-    def verify_changed_paths(self, changed_paths: List[str]) -> Tuple[bool, Optional[str]]:
-        if not self.guardrail:
-            return True, None
+        return temp_dir, resolved_sha
 
-        for path in changed_paths:
-            passed, report = self.guardrail.check_path_access(path)
-            if not passed or not report.passed:
-                return False, f"Scope violation on path: {path}"
-        return True, None
+    def extract_worktree_diff(self, worktree_path: Path, base_sha: str) -> Tuple[bytes, List[str], str]:
+        """
+        Extracts raw binary diff and lists ALL changed + untracked files in the worktree.
+        Returns: (diff_bytes, changed_paths, diff_sha256)
+        """
+        w_path = Path(worktree_path)
+        if not w_path.exists():
+            raise FatalWorktreeError(f"Worktree path '{worktree_path}' does not exist.")
+
+        try:
+            status_res = subprocess.run(
+                ["git", "status", "--porcelain=v2", "--untracked-files=all"],
+                cwd=str(w_path),
+                capture_output=True,
+                text=True,
+                check=True
+            )
+        except subprocess.CalledProcessError as e:
+            raise FatalWorktreeError(f"git status failed in worktree: {e.stderr.strip()}")
+
+        changed_paths = []
+        for line in status_res.stdout.splitlines():
+            parts = line.strip().split()
+            if len(parts) >= 2:
+                changed_path = parts[-1]
+                changed_paths.append(changed_path)
+
+        try:
+            diff_res = subprocess.run(
+                ["git", "diff", "--binary", base_sha],
+                cwd=str(w_path),
+                capture_output=True,
+                check=True
+            )
+            diff_bytes = diff_res.stdout
+        except subprocess.CalledProcessError as e:
+            raise FatalWorktreeError(f"git diff failed in worktree: {e.stderr.decode('utf-8', errors='replace').strip()}")
+
+        hasher = hashlib.sha256(diff_bytes)
+        for cp in sorted(changed_paths):
+            target_f = w_path / cp
+            if target_f.is_file():
+                hasher.update(cp.encode("utf-8"))
+                hasher.update(target_f.read_bytes())
+
+        diff_sha256 = hasher.hexdigest()
+        return diff_bytes, sorted(changed_paths), diff_sha256
+
+    def cleanup_worktree(self, worktree_path: Path):
+        w_path = Path(worktree_path)
+        if w_path.exists():
+            try:
+                subprocess.run(
+                    ["git", "worktree", "remove", "--force", str(w_path)],
+                    cwd=str(self.repo_root),
+                    capture_output=True,
+                    check=False
+                )
+            except Exception:
+                pass
+            shutil.rmtree(w_path, ignore_errors=True)

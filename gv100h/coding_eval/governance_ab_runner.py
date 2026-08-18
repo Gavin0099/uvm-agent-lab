@@ -1,8 +1,10 @@
 import json
-import time
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
+
+from gv100h.manifests.models import GV100HRunManifest
+from gv100h.manifests.validator import ManifestValidator, ManifestValidationError
 
 
 class ABExperimentSummary(BaseModel):
@@ -19,7 +21,7 @@ class GovernanceABRunner:
     """
     Executes Governance A/B benchmark comparing Arm A (Prompt Only) vs Arm B (Governed Sidecar)
     under an identical containment sandbox baseline.
-    Supports both real Run Manifest aggregation from disk and synthetic scaffold baselines.
+    Enforces strict ManifestValidator checks and fails closed on corrupted manifests.
     """
 
     def __init__(self, tasks_file: Optional[str] = None):
@@ -31,6 +33,8 @@ class GovernanceABRunner:
         with open(self.tasks_path, "r", encoding="utf-8") as f:
             self.task_data = json.load(f)
 
+        self.validator = ManifestValidator()
+
     def run_ab_benchmark(
         self,
         runs_per_task: int = 3,
@@ -39,50 +43,58 @@ class GovernanceABRunner:
         tasks = self.task_data["tasks"]
         total_runs_expected = len(tasks) * runs_per_task
 
-        # If real manifests exist in manifest_dir, aggregate them deterministically
+        # If real manifests exist in manifest_dir, strictly validate and aggregate them
         if manifest_dir and Path(manifest_dir).exists():
-            manifest_files = list(Path(manifest_dir).glob("*.json"))
+            manifest_files = sorted(list(Path(manifest_dir).glob("*.json")))
             if manifest_files:
-                arm_a_manifests = []
-                arm_b_manifests = []
+                arm_a_manifests: List[GV100HRunManifest] = []
+                arm_b_manifests: List[GV100HRunManifest] = []
+
                 for mf in manifest_files:
-                    try:
-                        with open(mf, "r", encoding="utf-8") as f:
-                            m_data = json.load(f)
-                            if "contract" in m_data:
-                                if "Sidecar" in m_data["contract"].get("contract_name", ""):
-                                    arm_b_manifests.append(m_data)
-                                else:
-                                    arm_a_manifests.append(m_data)
-                    except Exception:
+                    with open(mf, "r", encoding="utf-8") as f:
+                        m_data = json.load(f)
+                    
+                    # Fail-closed validation on every manifest file
+                    validated_m = self.validator.validate_manifest_dict(m_data)
+
+                    if validated_m.experiment_arm == "arm_b_governed_sidecar":
+                        arm_b_manifests.append(validated_m)
+                    elif validated_m.experiment_arm == "arm_a_prompt_only":
+                        arm_a_manifests.append(validated_m)
+                    elif validated_m.experiment_arm == "synthetic_replay":
                         pass
 
                 if arm_a_manifests or arm_b_manifests:
-                    # Calculate empirical stats from real manifests
-                    def calc_stats(m_list, name):
+                    self.validator.validate_manifest_set(arm_a_manifests + arm_b_manifests)
+
+                    def calc_stats(m_list: List[GV100HRunManifest], name: str):
                         if not m_list:
                             return {
                                 "name": name, "total_runs": 0, "passed_runs": 0,
-                                "task_success_rate": 0.0, "first_pass_rate": 0.0,
-                                "false_success_rate": 0.0, "scope_violations_count": 0,
-                                "human_acceptance_a_b_rate": 0.0, "avg_time_to_correct_sec": 0.0,
-                                "hardware_observed": True
+                                "task_success_rate": 0.0, "false_success_rate": 0.0,
+                                "scope_violations_count": 0, "human_acceptance_a_b_rate": None,
+                                "avg_time_to_correct_sec": 0.0, "hardware_observed": True
                             }
-                        passed = sum(1 for m in m_list if m.get("outcome", {}).get("status") == "PASS")
-                        first_passed = sum(1 for m in m_list if m.get("outcome", {}).get("first_pass"))
-                        scope_violations = sum(1 for m in m_list if not m.get("outcome", {}).get("scope_compliant", True))
-                        total_time = sum(m.get("outcome", {}).get("duration_seconds", 0.0) for m in m_list)
+                        passed = sum(1 for m in m_list if m.outcome.status == "pass")
+                        false_successes = sum(1 for m in m_list if m.outcome.false_success)
+                        scope_violations = sum(1 for m in m_list if m.outcome.status == "scope_violation" or m.outcome.failure_class == "SCOPE_VIOLATION")
+                        total_time = sum(m.timing.wall_clock_sec for m in m_list if m.timing and m.timing.wall_clock_sec)
+
+                        # Genuine human acceptance ratings
+                        rated = [m.outcome.human_acceptance_rating for m in m_list if m.outcome.human_acceptance_rating]
+                        ab_rated = sum(1 for r in rated if r in ["A", "B"])
+                        human_acc_pct = round((ab_rated / len(rated)) * 100.0, 2) if rated else None
+
                         return {
                             "name": name,
                             "evidence_class": "live_inference",
-                            "hardware_observed": any(m.get("hardware", {}).get("hardware_observed", False) for m in m_list),
+                            "hardware_observed": any(m.hardware.gpu_count > 0 for m in m_list),
                             "total_runs": len(m_list),
                             "passed_runs": passed,
                             "task_success_rate": round((passed / len(m_list)) * 100.0, 2),
-                            "first_pass_rate": round((first_passed / len(m_list)) * 100.0, 2),
-                            "false_success_rate": 0.0,
+                            "false_success_rate": round((false_successes / len(m_list)) * 100.0, 2),
                             "scope_violations_count": scope_violations,
-                            "human_acceptance_a_b_rate": round((passed / len(m_list)) * 100.0, 2),
+                            "human_acceptance_a_b_rate": human_acc_pct,
                             "avg_time_to_correct_sec": round(total_time / len(m_list), 2)
                         }
 
@@ -97,14 +109,13 @@ class GovernanceABRunner:
                         arm_a_prompt_only=arm_a_real,
                         arm_b_governed_sidecar=arm_b_real,
                         governance_benefit={
-                            "false_success_reduction": "Calculated from live manifests",
+                            "false_success_reduction": f"{arm_a_real['false_success_rate']}% -> {arm_b_real['false_success_rate']}%",
                             "scope_violation_elimination": f"{arm_a_real['scope_violations_count']} -> {arm_b_real['scope_violations_count']}",
-                            "human_acceptance_improvement": f"{arm_b_real['human_acceptance_a_b_rate'] - arm_a_real['human_acceptance_a_b_rate']:.2f}%",
                             "time_saved_per_task_sec": round(arm_a_real['avg_time_to_correct_sec'] - arm_b_real['avg_time_to_correct_sec'], 2)
                         }
                     )
 
-        # Offline scaffold deterministic simulation baseline (for testing harness correctness only)
+        # Explicitly marked synthetic offline scaffold baseline
         arm_a_results = {
             "name": "Arm A (Prompt-Only Guidance)",
             "evidence_class": "synthetic_offline_scaffold",

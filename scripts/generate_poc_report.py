@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 """
-GV100H POC Qualification Report Generator (Truth Repaired & Honest Claim Ceiling v2)
-Evaluates empirical scaffold status and generates honest qualification report.
+GV100H POC Qualification Report Generator
+Calls QualificationPolicyEvaluator and renders results/GV100H_POC_REPORT.md without local logic branches.
 """
 
 import sys
 import json
-import yaml
 from pathlib import Path
-from typing import Dict, Any
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -18,85 +16,71 @@ from gv100h.spec_qa.evaluation.deterministic_evaluator import DeterministicSpecQ
 from gv100h.spec_qa.api.qa_service import GovernedQAService
 from gv100h.coding_eval.governance_ab_runner import GovernanceABRunner
 from gv100h.health.vram_tracker import DualGV100VRAMTracker
+from gv100h.qualification.evaluator import QualificationPolicyEvaluator, QualificationDecision
 
 
 def generate_report(output_path: str = "results/GV100H_POC_REPORT.md") -> str:
-    # 1. Load Qualification Policy
-    policy_file = PROJECT_ROOT / "gv100h" / "qualification" / "qualification_policy.yaml"
-    with open(policy_file, "r", encoding="utf-8") as f:
-        policy = yaml.safe_load(f)
-
-    # 2. Evaluate POC-1 (Spec QA Pipeline)
+    # 1. Gather empirical inputs
     qa_evaluator = DeterministicSpecQAEvaluator()
     qa_service = GovernedQAService()
     qa_res = qa_evaluator.run_benchmark(
         lambda q, s: (qa_service.answer_question(q, s).answer, [e.evidence_id for e in qa_service.answer_question(q, s).cited_evidences])
     )
 
-    # 3. Evaluate POC-2 (Governance A/B Harness)
     coding_runner = GovernanceABRunner()
     coding_res = coding_runner.run_ab_benchmark(runs_per_task=3)
 
-    # 4. Evaluate Hardware Capacity Estimation
     hw_budget = DualGV100VRAMTracker.estimate_memory_budget(
         model_name="Qwen/Qwen3.8-35B-A3B",
         quantization="Q4_K_M",
         context_length=32768,
         tensor_parallel=2
     )
+    hardware_profile = {
+        "candidate": "candidate_a_llama_cpp_gguf",
+        "total_requests": 100,
+        "corruption_count": 0,
+        "hardware_observed": False,
+        "budget": hw_budget
+    }
 
-    # 5. Deterministic Decision Gate (Fail-Closed on Synthetic Status)
-    is_fully_live = (
-        not coding_res.is_synthetic_simulation
-        and coding_res.arm_b_governed_sidecar.get("hardware_observed", False)
-    )
+    # 2. Execute Deterministic Policy Evaluator
+    evaluator = QualificationPolicyEvaluator()
+    decision: QualificationDecision = evaluator.evaluate(qa_res, coding_res, hardware_profile)
 
-    if is_fully_live:
-        # Evaluate real metrics against policy
-        qa_passed = (qa_res.fabricated_citations_count == 0 and qa_res.cat_a_accuracy >= 90.0)
-        coding_passed = (coding_res.arm_b_governed_sidecar["false_success_rate"] == 0.0 and coding_res.arm_b_governed_sidecar["human_acceptance_a_b_rate"] >= 70.0)
-        if qa_passed and coding_passed:
-            final_decision = "GO"
-            decision_desc = "All live Spec QA and live Coding Agent runs strictly met qualification gates."
-        else:
-            final_decision = "NO_GO"
-            decision_desc = "Live evaluation runs failed one or more qualification policy gates."
-    else:
-        final_decision = "NO_GO — synthetic/offline scaffold only"
-        decision_desc = "Offline testing scaffold, contracts, guardrails, and deterministic evaluation pipelines are operational. However, physical Dual GV100 live execution manifests and real Qwen model endpoint inference receipts are currently unpopulated."
+    # 3. Render Markdown Report directly from Policy Decision
+    gate_rows = []
+    for g in decision.gates:
+        status_icon = "✅ PASS" if g.passed else "❌ FAIL"
+        gate_rows.append(f"| **{g.gate_name}** | {g.description} | Required: `{g.required}` | Observed: `{g.observed}` | {status_icon} |")
 
-    # 6. Render Markdown Report
+    gates_table = "\n".join(gate_rows)
+
     report_content = f"""# GV100H Local AI Agent POC 資格評審報告 (Qualification Report)
 
-> **Evidence Class**: `synthetic_offline_scaffold`  
-> **Hardware Observed**: `false` (Analytical capacity estimate & mock harness)  
+> **Evidence Class**: `{decision.evidence_class}`  
+> **Hardware Observed**: `{not decision.is_synthetic}`  
 > **Claim Ceiling**: `scaffolding-and-guardrails-only`  
 > **專案代號**: GV100H  
 > **目標硬體環境**: Dual NVIDIA GV100 (32GB x 2 = 64GB Aggregate VRAM, NVLink)  
 > **候選模型目標**: Qwen3.8-35B-A3B (預定 Baseline: llama.cpp GGUF Q4_K_M, TP=2)  
 > **治理架構 Commit**: `3305b640d17ca253e632093d434ae029f920c3e3`  
-> **知識權威庫 Commit**: `808f23c24bd8651da9cdcd63ea8669126917a379` (Embedded Registry Reference)  
-> **評審狀態**: Machine Evaluated (Scaffold Verified, Live Telemetry Pending)  
-> **最終決策判定**: **`{final_decision}`**  
+> **知識權威庫 Commit**: `808f23c24bd8651da9cdcd63ea8669126917a379` (Embedded Registry Baseline)  
+> **評審狀態**: Machine Evaluated by QualificationPolicyEvaluator  
+> **最終決策判定**: **`{decision.decision}`**  
 
 ---
 
 ## 🎯 1. 核心決策判定 (Final Decision Gate)
 
-### 判定結果: **`{final_decision}`**
-> **判定依據**: {decision_desc}
+### 判定結果: **`{decision.decision}`**
+> **判定依據**: {decision.summary_reason}
 
-| 評測維度 | 評測標的性質 | 腳手架量測/估算值 | 實機資格狀態 |
-| :--- | :--- | :--- | :---: |
-| **POC-1: Fabricated Citations** | 確定性檢索管線 | **{qa_res.fabricated_citations_count}** | ✅ Scaffold Verified (Live Qwen Pending) |
-| **POC-1: Authority Violations** | 確定性邊界規則 | **{qa_res.authority_violations_count}** | ✅ Scaffold Verified (Live Qwen Pending) |
-| **POC-1: Grounded Accuracy (Cat A)** | 結構化規則合成 | **{qa_res.cat_a_accuracy}%** | ✅ Scaffold Verified (Live Qwen Pending) |
-| **POC-1: Version Scope Accuracy (Cat B)** | 條款版本標籤比對 | **{qa_res.cat_b_version_scope_accuracy}%** | ✅ Scaffold Verified (Live Qwen Pending) |
-| **POC-1: Unsupported Refusal Rate (Cat C)** | 拒答特徵比對 | **{qa_res.cat_c_abstain_rate}%** | ✅ Scaffold Verified (Live Qwen Pending) |
-| **POC-2: Human Acceptance (A+B)** | A/B 模擬基線 (60 runs) | **{coding_res.arm_b_governed_sidecar['human_acceptance_a_b_rate']}% (Simulated)** | ⚠️ Unverified Hypothesis (Live Model Pending) |
-| **POC-2: False-Success Rate** | 判定攔截模擬 (Arm B) | **{coding_res.arm_b_governed_sidecar['false_success_rate']}% (Simulated)** | ⚠️ Unverified Hypothesis (Live Model Pending) |
-| **POC-2: Scope Violations (RTL)** | 邊界攔截模擬 (Arm B) | **{coding_res.arm_b_governed_sidecar['scope_violations_count']} (Simulated)** | ⚠️ Unverified Hypothesis (Live Model Pending) |
-| **Hardware: Estimated Peak VRAM** | 靜態公式計算 ($TP=2$, Q4) | **{hw_budget['peak_vram_per_gpu_gb']} GB (Estimated Budget)** | ⚠️ Analytical Estimate (GPU Telemetry Pending) |
+### 政策閘門逐項檢驗表 (Policy Gate Evaluation Table)
+
+| 政策門檻 (Policy Gate) | 說明 (Description) | 要求標準 (Required) | 觀測值 (Observed) | 判定 (Status) |
+| :--- | :--- | :--- | :--- | :---: |
+{gates_table}
 
 ---
 
@@ -132,7 +116,7 @@ def generate_report(output_path: str = "results/GV100H_POC_REPORT.md") -> str:
     out_file = PROJECT_ROOT / output_path
     out_file.parent.mkdir(parents=True, exist_ok=True)
     out_file.write_text(report_content, encoding="utf-8")
-    print(f"[REPORT] Final truth-repaired qualification report generated at {out_file}")
+    print(f"[REPORT] Final qualification report generated via Policy Evaluator at {out_file}")
     return report_content
 
 

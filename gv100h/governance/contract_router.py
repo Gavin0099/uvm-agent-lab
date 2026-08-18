@@ -54,8 +54,9 @@ class TaskContractRouter:
         task_def["task_id"] = effective_task_id
         return task_def
 
-    def create_guardrail_for_task(self, task_id: Optional[str] = None) -> ScopeGuardrail:
+    def create_guardrail_for_task(self, task_id: Optional[str] = None, base_dir: Optional[str] = None) -> ScopeGuardrail:
         task_def = self.get_task_contract(task_id)
         allowed = task_def.get("allowed_paths", [])
         forbidden = task_def.get("forbidden_paths", [])
-        return ScopeGuardrail(allowed_paths=allowed, forbidden_paths=forbidden, base_dir=str(self.base_dir))
+        effective_base_dir = base_dir or str(self.base_dir)
+        return ScopeGuardrail(allowed_paths=allowed, forbidden_paths=forbidden, base_dir=effective_base_dir)

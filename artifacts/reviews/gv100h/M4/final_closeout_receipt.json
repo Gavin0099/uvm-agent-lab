@@ -1,45 +1,27 @@
 {
   "target_repo": "Gavin0099/uvm-agent-lab",
   "target_base_commit": "12340ae1632e8cac55d68a6a67bd2f2ae8ba684e",
-  "target_head_commit": "HEAD",
+  "target_head_commit": "c377daa47db2e8b31f55c4b067cc52b76b87fc21",
   "framework_commit": "3305b640d17ca253e632093d434ae029f920c3e3",
   "knowledge_repo": "Gavin0099/usb-if-hub-spec-reference",
   "knowledge_repo_commit": "808f23c24bd8651da9cdcd63ea8669126917a379",
   "reviewer_kind": "independent_model",
   "authority_level": "advisory",
-  "decision": "scaffold_closeout_approved",
+  "decision": "invalidated_pending_evidence_pipeline_repair",
   "milestone": "GV100H-M4",
+  "invalidation_reason": "Human architectural review identified P0 defects: mock/hardcoded evidence in live runner, worktree runner failing-open without actual git worktree, uncoupled qualification policy, and mismatched manifest schema.",
   "findings": [
     {
-      "check": "deterministic_policy_enforcement",
-      "status": "PASS",
-      "detail": "Final decision gate computed strictly via qualification_policy.yaml with zero LLM hallucination. Fail-closed to NO_GO on synthetic data."
-    },
-    {
-      "check": "core_questions_and_non_claims",
-      "status": "PASS",
-      "detail": "Full answers provided for Q1-Q5 and explicit non-claims clearly documented."
-    },
-    {
-      "check": "full_lifecycle_test_suite",
-      "status": "PASS",
-      "detail": "60 passed, 2 skipped across all milestones (M-1A through M4)."
-    },
-    {
-      "check": "zero_trust_governance_compliance",
-      "status": "PASS",
-      "detail": "Adheres to GOVERNANCE_ENTRY.md and AGENTS.md zero-trust verification rules."
+      "check": "evidence_pipeline_integrity",
+      "status": "FAIL_P0",
+      "detail": "Live evaluation path contained hardcoded PASS hashes and mock results without executing actual git worktrees."
     }
   ],
   "test_artifact_hashes": {
-    "qualification_policy_yaml": "gv100h/qualification/qualification_policy.yaml",
-    "generate_poc_report_py": "scripts/generate_poc_report.py",
-    "poc_report_md": "results/GV100H_POC_REPORT.md",
-    "test_m4_qualification_py": "tests/gv100h/test_m4_qualification.py"
+    "qualification_policy_yaml": "226d9c490ff456e409ec827d096a60db28d655f464eb7ca8ce410787e9154f3b",
+    "generate_poc_report_py": "416ceba85a9726210f4384c3ee2584ec692b67f1680aa8e376882f056ec1df55"
   },
   "non_claims": [
-    "This review receipt represents an Offline Scaffold Closeout approval, NOT a physical hardware qualification sign-off.",
-    "Machine review approval does not bypass mandatory human reviewer sign-off.",
-    "Zero false-success guarantees apply specifically to the offline deterministic verification pipelines in synthetic mode."
+    "This milestone receipt is explicitly INVALIDATED. No production, pilot, or offline scaffold closeout claims are supported by this receipt."
   ]
 }
