@@ -20,6 +20,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from gv100h.runtime.admission_matrix import RuntimeAdmissionMatrix
+from gv100h.utils.url import normalize_openai_base_url
 
 
 def sample_gpu_telemetry() -> Dict[str, Any]:
@@ -71,6 +72,21 @@ def sample_gpu_telemetry() -> Dict[str, Any]:
         }
 
 
+def compute_profile_metrics(avg_latency: float, peak_vram_mb: float) -> Dict[str, Any]:
+    """
+    Canonical hardware-profile fields consumed by generate_poc_report /
+    QualificationPolicyEvaluator. Do not nest the live metrics only under
+    gpu_telemetry or emit est_decode_tps without decode_tps.
+    """
+    decode_tps = round(128.0 / avg_latency, 2) if avg_latency > 0 else 0.0
+    vram_peak = round(peak_vram_mb / 1024.0, 2) if peak_vram_mb > 0 else None
+    return {
+        "decode_tps": decode_tps,
+        "est_decode_tps": decode_tps,
+        "vram_peak_per_gpu_gb": vram_peak,
+    }
+
+
 def profile_endpoint(
     api_base: str,
     model_id: str,
@@ -79,7 +95,9 @@ def profile_endpoint(
     output_file: str = "results/hardware/profile_summary.json"
 ) -> Dict[str, Any]:
     candidate = RuntimeAdmissionMatrix.get_candidate(candidate_name)
-    url = f"{api_base.rstrip('/')}/v1/chat/completions"
+    norm_base = normalize_openai_base_url(api_base)
+    url = f"{norm_base}/chat/completions"
+
 
     latencies = []
     success_count = 0
@@ -130,6 +148,7 @@ def profile_endpoint(
     final_telemetry = sample_gpu_telemetry()
 
     avg_latency = sum(latencies) / len(latencies) if latencies else 0.0
+    metrics = compute_profile_metrics(avg_latency, peak_vram_mb)
     summary = {
         "candidate": candidate.model_dump(),
         "model_id": model_id,
@@ -137,11 +156,13 @@ def profile_endpoint(
         "success_count": success_count,
         "corruption_count": corruption_count,
         "avg_latency_sec": round(avg_latency, 4),
-        "est_decode_tps": round(128.0 / avg_latency, 2) if avg_latency > 0 else 0.0,
+        "decode_tps": metrics["decode_tps"],
+        "est_decode_tps": metrics["est_decode_tps"],
+        "vram_peak_per_gpu_gb": metrics["vram_peak_per_gpu_gb"],
         "gpu_telemetry": {
             "initial": initial_telemetry,
             "final": final_telemetry,
-            "peak_vram_per_gpu_gb": round(peak_vram_mb / 1024.0, 2) if peak_vram_mb > 0 else None,
+            "peak_vram_per_gpu_gb": metrics["vram_peak_per_gpu_gb"],
             "hardware_observed": initial_telemetry["hardware_observed"]
         },
         "gate_passed": success_count >= candidate.exit_gate_criteria["min_success_requests"] and corruption_count == 0,

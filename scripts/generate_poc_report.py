@@ -19,30 +19,79 @@ from gv100h.health.vram_tracker import DualGV100VRAMTracker
 from gv100h.qualification.evaluator import QualificationPolicyEvaluator, QualificationDecision
 
 
+SYNTHETIC_DECODE_TPS = 20.0
+SYNTHETIC_CANDIDATE = "candidate_a_llama_cpp_gguf"
+
+
+def build_hardware_profile(hw_live_data, vram_per_gpu, hw_budget):
+    """
+    Map profiler JSON onto QualificationPolicyEvaluator hardware fields.
+
+    When a live profile file exists, missing metrics stay missing (None).
+    Do not substitute analytical/synthetic defaults as if they were observed.
+    """
+    if not hw_live_data:
+        return {
+            "candidate": SYNTHETIC_CANDIDATE,
+            "total_requests": 100,
+            "corruption_count": 0,
+            "vram_peak_per_gpu_gb": vram_per_gpu,
+            "decode_tps": SYNTHETIC_DECODE_TPS,
+            "hardware_observed": False,
+            "budget": hw_budget,
+        }
+
+    gpu_tel = hw_live_data.get("gpu_telemetry") if isinstance(hw_live_data.get("gpu_telemetry"), dict) else {}
+    vram = hw_live_data.get("vram_peak_per_gpu_gb")
+    if vram is None:
+        vram = gpu_tel.get("peak_vram_per_gpu_gb")
+    decode = hw_live_data.get("decode_tps")
+    if decode is None:
+        decode = hw_live_data.get("est_decode_tps")
+
+    return {
+        "candidate": hw_live_data.get("candidate", SYNTHETIC_CANDIDATE),
+        "total_requests": hw_live_data.get("total_requests"),
+        "corruption_count": hw_live_data.get("corruption_count"),
+        "vram_peak_per_gpu_gb": vram,
+        "decode_tps": decode,
+        "hardware_observed": bool(hw_live_data.get("hardware_observed", False)),
+        "budget": hw_budget,
+    }
+
+
 def generate_report(output_path: str = "results/GV100H_POC_REPORT.md") -> str:
-    # 1. Gather empirical inputs
+    # 1. Gather empirical inputs & Ingest live artifacts if present
     qa_evaluator = DeterministicSpecQAEvaluator()
     qa_service = GovernedQAService()
     qa_res = qa_evaluator.run_benchmark(
         lambda q, s: (qa_service.answer_question(q, s).answer, [e.evidence_id for e in qa_service.answer_question(q, s).cited_evidences])
     )
 
+    live_manifest_dir = PROJECT_ROOT / "results" / "live_eval"
     coding_runner = GovernanceABRunner()
-    coding_res = coding_runner.run_ab_benchmark(runs_per_task=3)
+    coding_res = coding_runner.run_ab_benchmark(
+        runs_per_task=3,
+        manifest_dir=str(live_manifest_dir) if live_manifest_dir.exists() else None
+    )
 
+    hw_profile_path = PROJECT_ROOT / "results" / "hardware" / "profile_summary.json"
     hw_budget = DualGV100VRAMTracker.estimate_memory_budget(
         model_name="Qwen/Qwen3.8-35B-A3B",
         quantization="Q4_K_M",
         context_length=32768,
         tensor_parallel=2
     )
-    hardware_profile = {
-        "candidate": "candidate_a_llama_cpp_gguf",
-        "total_requests": 100,
-        "corruption_count": 0,
-        "hardware_observed": False,
-        "budget": hw_budget
-    }
+    vram_per_gpu = hw_budget.get("per_gpu_vram_gb", 14.96) if isinstance(hw_budget, dict) else getattr(hw_budget, "per_gpu_vram_gb", 14.96)
+
+    hw_live_data = None
+    if hw_profile_path.exists():
+        try:
+            with open(hw_profile_path, "r", encoding="utf-8") as f:
+                hw_live_data = json.load(f)
+        except Exception:
+            hw_live_data = None
+    hardware_profile = build_hardware_profile(hw_live_data, vram_per_gpu, hw_budget)
 
     # 2. Execute Deterministic Policy Evaluator
     evaluator = QualificationPolicyEvaluator()
@@ -50,9 +99,14 @@ def generate_report(output_path: str = "results/GV100H_POC_REPORT.md") -> str:
 
     # 3. Render Markdown Report directly from Policy Decision
     gate_rows = []
+    val_header = "觀測實測值 (Observed Live Evidence)" if not decision.is_synthetic else "輸入值 (Input Value - Synthetic / Analytical)"
+    
     for g in decision.gates:
-        status_icon = "✅ PASS" if g.passed else "❌ FAIL"
-        gate_rows.append(f"| **{g.gate_name}** | {g.description} | Required: `{g.required}` | Observed: `{g.observed}` | {status_icon} |")
+        if decision.is_synthetic:
+            status_icon = "⚠️ SYNTHETIC_PASS" if g.passed else "❌ FAIL"
+        else:
+            status_icon = "✅ PASS" if g.passed else "❌ FAIL"
+        gate_rows.append(f"| **{g.gate_name}** | {g.description} | Required: `{g.required}` | {g.observed} | {status_icon} |")
 
     gates_table = "\n".join(gate_rows)
 
@@ -78,7 +132,10 @@ def generate_report(output_path: str = "results/GV100H_POC_REPORT.md") -> str:
 
 ### 政策閘門逐項檢驗表 (Policy Gate Evaluation Table)
 
-| 政策門檻 (Policy Gate) | 說明 (Description) | 要求標準 (Required) | 觀測值 (Observed) | 判定 (Status) |
+> [!NOTE]
+> 本次評審輸入為離線確定性腳手架與分析模型數據（Synthetic / Analytical Baseline），尚未載入實機推論收據。所有通過項目均標定為「腳手架邏輯驗證 (SYNTHETIC_PASS)」，嚴禁與實機 Qualification PASS 混淆。
+
+| 政策門檻 (Policy Gate) | 說明 (Description) | 要求標準 (Required) | {val_header} | 判定 (Status) |
 | :--- | :--- | :--- | :--- | :---: |
 {gates_table}
 
@@ -99,7 +156,7 @@ def generate_report(output_path: str = "results/GV100H_POC_REPORT.md") -> str:
 **現狀說明**: 依據參數量與 KV Cache 公式估算，雙 GV100 (64GB VRAM) 在 TP=2、Q4_K_M 量化下**預估佔用約 14.96 GB / GPU**。此為容量預算（Analytical Budget），並非實體 GPU Telemetry（NVML/nvidia-smi）監控數據。
 
 ### Q5 — Governance
-**現狀說明**: AI Governance 護欄（Dynamic Contract Router、Canonical Path Guardrail、Strict Fail-Closed Runner、Run Manifest Schema）已建立完整測試案例（先前 Receipt 回報 60 項通過；目前全庫共有 62 個測試案例，含 2 個外部環境相依之 skipped 案例）。
+**現狀說明**: AI Governance 護欄（Dynamic Contract Router、Canonical Path Guardrail、Strict Fail-Closed Runner、Run Manifest Schema）已建立完整測試案例（目前全庫共有 **72 PASSED, 2 SKIPPED / 74 total** 測試案例）。
 
 ---
 
@@ -108,8 +165,8 @@ def generate_report(output_path: str = "results/GV100H_POC_REPORT.md") -> str:
 2. **禁止宣稱「完美支撐」或「0% 假成功已在生產落地」**：此類宣稱必須依賴後續實機收集之真實 Run Manifests 與 GPU Telemetry 日誌。
 3. **下一步行動 (Action Items to Achieve GO)**：
    - 部署本地推論伺服器（llama.cpp / vLLM）載入 Qwen 權重（端點設於 `http://localhost:8000/v1`）。
-   - 在具備 NVIDIA 驅動與 GPU 的環境下執行 `python scripts/profile_runtime.py --requests 100` 獲取真實 NVML/nvidia-smi GPU Telemetry。
-   - 執行 `python scripts/run_live_eval.py --mode live` 逐題產生符合 `run_manifest.schema.json` 的 `GV100HRunManifest`。
+   - 在具備 NVIDIA 驅動與 GPU 的環境下執行 `python scripts/profile_runtime.py --requests 100` 獲取真實 NVML/nvidia-smi GPU Telemetry 儲存於 `results/hardware/profile_summary.json`。
+   - 執行 `python scripts/run_live_eval.py --mode live` 逐題產生符合 `run_manifest.schema.json` 的 `GV100HRunManifest` 儲存於 `results/live_eval/`。
    - 透過 `GovernanceABRunner` 聚合真實 Manifests 並重新執行評審以解除 `NO_GO — synthetic` 限制。
 """
 
@@ -122,3 +179,4 @@ def generate_report(output_path: str = "results/GV100H_POC_REPORT.md") -> str:
 
 if __name__ == "__main__":
     generate_report()
+

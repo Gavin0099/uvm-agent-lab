@@ -45,7 +45,7 @@ class GovernanceABRunner:
 
         # If real manifests exist in manifest_dir, strictly validate and aggregate them
         if manifest_dir and Path(manifest_dir).exists():
-            manifest_files = sorted(list(Path(manifest_dir).glob("*.json")))
+            manifest_files = sorted(list(Path(manifest_dir).glob("**/*manifest*.json")))
             if manifest_files:
                 arm_a_manifests: List[GV100HRunManifest] = []
                 arm_b_manifests: List[GV100HRunManifest] = []
@@ -53,43 +53,82 @@ class GovernanceABRunner:
                 for mf in manifest_files:
                     with open(mf, "r", encoding="utf-8") as f:
                         m_data = json.load(f)
-                    
-                    # Fail-closed validation on every manifest file
-                    validated_m = self.validator.validate_manifest_dict(m_data)
+
+                    # Fail-closed: schema/dict validation is not evidence.
+                    # Re-hash physical bundle files beside the manifest.
+                    try:
+                        validated_m = self.validator.validate_manifest_dict(m_data)
+                        self.validator.validate_manifest_bundle(validated_m, Path(mf).parent)
+                    except ManifestValidationError as e:
+                        print(f"[A/B VALIDATION WARNING] Rejected {mf}: {e}")
+                        continue
 
                     if validated_m.experiment_arm == "arm_b_governed_sidecar":
                         arm_b_manifests.append(validated_m)
                     elif validated_m.experiment_arm == "arm_a_prompt_only":
                         arm_a_manifests.append(validated_m)
-                    elif validated_m.experiment_arm == "synthetic_replay":
-                        pass
+
+                # Strict Zero-Trust Pairing & Full Universe Check
+                both_arms_present = (len(arm_a_manifests) > 0 and len(arm_b_manifests) > 0)
+                is_paired = False
+                universe_complete = False
+
+                expected_task_ids = {t.get("task_id") or t.get("id") for t in tasks}
+                expected_pairs_count = len(tasks) * runs_per_task  # 10 * 3 = 30 runs per arm
+
+
+                if both_arms_present:
+                    try:
+                        self.validator.validate_manifest_set(
+                            arm_a_manifests + arm_b_manifests,
+                            require_complete_pairs=True
+                        )
+                        is_paired = True
+                    except ManifestValidationError as e:
+                        print(f"[A/B VALIDATION WARNING] Incomplete or drifted pairs: {e}")
+                        is_paired = False
+
+                    # Check complete universe coverage (10 tasks x 3 repetitions)
+                    covered_a = {(m.benchmark_task_id or m.task_id, m.repetition) for m in arm_a_manifests}
+                    covered_b = {(m.benchmark_task_id or m.task_id, m.repetition) for m in arm_b_manifests}
+                    expected_universe = {(t_id, rep) for t_id in expected_task_ids for rep in range(1, runs_per_task + 1)}
+
+                    if covered_a == expected_universe and covered_b == expected_universe and len(arm_a_manifests) == expected_pairs_count and len(arm_b_manifests) == expected_pairs_count:
+                        universe_complete = True
+                    else:
+                        missing_a = expected_universe - covered_a
+                        missing_b = expected_universe - covered_b
+                        if missing_a or missing_b:
+                            print(f"[A/B VALIDATION WARNING] Incomplete universe: missing Arm A {missing_a}, Arm B {missing_b}")
+                        universe_complete = False
 
                 if arm_a_manifests or arm_b_manifests:
-                    self.validator.validate_manifest_set(arm_a_manifests + arm_b_manifests)
-
                     def calc_stats(m_list: List[GV100HRunManifest], name: str):
                         if not m_list:
                             return {
                                 "name": name, "total_runs": 0, "passed_runs": 0,
                                 "task_success_rate": 0.0, "false_success_rate": 0.0,
                                 "scope_violations_count": 0, "human_acceptance_a_b_rate": None,
-                                "avg_time_to_correct_sec": 0.0, "hardware_observed": True
+                                "avg_time_to_correct_sec": 0.0, "hardware_observed": False,
+                                "tasks_covered_count": 0, "runs_per_arm_count": 0
                             }
                         passed = sum(1 for m in m_list if m.outcome.status == "pass")
                         false_successes = sum(1 for m in m_list if m.outcome.false_success)
                         scope_violations = sum(1 for m in m_list if m.outcome.status == "scope_violation" or m.outcome.failure_class == "SCOPE_VIOLATION")
                         total_time = sum(m.timing.wall_clock_sec for m in m_list if m.timing and m.timing.wall_clock_sec)
+                        tasks_covered = len({m.benchmark_task_id or m.task_id for m in m_list})
 
-                        # Genuine human acceptance ratings
                         rated = [m.outcome.human_acceptance_rating for m in m_list if m.outcome.human_acceptance_rating]
                         ab_rated = sum(1 for r in rated if r in ["A", "B"])
                         human_acc_pct = round((ab_rated / len(rated)) * 100.0, 2) if rated else None
 
                         return {
                             "name": name,
-                            "evidence_class": "live_inference",
+                            "evidence_class": "live_inference" if (is_paired and universe_complete) else "single_arm_or_incomplete_universe",
                             "hardware_observed": any(m.hardware.gpu_count > 0 for m in m_list),
                             "total_runs": len(m_list),
+                            "runs_per_arm_count": len(m_list),
+                            "tasks_covered_count": tasks_covered,
                             "passed_runs": passed,
                             "task_success_rate": round((passed / len(m_list)) * 100.0, 2),
                             "false_success_rate": round((false_successes / len(m_list)) * 100.0, 2),
@@ -101,11 +140,14 @@ class GovernanceABRunner:
                     arm_a_real = calc_stats(arm_a_manifests, "Arm A (Prompt-Only Guidance)")
                     arm_b_real = calc_stats(arm_b_manifests, "Arm B (Governed Sidecar + Git Verifier)")
 
+                    # Qualification admission strictly requires complete 30-pair universe runs
+                    admissible = (is_paired and universe_complete and both_arms_present and len(arm_a_manifests) == expected_pairs_count and len(arm_b_manifests) == expected_pairs_count)
+
                     return ABExperimentSummary(
                         total_runs_per_arm=max(len(arm_a_manifests), len(arm_b_manifests)),
-                        is_synthetic_simulation=False,
-                        evidence_class="live_inference",
-                        admissible_for_model_qualification=True,
+                        is_synthetic_simulation=not (is_paired and universe_complete),
+                        evidence_class="live_inference" if (is_paired and universe_complete) else "incomplete_ab_universe",
+                        admissible_for_model_qualification=admissible,
                         arm_a_prompt_only=arm_a_real,
                         arm_b_governed_sidecar=arm_b_real,
                         governance_benefit={
@@ -115,19 +157,22 @@ class GovernanceABRunner:
                         }
                     )
 
+
+
         # Explicitly marked synthetic offline scaffold baseline
         arm_a_results = {
             "name": "Arm A (Prompt-Only Guidance)",
             "evidence_class": "synthetic_offline_scaffold",
             "hardware_observed": False,
             "total_runs": total_runs_expected,
+            "runs_per_arm_count": total_runs_expected,
+            "tasks_covered_count": len(tasks),
             "passed_runs": 18,
             "task_success_rate": 60.0,
-            "first_pass_rate": 50.0,
             "false_success_rate": 20.0,
             "scope_violations_count": 3,
-            "human_acceptance_a_b_rate": 56.67,
-            "avg_time_to_correct_sec": 185.4
+            "human_acceptance_a_b_rate": 50.0,
+            "avg_time_to_correct_sec": 142.5
         }
 
         arm_b_results = {
@@ -135,13 +180,14 @@ class GovernanceABRunner:
             "evidence_class": "synthetic_offline_scaffold",
             "hardware_observed": False,
             "total_runs": total_runs_expected,
+            "runs_per_arm_count": total_runs_expected,
+            "tasks_covered_count": len(tasks),
             "passed_runs": 24,
             "task_success_rate": 80.0,
-            "first_pass_rate": 73.33,
             "false_success_rate": 0.0,
             "scope_violations_count": 0,
             "human_acceptance_a_b_rate": 80.0,
-            "avg_time_to_correct_sec": 112.8
+            "avg_time_to_correct_sec": 48.2
         }
 
         benefit = {
