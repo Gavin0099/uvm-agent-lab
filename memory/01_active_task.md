@@ -2,9 +2,9 @@
 
 <!-- governance:reviewer_verified -->
 
-> **最後更新**: 2026-08-15
+> **最後更新**: 2026-08-18
 > **Owner**: Gavin0099
-> **狀態**: Active
+> **狀態**: Active (GV100H POC Offline Scaffold Closeout Completed)
 
 ## 📌 Project Overview
 `uvm-agent-lab` is an industrial-grade evaluation and self-healing agent testbed for LLM-assisted IEEE 1800.2 UVM digital chip verification. It features deterministic benchmarking, multi-turn syntax/timing self-healing, functional coverage closure, real EDA toolchain adapters, MCP protocol knowledge integration, and zero-trust AI governance.
@@ -61,10 +61,28 @@
   - `validators/zero_trust_evidence_validator.py` (enforcing evidence packet integrity)
 - Installed `.git/hooks/pre-commit` and `.git/hooks/pre-push` runtime hooks.
 - Configured GitHub Actions CI/CD workflows (`.github/workflows/ci.yml`, `.github/workflows/governance-drift.yml`).
-- Attained **`full_candidate`** status in `human_readable_adoption_summary` with **18/18 drift checks PASS** and **35/35 pytest tests PASS**.
+### ✅ Phase 4: GV100H Local AI Agent POC & Truth Repair (2026-08-18)
+- **Dynamic Task Contracts & Canonical Guardrails (`gv100h/governance/`)**:
+  - `contract_router.py` dynamically resolves per-task scope constraints from `contracts/gv100h-poc.yaml`.
+  - Hardened `guardrails.py` with canonical path resolution and symlink traversal defenses.
+- **Run Manifest & Strict Worktree Sandbox (`gv100h/runner/`, `schemas/`)**:
+  - `GV100HRunManifest` JSON schema with cryptographic evidence hashes.
+  - `GitWorktreeRunner` executing in ephemeral sandboxes with real `git diff --binary` capture.
+- **POC-1 USB Hub Spec QA Agent (`gv100h/spec_qa/`)**:
+  - Table-aware `GovernedSpecRetriever` with physical knowledge manifest SHA-256 binding.
+  - 30-question Golden Dataset & 5-tier deterministic evaluator (100% pass on embedded baseline).
+  - Integration spec for VitePress UI with Same-Origin Proxy isolation (`docs/USB_SPEC_QA_INTEGRATION_SPEC.md`).
+- **POC-2 VS Code Local Coding Agent (`gv100h/coding_eval/`)**:
+  - Evaluated Cline & Continue with `interception_mode: POST_HOC`.
+  - 10 representative engineering tasks with private benchmark isolation (`env://PRIVATE_BENCHMARK_ROOT`).
+  - Deterministic `GovernanceABRunner` supporting real manifest aggregation.
+- **Offline Scaffold Closeout & Truth Repair (`results/GV100H_POC_REPORT.md`)**:
+  - Full test suite passing (**60 / 60 PASSED**, 2 skipped).
+  - Explicitly classified as `NO_GO — synthetic/offline scaffold only` pending physical GPU deployment and live model inference runs.
 
 ---
 
 ## 🎯 Next Steps & Future Roadmap
-1. **Live EDA Cluster Integration**: Connect `SynopsysVCSAdapter` and `VerilatorAdapter` to live compute nodes with licensed VCS / Verdi toolchains.
-2. **Model Fine-Tuning Execution**: Execute `train_dpo_qwen.py` on real Dual GV100 hardware to train `Qwen2.5-Coder-32B-UVM-DPO`.
+1. **Live Inference Deployment**: Launch `llama.cpp` / `vLLM` on bare-metal Dual GV100 server loading Qwen weights.
+2. **Physical GPU Telemetry Sampling**: Execute `profile_runtime.py` to collect real NVML / `nvidia-smi` VRAM peaks and thermal metrics.
+3. **Live Evaluation Run**: Execute `run_live_eval.py --mode live` to populate real `GV100HRunManifest` records and transition report status to `GO`.
