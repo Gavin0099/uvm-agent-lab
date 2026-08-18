@@ -37,6 +37,9 @@ def test_generate_poc_report_execution():
     assert "Q1 — Model Quality" in report_text
     assert "Q5 — Governance" in report_text
     assert "808f23c24bd8651da9cdcd63ea8669126917a379" in report_text
+    assert "目前全庫共有" not in report_text
+    assert "測試通過數不是資格權威" in report_text
+    assert "scripts/run_live_universe.py --full-universe" in report_text
 
 
 def test_profile_runtime_emits_canonical_hardware_fields():

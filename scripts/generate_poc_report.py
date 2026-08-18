@@ -156,7 +156,7 @@ def generate_report(output_path: str = "results/GV100H_POC_REPORT.md") -> str:
 **現狀說明**: 依據參數量與 KV Cache 公式估算，雙 GV100 (64GB VRAM) 在 TP=2、Q4_K_M 量化下**預估佔用約 14.96 GB / GPU**。此為容量預算（Analytical Budget），並非實體 GPU Telemetry（NVML/nvidia-smi）監控數據。
 
 ### Q5 — Governance
-**現狀說明**: AI Governance 護欄（Dynamic Contract Router、Canonical Path Guardrail、Strict Fail-Closed Runner、Run Manifest Schema）已建立完整測試案例（目前全庫共有 **72 PASSED, 2 SKIPPED / 74 total** 測試案例）。
+**現狀說明**: AI Governance 護欄（Dynamic Contract Router、Canonical Path Guardrail、Strict Fail-Closed Runner、Run Manifest Schema）已建立測試案例。**測試通過數不是資格權威**；請重跑當前 pytest 取得即時數字，禁止沿用過期測試計數作為 admission 或 qualification 證據。
 
 ---
 
@@ -166,7 +166,7 @@ def generate_report(output_path: str = "results/GV100H_POC_REPORT.md") -> str:
 3. **下一步行動 (Action Items to Achieve GO)**：
    - 部署本地推論伺服器（llama.cpp / vLLM）載入 Qwen 權重（端點設於 `http://localhost:8000/v1`）。
    - 在具備 NVIDIA 驅動與 GPU 的環境下執行 `python scripts/profile_runtime.py --requests 100` 獲取真實 NVML/nvidia-smi GPU Telemetry 儲存於 `results/hardware/profile_summary.json`。
-   - 執行 `python scripts/run_live_eval.py --mode live` 逐題產生符合 `run_manifest.schema.json` 的 `GV100HRunManifest` 儲存於 `results/live_eval/`。
+   - 執行 `python scripts/run_live_universe.py --full-universe` 才能規劃 10×3×2 母體。`python scripts/run_live_eval.py` 預設單臂／單次不可宣稱完整 universe。
    - 透過 `GovernanceABRunner` 聚合真實 Manifests 並重新執行評審以解除 `NO_GO — synthetic` 限制。
 """
 
