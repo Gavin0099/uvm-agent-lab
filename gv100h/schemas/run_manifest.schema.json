@@ -1,0 +1,171 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GV100HRunManifest",
+  "description": "Immutable Machine-Readable Execution Evidence Manifest for Local AI Agent Qualification",
+  "type": "object",
+  "required": [
+    "run_id",
+    "task_id",
+    "experiment_arm",
+    "target_repo",
+    "base_commit",
+    "model_id",
+    "runtime",
+    "framework_commit",
+    "contract_id",
+    "hardware",
+    "evidence",
+    "outcome"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "description": "Unique run execution UUID"
+    },
+    "task_id": {
+      "type": "string",
+      "description": "Benchmark or engineering task identifier (e.g. GV100H-M3-CASE-001)"
+    },
+    "experiment_arm": {
+      "type": "string",
+      "enum": ["arm_a_prompt_only", "arm_b_governed_sidecar", "benchmark_baseline", "synthetic_replay"]
+    },
+    "target_repo": {
+      "type": "string",
+      "description": "Target repository being operated on (e.g. Gavin0099/uvm-agent-lab)"
+    },
+    "base_commit": {
+      "type": "string",
+      "description": "Baseline Git SHA before execution"
+    },
+    "head_commit": {
+      "type": ["string", "null"],
+      "description": "Git SHA after patch application if committed"
+    },
+    "model_id": {
+      "type": "string"
+    },
+    "model_hash": {
+      "type": "string"
+    },
+    "runtime": {
+      "type": "string",
+      "enum": ["llama.cpp", "vllm", "sglang", "transformers", "mock_replay"]
+    },
+    "runtime_commit": {
+      "type": "string"
+    },
+    "quantization": {
+      "type": "string",
+      "enum": ["Q4_K_M", "Q8_0", "AWQ_4BIT", "GPTQ_4BIT", "FP16", "FP8", "NONE"]
+    },
+    "framework_commit": {
+      "type": "string"
+    },
+    "contract_id": {
+      "type": "string"
+    },
+    "contract_hash": {
+      "type": "string"
+    },
+    "knowledge_repo": {
+      "type": "string"
+    },
+    "knowledge_repo_commit": {
+      "type": "string"
+    },
+    "knowledge_manifest_hash": {
+      "type": "string"
+    },
+    "dataset_hash": {
+      "type": "string"
+    },
+    "client": {
+      "type": "string",
+      "enum": ["cline", "continue", "direct_gateway", "harness_internal"]
+    },
+    "client_version": {
+      "type": "string"
+    },
+    "interception_mode": {
+      "type": "string",
+      "enum": ["ENFORCED", "POST_HOC", "UNSUPPORTED"]
+    },
+    "sampling": {
+      "type": "object",
+      "properties": {
+        "temperature": { "type": "number" },
+        "top_p": { "type": "number" },
+        "max_tokens": { "type": "integer" }
+      }
+    },
+    "hardware": {
+      "type": "object",
+      "required": ["gpu_count", "gpu_model"],
+      "properties": {
+        "gpu_count": { "type": "integer" },
+        "gpu_model": { "type": "string" },
+        "driver_version": { "type": "string" },
+        "cuda_version": { "type": "string" },
+        "vram_total_gb": { "type": "number" },
+        "vram_peak_used_gb": { "type": "number" }
+      }
+    },
+    "timing": {
+      "type": "object",
+      "properties": {
+        "ttft_ms": { "type": "number" },
+        "prompt_tps": { "type": "number" },
+        "decode_tps": { "type": "number" },
+        "wall_clock_sec": { "type": "number" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["git_diff_sha256"],
+      "properties": {
+        "git_diff_sha256": { "type": "string" },
+        "changed_paths": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "build_command": { "type": "string" },
+        "build_exit_code": { "type": "integer" },
+        "build_log_sha256": { "type": "string" },
+        "test_command": { "type": "string" },
+        "test_exit_code": { "type": "integer" },
+        "test_log_sha256": { "type": "string" }
+      }
+    },
+    "outcome": {
+      "type": "object",
+      "required": ["status", "false_success"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["pass", "fail", "timeout", "scope_violation", "endpoint_unavailable"]
+        },
+        "false_success": { "type": "boolean" },
+        "failure_class": {
+          "type": ["string", "null"],
+          "enum": [
+            "MODEL_REASONING_FAIL",
+            "TOOL_CALL_FAIL",
+            "CONTEXT_FAIL",
+            "BUILD_FAIL",
+            "TEST_FAIL",
+            "HALLUCINATED_SUCCESS",
+            "SCOPE_VIOLATION",
+            "TIMEOUT",
+            "ENDPOINT_UNAVAILABLE",
+            null
+          ]
+        },
+        "human_acceptance_rating": {
+          "type": ["string", "null"],
+          "enum": ["A", "B", "C", "D", null]
+        }
+      }
+    }
+  }
+}

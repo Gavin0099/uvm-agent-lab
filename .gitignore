@@ -29,6 +29,7 @@ htmlcov/
 # Results & Artifacts (keep dir, ignore raw logs unless committed)
 results/*
 !results/.gitkeep
+!results/*.md
 
 # UVM Generated Test Sandbox
 uvm/*

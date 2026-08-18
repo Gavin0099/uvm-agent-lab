@@ -8,13 +8,14 @@ FRAMEWORK_ROOT = PROJECT_ROOT / "additional" / "ai-governance-framework"
 
 
 def test_governance_drift_checker_clean():
-    """Verify that governance_drift_checker returns ok=True and severity=ok."""
-    if not FRAMEWORK_ROOT.exists():
-        pytest.skip("Submodule additional/ai-governance-framework not checked out.")
+    """Verify that governance_drift_checker returns ok=True when available."""
+    tool_path = FRAMEWORK_ROOT / "governance_tools" / "governance_drift_checker.py"
+    if not tool_path.exists():
+        pytest.skip(f"Governance drift checker tool not found at {tool_path}.")
 
     cmd = [
         sys.executable,
-        str(FRAMEWORK_ROOT / "governance_tools" / "governance_drift_checker.py"),
+        str(tool_path),
         "--repo", str(PROJECT_ROOT),
         "--framework-root", str(FRAMEWORK_ROOT)
     ]
@@ -25,13 +26,14 @@ def test_governance_drift_checker_clean():
 
 
 def test_governance_quickstart_smoke():
-    """Verify that quickstart_smoke returns ok=True."""
-    if not FRAMEWORK_ROOT.exists():
-        pytest.skip("Submodule additional/ai-governance-framework not checked out.")
+    """Verify that quickstart_smoke returns ok=True when available."""
+    tool_path = FRAMEWORK_ROOT / "governance_tools" / "quickstart_smoke.py"
+    if not tool_path.exists():
+        pytest.skip(f"Governance quickstart tool not found at {tool_path}.")
 
     cmd = [
         sys.executable,
-        str(FRAMEWORK_ROOT / "governance_tools" / "quickstart_smoke.py"),
+        str(tool_path),
         "--project-root", str(PROJECT_ROOT),
         "--plan", "PLAN.md",
         "--contract", "contract.yaml",

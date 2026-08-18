@@ -1,0 +1,58 @@
+{
+  "target_repo": "Gavin0099/uvm-agent-lab",
+  "target_base_commit": "2fadd2ca0e928261568c075ebaa559759018763f",
+  "target_head_commit": "HEAD (M-1B Truth & Validator Repair)",
+  "framework_commit": "3305b640d17ca253e632093d434ae029f920c3e3",
+  "reviewer_kind": "independent_model",
+  "authority_level": "advisory",
+  "decision": "approved",
+  "milestone": "GV100H-M-1B-TRUTH-REPAIR",
+  "findings": [
+    {
+      "finding_id": "FINDING-M1B-001",
+      "severity": "INFORMATIONAL",
+      "category": "VALIDATOR_ALIGNMENT",
+      "component": "validators.verification_scope_validator",
+      "summary": "ScopeGuardrail API 呼叫已完整適配 canonical resolution 與 report.passed 判定，包含路徑遍歷防禦檢驗。",
+      "recommendation": "後續可在 CI 流水線中作為獨立 step 直接執行 python validators/verification_scope_validator.py 進行 domain-level double check。"
+    },
+    {
+      "finding_id": "FINDING-M1B-002",
+      "severity": "INFORMATIONAL",
+      "category": "VALIDATOR_ALIGNMENT",
+      "component": "validators.zero_trust_evidence_validator",
+      "summary": "EvidenceVerifier API 呼叫已修復，對完整證據與缺失欄位（如 empty git_diff）分別實施了正向與負向斷言驗證。",
+      "recommendation": "在後續 Milestone 接入真實模擬器日誌雜湊時，可進一步啟用 expected_log_hash 比對機制。"
+    },
+    {
+      "finding_id": "FINDING-M1B-003",
+      "severity": "INFORMATIONAL",
+      "category": "FAIL_CLOSED_INTEGRITY",
+      "component": "agent.runners.openai_compatible_runner",
+      "summary": "徹底移除了 fake offline fallback；在 live 模式下遭遇網路或伺服器異常時嚴格拋出 ConnectionError(ENDPOINT_UNAVAILABLE)。",
+      "recommendation": "保持 live 模式與 mock 模式之物理分離，確保真實基準數據的 zero-trust 完整性。"
+    },
+    {
+      "finding_id": "FINDING-M1B-004",
+      "severity": "INFORMATIONAL",
+      "category": "TRUTH_REPAIR_EVIDENCE_CLASS",
+      "component": "benchmarks.LEADERBOARD",
+      "summary": "LEADERBOARD.md 已完成 Truth Repair，明確標記 evidence_class 為 synthetic_harness_smoke，hardware_observed 為 false，排除先前的過度宣稱。",
+      "recommendation": "待硬體上線執行真實 live 評測後，方可發布 hardware_observed: true 之評測數據。"
+    }
+  ],
+  "test_artifact_hashes": {
+    "validators/verification_scope_validator.py": "e72f8546b840e6bf39c5950eeabcb173361ebf7c00e12d1b7dfb36b4122d2b56",
+    "validators/zero_trust_evidence_validator.py": "d80b6ec86beec71206f5255a40b933cbeba4c49d7ea7e9f3b5840d7cba43867c",
+    "tests/test_validators_real_git.py": "ca03cf97e2f5bfe2e850b1062635feee11d4d38daea13a48e7164ea21c2c2f6d",
+    "agent/runners/openai_compatible_runner.py": "22e70df4ab75ca9b50e393b482b8b9ca84f7082333b1e328a6fcf777e48b8dc5",
+    "scripts/run_live_eval.py": "9bc2e11894d0a920ce311f6211f4219b10eb96eb4c0b435272a8fe772f4f89d5",
+    "tests/test_gate3_model_ab.py": "959f635c249a56cbef63dcdafaea89e5a87d03a11ee228781fbef27d04f69904",
+    "benchmarks/LEADERBOARD.md": "3c5fe8ee15be96fbc3b53c7c25cf6295cf580bb4b3faad24f61536b33400d53c"
+  },
+  "non_claims": [
+    "本審查不代表硬體加速器物理層面（Dual GV100 NVLink）已實際執行實體驗收，僅證明軟體護欄與測試架構具備嚴格的 Fail-Closed 與真實性校正特性。",
+    "本審查確認代碼修改完全符合 AI Governance Framework 與 AGENTS.md 邊界規範，無越權存取 forbidden_paths (rtl/) 之情事。",
+    "審查通過 (approved) 不免除後續發布至生產環境時之人工維護者 (Human Maintainer) 簽核義務。"
+  ]
+}

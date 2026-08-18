@@ -16,16 +16,28 @@ from agent.governance.guardrails import ScopeGuardrail
 
 
 def validate_scope() -> bool:
-    guardrail = ScopeGuardrail()
-    # Check that forbidden paths are intact
-    is_safe = guardrail.validate_path("uvm/tests/test.sv", allowed_paths=["uvm/tests/"], forbidden_paths=["rtl/"])
-    if not is_safe.is_valid:
-        print(f"[FAIL] Scope validation error: {is_safe.violation_message}")
+    guardrail = ScopeGuardrail(
+        allowed_paths=["uvm/tests/"],
+        forbidden_paths=["rtl/"],
+        base_dir=str(PROJECT_ROOT)
+    )
+
+    # 1. Allowed testbench path check
+    is_safe, safe_report = guardrail.check_path_access("uvm/tests/test.sv")
+    if not is_safe or not safe_report.passed:
+        print(f"[FAIL] Scope validation error on allowed path: {safe_report.violations}")
         return False
 
-    is_blocked = guardrail.validate_path("rtl/usb3_ctrl.sv", allowed_paths=["uvm/tests/"], forbidden_paths=["rtl/"])
-    if is_blocked.is_valid:
+    # 2. Forbidden RTL path check
+    is_blocked, blocked_report = guardrail.check_path_access("rtl/usb3_ctrl.sv")
+    if is_blocked or blocked_report.passed:
         print("[FAIL] RTL path was improperly allowed!")
+        return False
+
+    # 3. Path traversal attack check
+    is_traversal_blocked, traversal_report = guardrail.check_path_access("uvm/tests/../../rtl/usb3_ctrl.sv")
+    if is_traversal_blocked or traversal_report.passed:
+        print("[FAIL] Path traversal into RTL was improperly allowed!")
         return False
 
     print("[PASS] Verification Scope Guardrail validation passed.")

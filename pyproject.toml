@@ -25,3 +25,13 @@ dev = [
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 pythonpath = ["."]
+addopts = "--strict-markers"
+markers = [
+    "unit: isolated unit tests",
+    "contract: interface and schema contract tests",
+    "integration: cross-component integration tests",
+    "hardware: requires GV100 hardware environment",
+    "live_model: requires live inference endpoint",
+    "private_fixture: requires private benchmark dataset"
+]
+

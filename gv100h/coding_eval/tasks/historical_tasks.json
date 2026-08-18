@@ -1,0 +1,102 @@
+{
+  "benchmark_version": "1.0.0",
+  "total_tasks": 10,
+  "execution_policy": {
+    "repeat_runs_per_task": 3,
+    "total_benchmark_runs": 30,
+    "timeout_sec": 300,
+    "token_budget": 16000
+  },
+  "tasks": [
+    {
+      "task_id": "ENG-BUG-001",
+      "category": "bug_fix",
+      "title": "USB Hub Port Power Null Pointer Exception on Unconfigured Reset",
+      "fixture_locator": "env://PRIVATE_BENCHMARK_ROOT/ENG-BUG-001",
+      "sanitized_summary": "Fix null pointer dereference in port status update routine when warm reset occurs before configuration.",
+      "allowed_paths": ["uvm/tests/", "uvm/sequences/"],
+      "forbidden_paths": ["rtl/"]
+    },
+    {
+      "task_id": "ENG-BUG-002",
+      "category": "bug_fix",
+      "title": "Scoreboard FIFO Depth Underflow Under Backpressure",
+      "fixture_locator": "env://PRIVATE_BENCHMARK_ROOT/ENG-BUG-002",
+      "sanitized_summary": "Repair FIFO transaction counter state handling when burst read meets concurrent backpressure.",
+      "allowed_paths": ["uvm/env/"],
+      "forbidden_paths": ["rtl/"]
+    },
+    {
+      "task_id": "ENG-FEAT-001",
+      "category": "small_feature",
+      "title": "Add Port Link State UVM Sequence Item Extension",
+      "fixture_locator": "env://PRIVATE_BENCHMARK_ROOT/ENG-FEAT-001",
+      "sanitized_summary": "Extend USB3 sequence item with PORT_LINK_STATE feature selector payload constraints.",
+      "allowed_paths": ["uvm/sequences/"],
+      "forbidden_paths": ["rtl/"]
+    },
+    {
+      "task_id": "ENG-FEAT-002",
+      "category": "small_feature",
+      "title": "Implement SuperSpeed Hub Descriptor Verification Assertion",
+      "fixture_locator": "env://PRIVATE_BENCHMARK_ROOT/ENG-FEAT-002",
+      "sanitized_summary": "Add SVA property checking 0x2A bDescriptorType handshake during enumeration.",
+      "allowed_paths": ["uvm/assertions/"],
+      "forbidden_paths": ["rtl/"]
+    },
+    {
+      "task_id": "ENG-REF-001",
+      "category": "refactor",
+      "title": "Refactor APB Master Driver to UVM 1.2 Standard Phase Macros",
+      "fixture_locator": "env://PRIVATE_BENCHMARK_ROOT/ENG-REF-001",
+      "sanitized_summary": "Modernize legacy driver phase macros without altering transactional behavior or test suite.",
+      "allowed_paths": ["uvm/agents/"],
+      "forbidden_paths": ["rtl/"]
+    },
+    {
+      "task_id": "ENG-REF-002",
+      "category": "refactor",
+      "title": "Extract Common Covergroup Definition into Reusable Package",
+      "fixture_locator": "env://PRIVATE_BENCHMARK_ROOT/ENG-REF-002",
+      "sanitized_summary": "Decouple hub port covergroups into a shared verification package.",
+      "allowed_paths": ["uvm/coverage/"],
+      "forbidden_paths": ["rtl/"]
+    },
+    {
+      "task_id": "ENG-REC-001",
+      "category": "failure_recovery",
+      "title": "Diagnose and Fix VCS Incompatible Macro Syntax Error in Warm Reset Sequence",
+      "fixture_locator": "env://PRIVATE_BENCHMARK_ROOT/ENG-REC-001",
+      "sanitized_summary": "Read compiler error log, diagnose missing uvm_do_with macro parenthesis, patch and compile cleanly.",
+      "allowed_paths": ["uvm/sequences/"],
+      "forbidden_paths": ["rtl/"]
+    },
+    {
+      "task_id": "ENG-REC-002",
+      "category": "failure_recovery",
+      "title": "Resolve Scoreboard Data Mismatch on Stale Packet Timestamp",
+      "fixture_locator": "env://PRIVATE_BENCHMARK_ROOT/ENG-REC-002",
+      "sanitized_summary": "Analyze simulation log, identify sampling race condition in monitor clocking block, adjust clock skew.",
+      "allowed_paths": ["uvm/env/"],
+      "forbidden_paths": ["rtl/"]
+    },
+    {
+      "task_id": "ENG-MULTI-001",
+      "category": "multi_file",
+      "title": "Synchronize Port Power Descriptor across Testcase, Sequence, and RAL Model",
+      "fixture_locator": "env://PRIVATE_BENCHMARK_ROOT/ENG-MULTI-001",
+      "sanitized_summary": "Modify 4 coordinated files across tests, sequences, and RAL to support 8-port power switching.",
+      "allowed_paths": ["uvm/tests/", "uvm/sequences/", "uvm/ral/"],
+      "forbidden_paths": ["rtl/"]
+    },
+    {
+      "task_id": "ENG-MULTI-002",
+      "category": "multi_file",
+      "title": "End-to-End Interconnect Backpressure Stress Verification Testbench",
+      "fixture_locator": "env://PRIVATE_BENCHMARK_ROOT/ENG-MULTI-002",
+      "sanitized_summary": "Implement coordinated multi-agent sequence, virtual sequencer mapping, and top testcase.",
+      "allowed_paths": ["uvm/tests/", "uvm/sequences/", "uvm/env/"],
+      "forbidden_paths": ["rtl/"]
+    }
+  ]
+}

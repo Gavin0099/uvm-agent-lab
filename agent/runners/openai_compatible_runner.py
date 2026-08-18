@@ -78,13 +78,8 @@ class OpenAICompatibleLLMRunner(BaseAgentRunner):
                     "prompt_tokens": usage.get("prompt_tokens", 400),
                     "completion_tokens": usage.get("completion_tokens", 100),
                 }
-        except urllib.error.URLError:
-            # Fallback to deterministic mode if local server is not running
-            return {
-                "content": f"// Offline fallback for {self.name}\nclass evaluated_test;\nendclass\n",
-                "prompt_tokens": 450,
-                "completion_tokens": 120,
-            }
+        except urllib.error.URLError as e:
+            raise ConnectionError(f"ENDPOINT_UNAVAILABLE: Failed to connect to OpenAI-compatible endpoint at {url}: {e}")
 
     def run_case(self, case_dict: Dict[str, Any]) -> Dict[str, Any]:
         start_time = time.time()

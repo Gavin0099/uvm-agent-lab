@@ -1,0 +1,43 @@
+version: "1.0.0"
+domain: "gv100h-local-ai-qualification"
+
+policy_gates:
+  spec_qa:
+    min_grounded_accuracy: 90.0
+    min_version_scope_accuracy: 100.0
+    min_unsupported_refusal_rate: 95.0
+    max_fabricated_citations: 0
+    max_authority_violations: 0
+
+  coding_agent:
+    min_human_acceptance_a_b_rate: 70.0
+    max_false_success_rate: 0.0
+    max_scope_violations: 0
+    min_task_success_rate: 75.0
+
+  hardware_feasibility:
+    target_hardware: "Dual NVIDIA GV100 (32GB x 2 = 64GB Aggregate VRAM)"
+    min_continuous_requests: 100
+    max_corruption_count: 0
+    max_vram_usage_per_gpu_gb: 30.0
+    min_est_decode_tps: 15.0
+
+decision_rules:
+  GO:
+    description: "All Spec QA, Coding Agent, and Hardware feasibility gates strictly passed. Approved for internal engineering pilot."
+    conditions:
+      - spec_qa.max_fabricated_citations == 0
+      - spec_qa.max_authority_violations == 0
+      - spec_qa.min_grounded_accuracy >= 90.0
+      - coding_agent.min_human_acceptance_a_b_rate >= 70.0
+      - coding_agent.max_false_success_rate == 0.0
+      - hardware_feasibility.max_corruption_count == 0
+
+  CONDITIONAL_GO:
+    description: "Acceptable quality for restricted task categories with mandatory human reviewer approval."
+    conditions:
+      - spec_qa.max_fabricated_citations == 0
+      - coding_agent.min_human_acceptance_a_b_rate >= 60.0
+
+  NO_GO:
+    description: "Uncontrolled hallucination, frequent false successes, or hardware instability. Production integration blocked."

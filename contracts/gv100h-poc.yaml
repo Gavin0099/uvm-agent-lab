@@ -1,0 +1,118 @@
+# contracts/gv100h-poc.yaml
+# Task-specific Governance Contracts for GV100H Local AI Agent POC
+
+version: "1.0.0"
+domain: "local-ai-agent-engineering"
+
+tasks:
+  GV100H-M-1-BOOTSTRAP:
+    description: "M-1A Bootstrap: Contract dynamic routing, canonical path defense, and scope realignment"
+    allowed_paths:
+      - "contracts/"
+      - "governance/"
+      - "gv100h/governance/"
+      - "agent/governance/"
+      - "validators/"
+      - "tests/gv100h/"
+      - "scripts/"
+      - "memory/"
+      - "docs/"
+    forbidden_paths:
+      - "rtl/"
+      - "additional/"
+      - "benchmarks/golden_private/"
+      - ".git/"
+    validators:
+      - "validators/verification_scope_validator.py"
+      - "validators/zero_trust_evidence_validator.py"
+
+  GV100H-M-1B:
+    description: "M-1B Truth Repair: Validator repair, live mock separation, and claim census"
+    allowed_paths:
+      - "validators/"
+      - "agent/runners/"
+      - "scripts/"
+      - "benchmarks/"
+      - "dashboard/data/"
+      - "experiments/gate3/"
+      - "experiments/gate4/"
+      - "memory/"
+      - "tests/gv100h/"
+      - "tests/"
+      - "artifacts/"
+    forbidden_paths:
+      - "rtl/"
+      - "additional/"
+      - "benchmarks/golden_private/"
+      - ".git/"
+
+  GV100H-M0:
+    description: "M0: Core Schemas, Worktree Runner, Telemetry, and Fail-Closed Gateway"
+    allowed_paths:
+      - "gv100h/schemas/"
+      - "gv100h/gateway/"
+      - "gv100h/telemetry/"
+      - "gv100h/runner/"
+      - "gv100h/health/"
+      - "tests/gv100h/"
+      - "pyproject.toml"
+      - "docs/GV100H_POC_PLAN.md"
+    forbidden_paths:
+      - "rtl/"
+      - "additional/"
+      - "benchmarks/golden_private/"
+      - ".git/"
+
+  GV100H-M1:
+    description: "M1: Volta CC 7.0 Runtime Admission Matrix and Hardware Profiler"
+    allowed_paths:
+      - "gv100h/runtime/"
+      - "scripts/profile_runtime.py"
+      - "experiments/hardware/"
+      - "tests/gv100h/"
+      - "results/hardware/"
+    forbidden_paths:
+      - "rtl/"
+      - "additional/"
+      - "benchmarks/golden_private/"
+      - ".git/"
+
+  GV100H-M2:
+    description: "M2: POC-1 USB Hub Spec QA Agent (Backend, Golden 30, UI Spec)"
+    allowed_paths:
+      - "gv100h/spec_qa/"
+      - "docs/USB_SPEC_QA_INTEGRATION_SPEC.md"
+      - "tests/gv100h/"
+      - "results/spec_qa/"
+    forbidden_paths:
+      - "rtl/"
+      - "additional/"
+      - "benchmarks/golden_private/"
+      - ".git/"
+
+  GV100H-M3:
+    description: "M3: POC-2 VS Code Local Coding Agent (Admission, Tasks, Governance A/B)"
+    allowed_paths:
+      - "gv100h/coding_eval/"
+      - "tests/gv100h/"
+      - "results/coding/"
+      - "experiments/coding/"
+    forbidden_paths:
+      - "rtl/"
+      - "additional/"
+      - "benchmarks/golden_private/"
+      - ".git/"
+
+  GV100H-M4:
+    description: "M4: Evidence-backed Qualification Report and Decision Policy"
+    allowed_paths:
+      - "gv100h/qualification/"
+      - "scripts/generate_poc_report.py"
+      - "results/GV100H_POC_REPORT.md"
+      - "artifacts/reviews/gv100h/"
+      - "memory/04_review_log.md"
+    forbidden_paths:
+      - "rtl/"
+      - "additional/"
+      - "benchmarks/golden_private/"
+      - ".git/"

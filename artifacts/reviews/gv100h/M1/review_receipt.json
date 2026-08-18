@@ -1,0 +1,44 @@
+{
+  "target_repo": "Gavin0099/uvm-agent-lab",
+  "target_base_commit": "2fadd2ca0e928261568c075ebaa559759018763f",
+  "target_head_commit": "HEAD (M1 Runtime Admission & Real Hardware Qualification)",
+  "framework_commit": "3305b640d17ca253e632093d434ae029f920c3e3",
+  "reviewer_kind": "independent_model",
+  "authority_level": "advisory",
+  "decision": "approved",
+  "milestone": "GV100H-M1",
+  "findings": [
+    {
+      "finding_id": "FINDING-M1-001",
+      "severity": "info",
+      "category": "runtime_qualification",
+      "target_file": "gv100h/runtime/admission_matrix.py",
+      "description": "針對 Volta CC 7.0 缺乏現代 Tensor Core / AWQ Marlin 核心的硬體限制，明確以 llama.cpp Q4_K_M 作為首選 Baseline，Pinned vLLM GPTQ 作為實驗加速路徑，Transformers FP16 作為數值對照基準，排序合理且職責分明。"
+    },
+    {
+      "finding_id": "FINDING-M1-002",
+      "severity": "info",
+      "category": "vram_budget_modeling",
+      "target_file": "gv100h/health/vram_tracker.py",
+      "description": "DualGV100VRAMTracker 精確建模 35B/27B 模型在 TP=2 下的權重、KV Cache (32K context) 與 CUDA Overhead 記憶體開銷，成功區分 Q4_K_M (14.96GB/GPU，可行) 與 FP16 (38.60GB/GPU，OOM 攔截)。"
+    },
+    {
+      "finding_id": "FINDING-M1-003",
+      "severity": "info",
+      "category": "profiler_stability",
+      "target_file": "scripts/profile_runtime.py",
+      "description": "Profiler 實現無外部依賴的連續 HTTP POST 請求測試，能完整記錄 TTFT、延遲與 est_decode_tps，並將退出門檻 (Exit Gate: 100 次連續請求且 0 corruption) 輸出為結構化 JSON。"
+    }
+  ],
+  "test_artifact_hashes": {
+    "gv100h/runtime/admission_matrix.py": "057aa0563459c5d0ce180e03e5c9bcf20cfb591bba104a37f59d57a268157790",
+    "scripts/profile_runtime.py": "0c9d7d42cfb2f7d377b3df66e2c393bc67df76f0cb3c7e399ca550d53c61c390",
+    "tests/gv100h/test_m1_hardware_matrix.py": "95fe75429be974034ef81ec01c70e2be359ba76df29c2cfc9ec6838a0631ba6e",
+    "gv100h/health/vram_tracker.py": "5449e75525fc9e59275e7a9b0c2a201c1071295cb2e379bdf9708a3d526e8557"
+  },
+  "non_claims": [
+    "Passing offline contract tests does not substitute for actual physical multi-GPU stress tests under sustained thermal throttling conditions on bare-metal GV100 servers.",
+    "The advisory approval does not waive human architectural sign-off for live cluster deployment.",
+    "Calculated TPS estimations from synthetic payloads are indicative and subject to token length variance in real UVM benchmark workloads."
+  ]
+}

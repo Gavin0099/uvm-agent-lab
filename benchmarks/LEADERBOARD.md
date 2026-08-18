@@ -1,6 +1,9 @@
 # UVM Agent Lab — Industrial Verification Leaderboard
 
-> **Last Updated**: 2026-08-15
+> **Evidence Class**: `synthetic_harness_smoke` (Mock / Synthetic Replay Mode)
+> **Hardware Observed**: `false` (Deterministic harness simulation)
+> **Claim Ceiling**: `harness-path-only` (Pre-hardware bringup baseline)
+> **Last Updated**: 2026-08-18
 > **Benchmark Cases**: UVM-001 through UVM-010 (10 Industrial Cases)
 > **Governance Policy**: Zero-Trust Scope Isolation (`rtl/` Tampering = 0% Fatal)
 

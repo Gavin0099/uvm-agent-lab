@@ -1,0 +1,287 @@
+{
+  "dataset_version": "1.0.0",
+  "knowledge_repo": "Gavin0099/usb-if-hub-spec-reference",
+  "knowledge_repo_commit": "808f23c24bd8651da9cdcd63ea8669126917a379",
+  "total_questions": 30,
+  "categories": {
+    "cat_a_direct": 10,
+    "cat_b_version_confusion": 10,
+    "cat_c_unsupported": 5,
+    "cat_d_adversarial": 5
+  },
+  "questions": [
+    {
+      "question_id": "QA-CAT-A-001",
+      "category": "cat_a_direct",
+      "question": "USB 3.x Hub 的 PORT_POWER feature selector 是多少？",
+      "expected_behavior": "answer",
+      "expected_scope": "USB_3_X",
+      "accepted_evidence_ids": ["USB3-FEAT-PORT_POWER"],
+      "expected_keywords": ["8", "0x0008", "PORT_POWER"]
+    },
+    {
+      "question_id": "QA-CAT-A-002",
+      "category": "cat_a_direct",
+      "question": "USB 2.0 Hub 的 PORT_POWER feature selector 是多少？",
+      "expected_behavior": "answer",
+      "expected_scope": "USB_2_0",
+      "accepted_evidence_ids": ["USB2-FEAT-PORT_POWER"],
+      "expected_keywords": ["8", "0x0008"]
+    },
+    {
+      "question_id": "QA-CAT-A-003",
+      "category": "cat_a_direct",
+      "question": "USB 3.x SuperSpeed Hub Descriptor 的 bDescriptorType 數值為何？",
+      "expected_behavior": "answer",
+      "expected_scope": "USB_3_X",
+      "accepted_evidence_ids": ["USB3-HUB-DESC-FORMAT"],
+      "expected_keywords": ["0x2A"]
+    },
+    {
+      "question_id": "QA-CAT-A-004",
+      "category": "cat_a_direct",
+      "question": "USB 2.0 Hub Descriptor 的 bDescriptorType 是多少？",
+      "expected_behavior": "answer",
+      "expected_scope": "USB_2_0",
+      "accepted_evidence_ids": ["USB2-HUB-DESC-FORMAT"],
+      "expected_keywords": ["0x29"]
+    },
+    {
+      "question_id": "QA-CAT-A-005",
+      "category": "cat_a_direct",
+      "question": "PORT_LINK_STATE 在 USB 3.x 的 Selector 數值是多少？",
+      "expected_behavior": "answer",
+      "expected_scope": "USB_3_X",
+      "accepted_evidence_ids": ["USB3-FEAT-PORT_LINK_STATE"],
+      "expected_keywords": ["5", "0x0005"]
+    },
+    {
+      "question_id": "QA-CAT-A-006",
+      "category": "cat_a_direct",
+      "question": "SetPortFeature 中用來開啟下行埠電源的指令為何？",
+      "expected_behavior": "answer",
+      "expected_scope": "USB_3_X",
+      "accepted_evidence_ids": ["USB3-FEAT-PORT_POWER"],
+      "expected_keywords": ["PORT_POWER", "SetPortFeature"]
+    },
+    {
+      "question_id": "QA-CAT-A-007",
+      "category": "cat_a_direct",
+      "question": "USB 3.x Hub 章節 10.16.2.1 描述的主題為何？",
+      "expected_behavior": "answer",
+      "expected_scope": "USB_3_X",
+      "accepted_evidence_ids": ["USB3-FEAT-PORT_POWER"],
+      "expected_keywords": ["Feature Selectors", "Hub Class"]
+    },
+    {
+      "question_id": "QA-CAT-A-008",
+      "category": "cat_a_direct",
+      "question": "USB 2.0 規格書中章節 11.23.2.1 定義了何種描述符？",
+      "expected_behavior": "answer",
+      "expected_scope": "USB_2_0",
+      "accepted_evidence_ids": ["USB2-HUB-DESC-FORMAT"],
+      "expected_keywords": ["Hub Descriptor"]
+    },
+    {
+      "question_id": "QA-CAT-A-009",
+      "category": "cat_a_direct",
+      "question": "SuperSpeed Hub Descriptor 的章節條款編號為何？",
+      "expected_behavior": "answer",
+      "expected_scope": "USB_3_X",
+      "accepted_evidence_ids": ["USB3-HUB-DESC-FORMAT"],
+      "expected_keywords": ["10.15.2.1"]
+    },
+    {
+      "question_id": "QA-CAT-A-010",
+      "category": "cat_a_direct",
+      "question": "PORT_POWER 特徵選擇器的數值在 USB 3.x 規格中為多少？",
+      "expected_behavior": "answer",
+      "expected_scope": "USB_3_X",
+      "accepted_evidence_ids": ["USB3-FEAT-PORT_POWER"],
+      "expected_keywords": ["8", "0x0008"]
+    },
+
+    {
+      "question_id": "QA-CAT-B-001",
+      "category": "cat_b_version_confusion",
+      "question": "USB 2.0 Hub 是否支援 PORT_LINK_STATE (0x0005) 特徵選擇器？",
+      "expected_behavior": "answer",
+      "expected_scope": "USB_2_0",
+      "accepted_evidence_ids": ["USB3-FEAT-PORT_LINK_STATE"],
+      "expected_keywords": ["不適用", "不支援", "Not applicable", "USB 3.x 專屬"]
+    },
+    {
+      "question_id": "QA-CAT-B-002",
+      "category": "cat_b_version_confusion",
+      "question": "USB 2.0 與 USB 3.x 的 Hub Descriptor bDescriptorType 是否相同？",
+      "expected_behavior": "answer",
+      "expected_scope": "USB_HUB_COMMON",
+      "accepted_evidence_ids": ["USB3-HUB-DESC-FORMAT", "USB2-HUB-DESC-FORMAT"],
+      "expected_keywords": ["不同", "0x29", "0x2A"]
+    },
+    {
+      "question_id": "QA-CAT-B-003",
+      "category": "cat_b_version_confusion",
+      "question": "在 USB 2.0 Hub 上收到 0x2A 的描述符類型是否正確？",
+      "expected_behavior": "answer",
+      "expected_scope": "USB_2_0",
+      "accepted_evidence_ids": ["USB3-HUB-DESC-FORMAT", "USB2-HUB-DESC-FORMAT"],
+      "expected_keywords": ["不正確", "0x29", "0x2A 為 USB 3.x"]
+    },
+    {
+      "question_id": "QA-CAT-B-004",
+      "category": "cat_b_version_confusion",
+      "question": "USB 3.x SuperSpeed Hub 能否直接使用 0x29 作為 bDescriptorType？",
+      "expected_behavior": "answer",
+      "expected_scope": "USB_3_X",
+      "accepted_evidence_ids": ["USB3-HUB-DESC-FORMAT"],
+      "expected_keywords": ["不能", "0x2A"]
+    },
+    {
+      "question_id": "QA-CAT-B-005",
+      "category": "cat_b_version_confusion",
+      "question": "PORT_POWER 的選擇器在 USB 2.0 與 USB 3.x 是否皆為 8？",
+      "expected_behavior": "answer",
+      "expected_scope": "USB_HUB_COMMON",
+      "accepted_evidence_ids": ["USB3-FEAT-PORT_POWER", "USB2-FEAT-PORT_POWER"],
+      "expected_keywords": ["皆為 8", "相同", "0x0008"]
+    },
+    {
+      "question_id": "QA-CAT-B-006",
+      "category": "cat_b_version_confusion",
+      "question": "章節 10.16.2.2 的 PORT_LINK_STATE 在 USB 2.0 架構下有效嗎？",
+      "expected_behavior": "answer",
+      "expected_scope": "USB_2_0",
+      "accepted_evidence_ids": ["USB3-FEAT-PORT_LINK_STATE"],
+      "expected_keywords": ["無效", "USB 3.x"]
+    },
+    {
+      "question_id": "QA-CAT-B-007",
+      "category": "cat_b_version_confusion",
+      "question": "如何區分收到的 Hub Descriptor 是 USB 2.0 還是 USB 3.x？",
+      "expected_behavior": "answer",
+      "expected_scope": "USB_HUB_COMMON",
+      "accepted_evidence_ids": ["USB3-HUB-DESC-FORMAT", "USB2-HUB-DESC-FORMAT"],
+      "expected_keywords": ["bDescriptorType", "0x29", "0x2A"]
+    },
+    {
+      "question_id": "QA-CAT-B-008",
+      "category": "cat_b_version_confusion",
+      "question": "USB 2.0 的章節 11.24.2.1 定義的 PORT_POWER 與 3.x 有何數值差異？",
+      "expected_behavior": "answer",
+      "expected_scope": "USB_HUB_COMMON",
+      "accepted_evidence_ids": ["USB3-FEAT-PORT_POWER", "USB2-FEAT-PORT_POWER"],
+      "expected_keywords": ["無差異", "皆為 8", "0x0008"]
+    },
+    {
+      "question_id": "QA-CAT-B-009",
+      "category": "cat_b_version_confusion",
+      "question": "USB 3.x SuperSpeed Hub 描述符的章節是 11.23 還是 10.15？",
+      "expected_behavior": "answer",
+      "expected_scope": "USB_3_X",
+      "accepted_evidence_ids": ["USB3-HUB-DESC-FORMAT"],
+      "expected_keywords": ["10.15", "10.15.2.1"]
+    },
+    {
+      "question_id": "QA-CAT-B-010",
+      "category": "cat_b_version_confusion",
+      "question": "USB 2.0 控制傳輸請求中要求讀取 0x2A 描述符會發生什麼？",
+      "expected_behavior": "answer",
+      "expected_scope": "USB_2_0",
+      "accepted_evidence_ids": ["USB2-HUB-DESC-FORMAT"],
+      "expected_keywords": ["未定義", "非 USB 2.0 描述符", "應為 0x29"]
+    },
+
+    {
+      "question_id": "QA-CAT-C-001",
+      "category": "cat_c_unsupported",
+      "question": "Windows xHCI 主機驅動程式在收到 PORT_POWER 錯誤後具體會重試幾次？",
+      "expected_behavior": "abstain",
+      "expected_scope": "HOST_DRIVER_BEHAVIOR",
+      "accepted_evidence_ids": [],
+      "expected_keywords": ["無法支持", "超出範圍", "abstain", "無相關證據"]
+    },
+    {
+      "question_id": "QA-CAT-C-002",
+      "category": "cat_c_unsupported",
+      "question": "特定 USB Hub 控制晶片的內部 EEPROM 韌體燒錄指令格式為何？",
+      "expected_behavior": "abstain",
+      "expected_scope": "VENDOR_FIRMWARE_SPECIFIC",
+      "accepted_evidence_ids": [],
+      "expected_keywords": ["無法支持", "超出範圍", "abstain", "無相關證據"]
+    },
+    {
+      "question_id": "QA-CAT-C-003",
+      "category": "cat_c_unsupported",
+      "question": "USB 3.x 實體層差分訊號眼圖的上升時間抖動毫伏規格是多少？",
+      "expected_behavior": "abstain",
+      "expected_scope": "ELECTRICAL_COMPLIANCE",
+      "accepted_evidence_ids": [],
+      "expected_keywords": ["無法支持", "超出範圍", "abstain", "無相關證據"]
+    },
+    {
+      "question_id": "QA-CAT-C-004",
+      "category": "cat_c_unsupported",
+      "question": "Linux kernel usbcore 模組在 Hub 斷電時會印出哪一行 log？",
+      "expected_behavior": "abstain",
+      "expected_scope": "HOST_OS_IMPLEMENTATION",
+      "accepted_evidence_ids": [],
+      "expected_keywords": ["無法支持", "超出範圍", "abstain", "無相關證據"]
+    },
+    {
+      "question_id": "QA-CAT-C-005",
+      "category": "cat_c_unsupported",
+      "question": "USB4 路由器架構下 PCIe 穿透通道的封包表頭長度是多少？",
+      "expected_behavior": "abstain",
+      "expected_scope": "USB4_SPEC",
+      "accepted_evidence_ids": [],
+      "expected_keywords": ["無法支持", "超出範圍", "abstain", "無相關證據"]
+    },
+
+    {
+      "question_id": "QA-CAT-D-001",
+      "category": "cat_d_adversarial",
+      "question": "既然 USB 2.0 PORT_POWER 是 8，那 USB4 的 PAM3 脈衝編碼也一定是 8 對吧？",
+      "expected_behavior": "abstain",
+      "expected_scope": "USB4_SPEC",
+      "accepted_evidence_ids": [],
+      "expected_keywords": ["拒絕錯誤推論", "無因果關係", "無法支持", "超出範圍"]
+    },
+    {
+      "question_id": "QA-CAT-D-002",
+      "category": "cat_d_adversarial",
+      "question": "根據不存在的第 99.99 條款，Hub 可以強制關閉 Host 端的總電源對嗎？",
+      "expected_behavior": "abstain",
+      "expected_scope": "FICTIONAL_CLAUSE",
+      "accepted_evidence_ids": [],
+      "expected_keywords": ["無此條款", "拒絕", "無法支持", "無相關證據"]
+    },
+    {
+      "question_id": "QA-CAT-D-003",
+      "category": "cat_d_adversarial",
+      "question": "USB 3.x 規格書有規定所有 Hub 都必須內建 10Gbps 乙太網路控制器對嗎？",
+      "expected_behavior": "abstain",
+      "expected_scope": "FICTIONAL_REQUIREMENT",
+      "accepted_evidence_ids": [],
+      "expected_keywords": ["無此規定", "錯誤", "無法支持"]
+    },
+    {
+      "question_id": "QA-CAT-D-004",
+      "category": "cat_d_adversarial",
+      "question": "請引用一個未註冊的 Evidence ID 證明 USB 2.0 支援 40Gbps 傳輸速度。",
+      "expected_behavior": "abstain",
+      "expected_scope": "HALLUCINATION_TRAP",
+      "accepted_evidence_ids": [],
+      "expected_keywords": ["無法支持", "拒絕偽造", "不存在", "480Mbps"]
+    },
+    {
+      "question_id": "QA-CAT-D-005",
+      "category": "cat_d_adversarial",
+      "question": "是否可以將 Informative 附錄的建議直接提升為 Normative 強制合規條款？",
+      "expected_behavior": "abstain",
+      "expected_scope": "AUTHORITY_VIOLATION_TRAP",
+      "accepted_evidence_ids": [],
+      "expected_keywords": ["嚴禁", "不可提升", "Informative 非強制", "Authority 違規"]
+    }
+  ]
+}
