@@ -26,6 +26,15 @@
       "type": "string",
       "description": "Benchmark or engineering task identifier (e.g. GV100H-M3-CASE-001)"
     },
+    "benchmark_task_id": {
+      "type": ["string", "null"]
+    },
+    "pair_id": {
+      "type": ["string", "null"]
+    },
+    "repetition": {
+      "type": ["integer", "null"]
+    },
     "experiment_arm": {
       "type": "string",
       "enum": ["arm_a_prompt_only", "arm_b_governed_sidecar", "benchmark_baseline", "synthetic_replay"]
@@ -46,18 +55,18 @@
       "type": "string"
     },
     "model_hash": {
-      "type": "string"
+      "type": ["string", "null"]
     },
     "runtime": {
       "type": "string",
       "enum": ["llama.cpp", "vllm", "sglang", "transformers", "mock_replay"]
     },
     "runtime_commit": {
-      "type": "string"
+      "type": ["string", "null"]
     },
     "quantization": {
-      "type": "string",
-      "enum": ["Q4_K_M", "Q8_0", "AWQ_4BIT", "GPTQ_4BIT", "FP16", "FP8", "NONE"]
+      "type": ["string", "null"],
+      "enum": ["Q4_K_M", "Q8_0", "AWQ_4BIT", "GPTQ_4BIT", "FP16", "FP8", "NONE", null]
     },
     "framework_commit": {
       "type": "string"
@@ -66,37 +75,48 @@
       "type": "string"
     },
     "contract_hash": {
-      "type": "string"
+      "type": ["string", "null"]
     },
+    "execution_contract_id": {
+      "type": ["string", "null"]
+    },
+    "execution_contract_hash": {
+      "type": ["string", "null"]
+    },
+    "benchmark_case_hash": {
+      "type": ["string", "null"]
+    },
+
     "knowledge_repo": {
-      "type": "string"
+      "type": ["string", "null"]
     },
     "knowledge_repo_commit": {
-      "type": "string"
+      "type": ["string", "null"]
     },
     "knowledge_manifest_hash": {
-      "type": "string"
+      "type": ["string", "null"]
     },
     "dataset_hash": {
-      "type": "string"
+      "type": ["string", "null"]
     },
     "client": {
-      "type": "string",
-      "enum": ["cline", "continue", "direct_gateway", "harness_internal"]
+      "type": ["string", "null"],
+      "enum": ["cline", "continue", "direct_gateway", "harness_internal", null]
     },
     "client_version": {
-      "type": "string"
+      "type": ["string", "null"]
     },
+
     "interception_mode": {
       "type": "string",
       "enum": ["ENFORCED", "POST_HOC", "UNSUPPORTED"]
     },
     "sampling": {
-      "type": "object",
+      "type": ["object", "null"],
       "properties": {
-        "temperature": { "type": "number" },
-        "top_p": { "type": "number" },
-        "max_tokens": { "type": "integer" }
+        "temperature": { "type": ["number", "null"] },
+        "top_p": { "type": ["number", "null"] },
+        "max_tokens": { "type": ["integer", "null"] }
       }
     },
     "hardware": {
@@ -105,19 +125,19 @@
       "properties": {
         "gpu_count": { "type": "integer" },
         "gpu_model": { "type": "string" },
-        "driver_version": { "type": "string" },
-        "cuda_version": { "type": "string" },
-        "vram_total_gb": { "type": "number" },
-        "vram_peak_used_gb": { "type": "number" }
+        "driver_version": { "type": ["string", "null"] },
+        "cuda_version": { "type": ["string", "null"] },
+        "vram_total_gb": { "type": ["number", "null"] },
+        "vram_peak_used_gb": { "type": ["number", "null"] }
       }
     },
     "timing": {
-      "type": "object",
+      "type": ["object", "null"],
       "properties": {
-        "ttft_ms": { "type": "number" },
-        "prompt_tps": { "type": "number" },
-        "decode_tps": { "type": "number" },
-        "wall_clock_sec": { "type": "number" }
+        "ttft_ms": { "type": ["number", "null"] },
+        "prompt_tps": { "type": ["number", "null"] },
+        "decode_tps": { "type": ["number", "null"] },
+        "wall_clock_sec": { "type": ["number", "null"] }
       }
     },
     "evidence": {
@@ -129,12 +149,12 @@
           "type": "array",
           "items": { "type": "string" }
         },
-        "build_command": { "type": "string" },
-        "build_exit_code": { "type": "integer" },
-        "build_log_sha256": { "type": "string" },
-        "test_command": { "type": "string" },
-        "test_exit_code": { "type": "integer" },
-        "test_log_sha256": { "type": "string" }
+        "build_command": { "type": ["string", "null"] },
+        "build_exit_code": { "type": ["integer", "null"] },
+        "build_log_sha256": { "type": ["string", "null"] },
+        "test_command": { "type": ["string", "null"] },
+        "test_exit_code": { "type": ["integer", "null"] },
+        "test_log_sha256": { "type": ["string", "null"] }
       }
     },
     "outcome": {
@@ -169,3 +189,4 @@
     }
   }
 }
+

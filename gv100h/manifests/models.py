@@ -55,6 +55,9 @@ class OutcomeManifest(BaseModel):
 class GV100HRunManifest(BaseModel):
     run_id: str
     task_id: str
+    benchmark_task_id: Optional[str] = None
+    pair_id: Optional[str] = None
+    repetition: Optional[int] = 1
     experiment_arm: Literal["arm_a_prompt_only", "arm_b_governed_sidecar", "benchmark_baseline", "synthetic_replay"]
     target_repo: str
     base_commit: str
@@ -67,6 +70,9 @@ class GV100HRunManifest(BaseModel):
     framework_commit: str
     contract_id: str
     contract_hash: Optional[str] = None
+    execution_contract_id: Optional[str] = None
+    execution_contract_hash: Optional[str] = None
+    benchmark_case_hash: Optional[str] = None
     knowledge_repo: Optional[str] = None
     knowledge_repo_commit: Optional[str] = None
     knowledge_manifest_hash: Optional[str] = None
@@ -74,8 +80,10 @@ class GV100HRunManifest(BaseModel):
     client: Optional[Literal["cline", "continue", "direct_gateway", "harness_internal"]] = "harness_internal"
     client_version: Optional[str] = None
     interception_mode: Optional[Literal["ENFORCED", "POST_HOC", "UNSUPPORTED"]] = "POST_HOC"
-    sampling: Optional[SamplingConfig] = None
+    sampling: Optional[SamplingConfig] = Field(default_factory=SamplingConfig)
     hardware: HardwareManifest
-    timing: Optional[TimingManifest] = None
+    timing: Optional[TimingManifest] = Field(default_factory=TimingManifest)
     evidence: EvidenceManifest
     outcome: OutcomeManifest
+
+
