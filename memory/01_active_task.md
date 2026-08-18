@@ -4,7 +4,7 @@
 
 > **最後更新**: 2026-08-18
 > **Owner**: Gavin0099
-> **狀態**: Active (GV100H POC Offline Scaffold Closeout Completed)
+> **狀態**: Active (M0.5 Evidence Pipeline Admission — human review REJECT; keep NO_GO — synthetic)
 
 ## 📌 Project Overview
 `uvm-agent-lab` is an industrial-grade evaluation and self-healing agent testbed for LLM-assisted IEEE 1800.2 UVM digital chip verification. It features deterministic benchmarking, multi-turn syntax/timing self-healing, functional coverage closure, real EDA toolchain adapters, MCP protocol knowledge integration, and zero-trust AI governance.
@@ -18,7 +18,8 @@
 - **Gate 1 (Governed Knowledge Layer vs Baseline RAG)**: `spec-reference-kit` achieves 100% Recall@1 on approved verification specs while rejecting unapproved drafts, compared to 33.3% failure in baseline vector RAG.
 - **Gate 2 (Multi-Turn Self-Healing Harness)**: `MultiTurnHealingAgentRunner` autonomously parses compiler errors, timing mismatches, and applies patches in iterative multi-turn loops.
 - **Gate 3 (Model A/B Evaluation Suite)**: `OpenAICompatibleLLMRunner` enables headless A/B evaluation between commercial and open-source models with offline fallback.
-- **Gate 4 (Dual GV100 NVLink Qualification)**: Validated memory budgets, AWQ 4-bit tensor parallelism (`TP=2`), and context scaling up to 128K tokens on 2× Quadro/Tesla GV100 32GB cards.
+- **Gate 4 (Dual GV100 NVLink Capacity Budgeting)**: Calculated memory budgets, AWQ 4-bit tensor parallelism (`TP=2`), and context scaling up to 128K tokens on 2× Quadro/Tesla GV100 32GB cards (Analytical Estimate; Physical Bare-Metal Qualification Pending).
+
 
 ### ✅ Phase 2: Industrial Toolchain, MCP & Advanced Benchmarks
 - **Real EDA Toolchain Adapters (`scripts/eda/`)**:
@@ -61,28 +62,30 @@
   - `validators/zero_trust_evidence_validator.py` (enforcing evidence packet integrity)
 - Installed `.git/hooks/pre-commit` and `.git/hooks/pre-push` runtime hooks.
 - Configured GitHub Actions CI/CD workflows (`.github/workflows/ci.yml`, `.github/workflows/governance-drift.yml`).
-### ✅ Phase 4: GV100H Local AI Agent POC & Truth Repair (2026-08-18)
+### ✅ Phase 4: GV100H Local AI Agent POC & M0.5 Admission Pipeline (2026-08-18)
 - **Dynamic Task Contracts & Canonical Guardrails (`gv100h/governance/`)**:
-  - `contract_router.py` dynamically resolves per-task scope constraints from `contracts/gv100h-poc.yaml`.
+  - `contract_router.py` dynamically resolves Development Governance Contracts (`GV100H-M0.5`) and Benchmark Execution Contracts.
   - Hardened `guardrails.py` with canonical path resolution and symlink traversal defenses.
 - **Run Manifest & Strict Worktree Sandbox (`gv100h/runner/`, `schemas/`)**:
-  - `GV100HRunManifest` JSON schema with cryptographic evidence hashes.
+  - `GV100HRunManifest` JSON schema with cryptographic evidence hashes and invariant `pair_id` support.
   - `GitWorktreeRunner` executing in ephemeral sandboxes with real `git diff --binary` capture.
+  - `IndependentVerifier` executing real EDA compilation & simulation within worktree sandboxes (`exit 0 != success`).
 - **POC-1 USB Hub Spec QA Agent (`gv100h/spec_qa/`)**:
   - Table-aware `GovernedSpecRetriever` with physical knowledge manifest SHA-256 binding.
-  - 30-question Golden Dataset & 5-tier deterministic evaluator (100% pass on embedded baseline).
+  - 30-question Golden Dataset & 5-tier deterministic evaluator.
   - Integration spec for VitePress UI with Same-Origin Proxy isolation (`docs/USB_SPEC_QA_INTEGRATION_SPEC.md`).
 - **POC-2 VS Code Local Coding Agent (`gv100h/coding_eval/`)**:
   - Evaluated Cline & Continue with `interception_mode: POST_HOC`.
   - 10 representative engineering tasks with private benchmark isolation (`env://PRIVATE_BENCHMARK_ROOT`).
-  - Deterministic `GovernanceABRunner` supporting real manifest aggregation.
-- **Offline Scaffold Closeout & Truth Repair (`results/GV100H_POC_REPORT.md`)**:
-  - Full test suite passing (**60 / 60 PASSED**, 2 skipped).
-  - Explicitly classified as `NO_GO — synthetic/offline scaffold only` pending physical GPU deployment and live model inference runs.
+  - Deterministic `GovernanceABRunner` supporting paired live manifest aggregation.
+- **Generic Qualification Policy & Offline Scaffold (not admitted)**:
+  - `qualification_policy.yaml` exists with declared gates; human review still REJECTS the M0.5 `approved` receipt.
+  - Keep `QualificationDecision = NO_GO — synthetic/offline scaffold only`. Do not treat Pipeline Admission as PASS.
 
 ---
 
 ## 🎯 Next Steps & Future Roadmap
-1. **Live Inference Deployment**: Launch `llama.cpp` / `vLLM` on bare-metal Dual GV100 server loading Qwen weights.
-2. **Physical GPU Telemetry Sampling**: Execute `profile_runtime.py` to collect real NVML / `nvidia-smi` VRAM peaks and thermal metrics.
-3. **Live Evaluation Run**: Execute `run_live_eval.py --mode live` to populate real `GV100HRunManifest` records and transition report status to `GO`.
+1. **M0.5 P0 repair (blocking)**: Aggregator must revalidate physical Evidence Bundles; hardware profile field mapping must not treat synthetic fallback as live.
+2. **Do not close M0.5** on the advisory subagent `approved` receipt; human review remains REJECT.
+3. **Live Inference Deployment**: only after M0.5 admission is actually repaired and re-reviewed.
+4. **Physical GPU Telemetry / live eval**: still pending; current qualification stays `NO_GO — synthetic`.

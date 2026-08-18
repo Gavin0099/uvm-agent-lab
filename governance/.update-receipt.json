@@ -1,0 +1,35 @@
+{
+  "receipt_version": "0.1",
+  "receipt_type": "ai_governance_update",
+  "tool": "external_governance_submodule_updater",
+  "tool_mode": "apply",
+  "repo_root": "E:\\BackUp\\Git_EE\\uvm-agent-lab",
+  "framework_root": "E:\\BackUp\\Git_EE\\uvm-agent-lab\\additional\\ai-governance-framework",
+  "framework_before": "3305b640d17ca253e632093d434ae029f920c3e3",
+  "framework_after": "5d184ee6c40a6d420d58ddcd3b9603ced553e09d",
+  "lock_adopted_commit": "5d184ee6c40a6d420d58ddcd3b9603ced553e09d",
+  "lock_matches_checkout": true,
+  "update_status": "updated",
+  "generated_at_utc": "2026-08-18T07:42:12Z",
+  "claim_boundary": [
+    "receipt is review evidence, not proof",
+    "no fetch truth is implied unless explicitly recorded",
+    "consumer repo adoption is not proven complete"
+  ],
+  "not_claimed": [
+    "full governance adoption",
+    "hook/CI enforcement",
+    "memory completeness",
+    "domain correctness",
+    "release readiness"
+  ],
+  "remote_evidence": {
+    "target_ref": "origin/main",
+    "fetch_remote": "origin",
+    "fetch_ref": "main",
+    "target_source": "fresh_remote_fetch_head",
+    "target_fresh_upstream_verified": true,
+    "target_claim_boundary": "fresh upstream target verified; already_current/updated claims are allowed",
+    "target_head": "5d184ee6c40a6d420d58ddcd3b9603ced553e09d"
+  }
+}

@@ -8,7 +8,20 @@
 
 ## 📝 Milestone History
 
+### 2026-08-18 — Milestone M0.5: Evidence Pipeline E2E Admission [HUMAN REJECT — advisory approved receipt is not binding]
+- **Milestone**: `M0.5`
+- **Review ID**: `REV-GV100H-M0.5-ADMISSION`
+- **Human Review Verdict**: **`REJECT`**. Keep **`NO_GO — synthetic`**. The advisory subagent `approved` receipt is not accepted and is not bound to the reviewed content.
+- **Target Commit observed**: `0ad5ba53a65694f0f759db897bb5b509f7c9575c` (later uncommitted GV100H/governance files exist; do not treat this as admitted closeout).
+- **Open P0**:
+  1. Aggregator does not revalidate physical Evidence Bundles.
+  2. Hardware profile field mapping would use synthetic fallback while treating data as live.
+- **Open P1**: live command cannot produce the full universe; approved receipt not bound to reviewed content.
+- **P2**: test-count claim is stale. Do not cite **73 PASSED** as current authority.
+- **Qualification**: remains **`NO_GO — synthetic/offline scaffold only`**.
+
 ### 2026-08-18 — Milestone M4: Human Review Decision [REQUEST CHANGES — P0]
+
 - **Human Review Verdict**: **`REQUEST CHANGES — P0`** (Comprehensive invalidation of premature M0-M4 closeouts).
 - **Core P0 Blockers Identified**:
   1. **[P0-1] Live Runner Fabricated Evidence**: `run_live_eval.py` called non-existent `generate_response()`, output schema mismatches, hardcoded `sha256(b"PASS")` and mock status, bypassing actual compilation and simulation.
