@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Dict, Any, List, Optional
 from scripts.eda.router import EDARouter
 
@@ -8,7 +9,16 @@ class GovernedSimTools:
     Routes requests through EDARouter (supporting VCS, Verilator, Icarus, and deterministic SimStub).
     """
 
-    def __init__(self, eda_router: Optional[EDARouter] = None):
+    def __init__(
+        self,
+        eda_router: Optional[EDARouter] = None,
+        workspace_root: Optional[Path] = None,
+        mode: str = "mock"
+    ):
+        self.workspace_root = Path(workspace_root).resolve() if workspace_root else Path(".").resolve()
+        self.mode = mode
+        # Keep HEAD EDARouter() ctor. Live fail-closed belongs to IndependentVerifier,
+        # not this agent-side tool wrapper.
         self.eda_router = eda_router or EDARouter()
 
     def compile(self, target_file: str, extra_flags: str = "") -> Dict[str, Any]:
@@ -18,3 +28,4 @@ class GovernedSimTools:
 
     def simulate(self, test_name: str, seed: int = 1, timeout_sec: int = 60) -> Dict[str, Any]:
         return self.eda_router.simulate(top_module=test_name, seed=seed, timeout_sec=timeout_sec)
+

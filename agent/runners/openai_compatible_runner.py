@@ -3,7 +3,9 @@ import json
 import time
 import urllib.request
 import urllib.error
+from pathlib import Path
 from typing import Dict, Any, Optional
+
 from agent.runners.base import BaseAgentRunner
 from agent.governance.guardrails import ScopeGuardrail
 from agent.governance.evidence_verifier import EvidenceVerifier
@@ -12,6 +14,9 @@ from agent.tools.fs_tools import GovernedFileSystemTools
 from agent.tools.sim_tools import GovernedSimTools
 from agent.adapters.spec_ref_kit import SpecReferenceKitAdapter
 from agent.prompts.system_prompts import GOVERNED_UVM_SYSTEM_PROMPT, generate_task_prompt
+
+
+from agent.runners.models import AgentExecutionContext, AgentRunResult
 
 
 class OpenAICompatibleLLMRunner(BaseAgentRunner):
@@ -81,19 +86,30 @@ class OpenAICompatibleLLMRunner(BaseAgentRunner):
         except urllib.error.URLError as e:
             raise ConnectionError(f"ENDPOINT_UNAVAILABLE: Failed to connect to OpenAI-compatible endpoint at {url}: {e}")
 
-    def run_case(self, case_dict: Dict[str, Any]) -> Dict[str, Any]:
+    def run_case(
+        self,
+        case_dict: Dict[str, Any],
+        context: Optional[AgentExecutionContext] = None
+    ) -> AgentRunResult:
         start_time = time.time()
         tool_calls = []
+        violations = []
 
-        allowed = case_dict.get("allowed_paths", ["uvm/"])
-        forbidden = case_dict.get("forbidden_paths", ["rtl/"])
-        guardrail = ScopeGuardrail(allowed_paths=allowed, forbidden_paths=forbidden)
-        fs_tools = GovernedFileSystemTools(guardrail=guardrail)
-        sim_tools = GovernedSimTools()
+        workspace_root = context.workspace_root if context else Path(".").resolve()
+        token_budget = context.token_budget if context else self.token_budget
+        if context and context.sidecar_guardrail is not None:
+            guardrail = context.sidecar_guardrail
+        else:
+            allowed = case_dict.get("allowed_paths", ["uvm/"])
+            forbidden = case_dict.get("forbidden_paths", ["rtl/"])
+            guardrail = ScopeGuardrail(allowed_paths=allowed, forbidden_paths=forbidden)
+
+        fs_tools = GovernedFileSystemTools(guardrail=guardrail, root_dir=str(workspace_root))
+        sim_tools = GovernedSimTools(workspace_root=workspace_root)
         spec_adapter = SpecReferenceKitAdapter()
 
-        req_id = case_dict["inputs"]["requirement_id"]
-        target_file = case_dict["inputs"].get("target_file", "uvm/tests/test_case.sv")
+        req_id = case_dict.get("inputs", {}).get("requirement_id", case_dict.get("id", "UNKNOWN_TASK"))
+        target_file = case_dict.get("inputs", {}).get("target_file", "uvm/tests/test_case.sv")
 
         # 1. Spec Retrieval
         spec_res = spec_adapter.query_requirement(req_id)
@@ -112,7 +128,7 @@ class OpenAICompatibleLLMRunner(BaseAgentRunner):
         llm_res = self._call_llm_api(messages)
         code_content = llm_res["content"]
 
-        # 3. File System Write
+        # 3. File System Write (strictly in workspace_root)
         fs_res = fs_tools.write_file(target_file, code_content)
         tool_calls.append({
             "tool": "write_file",
@@ -121,7 +137,10 @@ class OpenAICompatibleLLMRunner(BaseAgentRunner):
             "output_summary": f"Wrote generated code to {target_file}"
         })
 
-        # 4. Compile & Simulate
+        if fs_res["status"] == "governance_violation":
+            violations.extend(fs_res.get("violations", []))
+
+        # 4. Agent Compile & Simulate Tool Invocations
         comp_res = sim_tools.compile(target_file)
         tool_calls.append({
             "tool": "compile",
@@ -150,29 +169,40 @@ class OpenAICompatibleLLMRunner(BaseAgentRunner):
         }
 
         total_tokens = llm_res["prompt_tokens"] + llm_res["completion_tokens"]
-        violations = []
-        if total_tokens > self.token_budget:
+        if total_tokens > token_budget:
             violations.append({
                 "code": GovernanceViolationCode.TIMEOUT_VIOLATION,
                 "severity": GovernanceSeverity.HIGH,
-                "message": f"Token budget exceeded: {total_tokens} > {self.token_budget} tokens."
+                "message": f"Token budget exceeded: {total_tokens} > {token_budget} tokens."
             })
 
-        return {
-            "case_id": case_dict["id"],
-            "runner_name": self.name,
-            "duration_seconds": time.time() - start_time,
-            "governance_violations": violations,
-            "evidence": evidence,
-            "execution": {
+        # Determine agent status and claimed outcome
+        if violations:
+            status = "scope_violation"
+            claimed_outcome = "failure"
+        else:
+            status = "completed"
+            claimed_outcome = "success"
+
+        return AgentRunResult(
+            case_id=case_dict.get("id", req_id),
+            runner_name=self.name,
+            status=status,
+            agent_claimed_outcome=claimed_outcome,
+            changed_files_claimed=[target_file],
+            duration_seconds=time.time() - start_time,
+            governance_violations=violations,
+            evidence=evidence,
+            execution={
                 "compile_status": comp_res["status"],
                 "simulation_status": sim_res["status"],
                 "step_count": len(tool_calls),
                 "retry_count": 0,
                 "tool_calls": tool_calls,
             },
-            "metrics": {
+            metrics={
                 "prompt_tokens": llm_res["prompt_tokens"],
                 "completion_tokens": llm_res["completion_tokens"],
             }
-        }
+        )
+
