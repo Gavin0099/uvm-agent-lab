@@ -28,6 +28,11 @@ def main() -> int:
     parser.add_argument("--mode", choices=["live", "mock"], default="mock")
     parser.add_argument("--output-dir", default="results/single_ab_pair")
     parser.add_argument("--model-id", default="Qwen/Qwen3.8-27B")
+    parser.add_argument("--runtime", choices=["llama.cpp", "vllm", "sglang", "transformers"], default=None)
+    parser.add_argument("--quantization", choices=["Q4_K_M", "Q8_0", "AWQ_4BIT", "GPTQ_4BIT", "FP16", "FP8"], default=None)
+    parser.add_argument("--model-hash", default=None)
+    parser.add_argument("--model-artifact-path", default=None)
+    parser.add_argument("--runtime-commit", default=None)
     parser.add_argument("--api-base", default="http://localhost:8000/v1")
     args = parser.parse_args()
 
@@ -40,6 +45,11 @@ def main() -> int:
         repo_root=PROJECT_ROOT,
         model_id=args.model_id,
         api_base=args.api_base,
+        runtime=args.runtime,
+        quantization=args.quantization,
+        model_hash=args.model_hash,
+        model_artifact_path=args.model_artifact_path,
+        runtime_commit=args.runtime_commit,
     )
     printable = {
         "task_id": result["task_id"],

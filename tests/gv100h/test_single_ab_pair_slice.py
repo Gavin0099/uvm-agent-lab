@@ -162,6 +162,28 @@ def test_live_pair_requires_runtime_model_and_build_provenance(tmp_path: Path):
         )
 
 
+def test_live_pair_rejects_model_hash_mismatch(tmp_path: Path):
+    from gv100h.coding_eval.single_pair_runner import run_single_ab_pair
+
+    artifact = tmp_path / "model.gguf"
+    artifact.write_bytes(b"model-bytes")
+
+    with pytest.raises(ValueError, match="model_hash does not match"):
+        run_single_ab_pair(
+            task_id="UVM-001",
+            case_path=CASE_PATH,
+            repetition=1,
+            mode="live",
+            output_dir=tmp_path / "live",
+            repo_root=REPO_ROOT,
+            runtime="llama.cpp",
+            quantization="Q4_K_M",
+            model_hash="0" * 64,
+            model_artifact_path=artifact,
+            runtime_commit="r" * 40,
+        )
+
+
 def test_pair_validator_rejects_duplicate_pair_arm(tmp_path: Path):
     result = _run_slice(tmp_path)
     manifests = list(result["manifests"])

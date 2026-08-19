@@ -57,8 +57,12 @@ class GovernanceABRunner:
         hardware = manifest.hardware
         return (
             manifest.runtime != "mock_replay"
+            and manifest.model_hash is not None
+            and len(manifest.model_hash) == 64
+            and manifest.runtime_commit is not None
             and evidence.endpoint_observed is True
             and evidence.qualification_admissible is True
+            and evidence.verification_level in {"full_uvm_regression", "compile_and_test"}
             and evidence.eda_backend not in {
                 None,
                 "",
@@ -69,6 +73,8 @@ class GovernanceABRunner:
             and hardware.hardware_observed is True
             and hardware.gpu_count > 0
             and "mock" not in hardware.gpu_model.lower()
+            and "v100" in hardware.gpu_model.lower()
+            and (hardware.vram_total_gb is None or hardware.vram_total_gb >= 30.0)
         )
 
     def run_ab_benchmark(
