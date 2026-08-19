@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 import jsonschema
+import yaml
 
 from agent.governance.guardrails import ScopeGuardrail
 from gv100h.governance.contract_router import TaskContractRouter
@@ -77,6 +78,13 @@ class ManifestValidator:
             raise ManifestValidationError(
                 f"Invalid benchmark_case_hash: '{manifest.benchmark_case_hash}'"
             )
+        if manifest.model_hash is not None and (
+            len(manifest.model_hash) != 64
+            or not all(c in "0123456789abcdefABCDEF" for c in manifest.model_hash)
+        ):
+            raise ManifestValidationError(
+                f"Invalid model_hash: '{manifest.model_hash}'"
+            )
 
         return manifest
 
@@ -88,6 +96,7 @@ class ManifestValidator:
         require_integrity: bool = False,
         repo_root: Optional[Path] = None,
         guardrail: Optional[ScopeGuardrail] = None,
+        replay_verification: bool = False,
     ) -> bool:
         """
         Tamper-Evident Re-Verification:
@@ -224,6 +233,14 @@ class ManifestValidator:
                 raise ManifestValidationError(
                     "Verification qualification status is not bound to manifest"
                 )
+            for field_name, manifest_value in (
+                ("build_log_sha256", manifest.evidence.build_log_sha256),
+                ("test_log_sha256", manifest.evidence.test_log_sha256),
+            ):
+                if verification.get(field_name) != manifest_value:
+                    raise ManifestValidationError(
+                        f"Verification {field_name} is not bound to manifest"
+                    )
             for field_name in (
                 "verification_level",
                 "verification_cwd",
@@ -316,21 +333,24 @@ class ManifestValidator:
                 raise ManifestValidationError(
                     "Reconstructed Git changed-path set does not match changed_paths/snapshots"
                 )
-            if guardrail is None:
+            case_data = None
+            if guardrail is None or replay_verification:
                 try:
                     case_id = manifest.benchmark_task_id or manifest.task_id
-                    case_data = resolve_benchmark_case(
+                    case_data = self._load_pinned_case(
                         Path(repo_root),
+                        manifest.base_commit,
                         case_id,
                         manifest.benchmark_case_hash,
                     )
-                    guardrail = TaskContractRouter(
-                        base_dir=str(repo_root)
-                    ).create_guardrail_for_benchmark_execution(
-                        case_id,
-                        base_dir=str(repo_root),
-                        case_data=case_data,
-                    )
+                    if guardrail is None:
+                        guardrail = TaskContractRouter(
+                            base_dir=str(repo_root)
+                        ).create_guardrail_for_benchmark_execution(
+                            case_id,
+                            base_dir=str(repo_root),
+                            case_data=case_data,
+                        )
                 except (FileNotFoundError, KeyError, ValueError) as exc:
                     raise ManifestValidationError(
                         f"Strict evidence binding could not load benchmark case contract: {exc}"
@@ -373,7 +393,138 @@ class ManifestValidator:
                     "Patch reconstruction target does not match file snapshot"
                 )
 
+            if replay_verification:
+                self._replay_verification(
+                    manifest=manifest,
+                    diff_bytes=diff_bytes,
+                    repo_root=Path(repo_root),
+                    case_data=case_data,
+                    recorded_verification=verification,
+                )
+
         return True
+
+    @staticmethod
+    def _load_pinned_case(
+        repo_root: Path,
+        base_commit: str,
+        task_id: str,
+        claimed_hash: Optional[str],
+    ) -> Dict[str, Any]:
+        root = Path(repo_root).resolve()
+        listing = subprocess.run(
+            ["git", "ls-tree", "-r", "--name-only", base_commit, "benchmarks/cases"],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if listing.returncode != 0:
+            raise ManifestValidationError(
+                f"Could not inspect pinned benchmark registry at {base_commit}: {listing.stderr.strip()}"
+            )
+        matches = []
+        for relative_path in listing.stdout.splitlines():
+            content = subprocess.run(
+                ["git", "show", f"{base_commit}:{relative_path}"],
+                cwd=str(root),
+                capture_output=True,
+                check=False,
+            )
+            if content.returncode != 0:
+                continue
+            try:
+                case_data = yaml.safe_load(content.stdout.decode("utf-8"))
+            except (UnicodeDecodeError, yaml.YAMLError):
+                continue
+            if isinstance(case_data, dict) and case_data.get("id") == task_id:
+                matches.append(case_data)
+        if len(matches) != 1:
+            raise ManifestValidationError(
+                f"Expected exactly one pinned benchmark case for {task_id!r}, found {len(matches)}"
+            )
+        case_data = matches[0]
+        actual_hash = hashlib.sha256(
+            json.dumps(case_data, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        if claimed_hash != actual_hash:
+            raise ManifestValidationError(
+                f"Pinned benchmark case hash mismatch for {task_id!r}"
+            )
+        return case_data
+
+    @staticmethod
+    def _replay_verification(
+        *,
+        manifest: GV100HRunManifest,
+        diff_bytes: bytes,
+        repo_root: Path,
+        case_data: Dict[str, Any],
+        recorded_verification: Dict[str, Any],
+    ) -> None:
+        root = Path(repo_root).resolve()
+        replay_dir = Path(tempfile.mkdtemp(prefix="gv100h_replay_"))
+        try:
+            add_result = subprocess.run(
+                ["git", "worktree", "add", "--detach", str(replay_dir), manifest.base_commit],
+                cwd=str(root),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if add_result.returncode != 0:
+                raise ManifestValidationError(
+                    f"Could not create replay worktree: {add_result.stderr.strip()}"
+                )
+            apply_result = subprocess.run(
+                ["git", "apply"],
+                cwd=str(replay_dir),
+                input=diff_bytes,
+                capture_output=True,
+                check=False,
+            )
+            if apply_result.returncode != 0:
+                raise ManifestValidationError("Independent replay could not apply evidence patch")
+
+            from gv100h.runner.verifier import IndependentVerifier
+
+            replay = IndependentVerifier(
+                replay_dir,
+                mode="mock" if manifest.runtime == "mock_replay" else "live",
+            ).verify_task(
+                changed_paths=manifest.evidence.changed_paths,
+                target_file=manifest.evidence.target_file,
+                verification=case_data.get("verification"),
+            )
+            expected_pass = manifest.outcome.status == "pass"
+            if replay.final_pass != expected_pass:
+                raise ManifestValidationError(
+                    "Independent replay result does not match manifest outcome"
+                )
+            compared_fields = (
+                "build_status",
+                "test_status",
+                "build_exit_code",
+                "test_exit_code",
+                "final_pass",
+                "eda_backend",
+                "qualification_admissible",
+                "verification_level",
+                "build_log_sha256",
+                "test_log_sha256",
+            )
+            for field in compared_fields:
+                if recorded_verification.get(field) != getattr(replay, field):
+                    raise ManifestValidationError(
+                        f"Independent replay mismatch in verification field: {field}"
+                    )
+        finally:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(replay_dir)],
+                cwd=str(root),
+                capture_output=True,
+            )
+            shutil.rmtree(replay_dir, ignore_errors=True)
 
     @staticmethod
     def _reconstruct_files_from_patch(

@@ -152,6 +152,28 @@ def test_live_pair_requires_runtime_model_and_build_provenance(tmp_path: Path):
         )
 
 
+def test_live_pair_rejects_model_hash_mismatch(tmp_path: Path):
+    from gv100h.coding_eval.single_pair_runner import run_single_ab_pair
+
+    artifact = tmp_path / "model.gguf"
+    artifact.write_bytes(b"model-bytes")
+
+    with pytest.raises(ValueError, match="model_hash does not match"):
+        run_single_ab_pair(
+            task_id="UVM-001",
+            case_path=CASE_PATH,
+            repetition=1,
+            mode="live",
+            output_dir=tmp_path / "live",
+            repo_root=REPO_ROOT,
+            runtime="llama.cpp",
+            quantization="Q4_K_M",
+            model_hash="0" * 64,
+            model_artifact_path=artifact,
+            runtime_commit="r" * 40,
+        )
+
+
 def test_pair_validator_rejects_duplicate_pair_arm(tmp_path: Path):
     result = _run_slice(tmp_path)
     manifests = list(result["manifests"])
@@ -173,6 +195,64 @@ def test_pair_validator_rejects_tampered_pair_id(tmp_path: Path):
     with pytest.raises(ManifestValidationError, match="Pair ID does not match"):
         ManifestValidator().validate_manifest_set(
             manifests, require_complete_pairs=True
+        )
+
+
+def test_independent_replay_rejects_self_consistent_forged_verification(tmp_path: Path):
+    result = _run_slice(tmp_path)
+    manifest = result["manifests"][0]
+    bundle = Path(result["bundle_dirs"][manifest.experiment_arm])
+    verification_path = bundle / "verification.json"
+    forged = json.loads(verification_path.read_text(encoding="utf-8"))
+    forged["final_pass"] = False
+    forged_bytes = json.dumps(
+        forged, ensure_ascii=True, indent=2, sort_keys=True
+    ).encode("utf-8")
+    verification_path.write_bytes(forged_bytes)
+    forged_manifest = manifest.model_copy(update={
+        "evidence": manifest.evidence.model_copy(update={
+            "verification_sha256": hashlib.sha256(forged_bytes).hexdigest(),
+        })
+    })
+
+    with pytest.raises(ManifestValidationError, match="Independent replay mismatch"):
+        ManifestValidator().validate_manifest_bundle(
+            forged_manifest,
+            bundle,
+            require_integrity=True,
+            repo_root=REPO_ROOT,
+            replay_verification=True,
+        )
+
+
+def test_independent_replay_rejects_forged_logs_with_refreshed_hashes(tmp_path: Path):
+    result = _run_slice(tmp_path)
+    manifest = result["manifests"][0]
+    bundle = Path(result["bundle_dirs"][manifest.experiment_arm])
+    verification_path = bundle / "verification.json"
+    build_path = bundle / "build.log"
+    forged_build = b"forged build pass\n"
+    build_path.write_bytes(forged_build)
+    forged_verification = json.loads(verification_path.read_text(encoding="utf-8"))
+    forged_verification["build_log_sha256"] = hashlib.sha256(forged_build).hexdigest()
+    forged_verification_bytes = json.dumps(
+        forged_verification, ensure_ascii=True, indent=2, sort_keys=True
+    ).encode("utf-8")
+    verification_path.write_bytes(forged_verification_bytes)
+    forged_manifest = manifest.model_copy(update={
+        "evidence": manifest.evidence.model_copy(update={
+            "build_log_sha256": hashlib.sha256(forged_build).hexdigest(),
+            "verification_sha256": hashlib.sha256(forged_verification_bytes).hexdigest(),
+        })
+    })
+
+    with pytest.raises(ManifestValidationError, match="Independent replay mismatch"):
+        ManifestValidator().validate_manifest_bundle(
+            forged_manifest,
+            bundle,
+            require_integrity=True,
+            repo_root=REPO_ROOT,
+            replay_verification=True,
         )
 
 def test_legacy_bundle_is_rejected_at_strict_integrity_boundary(tmp_path: Path):

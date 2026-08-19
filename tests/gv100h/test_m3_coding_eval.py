@@ -132,10 +132,13 @@ def test_live_admission_requires_all_independent_runtime_signals():
     runner = GovernanceABRunner()
     live_manifest = _dict_only_pair_manifests()[0].model_copy(update={
         "runtime": "vllm",
+        "model_hash": "a" * 64,
+        "runtime_commit": "r" * 40,
         "hardware": HardwareManifest(
             gpu_count=2,
             gpu_model="NVIDIA GV100 (32GB)",
             hardware_observed=True,
+            vram_total_gb=32.0,
         ),
         "evidence": EvidenceManifest(
             evidence_schema_version="2",
@@ -147,7 +150,8 @@ def test_live_admission_requires_all_independent_runtime_signals():
             tool_trace_sha256="e" * 64,
             verification_sha256="f" * 64,
             endpoint_observed=True,
-            eda_backend="verilator",
+            eda_backend="vcs",
+            verification_level="full_uvm_regression",
             qualification_admissible=True,
         ),
     })
