@@ -40,6 +40,17 @@ class GovernanceABRunner:
         self.validator = ManifestValidator()
         self.repo_root = Path(__file__).resolve().parents[2]
 
+    def _canonical_live_task_ids(self) -> List[str]:
+        import yaml
+
+        cases_dir = self.repo_root / "benchmarks" / "cases"
+        task_ids = []
+        for case_path in sorted(cases_dir.glob("*.yaml")):
+            data = yaml.safe_load(case_path.read_text(encoding="utf-8")) or {}
+            task_id = data.get("id") or case_path.stem
+            task_ids.append(str(task_id))
+        return task_ids
+
     @staticmethod
     def _has_live_qualification_evidence(manifest: GV100HRunManifest) -> bool:
         evidence = manifest.evidence
@@ -114,7 +125,7 @@ class GovernanceABRunner:
                 is_paired = False
                 universe_complete = False
 
-                expected_task_ids = {t.get("task_id") or t.get("id") for t in tasks}
+                expected_task_ids = set(self._canonical_live_task_ids())
                 expected_pairs_count = len(tasks) * runs_per_task  # 10 * 3 = 30 runs per arm
 
 

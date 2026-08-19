@@ -21,7 +21,7 @@ def test_default_single_cell_cannot_claim_full_universe():
     assert plan["universe_mode"] == "single_cell"
     assert plan["universe_complete_claim_allowed"] is False
     assert plan["planned_cells"] == [("arm_b_governed_sidecar", 1)]
-    assert plan["planned_runs"] == 10
+    assert plan["planned_runs"] == 2
     assert plan["required_total_runs"] == REQUIRED_TOTAL_RUNS
     assert "cannot produce" in plan["reason"]
 
@@ -118,3 +118,124 @@ def test_last_cell_cannot_overwrite_full_universe_status(tmp_path: Path):
     assert on_disk["planned_runs"] == 60
     assert on_disk["universe_complete_claim_allowed"] is True
     assert len(on_disk["produced_cells"]) == 6
+
+
+def test_full_universe_pair_runner_executes_thirty_pairs_and_sixty_manifests(tmp_path):
+    case_dir = tmp_path / "cases"
+    case_dir.mkdir()
+    for index in range(1, 11):
+        (case_dir / f"UVM-{index:03d}.yaml").write_text(
+            f"id: UVM-{index:03d}\n", encoding="utf-8"
+        )
+
+    class Manifest:
+        def __init__(self, task_id, repetition, arm, pair_id):
+            self.task_id = task_id
+            self.benchmark_task_id = task_id
+            self.repetition = repetition
+            self.experiment_arm = arm
+            self.pair_id = pair_id
+
+    calls = []
+
+    def pair_runner(*, task_id, case_path, repetition, **_kwargs):
+        pair_id = f"pair-{task_id}-{repetition}"
+        calls.append((task_id, repetition))
+        return {
+            "manifests": [
+                Manifest(task_id, repetition, "arm_a_prompt_only", pair_id),
+                Manifest(task_id, repetition, "arm_b_governed_sidecar", pair_id),
+            ]
+        }
+
+    status = run_full_universe(
+        cases_dir=str(case_dir),
+        output_dir=str(tmp_path / "out"),
+        pair_runner=pair_runner,
+    )
+
+    assert len(calls) == 30
+    assert status["executed_runs"] == 60
+    assert status["manifest_count"] == 60
+    assert status["unique_pair_count"] == 30
+    assert status["pair_shape_valid"] is True
+    assert status["universe_complete_claim_allowed"] is True
+
+
+def test_manifest_universe_rejects_duplicate_arm_and_short_execution(tmp_path):
+    case_dir = tmp_path / "cases"
+    case_dir.mkdir()
+    for index in range(1, 11):
+        (case_dir / f"UVM-{index:03d}.yaml").write_text(
+            f"id: UVM-{index:03d}\n", encoding="utf-8"
+        )
+
+    class Manifest:
+        def __init__(self, task_id, repetition, arm, pair_id):
+            self.task_id = task_id
+            self.benchmark_task_id = task_id
+            self.repetition = repetition
+            self.experiment_arm = arm
+            self.pair_id = pair_id
+
+    def pair_runner(*, task_id, repetition, **_kwargs):
+        pair_id = f"pair-{task_id}-{repetition}"
+        return {
+            "manifests": [
+                Manifest(task_id, repetition, "arm_a_prompt_only", pair_id),
+                Manifest(task_id, repetition, "arm_a_prompt_only", pair_id),
+            ]
+        }
+
+    status = run_full_universe(
+        cases_dir=str(case_dir),
+        output_dir=str(tmp_path / "out"),
+        pair_runner=pair_runner,
+    )
+
+    assert status["executed_runs"] == 60
+    assert status["duplicate_manifest_keys"]
+    assert status["pair_shape_valid"] is False
+    assert status["universe_complete_claim_allowed"] is False
+
+
+def test_manifest_universe_rejects_missing_pair_execution(tmp_path):
+    case_dir = tmp_path / "cases"
+    case_dir.mkdir()
+    for index in range(1, 11):
+        (case_dir / f"UVM-{index:03d}.yaml").write_text(
+            f"id: UVM-{index:03d}\n", encoding="utf-8"
+        )
+
+    class Manifest:
+        def __init__(self, task_id, repetition, arm, pair_id):
+            self.task_id = task_id
+            self.benchmark_task_id = task_id
+            self.repetition = repetition
+            self.experiment_arm = arm
+            self.pair_id = pair_id
+
+    calls = 0
+
+    def pair_runner(*, task_id, repetition, **_kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 30:
+            return {"manifests": []}
+        pair_id = f"pair-{task_id}-{repetition}"
+        return {
+            "manifests": [
+                Manifest(task_id, repetition, "arm_a_prompt_only", pair_id),
+                Manifest(task_id, repetition, "arm_b_governed_sidecar", pair_id),
+            ]
+        }
+
+    status = run_full_universe(
+        cases_dir=str(case_dir),
+        output_dir=str(tmp_path / "out"),
+        pair_runner=pair_runner,
+    )
+
+    assert status["executed_runs"] == 58
+    assert status["manifest_count"] == 58
+    assert status["universe_complete_claim_allowed"] is False

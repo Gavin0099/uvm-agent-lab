@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 class SamplingConfig(BaseModel):
     temperature: Optional[float] = 0.0
     top_p: Optional[float] = 1.0
-    max_tokens: Optional[int] = 4096
+    max_tokens: Optional[int] = 2048
 
 
 class HardwareManifest(BaseModel):
@@ -81,6 +81,8 @@ class GV100HRunManifest(BaseModel):
     model_hash: Optional[str] = None
     runtime: Literal["llama.cpp", "vllm", "sglang", "transformers", "mock_replay"]
     runtime_commit: Optional[str] = None
+    token_budget: Optional[int] = None
+    tool_budget: Optional[int] = None
     quantization: Optional[Literal["Q4_K_M", "Q8_0", "AWQ_4BIT", "GPTQ_4BIT", "FP16", "FP8", "NONE"]] = "NONE"
     framework_commit: str
     contract_id: str

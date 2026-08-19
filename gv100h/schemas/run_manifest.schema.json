@@ -64,6 +64,12 @@
     "runtime_commit": {
       "type": ["string", "null"]
     },
+    "token_budget": {
+      "type": ["integer", "null"]
+    },
+    "tool_budget": {
+      "type": ["integer", "null"]
+    },
     "quantization": {
       "type": ["string", "null"],
       "enum": ["Q4_K_M", "Q8_0", "AWQ_4BIT", "GPTQ_4BIT", "FP16", "FP8", "NONE", null]
