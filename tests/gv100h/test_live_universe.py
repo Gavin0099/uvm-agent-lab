@@ -238,6 +238,7 @@ def test_manifest_universe_rejects_missing_pair_execution(tmp_path):
 
     assert status["executed_runs"] == 58
     assert status["manifest_count"] == 58
+    assert status["missing_cells"]
     assert status["universe_complete_claim_allowed"] is False
 
 
