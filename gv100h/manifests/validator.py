@@ -233,6 +233,14 @@ class ManifestValidator:
                 raise ManifestValidationError(
                     "Verification qualification status is not bound to manifest"
                 )
+            for field_name, manifest_value in (
+                ("build_log_sha256", manifest.evidence.build_log_sha256),
+                ("test_log_sha256", manifest.evidence.test_log_sha256),
+            ):
+                if verification.get(field_name) != manifest_value:
+                    raise ManifestValidationError(
+                        f"Verification {field_name} is not bound to manifest"
+                    )
             for field_name in (
                 "verification_level",
                 "verification_cwd",
@@ -502,6 +510,8 @@ class ManifestValidator:
                 "eda_backend",
                 "qualification_admissible",
                 "verification_level",
+                "build_log_sha256",
+                "test_log_sha256",
             )
             for field in compared_fields:
                 if recorded_verification.get(field) != getattr(replay, field):

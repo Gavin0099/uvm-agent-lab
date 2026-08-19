@@ -224,6 +224,37 @@ def test_independent_replay_rejects_self_consistent_forged_verification(tmp_path
             replay_verification=True,
         )
 
+
+def test_independent_replay_rejects_forged_logs_with_refreshed_hashes(tmp_path: Path):
+    result = _run_slice(tmp_path)
+    manifest = result["manifests"][0]
+    bundle = Path(result["bundle_dirs"][manifest.experiment_arm])
+    verification_path = bundle / "verification.json"
+    build_path = bundle / "build.log"
+    forged_build = b"forged build pass\n"
+    build_path.write_bytes(forged_build)
+    forged_verification = json.loads(verification_path.read_text(encoding="utf-8"))
+    forged_verification["build_log_sha256"] = hashlib.sha256(forged_build).hexdigest()
+    forged_verification_bytes = json.dumps(
+        forged_verification, ensure_ascii=True, indent=2, sort_keys=True
+    ).encode("utf-8")
+    verification_path.write_bytes(forged_verification_bytes)
+    forged_manifest = manifest.model_copy(update={
+        "evidence": manifest.evidence.model_copy(update={
+            "build_log_sha256": hashlib.sha256(forged_build).hexdigest(),
+            "verification_sha256": hashlib.sha256(forged_verification_bytes).hexdigest(),
+        })
+    })
+
+    with pytest.raises(ManifestValidationError, match="Independent replay mismatch"):
+        ManifestValidator().validate_manifest_bundle(
+            forged_manifest,
+            bundle,
+            require_integrity=True,
+            repo_root=REPO_ROOT,
+            replay_verification=True,
+        )
+
 def test_legacy_bundle_is_rejected_at_strict_integrity_boundary(tmp_path: Path):
     bundle = tmp_path / "legacy"
     bundle.mkdir()
