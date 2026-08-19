@@ -1,14 +1,16 @@
 from typing import List, Optional, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SamplingConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     temperature: Optional[float] = 0.0
     top_p: Optional[float] = 1.0
     max_tokens: Optional[int] = 2048
 
 
 class HardwareManifest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     gpu_count: int = Field(..., description="Number of GPUs detected/used")
     gpu_model: str = Field(..., description="GPU model string e.g. NVIDIA GV100 (32GB)")
     hardware_observed: Optional[bool] = None
@@ -19,6 +21,7 @@ class HardwareManifest(BaseModel):
 
 
 class TimingManifest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     ttft_ms: Optional[float] = None
     prompt_tps: Optional[float] = None
     decode_tps: Optional[float] = None
@@ -26,6 +29,7 @@ class TimingManifest(BaseModel):
 
 
 class EvidenceManifest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     evidence_schema_version: Optional[Literal["2"]] = None
     git_diff_sha256: str = Field(..., description="SHA-256 hash of binary patch")
     changed_paths: List[str] = Field(default_factory=list)
@@ -51,6 +55,7 @@ class EvidenceManifest(BaseModel):
 
 
 class OutcomeManifest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     status: Literal["pass", "fail", "timeout", "scope_violation", "endpoint_unavailable"]
     false_success: bool = Field(..., description="True if agent claimed pass but verifier failed")
     failure_class: Optional[Literal[
@@ -68,6 +73,7 @@ class OutcomeManifest(BaseModel):
 
 
 class GV100HRunManifest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     run_id: str
     task_id: str
     benchmark_task_id: Optional[str] = None
