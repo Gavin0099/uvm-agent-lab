@@ -496,10 +496,14 @@ class ManifestValidator:
                 target_file=manifest.evidence.target_file,
                 verification=case_data.get("verification"),
             )
-            expected_pass = manifest.outcome.status == "pass"
+            expected_pass = recorded_verification.get("final_pass")
+            if not isinstance(expected_pass, bool):
+                raise ManifestValidationError(
+                    "Recorded verification final_pass is missing or invalid"
+                )
             if replay.final_pass != expected_pass:
                 raise ManifestValidationError(
-                    "Independent replay result does not match manifest outcome"
+                    "Independent replay mismatch: replay final_pass does not match recorded verification"
                 )
             compared_fields = (
                 "build_status",
@@ -709,6 +713,8 @@ class ManifestValidator:
                         benchmark_case_hash=ma.benchmark_case_hash,
                         knowledge_manifest_hash=ma.knowledge_manifest_hash or "none",
                         execution_contract_hash=ma.execution_contract_hash,
+                        runtime=ma.runtime,
+                        quantization=ma.quantization or "none",
                     )
                     if ma.pair_id != expected_pair_id:
                         raise ManifestValidationError(

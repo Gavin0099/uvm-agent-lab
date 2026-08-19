@@ -133,7 +133,7 @@ def test_live_admission_requires_all_independent_runtime_signals():
     live_manifest = _dict_only_pair_manifests()[0].model_copy(update={
         "runtime": "vllm",
         "model_hash": "a" * 64,
-        "runtime_commit": "r" * 40,
+        "runtime_commit": "b" * 40,
         "hardware": HardwareManifest(
             gpu_count=2,
             gpu_model="NVIDIA GV100 (32GB)",

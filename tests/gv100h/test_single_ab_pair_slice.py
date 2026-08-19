@@ -180,7 +180,7 @@ def test_live_pair_rejects_model_hash_mismatch(tmp_path: Path):
             quantization="Q4_K_M",
             model_hash="0" * 64,
             model_artifact_path=artifact,
-            runtime_commit="r" * 40,
+            runtime_commit="b" * 40,
         )
 
 
@@ -280,6 +280,24 @@ def test_independent_replay_rejects_forged_logs_with_refreshed_hashes(tmp_path: 
             repo_root=REPO_ROOT,
             replay_verification=True,
         )
+
+
+def test_independent_replay_does_not_treat_scope_outcome_as_verifier_failure(tmp_path: Path):
+    result = _run_slice(tmp_path)
+    manifest = result["manifests"][0].model_copy(update={
+        "outcome": result["manifests"][0].outcome.model_copy(
+            update={"status": "scope_violation", "failure_class": "SCOPE_VIOLATION"}
+        )
+    })
+    bundle = Path(result["bundle_dirs"][manifest.experiment_arm])
+
+    assert ManifestValidator().validate_manifest_bundle(
+        manifest,
+        bundle,
+        require_integrity=True,
+        repo_root=REPO_ROOT,
+        replay_verification=True,
+    ) is True
 
 def test_legacy_bundle_is_rejected_at_strict_integrity_boundary(tmp_path: Path):
     bundle = tmp_path / "legacy"

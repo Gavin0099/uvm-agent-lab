@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import re
 import subprocess
 import time
 import uuid
@@ -383,6 +384,10 @@ def run_single_ab_pair(
                 "Live pair execution requires explicit provenance: "
                 + ", ".join(missing)
             )
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", model_hash or ""):
+            raise ValueError("model_hash must be a 64-character SHA-256 hex digest")
+        if not re.fullmatch(r"[0-9a-fA-F]{7,64}", runtime_commit or ""):
+            raise ValueError("runtime_commit must be a hexadecimal commit identifier")
     else:
         runtime = "mock_replay"
         quantization = "NONE"
@@ -416,6 +421,8 @@ def run_single_ab_pair(
         tool_budget=TOOL_BUDGET,
         benchmark_case_hash=compute_benchmark_case_hash(case_data),
         execution_contract_hash=pair_gov_ctx["execution_contract_hash"],
+        runtime=runtime or "none",
+        quantization=quantization or "none",
     )
 
     validator = ManifestValidator()
