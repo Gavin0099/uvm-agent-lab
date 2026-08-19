@@ -196,6 +196,7 @@ class OpenAICompatibleLLMRunner(BaseAgentRunner):
             execution={
                 "compile_status": comp_res["status"],
                 "simulation_status": sim_res["status"],
+                "endpoint_observed": not self.mock_mode,
                 "step_count": len(tool_calls),
                 "retry_count": 0,
                 "tool_calls": tool_calls,

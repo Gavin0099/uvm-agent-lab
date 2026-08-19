@@ -7,19 +7,34 @@ This is not the dirty scripts/run_live_eval.py harness and is not a 10×3×2 uni
 from __future__ import annotations
 
 import hashlib
+import json
+import base64
+import subprocess
 from pathlib import Path
 
 import pytest
 
-from gv100h.manifests.validator import ManifestValidator
+from gv100h.manifests.validator import ManifestValidationError, ManifestValidator
+from agent.governance.guardrails import ScopeGuardrail
 from gv100h.runner.verifier import IndependentVerifier
+from gv100h.runner.worktree_runner import GitWorktreeRunner
+from gv100h.utils.evidence_commit import compute_reconstructed_head_commit
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CASE_PATH = REPO_ROOT / "benchmarks" / "cases" / "UVM-001.yaml"
 TARGET_REL = Path("uvm") / "tests" / "usb3_warm_reset_test.sv"
 ARMS = ("arm_a_prompt_only", "arm_b_governed_sidecar")
-BUNDLE_FILES = ("manifest.json", "diff.patch", "build.log", "simulation.log")
+BUNDLE_FILES = (
+    "manifest.json",
+    "diff.patch",
+    "build.log",
+    "simulation.log",
+    "workspace_tree.json",
+    "file_snapshots.json",
+    "tool_trace.json",
+    "verification.json",
+)
 
 
 def _run_slice(tmp_path: Path, **overrides):
@@ -94,15 +109,291 @@ def test_mock_slice_produces_paired_physical_bundles(tmp_path: Path):
             assert (bundle / name).is_file(), f"missing {name} in {bundle}"
 
         manifest = next(m for m in manifests if m.experiment_arm == arm)
+        assert manifest.evidence.evidence_schema_version == "2"
+        assert manifest.head_commit is not None
+        assert len(manifest.head_commit) == 40
         assert manifest.evidence.build_command != "git status"
         assert "git status" not in (manifest.evidence.build_command or "")
         validator.validate_manifest_dict(manifest.model_dump())
-        validator.validate_manifest_bundle(manifest, bundle)
+        validator.validate_manifest_bundle(
+            manifest,
+            bundle,
+            require_integrity=True,
+            repo_root=REPO_ROOT,
+        )
 
         written = (bundle / "diff.patch").read_bytes()
+        assert written
+        assert str(TARGET_REL).replace("\\", "/").encode("utf-8") in written
         assert hashlib.sha256(written).hexdigest() == manifest.evidence.git_diff_sha256
+        assert manifest.evidence.workspace_tree_sha256 == hashlib.sha256(
+            (bundle / "workspace_tree.json").read_bytes()
+        ).hexdigest()
+        snapshots = json.loads((bundle / "file_snapshots.json").read_text(encoding="utf-8"))
+        target_snapshot = next(
+            item for item in snapshots["files"]
+            if item["path"] == str(TARGET_REL).replace("\\", "/")
+        )
+        assert target_snapshot["sha256"] == manifest.evidence.target_file_sha256
 
     validator.validate_manifest_set(manifests, require_complete_pairs=True)
+
+
+def test_legacy_bundle_is_rejected_at_strict_integrity_boundary(tmp_path: Path):
+    bundle = tmp_path / "legacy"
+    bundle.mkdir()
+    diff = b"diff --git a/legacy.sv b/legacy.sv\n+legacy\n"
+    (bundle / "diff.patch").write_bytes(diff)
+    manifest = {
+        "run_id": "legacy-run",
+        "task_id": "UVM-001",
+        "experiment_arm": "arm_a_prompt_only",
+        "target_repo": "test",
+        "base_commit": "a" * 40,
+        "model_id": "model",
+        "runtime": "mock_replay",
+        "framework_commit": "b" * 40,
+        "contract_id": "contract",
+        "hardware": {"gpu_count": 0, "gpu_model": "mock"},
+        "evidence": {"git_diff_sha256": hashlib.sha256(diff).hexdigest()},
+        "outcome": {"status": "fail", "false_success": False},
+    }
+    parsed = ManifestValidator().validate_manifest_dict(manifest)
+    with pytest.raises(ManifestValidationError, match="evidence_schema_version"):
+        ManifestValidator().validate_manifest_bundle(parsed, bundle, require_integrity=True)
+
+
+def test_semantic_forgery_is_rejected_after_patch_hash_update(tmp_path: Path):
+    result = _run_slice(tmp_path)
+    manifest = result["manifests"][0]
+    bundle = Path(result["bundle_dirs"][manifest.experiment_arm])
+    patch_file = bundle / "diff.patch"
+    original_patch = patch_file.read_bytes()
+    forged_patch = original_patch.replace(
+        b"Verified UVM generation",
+        b"Forged UVM generation",
+        1,
+    )
+    assert forged_patch != original_patch
+    patch_file.write_bytes(forged_patch)
+    forged_manifest = manifest.model_copy(update={
+        "evidence": manifest.evidence.model_copy(update={
+            "git_diff_sha256": hashlib.sha256(forged_patch).hexdigest(),
+        })
+    })
+
+    with pytest.raises(
+        ManifestValidationError,
+        match="Patch reconstruction (does not match file snapshot|target hash does not match|head_commit does not match)",
+    ):
+        ManifestValidator().validate_manifest_bundle(
+            forged_manifest,
+            bundle,
+            require_integrity=True,
+            repo_root=REPO_ROOT,
+        )
+
+
+def test_reconstructed_head_commit_mismatch_is_rejected(tmp_path: Path):
+    result = _run_slice(tmp_path)
+    manifest = result["manifests"][0]
+    bundle = Path(result["bundle_dirs"][manifest.experiment_arm])
+    forged_manifest = manifest.model_copy(update={"head_commit": "0" * 40})
+
+    with pytest.raises(
+        ManifestValidationError,
+        match="head_commit",
+    ):
+        ManifestValidator().validate_manifest_bundle(
+            forged_manifest,
+            bundle,
+            require_integrity=True,
+            repo_root=REPO_ROOT,
+        )
+
+
+def test_reconstructed_paths_are_rechecked_against_guardrail(tmp_path: Path):
+    result = _run_slice(tmp_path)
+    manifest = result["manifests"][0]
+    bundle = Path(result["bundle_dirs"][manifest.experiment_arm])
+    deny_target = ScopeGuardrail(
+        allowed_paths=["rtl/"],
+        forbidden_paths=["uvm/tests/"],
+        base_dir=str(REPO_ROOT),
+    )
+
+    with pytest.raises(ManifestValidationError, match="benchmark guardrail"):
+        ManifestValidator().validate_manifest_bundle(
+            manifest,
+            bundle,
+            require_integrity=True,
+            repo_root=REPO_ROOT,
+            guardrail=deny_target,
+        )
+
+
+def test_hidden_forbidden_path_is_rejected_after_hash_and_head_update(tmp_path: Path):
+    result = _run_slice(tmp_path)
+    manifest = result["manifests"][0]
+    bundle = Path(result["bundle_dirs"][manifest.experiment_arm])
+    hidden_path = "rtl/hidden.sv"
+    hidden_content = b"module hidden; endmodule\n"
+    hidden_patch = (
+        b"diff --git a/rtl/hidden.sv b/rtl/hidden.sv\n"
+        b"new file mode 100644\n"
+        b"index 0000000..0000000\n"
+        b"--- /dev/null\n"
+        b"+++ b/rtl/hidden.sv\n"
+        b"@@ -0,0 +1 @@\n"
+        b"+module hidden; endmodule\n"
+    )
+    patch_file = bundle / "diff.patch"
+    forged_patch = patch_file.read_bytes() + hidden_patch
+    patch_file.write_bytes(forged_patch)
+
+    worktree_mgr = GitWorktreeRunner(str(REPO_ROOT))
+    worktree, _base = worktree_mgr.create_worktree(manifest.base_commit)
+    try:
+        subprocess.run(
+            ["git", "apply"],
+            cwd=str(worktree),
+            input=forged_patch,
+            capture_output=True,
+            check=True,
+        )
+        forged_head = compute_reconstructed_head_commit(worktree, manifest.base_commit)
+    finally:
+        worktree_mgr.cleanup_worktree(worktree)
+
+    forged_manifest = manifest.model_copy(update={
+        "head_commit": forged_head,
+        "evidence": manifest.evidence.model_copy(update={
+            "git_diff_sha256": hashlib.sha256(forged_patch).hexdigest(),
+        }),
+    })
+    with pytest.raises(ManifestValidationError, match="changed-path set"):
+        ManifestValidator().validate_manifest_bundle(
+            forged_manifest,
+            bundle,
+            require_integrity=True,
+            repo_root=REPO_ROOT,
+        )
+
+
+def test_case_specific_forbidden_path_is_rejected_even_when_declared(tmp_path: Path):
+    result = _run_slice(tmp_path)
+    manifest = result["manifests"][0]
+    bundle = Path(result["bundle_dirs"][manifest.experiment_arm])
+    hidden_path = "uvm/env/hidden.sv"
+    hidden_content = b"module hidden; endmodule\n"
+    hidden_patch = (
+        b"diff --git a/uvm/env/hidden.sv b/uvm/env/hidden.sv\n"
+        b"new file mode 100644\n"
+        b"index 0000000..0000000\n"
+        b"--- /dev/null\n"
+        b"+++ b/uvm/env/hidden.sv\n"
+        b"@@ -0,0 +1 @@\n"
+        b"+module hidden; endmodule\n"
+    )
+    patch_file = bundle / "diff.patch"
+    forged_patch = patch_file.read_bytes() + hidden_patch
+    patch_file.write_bytes(forged_patch)
+
+    snapshots_file = bundle / "file_snapshots.json"
+    snapshots = json.loads(snapshots_file.read_text(encoding="utf-8"))
+    snapshots["files"].append({
+        "content_b64": base64.b64encode(hidden_content).decode("ascii"),
+        "kind": "file",
+        "path": hidden_path,
+        "sha256": hashlib.sha256(hidden_content).hexdigest(),
+        "size": len(hidden_content),
+    })
+    snapshots["files"] = sorted(snapshots["files"], key=lambda item: item["path"])
+    snapshots_file.write_text(
+        json.dumps(snapshots, ensure_ascii=True, sort_keys=True, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+    tree_file = bundle / "workspace_tree.json"
+    tree = json.loads(tree_file.read_text(encoding="utf-8"))
+    tree["files"].append({
+        "kind": "file",
+        "path": hidden_path,
+        "sha256": hashlib.sha256(hidden_content).hexdigest(),
+        "size": len(hidden_content),
+    })
+    tree["files"] = sorted(tree["files"], key=lambda item: item["path"])
+    tree_file.write_text(
+        json.dumps(tree, ensure_ascii=True, sort_keys=True, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+    worktree_mgr = GitWorktreeRunner(str(REPO_ROOT))
+    worktree, _base = worktree_mgr.create_worktree(manifest.base_commit)
+    try:
+        subprocess.run(
+            ["git", "apply"],
+            cwd=str(worktree),
+            input=forged_patch,
+            capture_output=True,
+            check=True,
+        )
+        forged_head = compute_reconstructed_head_commit(worktree, manifest.base_commit)
+    finally:
+        worktree_mgr.cleanup_worktree(worktree)
+
+    changed_paths = sorted([*manifest.evidence.changed_paths, hidden_path])
+    forged_manifest = manifest.model_copy(update={
+        "head_commit": forged_head,
+        "evidence": manifest.evidence.model_copy(update={
+            "git_diff_sha256": hashlib.sha256(forged_patch).hexdigest(),
+            "changed_paths": changed_paths,
+            "workspace_tree_sha256": hashlib.sha256(tree_file.read_bytes()).hexdigest(),
+            "file_snapshots_sha256": hashlib.sha256(snapshots_file.read_bytes()).hexdigest(),
+        }),
+    })
+    with pytest.raises(ManifestValidationError, match="benchmark guardrail"):
+        ManifestValidator().validate_manifest_bundle(
+            forged_manifest,
+            bundle,
+            require_integrity=True,
+            repo_root=REPO_ROOT,
+        )
+
+
+def test_slice_evidence_binding_rejects_empty_and_tampered_artifacts(tmp_path: Path):
+    result = _run_slice(tmp_path)
+    manifest = result["manifests"][0]
+    bundle = Path(result["bundle_dirs"][manifest.experiment_arm])
+    validator = ManifestValidator()
+
+    diff_file = bundle / "diff.patch"
+    original_diff = diff_file.read_bytes()
+    diff_file.write_bytes(b"")
+    with pytest.raises(ManifestValidationError, match="non-empty"):
+        validator.validate_manifest_bundle(manifest, bundle)
+    diff_file.write_bytes(original_diff)
+
+    trace_file = bundle / "tool_trace.json"
+    original_trace = trace_file.read_bytes()
+    trace_file.write_bytes(original_trace + b" tampered")
+    with pytest.raises(ManifestValidationError, match="tool_trace.json hash mismatch"):
+        validator.validate_manifest_bundle(manifest, bundle)
+    trace_file.write_bytes(original_trace)
+
+    verification_file = bundle / "verification.json"
+    original_verification = verification_file.read_bytes()
+    verification_file.unlink()
+    with pytest.raises(ManifestValidationError, match=r"verification\.json.*missing"):
+        validator.validate_manifest_bundle(manifest, bundle)
+    verification_file.write_bytes(original_verification)
+
+    snapshots_file = bundle / "file_snapshots.json"
+    original_snapshots = snapshots_file.read_bytes()
+    snapshots_file.write_bytes(original_snapshots.replace(b"content_b64", b"tampered_b64", 1))
+    with pytest.raises(ManifestValidationError, match="file_snapshots.json hash mismatch"):
+        validator.validate_manifest_bundle(manifest, bundle)
+    snapshots_file.write_bytes(original_snapshots)
 
 
 def test_slice_feeds_ab_aggregator_without_claiming_go(tmp_path: Path):
@@ -116,6 +407,21 @@ def test_slice_feeds_ab_aggregator_without_claiming_go(tmp_path: Path):
     assert summary.admissible_for_model_qualification is False
     assert summary.is_synthetic_simulation is True
     assert summary.evidence_class != "live_inference"
+
+
+def test_single_pair_require_live_rejects_incomplete_universe(tmp_path: Path):
+    result = _run_slice(tmp_path)
+    from gv100h.coding_eval.governance_ab_runner import (
+        GovernanceABRunner,
+        GovernanceAdmissionError,
+    )
+
+    with pytest.raises(GovernanceAdmissionError, match="non-admissible"):
+        GovernanceABRunner().run_ab_benchmark(
+            runs_per_task=3,
+            manifest_dir=str(result["output_dir"]),
+            require_live=True,
+        )
 
 
 def test_live_eda_fail_closed_is_not_stub_pass(tmp_path: Path):

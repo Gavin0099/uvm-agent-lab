@@ -17,6 +17,10 @@ class ABExperimentSummary(BaseModel):
     governance_benefit: Dict[str, Any]
 
 
+class GovernanceAdmissionError(RuntimeError):
+    """Raised when a caller requires live qualification evidence but it is unavailable."""
+
+
 class GovernanceABRunner:
     """
     Executes Governance A/B benchmark comparing Arm A (Prompt Only) vs Arm B (Governed Sidecar)
@@ -34,14 +38,41 @@ class GovernanceABRunner:
             self.task_data = json.load(f)
 
         self.validator = ManifestValidator()
+        self.repo_root = Path(__file__).resolve().parents[2]
+
+    @staticmethod
+    def _has_live_qualification_evidence(manifest: GV100HRunManifest) -> bool:
+        evidence = manifest.evidence
+        hardware = manifest.hardware
+        return (
+            manifest.runtime != "mock_replay"
+            and evidence.endpoint_observed is True
+            and evidence.qualification_admissible is True
+            and evidence.eda_backend not in {
+                None,
+                "",
+                "stub",
+                "unknown",
+                "synthetic_sim_stub_v1",
+            }
+            and hardware.hardware_observed is True
+            and hardware.gpu_count > 0
+            and "mock" not in hardware.gpu_model.lower()
+        )
 
     def run_ab_benchmark(
         self,
         runs_per_task: int = 3,
-        manifest_dir: Optional[str] = None
+        manifest_dir: Optional[str] = None,
+        require_live: bool = False,
     ) -> ABExperimentSummary:
         tasks = self.task_data["tasks"]
         total_runs_expected = len(tasks) * runs_per_task
+
+        if require_live and not manifest_dir:
+            raise GovernanceAdmissionError(
+                "Live qualification requires a physical manifest bundle; synthetic fallback is disabled."
+            )
 
         # If real manifests exist in manifest_dir, strictly validate and aggregate them
         if manifest_dir and Path(manifest_dir).exists():
@@ -58,7 +89,12 @@ class GovernanceABRunner:
                     # Re-hash physical bundle files beside the manifest.
                     try:
                         validated_m = self.validator.validate_manifest_dict(m_data)
-                        self.validator.validate_manifest_bundle(validated_m, Path(mf).parent)
+                        self.validator.validate_manifest_bundle(
+                            validated_m,
+                            Path(mf).parent,
+                            require_integrity=True,
+                            repo_root=self.repo_root,
+                        )
                     except ManifestValidationError as e:
                         print(f"[A/B VALIDATION WARNING] Rejected {mf}: {e}")
                         continue
@@ -70,6 +106,11 @@ class GovernanceABRunner:
 
                 # Strict Zero-Trust Pairing & Full Universe Check
                 both_arms_present = (len(arm_a_manifests) > 0 and len(arm_b_manifests) > 0)
+                if not both_arms_present:
+                    print(
+                        "[A/B VALIDATION WARNING] Live admission requires physical evidence "
+                        "for both Arm A and Arm B."
+                    )
                 is_paired = False
                 universe_complete = False
 
@@ -103,6 +144,20 @@ class GovernanceABRunner:
                         universe_complete = False
 
                 if arm_a_manifests or arm_b_manifests:
+                    live_evidence_complete = bool(
+                        arm_a_manifests
+                        and arm_b_manifests
+                        and all(
+                            self._has_live_qualification_evidence(manifest)
+                            for manifest in arm_a_manifests + arm_b_manifests
+                        )
+                    )
+                    if not live_evidence_complete:
+                        print(
+                            "[A/B VALIDATION WARNING] Bundle shape is not live-admissible: "
+                            "runtime, endpoint, EDA, and observed-hardware evidence must all be real."
+                        )
+
                     def calc_stats(m_list: List[GV100HRunManifest], name: str):
                         if not m_list:
                             return {
@@ -124,7 +179,7 @@ class GovernanceABRunner:
 
                         return {
                             "name": name,
-                            "evidence_class": "live_inference" if (is_paired and universe_complete) else "single_arm_or_incomplete_universe",
+                            "evidence_class": "live_inference" if (is_paired and universe_complete and live_evidence_complete) else "non_admissible_live_evidence",
                             "hardware_observed": any(m.hardware.gpu_count > 0 for m in m_list),
                             "total_runs": len(m_list),
                             "runs_per_arm_count": len(m_list),
@@ -141,12 +196,19 @@ class GovernanceABRunner:
                     arm_b_real = calc_stats(arm_b_manifests, "Arm B (Governed Sidecar + Git Verifier)")
 
                     # Qualification admission strictly requires complete 30-pair universe runs
-                    admissible = (is_paired and universe_complete and both_arms_present and len(arm_a_manifests) == expected_pairs_count and len(arm_b_manifests) == expected_pairs_count)
+                    admissible = (
+                        is_paired
+                        and universe_complete
+                        and both_arms_present
+                        and live_evidence_complete
+                        and len(arm_a_manifests) == expected_pairs_count
+                        and len(arm_b_manifests) == expected_pairs_count
+                    )
 
-                    return ABExperimentSummary(
+                    summary = ABExperimentSummary(
                         total_runs_per_arm=max(len(arm_a_manifests), len(arm_b_manifests)),
-                        is_synthetic_simulation=not (is_paired and universe_complete),
-                        evidence_class="live_inference" if (is_paired and universe_complete) else "incomplete_ab_universe",
+                        is_synthetic_simulation=not admissible,
+                        evidence_class="live_inference" if admissible else "non_admissible_live_evidence",
                         admissible_for_model_qualification=admissible,
                         arm_a_prompt_only=arm_a_real,
                         arm_b_governed_sidecar=arm_b_real,
@@ -156,10 +218,19 @@ class GovernanceABRunner:
                             "time_saved_per_task_sec": round(arm_a_real['avg_time_to_correct_sec'] - arm_b_real['avg_time_to_correct_sec'], 2)
                         }
                     )
+                    if require_live and not summary.admissible_for_model_qualification:
+                        raise GovernanceAdmissionError(
+                            "Live qualification evidence is incomplete or non-admissible; synthetic fallback is disabled."
+                        )
+                    return summary
 
 
 
         # Explicitly marked synthetic offline scaffold baseline
+        if require_live:
+            raise GovernanceAdmissionError(
+                "No valid physical live evidence bundle was accepted; synthetic fallback is disabled."
+            )
         arm_a_results = {
             "name": "Arm A (Prompt-Only Guidance)",
             "evidence_class": "synthetic_offline_scaffold",

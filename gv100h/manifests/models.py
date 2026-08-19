@@ -11,6 +11,7 @@ class SamplingConfig(BaseModel):
 class HardwareManifest(BaseModel):
     gpu_count: int = Field(..., description="Number of GPUs detected/used")
     gpu_model: str = Field(..., description="GPU model string e.g. NVIDIA GV100 (32GB)")
+    hardware_observed: Optional[bool] = None
     driver_version: Optional[str] = None
     cuda_version: Optional[str] = None
     vram_total_gb: Optional[float] = None
@@ -25,8 +26,18 @@ class TimingManifest(BaseModel):
 
 
 class EvidenceManifest(BaseModel):
+    evidence_schema_version: Optional[Literal["2"]] = None
     git_diff_sha256: str = Field(..., description="SHA-256 hash of binary patch")
     changed_paths: List[str] = Field(default_factory=list)
+    workspace_tree_sha256: Optional[str] = None
+    target_file: Optional[str] = None
+    target_file_sha256: Optional[str] = None
+    file_snapshots_sha256: Optional[str] = None
+    tool_trace_sha256: Optional[str] = None
+    verification_sha256: Optional[str] = None
+    endpoint_observed: Optional[bool] = None
+    eda_backend: Optional[str] = None
+    qualification_admissible: Optional[bool] = None
     build_command: Optional[str] = None
     build_exit_code: Optional[int] = None
     build_log_sha256: Optional[str] = None

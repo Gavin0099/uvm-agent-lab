@@ -6,6 +6,7 @@ software E2E scaffold only: never universe_complete and never GO.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import subprocess
@@ -29,6 +30,8 @@ from gv100h.manifests.models import (
 from gv100h.manifests.validator import ManifestValidator
 from gv100h.runner.verifier import FinalVerificationResult, IndependentVerifier
 from gv100h.runner.worktree_runner import GitWorktreeRunner
+from gv100h.utils.evidence_commit import compute_reconstructed_head_commit
+from gv100h.utils.case_contract import compute_benchmark_case_hash
 from gv100h.utils.pairing import compute_canonical_pair_id
 
 ARMS = ("arm_a_prompt_only", "arm_b_governed_sidecar")
@@ -79,6 +82,35 @@ def _write_bundle_file(path: Path, payload: bytes) -> None:
     path.write_bytes(payload)
 
 
+def _build_file_snapshots(worktree_path: Path, changed_paths: List[str]) -> bytes:
+    files = []
+    for changed_path in sorted(changed_paths):
+        target = worktree_path / changed_path
+        if target.is_symlink():
+            files.append({
+                "kind": "symlink",
+                "path": changed_path,
+                "target": target.readlink().as_posix(),
+            })
+        elif target.is_file():
+            content = target.read_bytes()
+            files.append({
+                "content_b64": base64.b64encode(content).decode("ascii"),
+                "kind": "file",
+                "path": changed_path,
+                "sha256": _sha256_bytes(content),
+                "size": len(content),
+            })
+        else:
+            files.append({"kind": "missing", "path": changed_path})
+    return json.dumps(
+        {"files": files},
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+
 def _run_one_arm(
     *,
     arm: str,
@@ -126,8 +158,12 @@ def _run_one_arm(
         agent_result: AgentRunResult = runner.run_case(case_data, context=context)
         elapsed = time.time() - t0
 
-        raw_diff, changed_paths, _worktree_digest = worktree_mgr.extract_worktree_diff(
+        raw_diff, changed_paths, worktree_digest = worktree_mgr.extract_worktree_diff(
             worktree_path, base_commit
+        )
+        reconstructed_head_commit = compute_reconstructed_head_commit(
+            worktree_path,
+            base_commit,
         )
         if isinstance(raw_diff, str):
             diff_bytes = raw_diff.encode("utf-8")
@@ -159,17 +195,35 @@ def _run_one_arm(
 
         build_log_bytes = verifier_res.build_log.encode("utf-8")
         sim_log_bytes = verifier_res.test_log.encode("utf-8")
+        workspace_tree_bytes = worktree_mgr.build_workspace_tree_snapshot(
+            worktree_path, changed_paths
+        )
+        workspace_tree_sha256 = _sha256_bytes(workspace_tree_bytes)
+        if workspace_tree_sha256 != worktree_digest:
+            raise RuntimeError("workspace tree digest changed during evidence capture")
+        file_snapshots_bytes = _build_file_snapshots(worktree_path, changed_paths)
+        endpoint_observed = bool(agent_result.execution.get("endpoint_observed", False))
+        tool_trace_bytes = json.dumps(
+            {**agent_result.execution, "endpoint_observed": endpoint_observed},
+            ensure_ascii=True,
+            indent=2,
+            sort_keys=True,
+        ).encode("utf-8")
+        verification_bytes = json.dumps(
+            {**verifier_res.model_dump(), "endpoint_observed": endpoint_observed},
+            ensure_ascii=True,
+            indent=2,
+            sort_keys=True,
+        ).encode("utf-8")
+        target_rel = str(target_rel).replace("\\", "/")
+        target_bytes = (worktree_path / target_rel).read_bytes()
         _write_bundle_file(bundle_dir / "diff.patch", diff_bytes)
         _write_bundle_file(bundle_dir / "build.log", build_log_bytes)
         _write_bundle_file(bundle_dir / "simulation.log", sim_log_bytes)
-        _write_bundle_file(
-            bundle_dir / "tool_trace.json",
-            json.dumps(agent_result.execution, indent=2).encode("utf-8"),
-        )
-        _write_bundle_file(
-            bundle_dir / "verification.json",
-            json.dumps(verifier_res.model_dump(), indent=2).encode("utf-8"),
-        )
+        _write_bundle_file(bundle_dir / "workspace_tree.json", workspace_tree_bytes)
+        _write_bundle_file(bundle_dir / "file_snapshots.json", file_snapshots_bytes)
+        _write_bundle_file(bundle_dir / "tool_trace.json", tool_trace_bytes)
+        _write_bundle_file(bundle_dir / "verification.json", verification_bytes)
 
         manifest = GV100HRunManifest(
             run_id=run_id,
@@ -180,8 +234,9 @@ def _run_one_arm(
             experiment_arm=arm,
             target_repo=DEFAULT_TARGET_REPO,
             base_commit=base_commit,
-            head_commit=None,
+            head_commit=reconstructed_head_commit,
             model_id=model_id,
+            benchmark_case_hash=compute_benchmark_case_hash(case_data),
             runtime="mock_replay" if mode == "mock" else "vllm",
             quantization="NONE" if mode == "mock" else "FP16",
             framework_commit=framework_commit,
@@ -193,11 +248,22 @@ def _run_one_arm(
             hardware=HardwareManifest(
                 gpu_count=0,
                 gpu_model="Mock / Unobserved Hardware",
+                hardware_observed=False,
             ),
             timing=TimingManifest(wall_clock_sec=round(elapsed, 2)),
             evidence=EvidenceManifest(
+                evidence_schema_version="2",
                 git_diff_sha256=_sha256_bytes(diff_bytes),
                 changed_paths=changed_paths,
+                workspace_tree_sha256=workspace_tree_sha256,
+                target_file=target_rel,
+                target_file_sha256=_sha256_bytes(target_bytes),
+                file_snapshots_sha256=_sha256_bytes(file_snapshots_bytes),
+                tool_trace_sha256=_sha256_bytes(tool_trace_bytes),
+                verification_sha256=_sha256_bytes(verification_bytes),
+                endpoint_observed=endpoint_observed,
+                eda_backend=verifier_res.eda_backend,
+                qualification_admissible=verifier_res.qualification_admissible,
                 build_command=verifier_res.build_command,
                 build_exit_code=verifier_res.build_exit_code,
                 build_log_sha256=_sha256_bytes(build_log_bytes),
@@ -212,7 +278,12 @@ def _run_one_arm(
             ),
         )
         validator.validate_manifest_dict(manifest.model_dump())
-        validator.validate_manifest_bundle(manifest, bundle_dir)
+        validator.validate_manifest_bundle(
+            manifest,
+            bundle_dir,
+            require_integrity=True,
+            repo_root=worktree_mgr.repo_root,
+        )
         _write_bundle_file(
             bundle_dir / "manifest.json",
             json.dumps(manifest.model_dump(), indent=2).encode("utf-8"),

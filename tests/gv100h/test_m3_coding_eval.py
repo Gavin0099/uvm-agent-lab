@@ -9,7 +9,10 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from gv100h.coding_eval.client_admission import ClientAdmissionSuite
-from gv100h.coding_eval.governance_ab_runner import GovernanceABRunner
+from gv100h.coding_eval.governance_ab_runner import (
+    GovernanceABRunner,
+    GovernanceAdmissionError,
+)
 from gv100h.manifests.models import (
     EvidenceManifest,
     GV100HRunManifest,
@@ -123,3 +126,57 @@ def test_ab_runner_rejects_tampered_physical_bundle(tmp_path):
     assert summary.admissible_for_model_qualification is False
     assert summary.evidence_class == "synthetic_offline_scaffold"
     assert summary.arm_a_prompt_only["evidence_class"] == "synthetic_offline_scaffold"
+
+
+def test_live_admission_requires_all_independent_runtime_signals():
+    runner = GovernanceABRunner()
+    live_manifest = _dict_only_pair_manifests()[0].model_copy(update={
+        "runtime": "vllm",
+        "hardware": HardwareManifest(
+            gpu_count=2,
+            gpu_model="NVIDIA GV100 (32GB)",
+            hardware_observed=True,
+        ),
+        "evidence": EvidenceManifest(
+            evidence_schema_version="2",
+            git_diff_sha256="a" * 64,
+            workspace_tree_sha256="b" * 64,
+            target_file="uvm/tests/test.sv",
+            target_file_sha256="c" * 64,
+            file_snapshots_sha256="d" * 64,
+            tool_trace_sha256="e" * 64,
+            verification_sha256="f" * 64,
+            endpoint_observed=True,
+            eda_backend="verilator",
+            qualification_admissible=True,
+        ),
+    })
+
+    assert runner._has_live_qualification_evidence(live_manifest) is True
+    assert runner._has_live_qualification_evidence(
+        live_manifest.model_copy(update={"runtime": "mock_replay"})
+    ) is False
+    assert runner._has_live_qualification_evidence(
+        live_manifest.model_copy(update={
+            "evidence": live_manifest.evidence.model_copy(update={"endpoint_observed": False})
+        })
+    ) is False
+    assert runner._has_live_qualification_evidence(
+        live_manifest.model_copy(update={
+            "evidence": live_manifest.evidence.model_copy(update={"eda_backend": "stub"})
+        })
+    ) is False
+    assert runner._has_live_qualification_evidence(
+        live_manifest.model_copy(update={
+            "evidence": live_manifest.evidence.model_copy(update={"qualification_admissible": False})
+        })
+    ) is False
+    assert runner._has_live_qualification_evidence(
+        live_manifest.model_copy(update={
+            "hardware": live_manifest.hardware.model_copy(update={"hardware_observed": False})
+        })
+    ) is False
+
+def test_require_live_rejects_synthetic_fallback():
+    with pytest.raises(GovernanceAdmissionError, match="synthetic fallback is disabled"):
+        GovernanceABRunner().run_ab_benchmark(runs_per_task=3, require_live=True)
