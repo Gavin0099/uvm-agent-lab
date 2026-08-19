@@ -37,6 +37,10 @@ class EvidenceManifest(BaseModel):
     verification_sha256: Optional[str] = None
     endpoint_observed: Optional[bool] = None
     eda_backend: Optional[str] = None
+    verification_level: Optional[str] = None
+    verification_cwd: Optional[str] = None
+    tool_path: Optional[str] = None
+    eda_version: Optional[str] = None
     qualification_admissible: Optional[bool] = None
     build_command: Optional[str] = None
     build_exit_code: Optional[int] = None
