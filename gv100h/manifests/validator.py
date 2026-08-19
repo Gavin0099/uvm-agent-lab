@@ -17,6 +17,7 @@ from gv100h.manifests.models import GV100HRunManifest
 from gv100h.runner.worktree_runner import FatalWorktreeError, GitWorktreeRunner
 from gv100h.utils.case_contract import resolve_benchmark_case
 from gv100h.utils.evidence_commit import compute_reconstructed_head_commit
+from gv100h.utils.pairing import compute_canonical_pair_id
 
 
 class ManifestValidationError(Exception):
@@ -452,8 +453,7 @@ class ManifestValidator:
         Validates a collection of manifests for duplicates, complete arms, and evidence honesty.
         """
         seen_run_ids: Set[str] = set()
-        arm_a_by_pair: Dict[str, GV100HRunManifest] = {}
-        arm_b_by_pair: Dict[str, GV100HRunManifest] = {}
+        arm_by_pair: Dict[tuple[str, str], GV100HRunManifest] = {}
 
         for m in manifests:
             if m.run_id in seen_run_ids:
@@ -465,31 +465,82 @@ class ManifestValidator:
                 raise ManifestValidationError(f"Corrupted outcome: run {m.run_id} marked false_success=True but status='pass'")
 
             if m.pair_id:
-                if m.experiment_arm == "arm_a_prompt_only":
-                    arm_a_by_pair[m.pair_id] = m
-                elif m.experiment_arm == "arm_b_governed_sidecar":
-                    arm_b_by_pair[m.pair_id] = m
+                pair_arm_key = (m.pair_id, m.experiment_arm)
+                if pair_arm_key in arm_by_pair:
+                    raise ManifestValidationError(
+                        f"Duplicate manifest for pair/arm {pair_arm_key}"
+                    )
+                arm_by_pair[pair_arm_key] = m
 
         if require_complete_pairs:
-            all_pairs = set(arm_a_by_pair.keys()).union(set(arm_b_by_pair.keys()))
+            all_pairs = {pair_id for pair_id, _arm in arm_by_pair}
             if not all_pairs:
                 raise ManifestValidationError("No paired runs found in manifest set.")
 
             for pid in all_pairs:
-                if pid not in arm_a_by_pair:
+                if (pid, "arm_a_prompt_only") not in arm_by_pair:
                     raise ManifestValidationError(f"Incomplete pair '{pid}': Arm A run is missing.")
-                if pid not in arm_b_by_pair:
+                if (pid, "arm_b_governed_sidecar") not in arm_by_pair:
                     raise ManifestValidationError(f"Incomplete pair '{pid}': Arm B run is missing.")
 
                 # Validate invariant fields between Arm A and Arm B
-                ma = arm_a_by_pair[pid]
-                mb = arm_b_by_pair[pid]
-                if ma.task_id != mb.task_id or ma.base_commit != mb.base_commit or ma.model_id != mb.model_id:
+                ma = arm_by_pair[(pid, "arm_a_prompt_only")]
+                mb = arm_by_pair[(pid, "arm_b_governed_sidecar")]
+                invariant_fields = (
+                    "task_id",
+                    "benchmark_task_id",
+                    "repetition",
+                    "base_commit",
+                    "benchmark_case_hash",
+                    "model_id",
+                    "model_hash",
+                    "runtime",
+                    "runtime_commit",
+                    "quantization",
+                    "token_budget",
+                    "tool_budget",
+                    "contract_hash",
+                    "execution_contract_hash",
+                    "knowledge_repo_commit",
+                    "knowledge_manifest_hash",
+                )
+                drifted = [field for field in invariant_fields if getattr(ma, field) != getattr(mb, field)]
+                if drifted or ma.sampling.model_dump() != mb.sampling.model_dump():
                     raise ManifestValidationError(
                         f"Invariant drift detected in pair '{pid}': "
-                        f"Arm A ({ma.task_id}, {ma.base_commit[:7]}, {ma.model_id}) != "
-                        f"Arm B ({mb.task_id}, {mb.base_commit[:7]}, {mb.model_id})"
+                        f"fields={drifted or ['sampling']}"
                     )
+
+                if ma.evidence.evidence_schema_version == "2":
+                    required_invariants = {
+                        "benchmark_case_hash": ma.benchmark_case_hash,
+                        "execution_contract_hash": ma.execution_contract_hash,
+                        "token_budget": ma.token_budget,
+                        "tool_budget": ma.tool_budget,
+                    }
+                    missing = [name for name, value in required_invariants.items() if value in (None, "")]
+                    if missing:
+                        raise ManifestValidationError(
+                            f"Strict pair binding missing invariants: {', '.join(missing)}"
+                        )
+                    expected_pair_id = compute_canonical_pair_id(
+                        benchmark_task_id=ma.benchmark_task_id or ma.task_id,
+                        repetition=ma.repetition or 0,
+                        base_commit=ma.base_commit,
+                        model_id=ma.model_id,
+                        model_hash=ma.model_hash or "none",
+                        runtime_commit=ma.runtime_commit or "none",
+                        sampling=ma.sampling.model_dump() if ma.sampling else {},
+                        token_budget=ma.token_budget,
+                        tool_budget=ma.tool_budget,
+                        benchmark_case_hash=ma.benchmark_case_hash,
+                        knowledge_manifest_hash=ma.knowledge_manifest_hash or "none",
+                        execution_contract_hash=ma.execution_contract_hash,
+                    )
+                    if ma.pair_id != expected_pair_id:
+                        raise ManifestValidationError(
+                            f"Pair ID does not match canonical invariants for '{pid}'"
+                        )
 
         return True
 

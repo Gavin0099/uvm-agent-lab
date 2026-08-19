@@ -58,7 +58,10 @@ def test_policy_evaluator_live_mutation_failure():
         fabricated_citations_count=0,
         authority_violations_count=0,
         all_gates_passed=False,
-        details=[]
+        details=[],
+        evidence_class="live_model_inference",
+        admissible_for_model_qualification=True,
+        endpoint_observed=True,
     )
 
     coding_res_live = ABExperimentSummary(

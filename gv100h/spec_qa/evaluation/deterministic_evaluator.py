@@ -16,6 +16,11 @@ class QAEvaluationResult(BaseModel):
     authority_violations_count: int
     all_gates_passed: bool
     details: List[Dict[str, Any]]
+    evidence_class: str = "deterministic_offline"
+    admissible_for_model_qualification: bool = False
+    model_id: Optional[str] = None
+    endpoint_observed: bool = False
+    dataset_hash: Optional[str] = None
 
 
 class DeterministicSpecQAEvaluator:
@@ -113,6 +118,7 @@ class DeterministicSpecQAEvaluator:
             cat_a_acc >= 90.0
             and cat_b_acc == 100.0
             and cat_c_acc >= 95.0
+            and cat_d_acc >= 100.0
             and total_fabricated == 0
             and total_auth_violations == 0
         )

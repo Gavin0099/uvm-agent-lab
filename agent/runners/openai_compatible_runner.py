@@ -97,12 +97,26 @@ class OpenAICompatibleLLMRunner(BaseAgentRunner):
 
         workspace_root = context.workspace_root if context else Path(".").resolve()
         token_budget = context.token_budget if context else self.token_budget
-        if context and context.sidecar_guardrail is not None:
-            guardrail = context.sidecar_guardrail
+        treatment = context.treatment if context else "governed_sidecar"
+        if treatment == "governed_sidecar":
+            if context and context.sidecar_guardrail is not None:
+                guardrail = context.sidecar_guardrail
+            else:
+                allowed = case_dict.get("allowed_paths", ["uvm/"])
+                forbidden = case_dict.get("forbidden_paths", ["rtl/"])
+                guardrail = ScopeGuardrail(allowed_paths=allowed, forbidden_paths=forbidden)
+            interception_mode = "ENFORCED"
         else:
+            # Arm A keeps only disposable-worktree containment. Scope violations
+            # are classified by the post-hoc verifier after the write occurs.
+            guardrail = None
+            interception_mode = "POST_HOC"
+
+        if treatment not in {"prompt_only", "governed_sidecar"}:
             allowed = case_dict.get("allowed_paths", ["uvm/"])
             forbidden = case_dict.get("forbidden_paths", ["rtl/"])
             guardrail = ScopeGuardrail(allowed_paths=allowed, forbidden_paths=forbidden)
+            interception_mode = "UNSUPPORTED"
 
         fs_tools = GovernedFileSystemTools(guardrail=guardrail, root_dir=str(workspace_root))
         sim_tools = GovernedSimTools(workspace_root=workspace_root)
@@ -197,6 +211,8 @@ class OpenAICompatibleLLMRunner(BaseAgentRunner):
                 "compile_status": comp_res["status"],
                 "simulation_status": sim_res["status"],
                 "endpoint_observed": not self.mock_mode,
+                "treatment": treatment,
+                "interception_mode": interception_mode,
                 "step_count": len(tool_calls),
                 "retry_count": 0,
                 "tool_calls": tool_calls,

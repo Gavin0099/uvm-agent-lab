@@ -121,7 +121,6 @@ def test_mock_slice_produces_paired_physical_bundles(tmp_path: Path):
             require_integrity=True,
             repo_root=REPO_ROOT,
         )
-
         written = (bundle / "diff.patch").read_bytes()
         assert written
         assert str(TARGET_REL).replace("\\", "/").encode("utf-8") in written
@@ -138,6 +137,43 @@ def test_mock_slice_produces_paired_physical_bundles(tmp_path: Path):
 
     validator.validate_manifest_set(manifests, require_complete_pairs=True)
 
+
+def test_live_pair_requires_runtime_model_and_build_provenance(tmp_path: Path):
+    from gv100h.coding_eval.single_pair_runner import run_single_ab_pair
+
+    with pytest.raises(ValueError, match="explicit provenance"):
+        run_single_ab_pair(
+            task_id="UVM-001",
+            case_path=CASE_PATH,
+            repetition=1,
+            mode="live",
+            output_dir=tmp_path / "live",
+            repo_root=REPO_ROOT,
+        )
+
+
+def test_pair_validator_rejects_duplicate_pair_arm(tmp_path: Path):
+    result = _run_slice(tmp_path)
+    manifests = list(result["manifests"])
+    duplicate = manifests[0].model_copy(update={"run_id": "duplicate-arm-run"})
+
+    with pytest.raises(ManifestValidationError, match="Duplicate manifest"):
+        ManifestValidator().validate_manifest_set(
+            manifests + [duplicate], require_complete_pairs=True
+        )
+
+
+def test_pair_validator_rejects_tampered_pair_id(tmp_path: Path):
+    result = _run_slice(tmp_path)
+    manifests = [
+        manifest.model_copy(update={"pair_id": "pair-tampered"})
+        for manifest in result["manifests"]
+    ]
+
+    with pytest.raises(ManifestValidationError, match="Pair ID does not match"):
+        ManifestValidator().validate_manifest_set(
+            manifests, require_complete_pairs=True
+        )
 
 def test_legacy_bundle_is_rejected_at_strict_integrity_boundary(tmp_path: Path):
     bundle = tmp_path / "legacy"

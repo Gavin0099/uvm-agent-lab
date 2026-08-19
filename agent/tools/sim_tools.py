@@ -17,9 +17,10 @@ class GovernedSimTools:
     ):
         self.workspace_root = Path(workspace_root).resolve() if workspace_root else Path(".").resolve()
         self.mode = mode
-        # Keep HEAD EDARouter() ctor. Live fail-closed belongs to IndependentVerifier,
-        # not this agent-side tool wrapper.
-        self.eda_router = eda_router or EDARouter()
+        self.eda_router = eda_router or EDARouter(
+            workspace_root=self.workspace_root,
+            mode=self.mode,
+        )
 
     def compile(self, target_file: str, extra_flags: str = "") -> Dict[str, Any]:
         flags = [f for f in extra_flags.split() if f] if extra_flags else None

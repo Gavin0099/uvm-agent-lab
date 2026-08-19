@@ -149,16 +149,24 @@ def compute_profile_metrics(
     decode_latency_sec: Optional[float] = None,
     decode_tokens: int = 128,
     decode_tps: Optional[float] = None,
+    decode_timing_observed: bool = True,
 ) -> Dict[str, Any]:
     """
     Canonical hardware-profile fields consumed by generate_poc_report /
     QualificationPolicyEvaluator. Do not nest the live metrics only under
     gpu_telemetry or emit est_decode_tps without decode_tps.
     """
-    observed_decode_tps = decode_tps
-    if observed_decode_tps is None:
-        decode_duration = decode_latency_sec if decode_latency_sec and decode_latency_sec > 0 else avg_latency
-        observed_decode_tps = decode_tokens / decode_duration if decode_duration > 0 else 0.0
+    observed_decode_tps = decode_tps if decode_timing_observed else None
+    estimated_end_to_end_tps = None
+    if not decode_timing_observed:
+        estimated_end_to_end_tps = decode_tokens / avg_latency if avg_latency > 0 else None
+    elif observed_decode_tps is None:
+        decode_duration = (
+            decode_latency_sec
+            if decode_latency_sec and decode_latency_sec > 0
+            else avg_latency
+        )
+        observed_decode_tps = decode_tokens / decode_duration if decode_duration > 0 else None
     observed_prefill_tps = prefill_tps
     if observed_prefill_tps is None and prefill_latency_sec and prefill_latency_sec > 0 and prefill_tokens:
         observed_prefill_tps = prefill_tokens / prefill_latency_sec
@@ -167,8 +175,11 @@ def compute_profile_metrics(
         "prefill_tps": round(observed_prefill_tps, 2) if observed_prefill_tps else None,
         "prefill_latency_sec": round(prefill_latency_sec, 4) if prefill_latency_sec else None,
         "prefill_tokens": prefill_tokens,
-        "decode_tps": round(observed_decode_tps, 2) if observed_decode_tps else 0.0,
-        "est_decode_tps": round(observed_decode_tps, 2) if observed_decode_tps else 0.0,
+        "decode_tps": round(observed_decode_tps, 2) if observed_decode_tps else None,
+        "est_decode_tps": round(observed_decode_tps, 2) if observed_decode_tps else None,
+        "estimated_end_to_end_tps": (
+            round(estimated_end_to_end_tps, 2) if estimated_end_to_end_tps else None
+        ),
         "decode_latency_sec": round(decode_latency_sec, 4) if decode_latency_sec else None,
         "decode_tokens": decode_tokens,
         "vram_peak_per_gpu_gb": vram_peak,
@@ -345,6 +356,9 @@ def profile_endpoint(
     effective_decode_tps = fmean(decode_tps_samples) if decode_tps_samples else None
     effective_decode_latency = fmean(decode_latency_samples) if decode_latency_samples else None
     effective_decode_tokens = round(fmean(decode_token_samples)) if decode_token_samples else 128
+    decode_timing_observed = bool(
+        decode_tps_samples and decode_latency_samples and decode_token_samples
+    )
     metrics = compute_profile_metrics(
         avg_latency,
         peak_vram_mb,
@@ -353,16 +367,15 @@ def profile_endpoint(
         prefill_tps=effective_prefill_tps,
         decode_latency_sec=effective_decode_latency,
         decode_tokens=effective_decode_tokens,
-        decode_tps=effective_decode_tps,
+        decode_tps=effective_decode_tps if decode_timing_observed else None,
+        decode_timing_observed=decode_timing_observed,
     )
     effective_server_version = llama_server_version or collect_llama_server_version(llama_server_path)
     selected_k = normalize_kv_cache_type(kv_cache_type_k or candidate.kv_cache_type_k)
     selected_v = normalize_kv_cache_type(kv_cache_type_v or candidate.kv_cache_type_v)
     artifact_hash = sha256_file(model_path)
     prefill_evidence = bool(effective_prefill_tps and effective_prefill_latency and effective_prefill_tokens)
-    decode_evidence = bool(
-        decode_tps_samples or (effective_decode_tps and effective_decode_tokens)
-    )
+    decode_evidence = decode_timing_observed
     summary = {
         "candidate": candidate.model_dump(),
         "model_id": effective_model_id,
@@ -404,6 +417,7 @@ def profile_endpoint(
         "prefill_tokens": metrics["prefill_tokens"],
         "decode_tps": metrics["decode_tps"],
         "est_decode_tps": metrics["est_decode_tps"],
+        "estimated_end_to_end_tps": metrics["estimated_end_to_end_tps"],
         "decode_latency_sec": metrics["decode_latency_sec"],
         "decode_tokens": metrics["decode_tokens"],
         "vram_peak_per_gpu_gb": metrics["vram_peak_per_gpu_gb"],

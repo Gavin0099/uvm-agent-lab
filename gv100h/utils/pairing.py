@@ -14,7 +14,8 @@ def compute_canonical_pair_id(
     token_budget: int = 8000,
     tool_budget: int = 20,
     benchmark_case_hash: str = "none",
-    knowledge_manifest_hash: str = "none"
+    knowledge_manifest_hash: str = "none",
+    execution_contract_hash: str = "none"
 ) -> str:
     """
     Deterministically computes a cryptographic pair_id from experiment invariant fields.
@@ -24,7 +25,7 @@ def compute_canonical_pair_id(
     payload = (
         f"{benchmark_task_id}|{repetition}|{base_commit}|{model_id}|{model_hash}|"
         f"{runtime_commit}|{sampling_canonical}|{token_budget}|{tool_budget}|"
-        f"{benchmark_case_hash}|{knowledge_manifest_hash}"
+        f"{benchmark_case_hash}|{knowledge_manifest_hash}|{execution_contract_hash}"
     )
     digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
     return f"pair-{digest[:16]}"

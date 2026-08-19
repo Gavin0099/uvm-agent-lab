@@ -25,6 +25,7 @@ from gv100h.manifests.models import (
     GV100HRunManifest,
     HardwareManifest,
     OutcomeManifest,
+    SamplingConfig,
     TimingManifest,
 )
 from gv100h.manifests.validator import ManifestValidator
@@ -33,11 +34,12 @@ from gv100h.runner.worktree_runner import GitWorktreeRunner
 from gv100h.utils.evidence_commit import compute_reconstructed_head_commit
 from gv100h.utils.case_contract import compute_benchmark_case_hash
 from gv100h.utils.pairing import compute_canonical_pair_id
+from scripts.profile_runtime import sample_gpu_telemetry, sha256_file
 
 ARMS = ("arm_a_prompt_only", "arm_b_governed_sidecar")
-DEFAULT_MODEL_ID = "Qwen/Qwen3.8-35B-A3B"
+DEFAULT_MODEL_ID = "Qwen/Qwen3.8-27B"
 DEFAULT_TARGET_REPO = "Gavin0099/uvm-agent-lab"
-SAMPLING = {"temperature": 0.0, "max_tokens": 2048}
+SAMPLING = {"temperature": 0.0, "top_p": 1.0, "max_tokens": 2048}
 TOKEN_BUDGET = 8000
 TOOL_BUDGET = 20
 
@@ -80,6 +82,29 @@ def _load_case(case_path: Path) -> Dict[str, Any]:
 
 def _write_bundle_file(path: Path, payload: bytes) -> None:
     path.write_bytes(payload)
+
+
+def _hardware_manifest(initial: Dict[str, Any], final: Dict[str, Any]) -> HardwareManifest:
+    observed_samples = [sample for sample in (initial, final) if sample.get("hardware_observed")]
+    selected = final if final.get("hardware_observed") else initial
+    gpus = selected.get("gpus", [])
+    names = sorted({str(gpu.get("name", "unknown")) for gpu in gpus})
+    all_gpu_samples = [gpu for sample in observed_samples for gpu in sample.get("gpus", [])]
+    total_memory = max(
+        (float(gpu.get("memory_total_mb", 0.0)) / 1024.0 for gpu in gpus),
+        default=None,
+    )
+    peak_memory = max(
+        (float(gpu.get("memory_used_mb", 0.0)) / 1024.0 for gpu in all_gpu_samples),
+        default=None,
+    )
+    return HardwareManifest(
+        gpu_count=len(gpus),
+        gpu_model=", ".join(names) if names else "Unobserved Hardware",
+        hardware_observed=bool(observed_samples),
+        vram_total_gb=total_memory,
+        vram_peak_used_gb=peak_memory,
+    )
 
 
 def _build_file_snapshots(worktree_path: Path, changed_paths: List[str]) -> bytes:
@@ -127,6 +152,10 @@ def _run_one_arm(
     runner: OpenAICompatibleLLMRunner,
     bridge: GovernanceRuntimeBridge,
     validator: ManifestValidator,
+    runtime: str,
+    quantization: str,
+    model_hash: Optional[str],
+    runtime_commit: Optional[str],
 ) -> GV100HRunManifest:
     worktree_path, resolved_sha = worktree_mgr.create_worktree(base_commit)
     if resolved_sha != base_commit:
@@ -138,6 +167,11 @@ def _run_one_arm(
     t0 = time.time()
     run_id = f"run-{uuid.uuid4().hex[:12]}"
     bundle_dir.mkdir(parents=True, exist_ok=True)
+    initial_hardware = sample_gpu_telemetry() if mode == "live" else {
+        "hardware_observed": False,
+        "gpu_count": 0,
+        "gpus": [],
+    }
 
     try:
         _is_admitted, guardrail, gov_ctx = bridge.pre_benchmark_execution_check(
@@ -157,6 +191,7 @@ def _run_one_arm(
         )
         agent_result: AgentRunResult = runner.run_case(case_data, context=context)
         elapsed = time.time() - t0
+        final_hardware = sample_gpu_telemetry() if mode == "live" else initial_hardware
 
         raw_diff, changed_paths, worktree_digest = worktree_mgr.extract_worktree_diff(
             worktree_path, base_commit
@@ -178,7 +213,11 @@ def _run_one_arm(
         target_rel = case_data.get("inputs", {}).get("target_file")
         verifier_res: FinalVerificationResult = IndependentVerifier(
             workspace_root=worktree_path, mode=mode
-        ).verify_task(changed_paths=changed_paths, target_file=target_rel)
+        ).verify_task(
+            changed_paths=changed_paths,
+            target_file=target_rel,
+            verification=case_data.get("verification"),
+        )
 
         if not is_scope_compliant:
             final_status = "scope_violation"
@@ -237,19 +276,22 @@ def _run_one_arm(
             head_commit=reconstructed_head_commit,
             model_id=model_id,
             benchmark_case_hash=compute_benchmark_case_hash(case_data),
-            runtime="mock_replay" if mode == "mock" else "vllm",
-            quantization="NONE" if mode == "mock" else "FP16",
+            runtime=runtime,
+            runtime_commit=runtime_commit,
+            model_hash=model_hash,
+            quantization=quantization,
+            token_budget=TOKEN_BUDGET,
+            tool_budget=TOOL_BUDGET,
             framework_commit=framework_commit,
             contract_id=gov_ctx["execution_contract_id"],
             contract_hash=gov_ctx["execution_contract_hash"],
             execution_contract_id=gov_ctx["execution_contract_id"],
             execution_contract_hash=gov_ctx["execution_contract_hash"],
-            interception_mode=gov_ctx["interception_mode"],
-            hardware=HardwareManifest(
-                gpu_count=0,
-                gpu_model="Mock / Unobserved Hardware",
-                hardware_observed=False,
+            interception_mode=agent_result.execution.get(
+                "interception_mode", gov_ctx["interception_mode"]
             ),
+            sampling=SamplingConfig(**SAMPLING),
+            hardware=_hardware_manifest(initial_hardware, final_hardware),
             timing=TimingManifest(wall_clock_sec=round(elapsed, 2)),
             evidence=EvidenceManifest(
                 evidence_schema_version="2",
@@ -263,6 +305,10 @@ def _run_one_arm(
                 verification_sha256=_sha256_bytes(verification_bytes),
                 endpoint_observed=endpoint_observed,
                 eda_backend=verifier_res.eda_backend,
+                verification_level=verifier_res.verification_level,
+                verification_cwd=verifier_res.verification_cwd,
+                tool_path=verifier_res.tool_path,
+                eda_version=verifier_res.eda_version,
                 qualification_admissible=verifier_res.qualification_admissible,
                 build_command=verifier_res.build_command,
                 build_exit_code=verifier_res.build_exit_code,
@@ -303,11 +349,36 @@ def run_single_ab_pair(
     repo_root: Optional[Union[str, Path]] = None,
     model_id: str = DEFAULT_MODEL_ID,
     api_base: str = "http://localhost:8000/v1",
+    runtime: Optional[str] = None,
+    quantization: Optional[str] = None,
+    model_hash: Optional[str] = None,
+    model_artifact_path: Optional[Union[str, Path]] = None,
+    runtime_commit: Optional[str] = None,
 ) -> Dict[str, Any]:
     if mode not in {"mock", "live"}:
         raise ValueError(f"Unknown mode '{mode}'. Must be 'live' or 'mock'.")
     if repetition < 1:
         raise ValueError("repetition must be >= 1")
+
+    if model_hash is None and model_artifact_path is not None:
+        model_hash = sha256_file(str(model_artifact_path))
+    if mode == "live":
+        missing = [
+            name for name, value in {
+                "runtime": runtime,
+                "quantization": quantization,
+                "model_hash": model_hash,
+                "runtime_commit": runtime_commit,
+            }.items() if not value
+        ]
+        if missing:
+            raise ValueError(
+                "Live pair execution requires explicit provenance: "
+                + ", ".join(missing)
+            )
+    else:
+        runtime = "mock_replay"
+        quantization = "NONE"
 
     repo = _resolve_repo_root(repo_root)
     case_file = Path(case_path).resolve()
@@ -320,19 +391,28 @@ def run_single_ab_pair(
 
     base_commit = _git_sha(repo)
     framework_commit = _framework_commit(repo)
+    bridge = GovernanceRuntimeBridge()
+    _pair_admitted, _pair_guardrail, pair_gov_ctx = bridge.pre_benchmark_execution_check(
+        benchmark_task_id=task_id,
+        worktree_root=str(repo),
+        case_data=case_data,
+    )
     pair_id = compute_canonical_pair_id(
         benchmark_task_id=task_id,
         repetition=repetition,
         base_commit=base_commit,
         model_id=model_id,
+        model_hash=model_hash or "none",
+        runtime_commit=runtime_commit or "none",
         sampling=SAMPLING,
         token_budget=TOKEN_BUDGET,
         tool_budget=TOOL_BUDGET,
+        benchmark_case_hash=compute_benchmark_case_hash(case_data),
+        execution_contract_hash=pair_gov_ctx["execution_contract_hash"],
     )
 
     validator = ManifestValidator()
     worktree_mgr = GitWorktreeRunner(str(repo))
-    bridge = GovernanceRuntimeBridge()
     runner = OpenAICompatibleLLMRunner(
         name=model_id.split("/")[-1],
         api_base=api_base,
@@ -361,6 +441,10 @@ def run_single_ab_pair(
                 runner=runner,
                 bridge=bridge,
                 validator=validator,
+                runtime=runtime,
+                quantization=quantization,
+                model_hash=model_hash,
+                runtime_commit=runtime_commit,
             )
         )
 

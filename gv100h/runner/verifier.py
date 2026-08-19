@@ -1,4 +1,5 @@
 import hashlib
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Dict, Any, Optional, Literal, List
@@ -26,6 +27,9 @@ class FinalVerificationResult(BaseModel):
     failure_class: Optional[str] = None
     eda_backend: str = "unknown"
     eda_version: str = "unknown"
+    verification_level: str = "unknown"
+    verification_cwd: str = ""
+    tool_path: str = ""
     qualification_admissible: bool = True
 
 
@@ -36,25 +40,73 @@ class IndependentVerifier:
     Enforces the core principle: exit 0 != success.
     """
 
-    def __init__(self, workspace_root: Path, mode: str = "mock"):
+    def __init__(
+        self,
+        workspace_root: Path,
+        mode: str = "mock",
+        eda_router: Optional[EDARouter] = None,
+    ):
         self.workspace_root = Path(workspace_root).resolve()
         self.mode = mode
-        # Compatible with HEAD EDARouter(preferred_backend=...).
-        self.eda_router = EDARouter()
+        self.eda_router = eda_router or EDARouter(
+            workspace_root=self.workspace_root,
+            mode=self.mode,
+        )
 
     def _backend_truth(self) -> Dict[str, Any]:
+        if hasattr(self.eda_router, "get_backend_metadata"):
+            return self.eda_router.get_backend_metadata()
         backend = self.eda_router.get_active_backend()
         if backend == "stub":
             return {
                 "backend": "stub",
                 "version": "synthetic_sim_stub_v1",
+                "verification_level": "synthetic",
                 "qualification_admissible": False,
             }
         return {
             "backend": backend,
             "version": "unknown",
+            "verification_level": "unknown",
             "qualification_admissible": True,
         }
+
+    def _tool_path(self, backend: str) -> str:
+        executable = {
+            "vcs": "vcs",
+            "iverilog": "iverilog",
+            "verilator": "verilator",
+            "python_compiler": "python",
+        }.get(backend)
+        return shutil.which(executable) if executable else ""
+
+    def _target_in_workspace(self, target: str) -> Optional[Path]:
+        candidate = Path(target)
+        resolved = (candidate if candidate.is_absolute() else self.workspace_root / candidate).resolve()
+        try:
+            resolved.relative_to(self.workspace_root)
+        except ValueError:
+            return None
+        return resolved
+
+    @staticmethod
+    def _verification_argv(
+        spec: Optional[Dict[str, Any]],
+        default: List[str],
+        target_file: str,
+    ) -> Optional[List[str]]:
+        if spec is None:
+            return None
+        argv = spec.get("argv", default)
+        if not isinstance(argv, list) or not argv or not all(isinstance(item, str) for item in argv):
+            raise ValueError("verification argv must be a non-empty list of strings")
+        return [item.replace("{target_file}", target_file) for item in argv]
+
+    @staticmethod
+    def _markers_pass(log: str, spec: Optional[Dict[str, Any]]) -> bool:
+        if not spec:
+            return True
+        return all(marker in log for marker in spec.get("required_markers", []))
 
     def _live_stub_rejected(self, primary_target: str, meta: Dict[str, Any]) -> Optional[FinalVerificationResult]:
         if self.mode != "live" or meta["backend"] != "stub":
@@ -79,6 +131,9 @@ class IndependentVerifier:
             failure_class="BUILD_FAIL",
             eda_backend=meta["backend"],
             eda_version=meta["version"],
+            verification_level=meta.get("verification_level", "unknown"),
+            verification_cwd=str(self.workspace_root),
+            tool_path=self._tool_path(meta["backend"]),
             qualification_admissible=False,
         )
 
@@ -86,7 +141,8 @@ class IndependentVerifier:
         self,
         changed_paths: List[str],
         target_file: Optional[str] = None,
-        top_module: Optional[str] = None
+        top_module: Optional[str] = None,
+        verification: Optional[Dict[str, Any]] = None,
     ) -> FinalVerificationResult:
         meta = self._backend_truth()
         backend = meta["backend"]
@@ -100,44 +156,135 @@ class IndependentVerifier:
         if not primary_target:
             primary_target = "uvm/tests/test_case.sv"
 
+        resolved_target = self._target_in_workspace(primary_target)
+        if resolved_target is None:
+            log = f"Target file '{primary_target}' escapes disposable worktree."
+            log_sha = hashlib.sha256(log.encode("utf-8")).hexdigest()
+            return FinalVerificationResult(
+                build_status="fail",
+                test_status="unsupported",
+                build_command=f"reject target {primary_target}",
+                build_exit_code=1,
+                build_log=log,
+                build_log_sha256=log_sha,
+                test_command="none",
+                test_exit_code=1,
+                test_log=log,
+                test_log_sha256=log_sha,
+                final_pass=False,
+                failure_class="BUILD_FAIL",
+                eda_backend=meta["backend"],
+                eda_version=meta["version"],
+                verification_level=meta.get("verification_level", "unknown"),
+                verification_cwd=str(self.workspace_root),
+                tool_path=self._tool_path(meta["backend"]),
+                qualification_admissible=False,
+            )
+
         live_reject = self._live_stub_rejected(primary_target, meta)
         if live_reject is not None and not primary_target.endswith(".py"):
             return live_reject
 
         # Case 1: Python Task
         if primary_target.endswith(".py"):
-            cmd = f"python -m py_compile {primary_target}"
-            res = subprocess.run(
-                cmd,
-                shell=True,
+            build_spec = verification.get("build") if verification else None
+            test_spec = verification.get("test") if verification else None
+            build_args = self._verification_argv(
+                build_spec,
+                ["python", "-m", "py_compile", primary_target],
+                primary_target,
+            ) or ["python", "-m", "py_compile", primary_target]
+            build_res = subprocess.run(
+                build_args,
                 cwd=str(self.workspace_root),
                 capture_output=True,
-                text=True
+                text=True,
+                timeout=(verification or {}).get("timeout_sec", 120),
             )
-            log = (res.stdout or "") + "\n" + (res.stderr or "")
-            build_pass = (res.returncode == 0)
-            build_log_sha = hashlib.sha256(log.encode("utf-8")).hexdigest()
+            build_log = (build_res.stdout or "") + "\n" + (build_res.stderr or "")
+            build_pass = (
+                build_res.returncode == (build_spec or {}).get("required_exit_code", 0)
+                and self._markers_pass(build_log, build_spec)
+            )
+            build_command = subprocess.list2cmdline(build_args)
+            build_log_sha = hashlib.sha256(build_log.encode("utf-8")).hexdigest()
+            common = {
+                "eda_backend": "python_compiler",
+                "eda_version": "py_compile_3.13",
+                "verification_cwd": str(self.workspace_root),
+                "tool_path": self._tool_path("python_compiler"),
+            }
+            if not build_pass:
+                return FinalVerificationResult(
+                    build_status="fail",
+                    test_status="unsupported",
+                    build_command=build_command,
+                    build_exit_code=build_res.returncode,
+                    build_log=build_log,
+                    build_log_sha256=build_log_sha,
+                    test_command="none",
+                    test_exit_code=1,
+                    test_log="Semantic test skipped due to build failure.",
+                    test_log_sha256=hashlib.sha256(b"test_skipped_build_failure").hexdigest(),
+                    final_pass=False,
+                    failure_class="BUILD_FAIL",
+                    verification_level="compile_only",
+                    qualification_admissible=False,
+                    **common,
+                )
+            if test_spec is None:
+                test_log = "Semantic verification contract missing; test not executed."
+                return FinalVerificationResult(
+                    build_status="pass",
+                    test_status="unsupported",
+                    build_command=build_command,
+                    build_exit_code=build_res.returncode,
+                    build_log=build_log,
+                    build_log_sha256=build_log_sha,
+                    test_command="unsupported: verification.test missing",
+                    test_exit_code=1,
+                    test_log=test_log,
+                    test_log_sha256=hashlib.sha256(test_log.encode("utf-8")).hexdigest(),
+                    final_pass=False,
+                    failure_class="TEST_FAIL",
+                    verification_level="compile_only",
+                    qualification_admissible=False,
+                    **common,
+                )
 
+            test_args = self._verification_argv(test_spec, [], primary_target)
+            test_res = subprocess.run(
+                test_args,
+                cwd=str(self.workspace_root),
+                capture_output=True,
+                text=True,
+                timeout=(verification or {}).get("timeout_sec", 120),
+            )
+            test_log = (test_res.stdout or "") + "\n" + (test_res.stderr or "")
+            test_pass = (
+                test_res.returncode == test_spec.get("required_exit_code", 0)
+                and self._markers_pass(test_log, test_spec)
+            )
             return FinalVerificationResult(
-                build_status="pass" if build_pass else "fail",
-                test_status="pass" if build_pass else "fail",
-                build_command=cmd,
-                build_exit_code=res.returncode,
-                build_log=log,
+                build_status="pass",
+                test_status="pass" if test_pass else "fail",
+                build_command=build_command,
+                build_exit_code=build_res.returncode,
+                build_log=build_log,
                 build_log_sha256=build_log_sha,
-                test_command="pytest",
-                test_exit_code=res.returncode,
-                test_log=log,
-                test_log_sha256=build_log_sha,
-                final_pass=build_pass,
-                failure_class="BUILD_FAIL" if not build_pass else None,
-                eda_backend="python_compiler",
-                eda_version="py_compile_3.13",
-                qualification_admissible=True
+                test_command=subprocess.list2cmdline(test_args),
+                test_exit_code=test_res.returncode,
+                test_log=test_log,
+                test_log_sha256=hashlib.sha256(test_log.encode("utf-8")).hexdigest(),
+                final_pass=test_pass,
+                failure_class=None if test_pass else "TEST_FAIL",
+                verification_level="compile_and_test",
+                qualification_admissible=True,
+                **common,
             )
 
         # Case 2: SystemVerilog / UVM Verification Task
-        full_target = (self.workspace_root / primary_target).resolve()
+        full_target = resolved_target
         if not full_target.exists():
             log = f"Target file '{primary_target}' was not found in worktree."
             log_sha = hashlib.sha256(log.encode("utf-8")).hexdigest()
@@ -156,6 +303,9 @@ class IndependentVerifier:
                 failure_class="BUILD_FAIL",
                 eda_backend=backend,
                 eda_version=version,
+                verification_level=meta.get("verification_level", "unknown"),
+                verification_cwd=str(self.workspace_root),
+                tool_path=self._tool_path(backend),
                 qualification_admissible=admissible
             )
 
@@ -164,12 +314,19 @@ class IndependentVerifier:
         build_log = comp_res.get("log", "")
         build_log_sha = hashlib.sha256(build_log.encode("utf-8")).hexdigest()
         build_passed = (comp_res.get("status") == "pass")
+        build_command = comp_res.get("command") or f"compile {primary_target}"
+        verification_level = comp_res.get(
+            "verification_level", meta.get("verification_level", "unknown")
+        )
+        verification_cwd = comp_res.get("cwd", str(self.workspace_root))
+        tool_path = comp_res.get("tool_path", self._tool_path(backend))
+        version = comp_res.get("version", version)
 
         if not build_passed:
             return FinalVerificationResult(
                 build_status="fail",
                 test_status="unsupported",
-                build_command=f"compile {primary_target}",
+                build_command=build_command,
                 build_exit_code=1,
                 build_log=build_log,
                 build_log_sha256=build_log_sha,
@@ -181,7 +338,10 @@ class IndependentVerifier:
                 failure_class="BUILD_FAIL",
                 eda_backend=backend,
                 eda_version=version,
-                qualification_admissible=admissible and comp_res.get("qualification_admissible", True)
+                verification_level=verification_level,
+                verification_cwd=verification_cwd,
+                tool_path=tool_path,
+                qualification_admissible=admissible and comp_res.get("qualification_admissible", False)
             )
 
         # 2. Simulation Phase
@@ -190,6 +350,11 @@ class IndependentVerifier:
         test_log = sim_res.get("log", "")
         test_log_sha = hashlib.sha256(test_log.encode("utf-8")).hexdigest()
         test_passed = (sim_res.get("status") == "pass")
+        test_command = sim_res.get("command") or f"simulate {module_name}"
+        verification_level = sim_res.get("verification_level", verification_level)
+        verification_cwd = sim_res.get("cwd", verification_cwd)
+        tool_path = sim_res.get("tool_path", tool_path)
+        version = sim_res.get("version", version)
 
         final_pass = (build_passed and test_passed)
         failure_class = None if final_pass else ("TEST_FAIL" if not test_passed else "BUILD_FAIL")
@@ -197,11 +362,11 @@ class IndependentVerifier:
         return FinalVerificationResult(
             build_status="pass",
             test_status=sim_res.get("status", "fail"),
-            build_command=f"compile {primary_target}",
+            build_command=build_command,
             build_exit_code=0,
             build_log=build_log,
             build_log_sha256=build_log_sha,
-            test_command=f"simulate {module_name}",
+            test_command=test_command,
             test_exit_code=0 if test_passed else 1,
             test_log=test_log,
             test_log_sha256=test_log_sha,
@@ -209,6 +374,13 @@ class IndependentVerifier:
             failure_class=failure_class,
             eda_backend=backend,
             eda_version=version,
-            qualification_admissible=admissible and sim_res.get("qualification_admissible", True)
+            verification_level=verification_level,
+            verification_cwd=verification_cwd,
+            tool_path=tool_path,
+            qualification_admissible=(
+                admissible
+                and comp_res.get("qualification_admissible", False)
+                and sim_res.get("qualification_admissible", False)
+            )
         )
 

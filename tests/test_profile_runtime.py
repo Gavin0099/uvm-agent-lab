@@ -1,4 +1,8 @@
-from scripts.profile_runtime import evaluate_profile_gate, extract_response_timing
+from scripts.profile_runtime import (
+    compute_profile_metrics,
+    evaluate_profile_gate,
+    extract_response_timing,
+)
 from gv100h.runtime.admission_matrix import RuntimeAdmissionMatrix
 
 
@@ -127,3 +131,16 @@ def test_profile_timing_extracts_prefill_and_decode_evidence():
     assert timing["decode_tokens"] == 128
     assert timing["decode_latency_sec"] == 4.0
     assert timing["decode_tps"] == 32.0
+
+
+def test_missing_decode_timing_is_estimated_end_to_end_not_decode_evidence():
+    metrics = compute_profile_metrics(
+        avg_latency=4.0,
+        peak_vram_mb=1024.0,
+        decode_tokens=128,
+        decode_timing_observed=False,
+    )
+
+    assert metrics["decode_tps"] is None
+    assert metrics["est_decode_tps"] is None
+    assert metrics["estimated_end_to_end_tps"] == 32.0
