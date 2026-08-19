@@ -36,6 +36,7 @@ decision_rules:
 
   CONDITIONAL_GO:
     description: "Acceptable quality for restricted task categories with mandatory human reviewer approval."
+    min_human_acceptance_a_b_rate: 60.0
     conditions:
       - spec_qa.max_fabricated_citations == 0
       - coding_agent.min_human_acceptance_a_b_rate >= 60.0
