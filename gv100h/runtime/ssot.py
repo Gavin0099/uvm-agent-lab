@@ -27,6 +27,7 @@ class RuntimeProfile:
     mtp_enabled: bool
     spec_draft_n_max: int
     context_sweep: Tuple[int, ...]
+    stretch_context_sweep: Tuple[int, ...]
     external_reference_url: str
     kv_cache_issue_url: str
     kv_cache_fix_pr_url: str
@@ -42,7 +43,7 @@ GV100H_BASELINE = RuntimeProfile(
     gpu_count=1,
     target_hardware="Tesla V100 32GB (single-GPU baseline; dual-GV100 expansion)",
     max_model_len=262144,
-    baseline_context_length=131072,
+    baseline_context_length=32768,
     gpu_memory_utilization=0.90,
     kv_cache_type="Q8_0",
     kv_cache_type_k="q8_0",
@@ -53,7 +54,8 @@ GV100H_BASELINE = RuntimeProfile(
     parallel=1,
     mtp_enabled=False,
     spec_draft_n_max=0,
-    context_sweep=(131072, 196608, 262144),
+    context_sweep=(32768, 65536, 131072),
+    stretch_context_sweep=(196608, 262144),
     external_reference_url="https://github.com/sudoingX/qwen38-mtp/blob/master/sweeps/workstation.md",
     kv_cache_issue_url="https://github.com/ggml-org/llama.cpp/issues/27109",
     kv_cache_fix_pr_url="https://github.com/ggml-org/llama.cpp/issues/27140",

@@ -79,7 +79,7 @@ qualification admission.
 - **Evidence Integrity Rate**: Verified genuine evidence / Submitted evidence (Target: 100%).
 
 ### Gate 4: Hardware Profiling Metrics
-- **VRAM Utilization**: Peak memory during 128K, 192K, and exploratory 256K context window KV cache.
+- **VRAM Utilization**: Peak memory during 32K, 64K, 128K primary and exploratory 192K/256K context window KV cache.
 - **Time to First Token (TTFT)**: Latency before first tool action.
 - **Prefill Throughput**: Prompt tokens/sec and prefill latency, recorded separately from decode.
 - **Generation Speed**: Decode tokens/sec under single-agent and multi-agent load.

@@ -32,8 +32,9 @@ def test_gv100_baseline_is_qwen38_q8_kv_with_mtp_control_and_n2_arm():
     assert cand_a.mtp_enabled is False
     assert cand_a.spec_draft_n_max == 0
     assert cand_a.kv_cache_type == "Q8_0"
-    assert cand_a.baseline_context_length == 131072
-    assert cand_a.context_sweep == [131072, 196608, 262144]
+    assert cand_a.baseline_context_length == 32768
+    assert cand_a.context_sweep == [32768, 65536, 131072]
+    assert cand_a.stretch_context_sweep == [196608, 262144]
     assert cand_a.parallel == 1
     assert cand_n2.mtp_enabled is True
     assert cand_n2.spec_draft_n_max == 2

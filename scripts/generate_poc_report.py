@@ -17,6 +17,7 @@ from gv100h.spec_qa.api.qa_service import GovernedQAService
 from gv100h.coding_eval.governance_ab_runner import GovernanceABRunner
 from gv100h.health.vram_tracker import DualGV100VRAMTracker
 from gv100h.qualification.evaluator import QualificationPolicyEvaluator, QualificationDecision
+from gv100h.runtime.ssot import GV100H_BASELINE
 
 
 SYNTHETIC_DECODE_TPS = 20.0
@@ -61,6 +62,8 @@ def build_hardware_profile(hw_live_data, vram_per_gpu, hw_budget):
 
 
 def generate_report(output_path: str = "results/GV100H_POC_REPORT.md") -> str:
+    candidate = GV100H_BASELINE
+    model_reference = candidate.model_id if "/" in candidate.model_id else f"Qwen/{candidate.model_id}"
     # 1. Gather empirical inputs & Ingest live artifacts if present
     qa_evaluator = DeterministicSpecQAEvaluator()
     qa_service = GovernedQAService()
@@ -77,12 +80,17 @@ def generate_report(output_path: str = "results/GV100H_POC_REPORT.md") -> str:
 
     hw_profile_path = PROJECT_ROOT / "results" / "hardware" / "profile_summary.json"
     hw_budget = DualGV100VRAMTracker.estimate_memory_budget(
-        model_name="Qwen/Qwen3.8-35B-A3B",
-        quantization="Q4_K_M",
-        context_length=32768,
-        tensor_parallel=2
+        model_name=model_reference,
+        quantization=candidate.quantization,
+        context_length=candidate.baseline_context_length,
+        tensor_parallel=candidate.tensor_parallel,
+        kv_cache_type=candidate.kv_cache_type,
     )
-    vram_per_gpu = hw_budget.get("per_gpu_vram_gb", 14.96) if isinstance(hw_budget, dict) else getattr(hw_budget, "per_gpu_vram_gb", 14.96)
+    vram_per_gpu = (
+        hw_budget.get("peak_vram_per_gpu_gb")
+        if isinstance(hw_budget, dict)
+        else getattr(hw_budget, "peak_vram_per_gpu_gb", None)
+    )
 
     hw_live_data = None
     if hw_profile_path.exists():
@@ -112,12 +120,13 @@ def generate_report(output_path: str = "results/GV100H_POC_REPORT.md") -> str:
 
     report_content = f"""# GV100H Local AI Agent POC 資格評審報告 (Qualification Report)
 
-> **Evidence Class**: `{decision.evidence_class}`  
-> **Hardware Observed**: `{not decision.is_synthetic}`  
-> **Claim Ceiling**: `scaffolding-and-guardrails-only`  
-> **專案代號**: GV100H  
-> **目標硬體環境**: Dual NVIDIA GV100 (32GB x 2 = 64GB Aggregate VRAM, NVLink)  
-> **候選模型目標**: Qwen3.8-35B-A3B (預定 Baseline: llama.cpp GGUF Q4_K_M, TP=2)  
+> **Evidence Class**: `{decision.evidence_class}`
+> **Hardware Observed**: `{not decision.is_synthetic}`
+> **Claim Ceiling**: `scaffolding-and-guardrails-only`
+> **專案代號**: GV100H
+> **目標硬體環境**: {candidate.target_hardware}
+> **候選模型目標**: {model_reference} ({candidate.runtime_type}, {candidate.model_artifact}, {candidate.quantization}, {candidate.kv_cache_type_k} K/V, TP={candidate.tensor_parallel})
+> **Context 測量順序**: primary {list(candidate.context_sweep)}; stretch {list(candidate.stretch_context_sweep)}
 > **治理架構 Commit**: `3305b640d17ca253e632093d434ae029f920c3e3`  
 > **知識權威庫 Commit**: `808f23c24bd8651da9cdcd63ea8669126917a379` (Embedded Registry Baseline)  
 > **評審狀態**: Machine Evaluated by QualificationPolicyEvaluator  
@@ -144,16 +153,16 @@ def generate_report(output_path: str = "results/GV100H_POC_REPORT.md") -> str:
 ## 🔬 2. 五大核心問題真實狀態說明 (Answers to Core Questions — Truth Repaired)
 
 ### Q1 — Model Quality
-**現狀說明**: 目前 POC 測試台已完成 `GovernedSpecRetriever` (Embedded Registry) 與 10 個歷史工程任務的 Schema/Fixture 定義。**尚未實際連線 Qwen3.8-35B-A3B 實體模型權重進行推論**；模型品質結論需待實機 Live Inference 執行並收集 Run Manifests 後方能判定。
+**現狀說明**: 目前 POC 測試台已完成 `GovernedSpecRetriever` (Embedded Registry) 與 10 個 canonical UVM benchmark cases 的 Schema/Fixture 定義。**尚未實際連線 {model_reference} 實體模型權重進行推論**；模型品質結論需待實機 Live Inference 執行並收集 Run Manifests 後方能判定。
 
 ### Q2 — Domain Reliability
 **現狀說明**: 規格檢索管線已在 `usb-if-hub-spec-reference` 內嵌規則庫下驗證具備 **0 偽造引用結構防禦** 與 **100% 跨版本隔離** 規則。實體模型是否具備同等約束力，需待 M2 Live 評測。
 
 ### Q3 — Coding Productivity
-**現狀說明**: 已建立 10 個標準歷史任務與治理 A/B 評測框架（包含實體 Manifest 聚合管線）。模擬數據展示了 Sidecar 在理論上能杜絕假成功；真實的人類時間節省與生產力效益，需待工程師盲測打分與實體 Manifest 聚合。
+**現狀說明**: 已建立 10 個 canonical UVM benchmark cases 與治理 A/B 評測框架（30 paired executions / 60 manifests 的聚合管線）。模擬數據展示了 Sidecar 在理論上能杜絕假成功；真實的人類時間節省與生產力效益，需待工程師盲測打分與實體 Manifest 聚合。
 
 ### Q4 — Hardware Feasibility
-**現狀說明**: 依據參數量與 KV Cache 公式估算，雙 GV100 (64GB VRAM) 在 TP=2、Q4_K_M 量化下**預估佔用約 14.96 GB / GPU**。此為容量預算（Analytical Budget），並非實體 GPU Telemetry（NVML/nvidia-smi）監控數據。
+**現狀說明**: 依據參數量與 KV Cache 公式估算，{candidate.target_hardware} 的首輪 {candidate.runtime_type} baseline 使用 {candidate.kv_cache_type_k} K/V、{candidate.quantization}、context {candidate.baseline_context_length}、TP={candidate.tensor_parallel}，**預估佔用約 {vram_per_gpu} GB / GPU**。此為容量預算（Analytical Budget），並非實體 GPU Telemetry（NVML/nvidia-smi）監控數據。
 
 ### Q5 — Governance
 **現狀說明**: AI Governance 護欄（Dynamic Contract Router、Canonical Path Guardrail、Strict Fail-Closed Runner、Run Manifest Schema）已建立測試案例。**測試通過數不是資格權威**；請重跑當前 pytest 取得即時數字，禁止沿用過期測試計數作為 admission 或 qualification 證據。
@@ -166,7 +175,7 @@ def generate_report(output_path: str = "results/GV100H_POC_REPORT.md") -> str:
 3. **下一步行動 (Action Items to Achieve GO)**：
    - 部署本地推論伺服器（llama.cpp / vLLM）載入 Qwen 權重（端點設於 `http://localhost:8000/v1`）。
    - 在具備 NVIDIA 驅動與 GPU 的環境下執行 `python scripts/profile_runtime.py --requests 100` 獲取真實 NVML/nvidia-smi GPU Telemetry 儲存於 `results/hardware/profile_summary.json`。
-   - 執行 `python scripts/run_live_universe.py --full-universe` 才能規劃 10×3×2 母體。`python scripts/run_live_eval.py` 預設單臂／單次不可宣稱完整 universe。
+    - 先以 32K、64K、128K 執行 primary context sweep，再將 192K、256K 作為 stretch；`python scripts/run_live_universe.py --full-universe` 才能執行 10×3×2 母體。`python scripts/run_live_eval.py` 已 deprecated，不可作為 producer。
    - 透過 `GovernanceABRunner` 聚合真實 Manifests 並重新執行評審以解除 `NO_GO — synthetic` 限制。
 """
 

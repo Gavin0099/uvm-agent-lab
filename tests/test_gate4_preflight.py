@@ -18,7 +18,7 @@ def test_preflight_report_matches_mtp_ssot_without_claiming_hardware(tmp_path: P
                 "kv_cache_type": "Q8_0",
                 "cache_type_k": "q8_0",
                 "cache_type_v": "q8_0",
-                "baseline_context_length": 131072,
+                    "baseline_context_length": 32768,
                 "max_model_len": 262144,
                     "profiles": {
                         "mtp_off": {"spec_draft_n_max": 0},

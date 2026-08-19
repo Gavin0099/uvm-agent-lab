@@ -27,7 +27,7 @@ def main() -> int:
     parser.add_argument("--repetition", type=int, default=1)
     parser.add_argument("--mode", choices=["live", "mock"], default="mock")
     parser.add_argument("--output-dir", default="results/single_ab_pair")
-    parser.add_argument("--model-id", default="Qwen/Qwen3.8-35B-A3B")
+    parser.add_argument("--model-id", default="Qwen/Qwen3.8-27B")
     parser.add_argument("--api-base", default="http://localhost:8000/v1")
     args = parser.parse_args()
 

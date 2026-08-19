@@ -35,13 +35,23 @@ class DualGV100VRAMTracker:
         "GPTQ_4BIT": 0.55
     }
 
+    KV_BYTES_PER_VALUE = {
+        "FP16": 2.0,
+        "Q8_0": 1.1,
+        "Q4_0": 0.55,
+        "Q4_1": 0.55,
+        "Q5_0": 0.7,
+        "Q5_1": 0.7,
+    }
+
     @classmethod
     def estimate_memory_budget(
         cls,
         model_name: str,
         quantization: str,
         context_length: int,
-        tensor_parallel: int = 2
+        tensor_parallel: int = 2,
+        kv_cache_type: str = "FP16",
     ) -> Dict[str, Any]:
         spec = cls.MODEL_SPECS.get(model_name, cls.MODEL_SPECS["Qwen/Qwen3.8-35B-A3B"])
         bytes_per_p = cls.BYTES_PER_PARAM.get(quantization, 0.55)
@@ -50,8 +60,9 @@ class DualGV100VRAMTracker:
         weight_mem_gb = (spec["params_b"] * 1e9 * bytes_per_p) / (1024 ** 3)
         weight_per_gpu = weight_mem_gb / tensor_parallel
 
-        # 2. KV Cache per token per layer = 2 * num_kv_heads * head_dim * 2 bytes (FP16)
-        kv_bytes_per_token = 2 * spec["num_kv_heads"] * spec["head_dim"] * spec["num_layers"] * 2
+        kv_bytes_per_value = cls.KV_BYTES_PER_VALUE.get(kv_cache_type.upper(), 2.0)
+        # 2. KV Cache per token per layer = K/V x heads x head_dim x dtype bytes.
+        kv_bytes_per_token = 2 * spec["num_kv_heads"] * spec["head_dim"] * spec["num_layers"] * kv_bytes_per_value
         total_kv_gb = (kv_bytes_per_token * context_length) / (1024 ** 3)
         kv_per_gpu = total_kv_gb / tensor_parallel
 
@@ -66,6 +77,7 @@ class DualGV100VRAMTracker:
             "quantization": quantization,
             "context_length": context_length,
             "tensor_parallel": tensor_parallel,
+            "kv_cache_type": kv_cache_type,
             "weight_memory_total_gb": round(weight_mem_gb, 2),
             "kv_cache_total_gb": round(total_kv_gb, 2),
             "peak_vram_per_gpu_gb": round(peak_per_gpu, 2),

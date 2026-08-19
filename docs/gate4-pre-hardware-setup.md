@@ -28,7 +28,7 @@ The external MTP report is a hypothesis and reference only. It is not local hard
 2. Obtain the exact GGUF artifact and record its SHA-256. Do not replace the model with a similarly named file.
 3. Install or build `llama-server` with `draft-mtp` support and record the binary version/commit.
 4. Keep the same model, KV type, Flash Attention setting, parallelism, prompt corpus, and sampling configuration between MTP OFF and n-max=2.
-5. Prepare the context sweep: 128K first, then 192K and exploratory 256K.
+5. Prepare the context sweep: 32K, 64K, and 128K primary; 192K and exploratory 256K stretch.
 6. Prepare the evidence output for every run:
    - model artifact hash
    - llama.cpp version/commit
@@ -45,9 +45,9 @@ The external MTP report is a hypothesis and reference only. It is not local hard
 
 1. Verify GPU identity and count with `nvidia-smi`.
 2. Verify NVLink topology and link state.
-3. Run `mtp_off` first at 128K to establish the local control.
+3. Run `mtp_off` first at 32K to establish the local control.
 4. Run `mtp_n2` with identical input and sampling.
-5. Repeat at 192K. Run 256K only after 128K stability is established.
+5. Repeat at 64K and 128K. Run 192K/256K only after 128K stability is established.
 6. Keep MTP OFF and n-max=2 as paired arms. Do not compare different quantization, KV type, model revision, or prompt sets in the same conclusion.
 7. Re-run the agent work-item benchmark. Tok/s alone is not the qualification metric.
 8. Test q4 KV only in a separately identified build that includes the relevant upstream fix and passes a prefill benchmark; never treat q4 KV as an unqualified optimization.
