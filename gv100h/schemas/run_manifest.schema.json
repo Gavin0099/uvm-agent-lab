@@ -3,6 +3,7 @@
   "title": "GV100HRunManifest",
   "description": "Immutable Machine-Readable Execution Evidence Manifest for Local AI Agent Qualification",
   "type": "object",
+  "additionalProperties": false,
   "required": [
     "run_id",
     "task_id",
@@ -119,6 +120,7 @@
     },
     "sampling": {
       "type": ["object", "null"],
+      "additionalProperties": false,
       "properties": {
         "temperature": { "type": ["number", "null"] },
         "top_p": { "type": ["number", "null"] },
@@ -127,6 +129,7 @@
     },
     "hardware": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["gpu_count", "gpu_model"],
       "properties": {
         "gpu_count": { "type": "integer" },
@@ -140,6 +143,7 @@
     },
     "timing": {
       "type": ["object", "null"],
+      "additionalProperties": false,
       "properties": {
         "ttft_ms": { "type": ["number", "null"] },
         "prompt_tps": { "type": ["number", "null"] },
@@ -149,6 +153,7 @@
     },
     "evidence": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["git_diff_sha256"],
       "properties": {
         "evidence_schema_version": { "type": ["string", "null"], "enum": ["2", null] },
@@ -180,6 +185,7 @@
     },
     "outcome": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["status", "false_success"],
       "properties": {
         "status": {

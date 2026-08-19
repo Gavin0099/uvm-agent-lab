@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
@@ -58,8 +59,9 @@ class GovernanceABRunner:
         return (
             manifest.runtime != "mock_replay"
             and manifest.model_hash is not None
-            and len(manifest.model_hash) == 64
+            and re.fullmatch(r"[0-9a-fA-F]{64}", manifest.model_hash) is not None
             and manifest.runtime_commit is not None
+            and re.fullmatch(r"[0-9a-fA-F]{7,64}", manifest.runtime_commit) is not None
             and evidence.endpoint_observed is True
             and evidence.qualification_admissible is True
             and evidence.verification_level in {"full_uvm_regression", "compile_and_test"}

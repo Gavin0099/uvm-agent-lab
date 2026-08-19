@@ -8,7 +8,7 @@ def test_live_admission_rejects_non_v100_gpu():
     manifest = base_manifest.model_copy(update={
         "runtime": "vllm",
         "model_hash": "a" * 64,
-        "runtime_commit": "r" * 40,
+        "runtime_commit": "b" * 40,
         "hardware": HardwareManifest(
             gpu_count=1,
             gpu_model="NVIDIA RTX 4090",
