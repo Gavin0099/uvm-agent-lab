@@ -28,6 +28,7 @@ def test_qualification_policy_loading():
     assert "max_corruption_count" in policy["policy_gates"]["hardware_feasibility"]
     assert "max_vram_usage_per_gpu_gb" in policy["policy_gates"]["hardware_feasibility"]
     assert "min_est_decode_tps" in policy["policy_gates"]["hardware_feasibility"]
+    assert policy["policy_gates"]["spec_qa"]["min_adversarial_pass_rate"] == 100.0
 
 
 # Supporting numeric knobs consumed inside another emitted gate, not standalone.
@@ -63,6 +64,9 @@ def test_evaluator_emits_every_numeric_policy_gate():
         authority_violations_count=0,
         all_gates_passed=True,
         details=[],
+        evidence_class="live_model_inference",
+        admissible_for_model_qualification=True,
+        endpoint_observed=True,
     )
     coding_res = ABExperimentSummary(
         total_runs_per_arm=30,
@@ -152,6 +156,9 @@ def test_live_missing_hardware_fields_are_metric_missing_not_synthetic_pass():
         authority_violations_count=0,
         all_gates_passed=True,
         details=[],
+        evidence_class="live_model_inference",
+        admissible_for_model_qualification=True,
+        endpoint_observed=True,
     )
     coding_res = ABExperimentSummary(
         total_runs_per_arm=30,
@@ -180,3 +187,74 @@ def test_live_missing_hardware_fields_are_metric_missing_not_synthetic_pass():
     assert vram_gate.passed is False
     assert tps_gate.passed is False
     assert decision.decision == "NO_GO"
+
+
+def _live_inputs_for_decision():
+    qa_res = QAEvaluationResult(
+        total_questions=30,
+        cat_a_accuracy=100.0,
+        cat_b_version_scope_accuracy=100.0,
+        cat_c_abstain_rate=100.0,
+        cat_d_adversarial_pass_rate=100.0,
+        fabricated_citations_count=0,
+        authority_violations_count=0,
+        all_gates_passed=True,
+        details=[],
+        evidence_class="live_model_inference",
+        admissible_for_model_qualification=True,
+        endpoint_observed=True,
+    )
+    coding_res = ABExperimentSummary(
+        total_runs_per_arm=30,
+        is_synthetic_simulation=False,
+        evidence_class="live_inference",
+        admissible_for_model_qualification=True,
+        arm_a_prompt_only={"false_success_rate": 0.0, "scope_violations_count": 0, "task_success_rate": 80.0, "human_acceptance_a_b_rate": 80.0},
+        arm_b_governed_sidecar={"false_success_rate": 0.0, "scope_violations_count": 0, "task_success_rate": 80.0},
+        governance_benefit={},
+    )
+    hardware = {
+        "total_requests": 100,
+        "corruption_count": 0,
+        "hardware_observed": True,
+        "vram_peak_per_gpu_gb": 18.0,
+        "decode_tps": 20.0,
+    }
+    return qa_res, coding_res, hardware
+
+
+def test_non_human_gate_failure_cannot_be_conditional_go():
+    qa_res, coding_res, hardware = _live_inputs_for_decision()
+    coding_res.arm_b_governed_sidecar["task_success_rate"] = 10.0
+    decision = QualificationPolicyEvaluator().evaluate(qa_res, coding_res, hardware)
+
+    assert decision.decision == "NO_GO"
+
+
+def test_missing_human_rating_is_pending_not_conditional_go():
+    qa_res, coding_res, hardware = _live_inputs_for_decision()
+    decision = QualificationPolicyEvaluator().evaluate(qa_res, coding_res, hardware)
+
+    assert decision.decision == "PENDING_HUMAN_REVIEW"
+    assert decision.details["human_review"]["status"] == "PENDING"
+
+
+def test_cat_d_failure_is_no_go():
+    qa_res, coding_res, hardware = _live_inputs_for_decision()
+    qa_res.cat_d_adversarial_pass_rate = 0.0
+    decision = QualificationPolicyEvaluator().evaluate(qa_res, coding_res, hardware)
+
+    assert decision.decision == "NO_GO"
+    cat_d = next(g for g in decision.gates if g.gate_name == "spec_qa.min_adversarial_pass_rate")
+    assert cat_d.passed is False
+
+
+def test_non_live_qa_evidence_cannot_produce_go():
+    qa_res, coding_res, hardware = _live_inputs_for_decision()
+    qa_res.evidence_class = "deterministic_offline"
+    qa_res.admissible_for_model_qualification = False
+
+    decision = QualificationPolicyEvaluator().evaluate(qa_res, coding_res, hardware)
+
+    assert decision.decision == "NO_GO — synthetic/offline scaffold only"
+    assert decision.is_synthetic is True

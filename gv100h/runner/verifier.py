@@ -89,6 +89,25 @@ class IndependentVerifier:
             return None
         return resolved
 
+    @staticmethod
+    def _verification_argv(
+        spec: Optional[Dict[str, Any]],
+        default: List[str],
+        target_file: str,
+    ) -> Optional[List[str]]:
+        if spec is None:
+            return None
+        argv = spec.get("argv", default)
+        if not isinstance(argv, list) or not argv or not all(isinstance(item, str) for item in argv):
+            raise ValueError("verification argv must be a non-empty list of strings")
+        return [item.replace("{target_file}", target_file) for item in argv]
+
+    @staticmethod
+    def _markers_pass(log: str, spec: Optional[Dict[str, Any]]) -> bool:
+        if not spec:
+            return True
+        return all(marker in log for marker in spec.get("required_markers", []))
+
     def _live_stub_rejected(self, primary_target: str, meta: Dict[str, Any]) -> Optional[FinalVerificationResult]:
         if self.mode != "live" or meta["backend"] != "stub":
             return None
@@ -122,7 +141,8 @@ class IndependentVerifier:
         self,
         changed_paths: List[str],
         target_file: Optional[str] = None,
-        top_module: Optional[str] = None
+        top_module: Optional[str] = None,
+        verification: Optional[Dict[str, Any]] = None,
     ) -> FinalVerificationResult:
         meta = self._backend_truth()
         backend = meta["backend"]
@@ -167,37 +187,100 @@ class IndependentVerifier:
 
         # Case 1: Python Task
         if primary_target.endswith(".py"):
-            cmd_args = ["python", "-m", "py_compile", primary_target]
-            cmd = subprocess.list2cmdline(cmd_args)
-            res = subprocess.run(
-                cmd_args,
+            build_spec = verification.get("build") if verification else None
+            test_spec = verification.get("test") if verification else None
+            build_args = self._verification_argv(
+                build_spec,
+                ["python", "-m", "py_compile", primary_target],
+                primary_target,
+            ) or ["python", "-m", "py_compile", primary_target]
+            build_res = subprocess.run(
+                build_args,
                 cwd=str(self.workspace_root),
                 capture_output=True,
-                text=True
+                text=True,
+                timeout=(verification or {}).get("timeout_sec", 120),
             )
-            log = (res.stdout or "") + "\n" + (res.stderr or "")
-            build_pass = (res.returncode == 0)
-            build_log_sha = hashlib.sha256(log.encode("utf-8")).hexdigest()
+            build_log = (build_res.stdout or "") + "\n" + (build_res.stderr or "")
+            build_pass = (
+                build_res.returncode == (build_spec or {}).get("required_exit_code", 0)
+                and self._markers_pass(build_log, build_spec)
+            )
+            build_command = subprocess.list2cmdline(build_args)
+            build_log_sha = hashlib.sha256(build_log.encode("utf-8")).hexdigest()
+            common = {
+                "eda_backend": "python_compiler",
+                "eda_version": "py_compile_3.13",
+                "verification_cwd": str(self.workspace_root),
+                "tool_path": self._tool_path("python_compiler"),
+            }
+            if not build_pass:
+                return FinalVerificationResult(
+                    build_status="fail",
+                    test_status="unsupported",
+                    build_command=build_command,
+                    build_exit_code=build_res.returncode,
+                    build_log=build_log,
+                    build_log_sha256=build_log_sha,
+                    test_command="none",
+                    test_exit_code=1,
+                    test_log="Semantic test skipped due to build failure.",
+                    test_log_sha256=hashlib.sha256(b"test_skipped_build_failure").hexdigest(),
+                    final_pass=False,
+                    failure_class="BUILD_FAIL",
+                    verification_level="compile_only",
+                    qualification_admissible=False,
+                    **common,
+                )
+            if test_spec is None:
+                test_log = "Semantic verification contract missing; test not executed."
+                return FinalVerificationResult(
+                    build_status="pass",
+                    test_status="unsupported",
+                    build_command=build_command,
+                    build_exit_code=build_res.returncode,
+                    build_log=build_log,
+                    build_log_sha256=build_log_sha,
+                    test_command="unsupported: verification.test missing",
+                    test_exit_code=1,
+                    test_log=test_log,
+                    test_log_sha256=hashlib.sha256(test_log.encode("utf-8")).hexdigest(),
+                    final_pass=False,
+                    failure_class="TEST_FAIL",
+                    verification_level="compile_only",
+                    qualification_admissible=False,
+                    **common,
+                )
 
+            test_args = self._verification_argv(test_spec, [], primary_target)
+            test_res = subprocess.run(
+                test_args,
+                cwd=str(self.workspace_root),
+                capture_output=True,
+                text=True,
+                timeout=(verification or {}).get("timeout_sec", 120),
+            )
+            test_log = (test_res.stdout or "") + "\n" + (test_res.stderr or "")
+            test_pass = (
+                test_res.returncode == test_spec.get("required_exit_code", 0)
+                and self._markers_pass(test_log, test_spec)
+            )
             return FinalVerificationResult(
-                build_status="pass" if build_pass else "fail",
-                test_status="pass" if build_pass else "fail",
-                build_command=cmd,
-                build_exit_code=res.returncode,
-                build_log=log,
+                build_status="pass",
+                test_status="pass" if test_pass else "fail",
+                build_command=build_command,
+                build_exit_code=build_res.returncode,
+                build_log=build_log,
                 build_log_sha256=build_log_sha,
-                test_command="pytest",
-                test_exit_code=res.returncode,
-                test_log=log,
-                test_log_sha256=build_log_sha,
-                final_pass=build_pass,
-                failure_class="BUILD_FAIL" if not build_pass else None,
-                eda_backend="python_compiler",
-                eda_version="py_compile_3.13",
-                verification_level="compile_only",
-                verification_cwd=str(self.workspace_root),
-                tool_path=self._tool_path("python_compiler"),
-                qualification_admissible=True
+                test_command=subprocess.list2cmdline(test_args),
+                test_exit_code=test_res.returncode,
+                test_log=test_log,
+                test_log_sha256=hashlib.sha256(test_log.encode("utf-8")).hexdigest(),
+                final_pass=test_pass,
+                failure_class=None if test_pass else "TEST_FAIL",
+                verification_level="compile_and_test",
+                qualification_admissible=True,
+                **common,
             )
 
         # Case 2: SystemVerilog / UVM Verification Task

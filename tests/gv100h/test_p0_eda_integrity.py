@@ -84,6 +84,43 @@ def test_verifier_uses_worktree_copy_when_repo_and_worktree_disagree(tmp_path):
     assert result.build_log == "worktree\n"
 
 
+def test_python_syntax_only_is_not_semantic_qualification(tmp_path):
+    target = tmp_path / "target.py"
+    target.write_text("value = 1\n", encoding="utf-8")
+
+    result = IndependentVerifier(tmp_path).verify_task(
+        changed_paths=[],
+        target_file="target.py",
+    )
+
+    assert result.build_status == "pass"
+    assert result.test_status == "unsupported"
+    assert result.final_pass is False
+    assert result.qualification_admissible is False
+
+
+def test_python_verifier_runs_declared_failing_semantic_test(tmp_path):
+    target = tmp_path / "target.py"
+    target.write_text("value = 1\n", encoding="utf-8")
+    test_file = tmp_path / "test_target.py"
+    test_file.write_text("assert False, 'semantic failure'\n", encoding="utf-8")
+
+    result = IndependentVerifier(tmp_path).verify_task(
+        changed_paths=[],
+        target_file="target.py",
+        verification={
+            "build": {"argv": ["python", "-m", "py_compile", "{target_file}"]},
+            "test": {"argv": ["pytest", "-q", "test_target.py"]},
+            "timeout_sec": 30,
+        },
+    )
+
+    assert result.build_status == "pass"
+    assert result.test_status == "fail"
+    assert result.final_pass is False
+    assert result.test_exit_code != 0
+
+
 def test_python_verifier_does_not_execute_shell_metacharacters(tmp_path):
     marker = tmp_path / "shell-marker.txt"
     malicious_target = f"valid.py; echo injected > {marker.name}.py"
