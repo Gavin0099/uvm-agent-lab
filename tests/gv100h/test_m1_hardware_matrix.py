@@ -8,6 +8,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from gv100h.runtime.admission_matrix import RuntimeAdmissionMatrix
 from gv100h.health.vram_tracker import DualGV100VRAMTracker
+from gv100h.runtime.ssot import GV100H_BASELINE, GV100_MTP_OFF
 
 
 @pytest.mark.contract
@@ -19,6 +20,21 @@ def test_runtime_admission_matrix_candidates():
     assert cand_a.runtime_type == "llama.cpp"
     assert cand_a.quantization == "Q4_K_M"
     assert cand_a.exit_gate_criteria["max_corruption_count"] == 0
+
+
+@pytest.mark.contract
+def test_gv100_baseline_is_qwen38_llama_cpp_mtp_n2():
+    cand_a = RuntimeAdmissionMatrix.get_candidate(GV100H_BASELINE.candidate_name)
+    cand_off = RuntimeAdmissionMatrix.get_candidate(GV100_MTP_OFF.candidate_name)
+
+    assert cand_a.model_artifact == "Qwen3.8-27B-Q4_K_M.gguf"
+    assert cand_a.runtime_type == "llama.cpp"
+    assert cand_a.mtp_enabled is True
+    assert cand_a.spec_draft_n_max == 2
+    assert cand_a.kv_cache_type == "F16"
+    assert cand_a.parallel == 1
+    assert cand_off.mtp_enabled is False
+    assert cand_off.spec_draft_n_max == 0
 
 
 @pytest.mark.contract

@@ -1,0 +1,38 @@
+{
+  "baseline": {
+    "candidate_name": "candidate_a_llama_cpp_gguf",
+    "model_id": "Qwen3.8-27B",
+    "model_artifact": "Qwen3.8-27B-Q4_K_M.gguf",
+    "runtime": "llama.cpp",
+    "quantization": "Q4_K_M",
+    "mtp_enabled": true,
+    "spec_draft_n_max": 2,
+    "context_sweep": [
+      32768,
+      65536,
+      131072,
+      262144
+    ]
+  },
+  "config_path": "E:\\BackUp\\Git_EE\\uvm-agent-lab\\deploy\\llama_cpp_gv100.yaml",
+  "config_present": true,
+  "config_matches_ssot": true,
+  "config_error": null,
+  "commands": {
+    "docker": true,
+    "llama_server": false,
+    "nvidia_smi": false
+  },
+  "model_artifact_path": null,
+  "model_artifact_present": false,
+  "software_preflight_passed": true,
+  "hardware_observed": false,
+  "bringup_ready": false,
+  "qualification_admissible": false,
+  "claim_ceiling": "pre-hardware-readiness-only",
+  "blockers": [
+    "llama-server command is unavailable",
+    "Qwen3.8-27B GGUF model artifact was not supplied",
+    "nvidia-smi is unavailable; hardware is not observed"
+  ]
+}

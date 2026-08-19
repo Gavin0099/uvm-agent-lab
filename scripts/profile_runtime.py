@@ -20,6 +20,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from gv100h.runtime.admission_matrix import RuntimeAdmissionMatrix
+from gv100h.runtime.ssot import GV100H_BASELINE
 from gv100h.utils.url import normalize_openai_base_url
 
 
@@ -87,14 +88,40 @@ def compute_profile_metrics(avg_latency: float, peak_vram_mb: float) -> Dict[str
     }
 
 
+def evaluate_profile_gate(candidate: Any, summary: Dict[str, Any]) -> Dict[str, Any]:
+    """Evaluate hardware admission criteria from observed profile fields only."""
+    criteria = candidate.exit_gate_criteria
+    observed_vram = summary.get("vram_peak_per_gpu_gb")
+    observed_tps = summary.get("decode_tps")
+    checks = {
+        "hardware_observed": summary.get("hardware_observed") is True,
+        "gpu_count": summary.get("gpu_telemetry", {}).get("initial", {}).get("gpu_count", 0) >= candidate.gpu_count,
+        "min_success_requests": summary.get("success_count", 0) >= criteria["min_success_requests"],
+        "max_corruption_count": summary.get("corruption_count", 999999) <= criteria["max_corruption_count"],
+        "max_vram_per_gpu_gb": observed_vram is not None and observed_vram <= criteria["max_vram_per_gpu_gb"],
+    }
+    if criteria.get("comparison_only"):
+        checks["target_decode_tps"] = True
+    else:
+        checks["target_decode_tps"] = (
+            observed_tps is not None and observed_tps >= criteria["target_decode_tps"]
+        )
+    return {
+        "passed": all(checks.values()),
+        "checks": checks,
+        "failed_checks": [name for name, passed in checks.items() if not passed],
+    }
+
+
 def profile_endpoint(
     api_base: str,
-    model_id: str,
-    candidate_name: str = "candidate_a_llama_cpp_gguf",
+    model_id: Optional[str] = None,
+    candidate_name: str = GV100H_BASELINE.candidate_name,
     num_requests: int = 100,
     output_file: str = "results/hardware/profile_summary.json"
 ) -> Dict[str, Any]:
     candidate = RuntimeAdmissionMatrix.get_candidate(candidate_name)
+    effective_model_id = model_id or candidate.supported_models[0]
     norm_base = normalize_openai_base_url(api_base)
     url = f"{norm_base}/chat/completions"
 
@@ -112,7 +139,7 @@ def profile_endpoint(
 
     for i in range(num_requests):
         payload = {
-            "model": model_id,
+            "model": effective_model_id,
             "messages": [{"role": "user", "content": f"Ping request {i}: calculate checksum"}],
             "temperature": 0.0,
             "max_tokens": 128
@@ -151,7 +178,17 @@ def profile_endpoint(
     metrics = compute_profile_metrics(avg_latency, peak_vram_mb)
     summary = {
         "candidate": candidate.model_dump(),
-        "model_id": model_id,
+        "model_id": effective_model_id,
+        "runtime_profile": {
+            "model_artifact": candidate.model_artifact,
+            "mtp_enabled": candidate.mtp_enabled,
+            "spec_draft_n_max": candidate.spec_draft_n_max,
+            "kv_cache_type": candidate.kv_cache_type,
+            "flash_attention": candidate.flash_attention,
+            "parallel": candidate.parallel,
+            "context_sweep": candidate.context_sweep,
+            "external_reference_url": candidate.external_reference_url,
+        },
         "total_requests": num_requests,
         "success_count": success_count,
         "corruption_count": corruption_count,
@@ -165,9 +202,10 @@ def profile_endpoint(
             "peak_vram_per_gpu_gb": metrics["vram_peak_per_gpu_gb"],
             "hardware_observed": initial_telemetry["hardware_observed"]
         },
-        "gate_passed": success_count >= candidate.exit_gate_criteria["min_success_requests"] and corruption_count == 0,
         "hardware_observed": initial_telemetry["hardware_observed"]
     }
+    summary["gate_evaluation"] = evaluate_profile_gate(candidate, summary)
+    summary["gate_passed"] = summary["gate_evaluation"]["passed"]
 
     out_p = Path(output_file)
     out_p.parent.mkdir(parents=True, exist_ok=True)
@@ -181,9 +219,9 @@ def profile_endpoint(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--api-base", default="http://localhost:8000")
-    parser.add_argument("--model-id", default="Qwen/Qwen3.8-35B-A3B")
-    parser.add_argument("--candidate", default="candidate_a_llama_cpp_gguf")
-    parser.add_argument("--requests", type=int, default=10)
+    parser.add_argument("--model-id", default=None)
+    parser.add_argument("--candidate", default=GV100H_BASELINE.candidate_name)
+    parser.add_argument("--requests", type=int, default=100)
     parser.add_argument("--output", default="results/hardware/profile_summary.json")
     args = parser.parse_args()
 

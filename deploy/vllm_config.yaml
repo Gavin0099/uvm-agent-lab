@@ -1,4 +1,6 @@
-# vLLM Configuration for Dual Tesla/Quadro GV100 (64GB Total VRAM, NVLink)
+# Secondary experimental vLLM configuration for Dual GV100 (64GB, NVLink).
+# Primary pre-GV100 baseline is deploy/llama_cpp_gv100.yaml.
+profile_role: "secondary_experimental"
 model: "Qwen/Qwen2.5-Coder-32B-Instruct-AWQ"
 quantization: "awq"
 tensor_parallel_size: 2

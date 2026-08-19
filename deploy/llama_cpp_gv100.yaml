@@ -1,0 +1,38 @@
+# Pre-GV100 baseline. External Qwen3.8 MTP evidence is a starting hypothesis,
+# not local qualification evidence. Run MTP OFF and n-max=2 on the same host.
+model_id: "Qwen3.8-27B"
+model_artifact: "Qwen3.8-27B-Q4_K_M.gguf"
+runtime: "llama.cpp"
+quantization: "Q4_K_M"
+gpu_count: 1
+tensor_parallel: 1
+context_sweep: [32768, 65536, 131072, 262144]
+kv_cache_type: "F16"
+flash_attention: true
+parallel: 1
+
+profiles:
+  mtp_off:
+    spec_type: null
+    spec_draft_n_max: 0
+  mtp_n2:
+    spec_type: "draft-mtp"
+    spec_draft_n_max: 2
+
+launch_template:
+  - "llama-server"
+  - "-m"
+  - "{model_artifact}"
+  - "-c"
+  - "{context_length}"
+  - "-ngl"
+  - "999"
+  - "-fa"
+  - "1"
+  - "--parallel"
+  - "1"
+
+external_reference:
+  url: "https://github.com/sudoingX/qwen38-mtp/blob/master/sweeps/workstation.md"
+  status: "external_reference_only"
+  local_claim_ceiling: "must_measure_MTP_OFF_vs_n2_on_target_V100"

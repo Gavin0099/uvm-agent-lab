@@ -1,3 +1,10 @@
 from .admission_matrix import RuntimeCandidate, RuntimeAdmissionMatrix
+from .ssot import GV100H_BASELINE, GV100_MTP_OFF, RuntimeProfile
 
-__all__ = ["RuntimeCandidate", "RuntimeAdmissionMatrix"]
+__all__ = [
+	"GV100H_BASELINE",
+	"GV100_MTP_OFF",
+	"RuntimeCandidate",
+	"RuntimeAdmissionMatrix",
+	"RuntimeProfile",
+]
