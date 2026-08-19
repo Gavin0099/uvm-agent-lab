@@ -78,6 +78,13 @@ class ManifestValidator:
             raise ManifestValidationError(
                 f"Invalid benchmark_case_hash: '{manifest.benchmark_case_hash}'"
             )
+        if manifest.model_hash is not None and (
+            len(manifest.model_hash) != 64
+            or not all(c in "0123456789abcdefABCDEF" for c in manifest.model_hash)
+        ):
+            raise ManifestValidationError(
+                f"Invalid model_hash: '{manifest.model_hash}'"
+            )
 
         return manifest
 

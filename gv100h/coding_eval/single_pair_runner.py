@@ -361,14 +361,20 @@ def run_single_ab_pair(
     if repetition < 1:
         raise ValueError("repetition must be >= 1")
 
-    if model_hash is None and model_artifact_path is not None:
-        model_hash = sha256_file(str(model_artifact_path))
+    if model_artifact_path is not None:
+        artifact_hash = sha256_file(str(model_artifact_path))
+        if artifact_hash is None:
+            raise ValueError("model_artifact_path does not reference a readable file")
+        if model_hash is not None and model_hash.lower() != artifact_hash:
+            raise ValueError("model_hash does not match model_artifact_path")
+        model_hash = artifact_hash
     if mode == "live":
         missing = [
             name for name, value in {
                 "runtime": runtime,
                 "quantization": quantization,
                 "model_hash": model_hash,
+                "model_artifact_path": model_artifact_path,
                 "runtime_commit": runtime_commit,
             }.items() if not value
         ]
