@@ -71,6 +71,25 @@ def test_cli_help_exposes_full_universe_flag():
     assert "describe_live_invocation" not in dirty_harness
 
 
+def test_run_live_evaluation_is_deprecated_fail_closed():
+    from scripts.run_live_eval import run_live_evaluation
+
+    try:
+        run_live_evaluation(
+            api_base="http://localhost:8000",
+            model_id="unused",
+            cases_dir="benchmarks/cases",
+            output_dir="results/live_eval",
+            mode="mock",
+        )
+    except RuntimeError as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("deprecated run_live_evaluation must raise")
+    assert "deprecated" in message
+    assert "run_single_ab_pair" in message
+
+
 def test_last_cell_cannot_overwrite_full_universe_status(tmp_path: Path):
     task_ids = [f"UVM-{i:03d}" for i in range(1, 11)]
 
