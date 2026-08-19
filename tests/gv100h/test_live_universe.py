@@ -239,3 +239,34 @@ def test_manifest_universe_rejects_missing_pair_execution(tmp_path):
     assert status["executed_runs"] == 58
     assert status["manifest_count"] == 58
     assert status["universe_complete_claim_allowed"] is False
+
+
+def test_real_pair_producer_smoke_for_two_tasks_and_two_repetitions(tmp_path):
+    from gv100h.coding_eval.single_pair_runner import run_single_ab_pair
+
+    manifests = []
+    for task_id in ("UVM-001", "UVM-002"):
+        case_path = Path("benchmarks/cases") / f"{task_id}.yaml"
+        for repetition in (1, 2):
+            result = run_single_ab_pair(
+                task_id=task_id,
+                case_path=case_path,
+                repetition=repetition,
+                mode="mock",
+                output_dir=tmp_path / "real_pair_smoke",
+                repo_root=Path("."),
+            )
+            manifests.extend(result["manifests"])
+
+    assert len(manifests) == 8
+    assert len({manifest.pair_id for manifest in manifests}) == 4
+    assert {
+        manifest.interception_mode
+        for manifest in manifests
+        if manifest.experiment_arm == "arm_a_prompt_only"
+    } == {"POST_HOC"}
+    assert {
+        manifest.interception_mode
+        for manifest in manifests
+        if manifest.experiment_arm == "arm_b_governed_sidecar"
+    } == {"ENFORCED"}

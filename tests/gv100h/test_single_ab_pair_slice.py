@@ -92,6 +92,16 @@ def test_mock_slice_produces_paired_physical_bundles(tmp_path: Path):
     assert {m.repetition for m in manifests} == {1}
     assert {m.base_commit for m in manifests} == {manifests[0].base_commit}
     assert {m.model_id for m in manifests} == {manifests[0].model_id}
+    assert {
+        m.interception_mode
+        for m in manifests
+        if m.experiment_arm == "arm_a_prompt_only"
+    } == {"POST_HOC"}
+    assert {
+        m.interception_mode
+        for m in manifests
+        if m.experiment_arm == "arm_b_governed_sidecar"
+    } == {"ENFORCED"}
 
     validator = ManifestValidator()
     bundle_dirs = result["bundle_dirs"]
@@ -200,6 +210,24 @@ def test_independent_replay_rejects_self_consistent_forged_verification(tmp_path
             require_integrity=True,
             repo_root=REPO_ROOT,
             replay_verification=True,
+        )
+
+
+def test_pinned_case_hash_mismatch_is_rejected():
+    base_commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+    with pytest.raises(ManifestValidationError, match="Pinned benchmark case hash mismatch"):
+        ManifestValidator._load_pinned_case(
+            REPO_ROOT,
+            base_commit,
+            "UVM-001",
+            "0" * 64,
         )
 
 def test_legacy_bundle_is_rejected_at_strict_integrity_boundary(tmp_path: Path):
