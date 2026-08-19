@@ -18,9 +18,10 @@ This document specifies the hardware evaluation strategy for deploying local ope
 ### 1. Model Quantization & Precision Matrix
 | Model Architecture | Parameter Count | Precision | VRAM Target (TP=1) | VRAM Target (TP=2 NVLink) | Feasibility |
 | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Qwen3.8 Coder** | 27B | GGUF Q4_K_M + Q8_0 KV; MTP OFF vs n=2 | **First single-V100 baseline** | Dual-GV100 expansion | External reference; local measurement pending |
 | **Qwen 2.5 Coder** | 14B | FP16 / BF16 | ~28 GB | ~14 GB / GPU | Highly Viable |
 | **Qwen 2.5 Coder** | 32B | FP16 | OOM (>60 GB) | ~34 GB total (17 GB / GPU) | Viable (TP=2) |
-| **Qwen 2.5 Coder** | 32B | AWQ / INT4 | ~20 GB | ~10 GB / GPU | High Throughput |
+| **Qwen 2.5 Coder** | 32B | AWQ / INT4 | ~20 GB | ~10 GB / GPU | Secondary experimental vLLM path |
 | **Nemotron-4** | 15B | FP16 | ~30 GB | ~15 GB / GPU | Viable |
 | **DeepSeek Coder V2 Lite**| 16B MoE (2.4B active) | FP16 | ~32 GB | ~16 GB / GPU | Viable |
 
@@ -28,13 +29,32 @@ This document specifies the hardware evaluation strategy for deploying local ope
 
 ## ⚡ Context Scaling & KV Cache Profiling
 
+### Qwen3.8-27B V100 pre-hardware hypothesis
+
+The first runtime comparison is a controlled single-V100 baseline:
+
+```text
+Qwen3.8-27B Q4_K_M GGUF + Q8_0 KV + Flash Attention + parallel=1
+MTP OFF control vs draft-mtp n-max=2
+128K first, then 192K and 256K
+```
+
+External community measurements suggest n-max=2 may improve decode speed on
+V100, including at approximately 31K-token coding context. This is an external
+reference only; it is not a local Gate 4 result. The first local baseline uses
+Q8_0 K/V because upstream llama.cpp issue #27109 reports a possible Qwen3.8 q4
+KV prefill regression and PR #27140 is not assumed in every build. The local
+exit condition is an identical-input A/B measurement across MTP OFF and n-max=2
+at 128K, 192K, and 256K, recording tok/s, prefill, VRAM, stability, and agent
+work-item outcomes.
+
 Verification tasks require ingesting large SystemVerilog files, UVM packages, and simulation logs. We evaluate KV cache memory footprints across context lengths:
 
-1. **32K Context**: Baseline for single testcase + interface + short log.
-2. **64K Context**: Required for multi-sequence verification + comprehensive spec chapters.
-3. **128K Context**: Stress test with extensive UVM trace logs and waveform transition dumps.
+1. **128K Context**: First baseline for long coding-agent prompts.
+2. **192K Context**: Second-stage capacity and latency check.
+3. **256K Context**: Exploratory long-session boundary; measure only after 128K stability.
 
 ### Measured Metrics:
-- **TTFT (Time-to-First-Token)** at 32K, 64K, 128K context.
+- **TTFT (Time-to-First-Token)** at 128K, 192K, and exploratory 256K context.
 - **Generation Throughput (tokens/sec)** at batch size = 1 and batch size = 4.
 - **NVLink Interconnect Overhead**: Latency penalty of TP=2 vs TP=1.

@@ -1,6 +1,7 @@
 import os
 import shutil
 import hashlib
+import json
 import tempfile
 import subprocess
 from pathlib import Path
@@ -29,6 +30,103 @@ class GitWorktreeRunner:
     @staticmethod
     def compute_sha256(content: bytes) -> str:
         return hashlib.sha256(content).hexdigest()
+
+    @staticmethod
+    def build_workspace_tree_snapshot(worktree_path: Path, changed_paths: List[str]) -> bytes:
+        worktree = Path(worktree_path)
+        files = []
+        for changed_path in sorted(changed_paths):
+            target = worktree / changed_path
+            if target.is_symlink():
+                files.append({
+                    "kind": "symlink",
+                    "path": changed_path,
+                    "target": os.readlink(target),
+                })
+            elif target.is_file():
+                content = target.read_bytes()
+                files.append({
+                    "kind": "file",
+                    "path": changed_path,
+                    "sha256": GitWorktreeRunner.compute_sha256(content),
+                    "size": len(content),
+                })
+            else:
+                files.append({"kind": "missing", "path": changed_path})
+        return json.dumps(
+            {"files": files},
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
+    @staticmethod
+    def list_worktree_changed_paths(worktree_path: Path) -> List[str]:
+        w_path = Path(worktree_path)
+        if not w_path.exists():
+            raise FatalWorktreeError(f"Worktree path '{worktree_path}' does not exist.")
+        try:
+            subprocess.run(
+                ["git", "add", "-N", "-f", "."],
+                cwd=str(w_path),
+                capture_output=True,
+                check=True,
+            )
+            status_after_add = subprocess.run(
+                ["git", "status", "--porcelain=v2", "-z", "--untracked-files=all"],
+                cwd=str(w_path),
+                capture_output=True,
+                check=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            error = exc.stderr.decode("utf-8", errors="replace") if exc.stderr else str(exc)
+            raise FatalWorktreeError(
+                f"git status failed in worktree: {error.strip()}"
+            ) from exc
+        return GitWorktreeRunner._parse_porcelain_v2_paths(status_after_add.stdout)
+
+    @staticmethod
+    def _parse_porcelain_v2_paths(payload: bytes) -> List[str]:
+        paths: List[str] = []
+        records = payload.split(b"\0")
+        index = 0
+        while index < len(records):
+            record = records[index]
+            index += 1
+            if not record:
+                continue
+
+            record_type = record[:1]
+            if record_type in {b"?", b"!"}:
+                if len(record) < 3 or record[1:2] != b" ":
+                    raise FatalWorktreeError(f"Malformed porcelain-v2 path record: {record!r}")
+                raw_paths = [record[2:]]
+            elif record_type in {b"1", b"u"}:
+                fields = record.split(b" ", 8 if record_type == b"1" else 10)
+                expected_fields = 9 if record_type == b"1" else 11
+                if len(fields) != expected_fields:
+                    raise FatalWorktreeError(f"Malformed porcelain-v2 path record: {record!r}")
+                raw_paths = [fields[-1]]
+            elif record_type == b"2":
+                fields = record.split(b" ", 8)
+                if len(fields) != 9:
+                    raise FatalWorktreeError(f"Malformed porcelain-v2 rename record: {record!r}")
+                score_and_path = fields[-1].split(b" ", 1)
+                if len(score_and_path) != 2 or index >= len(records):
+                    raise FatalWorktreeError(f"Malformed porcelain-v2 rename record: {record!r}")
+                raw_paths = [score_and_path[1], records[index]]
+                index += 1
+            elif record_type == b"#":
+                continue
+            else:
+                raise FatalWorktreeError(f"Unsupported porcelain-v2 record: {record!r}")
+
+            try:
+                paths.extend(raw_path.decode("utf-8") for raw_path in raw_paths)
+            except UnicodeDecodeError as exc:
+                raise FatalWorktreeError("Porcelain-v2 path is not valid UTF-8") from exc
+
+        return list(dict.fromkeys(paths))
 
     def verify_changed_paths(self, changed_paths: List[str]) -> Tuple[bool, Optional[str]]:
         if not self.guardrail:
@@ -83,43 +181,22 @@ class GitWorktreeRunner:
             raise FatalWorktreeError(f"Worktree path '{worktree_path}' does not exist.")
 
         try:
-            status_res = subprocess.run(
-                ["git", "status", "--porcelain=v2", "--untracked-files=all"],
-                cwd=str(w_path),
-                capture_output=True,
-                text=True,
-                check=True
-            )
-        except subprocess.CalledProcessError as e:
-            raise FatalWorktreeError(f"git status failed in worktree: {e.stderr.strip()}")
-
-        changed_paths = []
-        for line in status_res.stdout.splitlines():
-            parts = line.strip().split()
-            if len(parts) >= 2:
-                changed_path = parts[-1]
-                changed_paths.append(changed_path)
-
-        try:
+            changed_paths = self.list_worktree_changed_paths(w_path)
             diff_res = subprocess.run(
                 ["git", "diff", "--binary", base_sha],
                 cwd=str(w_path),
                 capture_output=True,
-                check=True
+                check=True,
             )
             diff_bytes = diff_res.stdout
         except subprocess.CalledProcessError as e:
-            raise FatalWorktreeError(f"git diff failed in worktree: {e.stderr.decode('utf-8', errors='replace').strip()}")
+            error = e.stderr.decode("utf-8", errors="replace") if e.stderr else str(e)
+            raise FatalWorktreeError(f"git diff failed in worktree: {error.strip()}")
 
-        hasher = hashlib.sha256(diff_bytes)
-        for cp in sorted(changed_paths):
-            target_f = w_path / cp
-            if target_f.is_file():
-                hasher.update(cp.encode("utf-8"))
-                hasher.update(target_f.read_bytes())
-
-        diff_sha256 = hasher.hexdigest()
-        return diff_bytes, sorted(changed_paths), diff_sha256
+        sorted_paths = sorted(changed_paths)
+        workspace_tree = self.build_workspace_tree_snapshot(w_path, sorted_paths)
+        workspace_tree_sha256 = self.compute_sha256(workspace_tree)
+        return diff_bytes, sorted_paths, workspace_tree_sha256
 
     def cleanup_worktree(self, worktree_path: Path):
         w_path = Path(worktree_path)

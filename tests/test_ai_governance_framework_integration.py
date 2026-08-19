@@ -19,7 +19,14 @@ def test_governance_drift_checker_clean():
         "--repo", str(PROJECT_ROOT),
         "--framework-root", str(FRAMEWORK_ROOT)
     ]
-    res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(PROJECT_ROOT))
+    res = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=str(PROJECT_ROOT),
+    )
     assert res.returncode == 0
     assert "ok                 = True" in res.stdout
     assert "severity           = ok" in res.stdout
@@ -39,6 +46,13 @@ def test_governance_quickstart_smoke():
         "--contract", "contract.yaml",
         "--format", "human"
     ]
-    res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(PROJECT_ROOT))
+    res = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=str(PROJECT_ROOT),
+    )
     assert res.returncode == 0
     assert "ok=True" in res.stdout

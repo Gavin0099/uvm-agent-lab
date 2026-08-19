@@ -24,9 +24,11 @@ class ScopeGuardrail:
         """
         Resolves target_path against base_dir and returns (canonical_relative_path_lower, error_message).
         If the resolved path escapes base_dir, returns (None, error_message).
+        Backslashes are treated as separators on every platform so Windows-style
+        traversal (``..\\``) cannot collapse into a single POSIX filename.
         """
         try:
-            target = Path(target_path)
+            target = Path(str(target_path).replace("\\", "/"))
             if target.is_absolute():
                 resolved = target.resolve()
             else:

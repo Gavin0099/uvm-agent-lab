@@ -1,5 +1,9 @@
 import yaml
 import hashlib
+
+
+class CanonicalSpecIntegrityError(RuntimeError):
+    """Raised when an indexed canonical document changes after indexing."""
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
@@ -100,3 +104,56 @@ class CanonicalSpecRetriever:
 
         results.sort(key=lambda x: x["score"], reverse=True)
         return results[:top_k]
+
+    def eligible_files(
+        self,
+        target_version: Optional[str] = None,
+        caller_customer_tier: Optional[str] = None,
+        allow_drafts: bool = False,
+    ) -> set[str]:
+        """Return files eligible for retrieval before lexical or dense scoring."""
+        eligible = set()
+        for doc in self._index:
+            if not allow_drafts and doc["authority"] != "authoritative":
+                continue
+            if (
+                doc["customer_tier"] == "tier_a_partner_restricted"
+                and caller_customer_tier != "tier_a_partner_restricted"
+            ):
+                continue
+            if target_version is not None and doc["version"] != target_version:
+                continue
+            eligible.add(doc["file"])
+        return eligible
+
+    def metadata_for_files(self, files: set[str]) -> Dict[str, Dict[str, Any]]:
+        """Return canonical provenance metadata for a set of indexed files."""
+        return {
+            doc["file"]: doc
+            for doc in self._index
+            if doc["file"] in files
+        }
+
+    @property
+    def indexed_files(self) -> set[str]:
+        return {doc["file"] for doc in self._index}
+
+    def verify_file_hash(self, file_name: str) -> None:
+        """Fail closed if a canonical file no longer matches its indexed hash."""
+        metadata = self.metadata_for_files({file_name}).get(file_name)
+        if metadata is None:
+            raise CanonicalSpecIntegrityError(
+                f"Canonical file is not in the indexed corpus: {file_name}"
+            )
+        path = self.spec_dir / file_name
+        try:
+            actual_hash = hashlib.sha256(path.read_text(encoding="utf-8").encode("utf-8")).hexdigest()
+        except (OSError, UnicodeError) as exc:
+            raise CanonicalSpecIntegrityError(
+                f"Canonical file cannot be read: {file_name}"
+            ) from exc
+        expected_hash = metadata["canonical_hash"].removeprefix("sha256:")
+        if actual_hash != expected_hash:
+            raise CanonicalSpecIntegrityError(
+                f"Canonical hash mismatch for {file_name}"
+            )

@@ -125,6 +125,7 @@
       "properties": {
         "gpu_count": { "type": "integer" },
         "gpu_model": { "type": "string" },
+        "hardware_observed": { "type": ["boolean", "null"] },
         "driver_version": { "type": ["string", "null"] },
         "cuda_version": { "type": ["string", "null"] },
         "vram_total_gb": { "type": ["number", "null"] },
@@ -144,11 +145,21 @@
       "type": "object",
       "required": ["git_diff_sha256"],
       "properties": {
+        "evidence_schema_version": { "type": ["string", "null"], "enum": ["2", null] },
         "git_diff_sha256": { "type": "string" },
         "changed_paths": {
           "type": "array",
           "items": { "type": "string" }
         },
+        "workspace_tree_sha256": { "type": ["string", "null"] },
+        "target_file": { "type": ["string", "null"] },
+        "target_file_sha256": { "type": ["string", "null"] },
+        "file_snapshots_sha256": { "type": ["string", "null"] },
+        "tool_trace_sha256": { "type": ["string", "null"] },
+        "verification_sha256": { "type": ["string", "null"] },
+        "endpoint_observed": { "type": ["boolean", "null"] },
+        "eda_backend": { "type": ["string", "null"] },
+        "qualification_admissible": { "type": ["boolean", "null"] },
         "build_command": { "type": ["string", "null"] },
         "build_exit_code": { "type": ["integer", "null"] },
         "build_log_sha256": { "type": ["string", "null"] },

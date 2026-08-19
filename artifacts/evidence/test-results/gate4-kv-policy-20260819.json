@@ -1,0 +1,17 @@
+{
+  "receipt_schema": "test_evidence_receipt.v0.1",
+  "status": "report_only",
+  "command": "C:\\Users\\reiko\\AppData\\Local\\Programs\\Python\\Python313\\python.exe -X utf8 -m pytest -q tests/gv100h tests/test_gate4_preflight.py tests/test_profile_runtime.py --ignore=tests/gv100h/test_m05_e2e_pipeline.py --basetemp .tmp_gate4_receipt",
+  "exit_code": 0,
+  "started_at": "2026-08-19T07:53:08Z",
+  "finished_at": "2026-08-19T07:54:00Z",
+  "runner": "pytest",
+  "linked_commit": "a03fdb186fd9010f0abb422f557ebb88521b7aec",
+  "output_artifacts": [
+    "artifacts/evidence/test-results/gate4-kv-policy-20260819.txt"
+  ],
+  "cannot_claim": [
+    "semantic correctness of the tested behavior",
+    "receipt authenticity: every field is fabricatable by a direct writer"
+  ]
+}

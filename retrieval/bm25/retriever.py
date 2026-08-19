@@ -1,6 +1,6 @@
 import math
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Set
 
 
 class BM25Retriever:
@@ -32,11 +32,23 @@ class BM25Retriever:
         self.avg_doc_len = sum(d["len"] for d in self.docs) / max(1, len(self.docs))
         self.num_docs = len(self.docs)
 
-    def query(self, query_str: str, top_k: int = 3, **kwargs) -> List[Dict[str, Any]]:
+    def query(
+        self,
+        query_str: str,
+        top_k: int = 3,
+        allowed_files: Optional[Set[str]] = None,
+        **kwargs,
+    ) -> List[Dict[str, Any]]:
         query_tokens = [q.lower() for q in query_str.split() if len(q) > 1]
         scores = []
+        active_docs = [
+            doc for doc in self.docs
+            if allowed_files is None or doc["file"] in allowed_files
+        ]
+        active_avg_doc_len = sum(d["len"] for d in active_docs) / max(1, len(active_docs))
+        active_num_docs = len(active_docs)
 
-        for d in self.docs:
+        for d in active_docs:
             score = 0.0
             doc_words = d["words"]
             doc_len = d["len"]
@@ -44,9 +56,9 @@ class BM25Retriever:
             for q in query_tokens:
                 freq = doc_words.count(q)
                 if freq > 0:
-                    df = sum(1 for other in self.docs if q in other["words"])
-                    idf = math.log(1 + (self.num_docs - df + 0.5) / (df + 0.5))
-                    tf_component = (freq * (self.k1 + 1)) / (freq + self.k1 * (1 - self.b + self.b * (doc_len / max(1, self.avg_doc_len))))
+                    df = sum(1 for other in active_docs if q in other["words"])
+                    idf = math.log(1 + (active_num_docs - df + 0.5) / (df + 0.5))
+                    tf_component = (freq * (self.k1 + 1)) / (freq + self.k1 * (1 - self.b + self.b * (doc_len / max(1, active_avg_doc_len))))
                     score += idf * tf_component
 
             if score > 0:

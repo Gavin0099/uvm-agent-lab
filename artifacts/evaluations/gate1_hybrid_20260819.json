@@ -1,0 +1,74 @@
+{
+  "evidence_class": "dense_hybrid_offline_evaluation",
+  "claim_ceiling": "retrieval-metrics-only",
+  "model_name": "sentence-transformers/all-MiniLM-L6-v2",
+  "model_revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+  "backend": {
+    "sentence_transformers": "6.0.0",
+    "torch": "2.13.0+cpu",
+    "transformers": "5.15.0"
+  },
+  "corpus_sha256": "4dd83aa94e6d6b64beaa58b69f2468e9563a696fdf480883024e1fc508494b19",
+  "query_set": "benchmarks/retrieval/queries.json",
+  "query_sha256": "ccd9598f6e821e527af3f32ce76fadf6bab22a5c0af237b315ea305b1ecf2b7d",
+  "embedding_dimension": 384,
+  "embedding_normalization": "l2",
+  "evaluation_wall_clock_ms": 15027.87,
+  "metrics": {
+    "tf_cosine": {
+      "queries_evaluated": 15,
+      "recall@1": 66.67,
+      "recall@3": 100.0,
+      "mrr": 0.833,
+      "wrong_version_rate": 33.33,
+      "wrong_authority_rate": 33.33,
+      "customer_leak_rate": 0.0
+    },
+    "dense_embedding": {
+      "queries_evaluated": 15,
+      "recall@1": 53.33,
+      "recall@3": 100.0,
+      "mrr": 0.767,
+      "wrong_version_rate": 46.67,
+      "wrong_authority_rate": 46.67,
+      "customer_leak_rate": 0.0
+    },
+    "standard_dense_hybrid": {
+      "queries_evaluated": 15,
+      "recall@1": 66.67,
+      "recall@3": 100.0,
+      "mrr": 0.833,
+      "wrong_version_rate": 33.33,
+      "wrong_authority_rate": 33.33,
+      "customer_leak_rate": 0.0
+    },
+    "governed_lexical_hybrid": {
+      "queries_evaluated": 15,
+      "recall@1": 100.0,
+      "recall@3": 100.0,
+      "mrr": 1.0,
+      "wrong_version_rate": 0.0,
+      "wrong_authority_rate": 0.0,
+      "customer_leak_rate": 0.0
+    },
+    "governed_dense_hybrid": {
+      "queries_evaluated": 15,
+      "recall@1": 100.0,
+      "recall@3": 100.0,
+      "mrr": 1.0,
+      "wrong_version_rate": 0.0,
+      "wrong_authority_rate": 0.0,
+      "customer_leak_rate": 0.0
+    }
+  },
+  "architecture": {
+    "standard_dense_hybrid": "BM25 + dense embeddings + RRF, no governance prefilter",
+    "governed_dense_hybrid": "canonical authority/version/customer prefilter + BM25 + dense embeddings + RRF"
+  },
+  "not_claimed": [
+    "production serving",
+    "reranking",
+    "hardware qualification",
+    "agent qualification GO"
+  ]
+}

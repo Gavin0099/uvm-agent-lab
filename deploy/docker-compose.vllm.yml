@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # Secondary experimental path. The primary baseline is llama.cpp Q4_K_M + MTP n=2.
   vllm-dual-gv100:
     image: vllm/vllm-openai:latest
     container_name: uvm_agent_vllm_server

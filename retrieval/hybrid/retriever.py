@@ -3,10 +3,12 @@ from retrieval.canonical.retriever import CanonicalSpecRetriever
 from retrieval.bm25.retriever import BM25Retriever
 
 
-class HybridRetriever:
+class GovernedLexicalHybridRetriever:
     """
-    Hybrid Retriever utilizing Reciprocal Rank Fusion (RRF)
-    between BM25 Lexical search and Canonical Knowledge Layer governance.
+    Governed lexical hybrid using Reciprocal Rank Fusion (RRF).
+
+    The canonical retriever defines the governed search space and BM25 ranks
+    lexical matches inside it. This is not a dense-plus-sparse hybrid search.
     """
 
     def __init__(self, doc_dir: str = "fixtures/synthetic-spec", rrf_k: int = 60):
@@ -39,3 +41,7 @@ class HybridRetriever:
             results.append(item)
 
         return results[:top_k]
+
+
+# Backward-compatible import name for historical Gate 1 callers.
+HybridRetriever = GovernedLexicalHybridRetriever

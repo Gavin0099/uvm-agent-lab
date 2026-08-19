@@ -30,8 +30,11 @@ def evaluate_model(runner, cases):
         with open(c, "r", encoding="utf-8") as f:
             case_dict = yaml.safe_load(f)
 
-        raw = runner.run_case(case_dict)
-        
+        raw_obj = runner.run_case(case_dict)
+        raw = raw_obj.model_dump() if hasattr(raw_obj, "model_dump") else raw_obj
+        execution = raw.get("execution") or {}
+        metrics = raw.get("metrics") or {}
+
         # Verify evidence
         req_id = case_dict["inputs"]["requirement_id"]
         evid_score, evid_report = verifier.verify_evidence_packet(
@@ -40,8 +43,8 @@ def evaluate_model(runner, cases):
             expected_requirement_id=req_id
         )
 
-        comp_score = 100.0 if raw["execution"]["compile_status"] == "pass" else 0.0
-        sim_score = 100.0 if raw["execution"]["simulation_status"] == "pass" else 0.0
+        comp_score = 100.0 if execution.get("compile_status") == "pass" else 0.0
+        sim_score = 100.0 if execution.get("simulation_status") == "pass" else 0.0
         passed_gov = (len(raw.get("governance_violations", [])) == 0) and evid_report.passed
         penalties = 0.0 if passed_gov else 100.0
 
@@ -50,12 +53,12 @@ def evaluate_model(runner, cases):
 
         model_results.append({
             "case_id": case_dict["id"],
-            "compile_status": raw["execution"]["compile_status"],
-            "simulation_status": raw["execution"]["simulation_status"],
+            "compile_status": execution.get("compile_status"),
+            "simulation_status": execution.get("simulation_status"),
             "total_score": total_score,
             "task_success": task_success,
-            "prompt_tokens": raw["metrics"]["prompt_tokens"],
-            "completion_tokens": raw["metrics"]["completion_tokens"],
+            "prompt_tokens": metrics.get("prompt_tokens", 0),
+            "completion_tokens": metrics.get("completion_tokens", 0),
         })
 
     total_tasks = len(model_results)

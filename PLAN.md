@@ -16,7 +16,7 @@
 3. **驗證 Governed Knowledge Layer 價值**：比較 `spec-reference-kit` 與傳統 BM25、Vector RAG、Hybrid 在規格檢索精準度與版本治理上的差異（Gate 1）。
 4. **標準化 Tool Harness 與錯誤修復能力**：評估 Agent 在面對編譯失敗、Scoreboard Mismatch、時序異常時的自主診斷與修復路徑（Gate 2）。
 5. **公平的模型 A/B 比較 (Apples-to-Apples)**：在相同 Tool 預算、Token 限制與驗證標準下，比較 Qwen 2.5 Coder 32B、Nemotron-4 等候選模型（Gate 3）。
-6. **Dual Tesla/Quadro GV100 (64GB VRAM) 落地驗證**：量化本地雙卡 NVLink 環境下的推論吞吐、TTFT、KV Cache 記憶體佔用與 32K/64K/128K 長文本表現（Gate 4）。
+6. **Dual Tesla/Quadro GV100 (64GB VRAM) 落地驗證**：量化本地雙卡 NVLink 環境下的推論吞吐、TTFT、KV Cache 記憶體佔用與 128K/192K/256K 長文本表現（Gate 4）。
 
 ### 非目標 (Non-Goals)
 - ❌ **不開發通用聊天機器人**：本專案聚焦於 UVM 數位晶片驗證工程。
@@ -91,7 +91,7 @@
                                        ▼
 +─────────────────────────────────────────────────────────────────────────────+
 | Gate 4: Dual GV100 32GB 硬體落地與並行化評測                                |
-| 產物: vLLM/SGLang 雙卡 NVLink 設定、KV Cache 記憶體報告、32K-128K 長文本數據 |
+| 產物: vLLM/SGLang/llama.cpp NVLink 設定、KV Cache 記憶體報告、128K-256K 長文本數據 |
 | Exit Criteria: TP=2 NVLink 吞吐驗證完成，明確標出 VRAM 瓶頸與長文本可行性。 |
 +─────────────────────────────────────────────────────────────────────────────+
 ```

@@ -140,6 +140,44 @@ class QualificationPolicyEvaluator:
         )
         gates.append(g_hw_corrupt)
 
+        g_cd_task = GateResult(
+            gate_name="coding_agent.min_task_success_rate",
+            required=cd_cfg.get("min_task_success_rate", 75.0),
+            observed=arm_b.get("task_success_rate", "METRIC_MISSING"),
+            passed=(
+                arm_b.get("task_success_rate") is not None
+                and arm_b.get("task_success_rate") >= cd_cfg.get("min_task_success_rate", 75.0)
+            ),
+            description="Governed-sidecar task success rate",
+        )
+        if arm_b.get("task_success_rate") is None:
+            g_cd_task.observed = "METRIC_MISSING"
+        gates.append(g_cd_task)
+
+        observed_vram = hardware_profile.get("vram_peak_per_gpu_gb")
+        req_vram = hw_cfg.get("max_vram_usage_per_gpu_gb", 30.0)
+        g_hw_vram = GateResult(
+            gate_name="hardware_feasibility.max_vram_usage_per_gpu_gb",
+            required=req_vram,
+            observed="METRIC_MISSING" if observed_vram is None else observed_vram,
+            passed=(observed_vram is not None and observed_vram <= req_vram),
+            description="Peak VRAM per GPU within Dual GV100 budget",
+        )
+        gates.append(g_hw_vram)
+
+        observed_tps = hardware_profile.get("decode_tps")
+        if observed_tps is None:
+            observed_tps = hardware_profile.get("est_decode_tps")
+        req_tps = hw_cfg.get("min_est_decode_tps", 15.0)
+        g_hw_tps = GateResult(
+            gate_name="hardware_feasibility.min_est_decode_tps",
+            required=req_tps,
+            observed="METRIC_MISSING" if observed_tps is None else observed_tps,
+            passed=(observed_tps is not None and observed_tps >= req_tps),
+            description="Sustained decode throughput",
+        )
+        gates.append(g_hw_tps)
+
         is_synthetic = (
             coding_summary.is_synthetic_simulation
             or not hardware_profile.get("hardware_observed", False)

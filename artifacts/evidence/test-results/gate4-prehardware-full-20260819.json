@@ -1,0 +1,17 @@
+{
+  "receipt_schema": "test_evidence_receipt.v0.1",
+  "status": "report_only",
+  "command": "C:\\Users\\reiko\\AppData\\Local\\Programs\\Python\\Python313\\python.exe -X utf8 -m pytest -q tests/ --ignore=tests/gv100h/test_m05_e2e_pipeline.py --basetemp .tmp_gate4_prehardware_receipt",
+  "exit_code": 0,
+  "started_at": "2026-08-19T07:19:50Z",
+  "finished_at": "2026-08-19T07:20:54Z",
+  "runner": "copilot",
+  "linked_commit": "b674f893bea95b54a9b61f159974adf5af28e55c",
+  "output_artifacts": [
+    "artifacts/evidence/test-results/gate4-prehardware-full-20260819.txt"
+  ],
+  "cannot_claim": [
+    "semantic correctness of the tested behavior",
+    "receipt authenticity: every field is fabricatable by a direct writer"
+  ]
+}

@@ -1,7 +1,43 @@
 import pytest
+from retrieval.hybrid.retriever import GovernedLexicalHybridRetriever, HybridRetriever
 from retrieval.canonical.retriever import CanonicalSpecRetriever
 from retrieval.bm25.retriever import BM25Retriever
+from retrieval.vector.retriever import TFCosineRetriever, VectorRetrieverStub
 from retrieval.evaluator import Gate1RetrievalEvaluator
+
+
+def test_gate1_retriever_names_describe_implemented_algorithms():
+    assert VectorRetrieverStub is TFCosineRetriever
+    assert HybridRetriever is GovernedLexicalHybridRetriever
+    assert TFCosineRetriever.__doc__ and "not dense" in TFCosineRetriever.__doc__.lower()
+    hybrid_doc = GovernedLexicalHybridRetriever.__doc__ or ""
+    assert "not" in hybrid_doc.lower()
+    assert "dense-plus-sparse" in hybrid_doc.lower()
+
+
+class _DenseTestEncoder:
+    def encode(self, texts, **kwargs):
+        return [[1.0, 0.0] for _ in texts]
+
+
+def test_gate1_dense_arm_is_explicit_opt_in():
+    default = Gate1RetrievalEvaluator()
+    assert not {
+        "dense_embedding",
+        "standard_dense_hybrid",
+        "governed_dense_hybrid",
+    }.intersection(default.retrievers)
+
+    opt_in = Gate1RetrievalEvaluator(
+        dense_model="test/fake-dense",
+        dense_model_revision="test-revision",
+        dense_encoder=_DenseTestEncoder(),
+    )
+    assert "dense_embedding" in opt_in.retrievers
+    assert "standard_dense_hybrid" in opt_in.retrievers
+    assert "governed_dense_hybrid" in opt_in.retrievers
+    assert opt_in.retrievers["dense_embedding"].model_name == "test/fake-dense"
+    assert opt_in.retrievers["dense_embedding"].model_revision == "test-revision"
 
 
 def test_canonical_retriever_filters_unapproved_drafts():
@@ -41,8 +77,10 @@ def test_gate1_evaluator_runs_all_15_queries():
 
     assert "spec-reference-kit" in summary
     assert "bm25" in summary
-    assert "vector_rag" in summary
-    assert "hybrid" in summary
+    assert "tf_cosine" in summary
+    assert "governed_lexical_hybrid" in summary
+    assert "vector_rag" not in summary
+    assert "hybrid" not in summary
 
     # Gate 1 Exit criteria for spec-reference-kit
     srk = summary["spec-reference-kit"]

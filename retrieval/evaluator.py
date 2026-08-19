@@ -1,6 +1,6 @@
 """
 Gate 1: Spec / Retrieval Comprehensive Evaluation Suite
-Compares spec-reference-kit vs BM25 vs Vector RAG vs Hybrid across:
+Compares governed canonical retrieval vs BM25 vs TF cosine vs governed lexical hybrid across:
 - Recall@1 (%)
 - Recall@3 (%)
 - MRR (Mean Reciprocal Rank)
@@ -12,7 +12,7 @@ Compares spec-reference-kit vs BM25 vs Vector RAG vs Hybrid across:
 import sys
 import json
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -20,20 +20,52 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from retrieval.canonical.retriever import CanonicalSpecRetriever
 from retrieval.bm25.retriever import BM25Retriever
-from retrieval.vector.retriever import VectorRetrieverStub
-from retrieval.hybrid.retriever import HybridRetriever
+from retrieval.vector.dense_retriever import DenseEmbeddingRetriever, EmbeddingEncoder
+from retrieval.vector.retriever import TFCosineRetriever
+from retrieval.hybrid.retriever import GovernedLexicalHybridRetriever
+from retrieval.hybrid.dense_hybrid import (
+    GovernedDenseHybridRetriever,
+    StandardDenseHybridRetriever,
+)
 
 
 class Gate1RetrievalEvaluator:
-    def __init__(self, spec_dir: str = "fixtures/synthetic-spec", queries_path: str = "benchmarks/retrieval/queries.json"):
+    def __init__(
+        self,
+        spec_dir: str = "fixtures/synthetic-spec",
+        queries_path: str = "benchmarks/retrieval/queries.json",
+        dense_model: Optional[str] = None,
+        dense_model_revision: Optional[str] = None,
+        dense_encoder: Optional[EmbeddingEncoder] = None,
+    ):
         self.spec_dir = spec_dir
         self.queries_path = Path(queries_path)
         self.retrievers = {
             "spec-reference-kit": CanonicalSpecRetriever(spec_dir=spec_dir),
             "bm25": BM25Retriever(doc_dir=spec_dir),
-            "vector_rag": VectorRetrieverStub(doc_dir=spec_dir),
-            "hybrid": HybridRetriever(doc_dir=spec_dir),
+            "tf_cosine": TFCosineRetriever(doc_dir=spec_dir),
+            "governed_lexical_hybrid": GovernedLexicalHybridRetriever(doc_dir=spec_dir),
         }
+        # Dense and dense-hybrid arms are opt-in to keep default Gate 1 offline.
+        if dense_model is not None or dense_encoder is not None:
+            self.retrievers["dense_embedding"] = DenseEmbeddingRetriever(
+                doc_dir=spec_dir,
+                model_name=dense_model or "sentence-transformers/all-MiniLM-L6-v2",
+                model_revision=dense_model_revision,
+                encoder=dense_encoder,
+            )
+            self.retrievers["standard_dense_hybrid"] = StandardDenseHybridRetriever(
+                doc_dir=spec_dir,
+                dense_model=dense_model or "sentence-transformers/all-MiniLM-L6-v2",
+                dense_model_revision=dense_model_revision,
+                dense_encoder=dense_encoder,
+            )
+            self.retrievers["governed_dense_hybrid"] = GovernedDenseHybridRetriever(
+                doc_dir=spec_dir,
+                dense_model=dense_model or "sentence-transformers/all-MiniLM-L6-v2",
+                dense_model_revision=dense_model_revision,
+                dense_encoder=dense_encoder,
+            )
 
     def load_queries(self) -> List[Dict[str, Any]]:
         if self.queries_path.exists():
@@ -59,7 +91,11 @@ class Gate1RetrievalEvaluator:
 
             for q in queries:
                 kwargs = {}
-                if name in ["spec-reference-kit", "hybrid"]:
+                if name in [
+                    "spec-reference-kit",
+                    "governed_lexical_hybrid",
+                    "governed_dense_hybrid",
+                ]:
                     kwargs["target_version"] = q.get("expected_ver")
                     kwargs["caller_customer_tier"] = q.get("target_customer_tier")
 
