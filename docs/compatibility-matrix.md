@@ -22,10 +22,15 @@ This document tracks supported and tested configurations across EDA Simulators, 
 | Runtime | Protocol | Supported Formats | Recommended Model Target |
 | :--- | :--- | :--- | :--- |
 | **Mock / Baseline** | Python In-Memory | N/A | Deterministic pipeline & harness testing |
-| **vLLM** | OpenAI Compatible REST | FP16, AWQ, GPTQ | Qwen 2.5 Coder 32B (TP=2 NVLink) |
+| **llama.cpp** | CLI / HTTP | GGUF, Q4_K_M, Q8_0 K/V, draft MTP | Qwen3.8-27B GGUF; MTP OFF vs n-max=2 first at 128K |
+| **vLLM** | OpenAI Compatible REST | FP16, AWQ, GPTQ | Secondary/experimental Qwen 2.5 Coder 32B TP=2 path |
 | **SGLang** | OpenAI Compatible REST | FP16, FP8, AWQ | Ultra-low latency tool calling |
 | **Ollama** | Local REST | GGUF (Q4_K_M, Q8_0) | Fast local iteration |
-| **llama.cpp** | CLI / HTTP | GGUF | Memory-constrained execution |
+
+The active Qwen3.8-27B Gate 4 baseline uses `q8_0` for both K and V, with
+128K as the first context point and 192K/256K as secondary points. q4/q5 KV
+types are experimental only: the selected llama.cpp build must carry the
+relevant fix reference and pass a local prefill benchmark before admission.
 
 ---
 

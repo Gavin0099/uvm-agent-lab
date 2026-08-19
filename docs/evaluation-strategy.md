@@ -79,7 +79,10 @@ qualification admission.
 - **Evidence Integrity Rate**: Verified genuine evidence / Submitted evidence (Target: 100%).
 
 ### Gate 4: Hardware Profiling Metrics
-- **VRAM Utilization**: Peak memory during 32K, 64K, 128K context window KV cache.
+- **VRAM Utilization**: Peak memory during 128K, 192K, and exploratory 256K context window KV cache.
 - **Time to First Token (TTFT)**: Latency before first tool action.
-- **Generation Speed**: Tokens per second (tok/s) under single-agent and multi-agent load.
+- **Prefill Throughput**: Prompt tokens/sec and prefill latency, recorded separately from decode.
+- **Generation Speed**: Decode tokens/sec under single-agent and multi-agent load.
+- **Runtime Provenance**: Model SHA-256, llama.cpp commit/version, K/V cache types, and MTP arm.
+- **Qualification Stability**: Corruption count, request success, wall-clock, agent work-item success, and human intervention count.
 - **Tensor Parallelism Scaling Efficiency**: $Speedup(TP=2) / 2.0$.
