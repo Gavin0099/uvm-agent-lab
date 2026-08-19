@@ -42,7 +42,7 @@ def run_live_evaluation(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--api-base", default="http://localhost:8000")
-    parser.add_argument("--model-id", default="Qwen/Qwen3.8-35B-A3B")
+    parser.add_argument("--model-id", default="Qwen/Qwen3.8-27B")
     parser.add_argument("--cases-dir", default="benchmarks/cases")
     parser.add_argument("--output-dir", default="results/live_eval")
     parser.add_argument("--mode", choices=["live", "mock"], default="mock")

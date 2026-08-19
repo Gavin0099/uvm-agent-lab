@@ -146,6 +146,14 @@ class ManifestValidator:
             "endpoint_observed": manifest.evidence.endpoint_observed,
             "eda_backend": manifest.evidence.eda_backend,
             "qualification_admissible": manifest.evidence.qualification_admissible,
+            "verification_level": manifest.evidence.verification_level,
+            "verification_cwd": manifest.evidence.verification_cwd,
+            "tool_path": manifest.evidence.tool_path,
+            "eda_version": manifest.evidence.eda_version,
+            "build_command": manifest.evidence.build_command,
+            "build_exit_code": manifest.evidence.build_exit_code,
+            "test_command": manifest.evidence.test_command,
+            "test_exit_code": manifest.evidence.test_exit_code,
             "benchmark_case_hash": manifest.benchmark_case_hash,
         }
         binding_requested = (
@@ -216,6 +224,20 @@ class ManifestValidator:
                 raise ManifestValidationError(
                     "Verification qualification status is not bound to manifest"
                 )
+            for field_name in (
+                "verification_level",
+                "verification_cwd",
+                "tool_path",
+                "eda_version",
+                "build_command",
+                "build_exit_code",
+                "test_command",
+                "test_exit_code",
+            ):
+                if verification.get(field_name) != getattr(manifest.evidence, field_name):
+                    raise ManifestValidationError(
+                        f"Verification {field_name} is not bound to manifest"
+                    )
 
             snapshot_entries = file_snapshots.get("files")
             tree_entries = workspace_tree.get("files")

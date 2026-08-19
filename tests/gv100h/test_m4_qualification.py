@@ -94,6 +94,10 @@ def test_generate_poc_report_execution():
     assert "**`NO_GO — synthetic/offline scaffold only`**" in report_text
     assert "Q1 — Model Quality" in report_text
     assert "Q5 — Governance" in report_text
+    assert "Qwen3.8-35B-A3B" not in report_text
+    assert "q8_0 K/V" in report_text
+    assert "TP=1" in report_text
+    assert "primary [32768, 65536, 131072]" in report_text
     assert "808f23c24bd8651da9cdcd63ea8669126917a379" in report_text
     assert "目前全庫共有" not in report_text
     assert "測試通過數不是資格權威" in report_text
@@ -247,6 +251,15 @@ def test_cat_d_failure_is_no_go():
     assert decision.decision == "NO_GO"
     cat_d = next(g for g in decision.gates if g.gate_name == "spec_qa.min_adversarial_pass_rate")
     assert cat_d.passed is False
+
+
+def test_human_acceptance_below_conditional_floor_is_no_go():
+    qa_res, coding_res, hardware = _live_inputs_for_decision()
+    coding_res.arm_b_governed_sidecar["human_acceptance_a_b_rate"] = 50.0
+
+    decision = QualificationPolicyEvaluator().evaluate(qa_res, coding_res, hardware)
+
+    assert decision.decision == "NO_GO"
 
 
 def test_non_live_qa_evidence_cannot_produce_go():

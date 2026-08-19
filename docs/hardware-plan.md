@@ -36,7 +36,7 @@ The first runtime comparison is a controlled single-V100 baseline:
 ```text
 Qwen3.8-27B Q4_K_M GGUF + Q8_0 KV + Flash Attention + parallel=1
 MTP OFF control vs draft-mtp n-max=2
-128K first, then 192K and 256K
+32K, 64K, and 128K primary, then 192K and 256K stretch
 ```
 
 External community measurements suggest n-max=2 may improve decode speed on
@@ -45,7 +45,7 @@ reference only; it is not a local Gate 4 result. The first local baseline uses
 Q8_0 K/V because upstream llama.cpp issue #27109 reports a possible Qwen3.8 q4
 KV prefill regression and PR #27140 is not assumed in every build. The local
 exit condition is an identical-input A/B measurement across MTP OFF and n-max=2
-at 128K, 192K, and 256K, recording tok/s, prefill, VRAM, stability, and agent
+at 32K, 64K, 128K, 192K, and 256K, recording tok/s, prefill, VRAM, stability, and agent
 work-item outcomes.
 
 Verification tasks require ingesting large SystemVerilog files, UVM packages, and simulation logs. We evaluate KV cache memory footprints across context lengths:
@@ -55,6 +55,6 @@ Verification tasks require ingesting large SystemVerilog files, UVM packages, an
 3. **256K Context**: Exploratory long-session boundary; measure only after 128K stability.
 
 ### Measured Metrics:
-- **TTFT (Time-to-First-Token)** at 128K, 192K, and exploratory 256K context.
+- **TTFT (Time-to-First-Token)** at 32K, 64K, 128K, and exploratory 192K/256K context.
 - **Generation Throughput (tokens/sec)** at batch size = 1 and batch size = 4.
 - **NVLink Interconnect Overhead**: Latency penalty of TP=2 vs TP=1.

@@ -1,6 +1,6 @@
 # UVM Agent Lab — Master Project Plan (PLAN.md)
 
-> **最後更新**: 2026-08-15
+> **最後更新**: 2026-08-19
 > **Owner**: Gavin0099
 > **Freshness**: Phase (30d)
 > **Status**: Active (Phase 1, 2, 3 Delivered)
@@ -15,8 +15,8 @@
 2. **導入 Policy-as-Code AI Governance**：落實嚴格的 Scope 隔離（`allowed_paths` vs `forbidden_paths`）、Zero-Trust 驗證合約（`exit 0 ≠ success`、`missing evidence = fail`、反幻覺檢驗）。
 3. **驗證 Governed Knowledge Layer 價值**：比較 `spec-reference-kit` 與傳統 BM25、Vector RAG、Hybrid 在規格檢索精準度與版本治理上的差異（Gate 1）。
 4. **標準化 Tool Harness 與錯誤修復能力**：評估 Agent 在面對編譯失敗、Scoreboard Mismatch、時序異常時的自主診斷與修復路徑（Gate 2）。
-5. **公平的模型 A/B 比較 (Apples-to-Apples)**：在相同 Tool 預算、Token 限制與驗證標準下，比較 Qwen 2.5 Coder 32B、Nemotron-4 等候選模型（Gate 3）。
-6. **Dual Tesla/Quadro GV100 (64GB VRAM) 落地驗證**：量化本地雙卡 NVLink 環境下的推論吞吐、TTFT、KV Cache 記憶體佔用與 128K/192K/256K 長文本表現（Gate 4）。
+5. **公平的模型 A/B 比較 (Apples-to-Apples)**：在相同 Tool 預算、Token 限制與驗證標準下，對 10 個 canonical UVM tasks 執行 3 repetitions × 2 treatment arms；真實模型 qualification 仍待 live evidence（Gate 3）。
+6. **GV100 hardware qualification**：先以 Qwen3.8-27B Q4_K_M llama.cpp q8_0 K/V single-V100 baseline 驗證 32K/64K/128K，再將 192K/256K 作 stretch，最後才進入 dual-GV100/NVLink qualification（Gate 4）。
 
 ### 非目標 (Non-Goals)
 - ❌ **不開發通用聊天機器人**：本專案聚焦於 UVM 數位晶片驗證工程。
@@ -83,16 +83,16 @@
                                        │
                                        ▼
 +─────────────────────────────────────────────────────────────────────────────+
-| Gate 3: Model A/B 評測 (Qwen / Nemotron / Llama 等)                         |
-| 產物: Local LLM Runner, 固定 Token/Tool 預算實驗記錄, 橫向比較報告          |
-| Exit Criteria: 完成至少 2 款開源模型在同等條件下的完整 5 個 Case 評測。     |
+| Gate 3: Model A/B 評測 (canonical UVM task universe)                        |
+| 產物: Local LLM Runner, 固定 Token/Tool 預算實驗記錄, 10×3×2 bundle report  |
+| Exit Criteria: 30 paired executions 產生 60 manifests，兩臂 treatment 真正分離，且 live evidence admissible。 |
 +─────────────────────────────────────────────────────────────────────────────+
                                        │
                                        ▼
 +─────────────────────────────────────────────────────────────────────────────+
-| Gate 4: Dual GV100 32GB 硬體落地與並行化評測                                |
-| 產物: vLLM/SGLang/llama.cpp NVLink 設定、KV Cache 記憶體報告、128K-256K 長文本數據 |
-| Exit Criteria: TP=2 NVLink 吞吐驗證完成，明確標出 VRAM 瓶頸與長文本可行性。 |
+| Gate 4: GV100 hardware qualification                                       |
+| 產物: llama.cpp candidate SSOT、KV Cache 記憶體報告、32K-128K primary 與 192K-256K stretch 數據 |
+| Exit Criteria: single-V100 baseline 先完成真實 telemetry，再評估 TP=2/NVLink expansion；不得以 analytical budget 代替 qualification。 |
 +─────────────────────────────────────────────────────────────────────────────+
 ```
 

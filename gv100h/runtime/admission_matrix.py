@@ -25,6 +25,7 @@ class RuntimeCandidate(BaseModel):
     mtp_enabled: bool = False
     spec_draft_n_max: int = 0
     context_sweep: List[int] = []
+    stretch_context_sweep: List[int] = []
     external_reference_url: str = ""
     baseline_context_length: int = 131072
     kv_cache_issue_url: str = ""
@@ -57,6 +58,7 @@ class RuntimeAdmissionMatrix:
             mtp_enabled=GV100H_BASELINE.mtp_enabled,
             spec_draft_n_max=GV100H_BASELINE.spec_draft_n_max,
             context_sweep=list(GV100H_BASELINE.context_sweep),
+            stretch_context_sweep=list(GV100H_BASELINE.stretch_context_sweep),
             external_reference_url=GV100H_BASELINE.external_reference_url,
             baseline_context_length=GV100H_BASELINE.baseline_context_length,
             kv_cache_issue_url=GV100H_BASELINE.kv_cache_issue_url,
@@ -88,6 +90,7 @@ class RuntimeAdmissionMatrix:
             mtp_enabled=GV100_MTP_N2.mtp_enabled,
             spec_draft_n_max=GV100_MTP_N2.spec_draft_n_max,
             context_sweep=list(GV100_MTP_N2.context_sweep),
+            stretch_context_sweep=list(GV100_MTP_N2.stretch_context_sweep),
             external_reference_url=GV100_MTP_N2.external_reference_url,
             baseline_context_length=GV100_MTP_N2.baseline_context_length,
             kv_cache_issue_url=GV100_MTP_N2.kv_cache_issue_url,

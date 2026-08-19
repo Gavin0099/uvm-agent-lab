@@ -37,7 +37,7 @@ Instead of rushing to benchmark massive LLMs on raw GPUs, `uvm-agent-lab` establ
 
 - **Gate 0 — Benchmark Definition**: 
   - Standardized benchmark schemas (`case_schema.json`, `result_schema.json`).
-  - 5 synthetic UVM benchmark cases (`UVM-001` ~ `UVM-005`).
+  - 10 canonical UVM benchmark cases (`UVM-001` ~ `UVM-010`).
 - **Gate 1 — Spec / Retrieval Evaluation**: 
   - Compare `spec-reference-kit` vs BM25 vs Vector RAG vs Hybrid.
   - Metrics: `Recall@1`, `Recall@3`, `wrong-version rate`, `wrong-authority rate`, `wrong-customer rate`.
@@ -45,10 +45,12 @@ Instead of rushing to benchmark massive LLMs on raw GPUs, `uvm-agent-lab` establ
   - Validate tool contracts (`read`, `search`, `edit`, `compile`, `simulate`, `read_log`, `retry`).
   - Enforce anti-hallucination, scope sandboxing, and timeout management.
 - **Gate 3 — Model A/B Testing**: 
-  - Multi-model evaluation under identical tool budgets (Qwen 27B, Nemotron Nano, GPT-OSS, etc.).
+  - Planned live evaluation under identical tool budgets using 10 canonical UVM tasks, 3 repetitions, and 2 treatment arms.
   - Metrics: `task_success`, `compile_success`, `simulation_success`, `retry_count`, `tool_errors`, `token_efficiency`, `latency`.
+  - Current claim ceiling: scripted one-shot generation and mock scaffolding are not coding-agent qualification evidence.
 - **Gate 4 — GV100 Hardware Profiling**: 
-  - Hardware benchmarks: VRAM footprint, TTFT, tok/s, 32K/64K/128K context scaling, TP=1 vs TP=2 NVLink.
+  - Active pre-hardware candidate: Qwen3.8-27B Q4_K_M GGUF with llama.cpp and q8_0 K/V, single-V100 first.
+  - Hardware benchmarks: VRAM footprint, TTFT, prefill/decode timing, 32K/64K/128K primary sweep, 192K/256K stretch, then dual-GV100/NVLink expansion.
 
 ---
 

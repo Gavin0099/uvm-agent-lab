@@ -7,7 +7,7 @@
 The active pre-GV100 route is `Qwen3.8-27B-Q4_K_M.gguf` served by llama.cpp on a single V100 with `q8_0` K/V cache, Flash Attention, and `parallel=1`.
 
 1. Run MTP OFF as the control and `draft-mtp` n-max=2 as the paired comparison arm.
-2. Measure 128K first, then 192K and exploratory 256K; record prefill and decode separately.
+2. Measure 32K, 64K, and 128K as the primary sweep; use 192K and exploratory 256K only as stretch points, recording prefill and decode separately.
 3. Keep q4/q5 KV experimental until the selected build has the relevant fix provenance and a passing local prefill benchmark.
 4. Treat all community numbers as external references, not local Gate 4 qualification evidence.
 5. Keep the Qwen2.5-Coder-32B AWQ TP=2 route as a secondary analytical/vLLM candidate.

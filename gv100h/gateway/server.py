@@ -16,8 +16,8 @@ from gv100h.gateway.contract import (
 
 class ModelGatewayHandler(BaseHTTPRequestHandler):
     SUPPORTED_MODELS = [
-        "Qwen/Qwen3.8-35B-A3B",
         "Qwen/Qwen3.8-27B",
+        "Qwen/Qwen3.8-35B-A3B",
         "Qwen/Qwen2.5-Coder-32B-Instruct"
     ]
 
