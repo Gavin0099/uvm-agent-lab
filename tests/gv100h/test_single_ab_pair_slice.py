@@ -175,6 +175,33 @@ def test_pair_validator_rejects_tampered_pair_id(tmp_path: Path):
             manifests, require_complete_pairs=True
         )
 
+
+def test_independent_replay_rejects_self_consistent_forged_verification(tmp_path: Path):
+    result = _run_slice(tmp_path)
+    manifest = result["manifests"][0]
+    bundle = Path(result["bundle_dirs"][manifest.experiment_arm])
+    verification_path = bundle / "verification.json"
+    forged = json.loads(verification_path.read_text(encoding="utf-8"))
+    forged["final_pass"] = False
+    forged_bytes = json.dumps(
+        forged, ensure_ascii=True, indent=2, sort_keys=True
+    ).encode("utf-8")
+    verification_path.write_bytes(forged_bytes)
+    forged_manifest = manifest.model_copy(update={
+        "evidence": manifest.evidence.model_copy(update={
+            "verification_sha256": hashlib.sha256(forged_bytes).hexdigest(),
+        })
+    })
+
+    with pytest.raises(ManifestValidationError, match="Independent replay mismatch"):
+        ManifestValidator().validate_manifest_bundle(
+            forged_manifest,
+            bundle,
+            require_integrity=True,
+            repo_root=REPO_ROOT,
+            replay_verification=True,
+        )
+
 def test_legacy_bundle_is_rejected_at_strict_integrity_boundary(tmp_path: Path):
     bundle = tmp_path / "legacy"
     bundle.mkdir()

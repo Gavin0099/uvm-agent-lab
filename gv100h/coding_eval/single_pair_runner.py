@@ -329,6 +329,7 @@ def _run_one_arm(
             bundle_dir,
             require_integrity=True,
             repo_root=worktree_mgr.repo_root,
+            replay_verification=True,
         )
         _write_bundle_file(
             bundle_dir / "manifest.json",

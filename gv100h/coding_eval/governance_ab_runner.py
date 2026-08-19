@@ -105,6 +105,7 @@ class GovernanceABRunner:
                             Path(mf).parent,
                             require_integrity=True,
                             repo_root=self.repo_root,
+                            replay_verification=True,
                         )
                     except ManifestValidationError as e:
                         print(f"[A/B VALIDATION WARNING] Rejected {mf}: {e}")
