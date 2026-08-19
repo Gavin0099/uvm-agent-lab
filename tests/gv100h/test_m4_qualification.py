@@ -253,6 +253,15 @@ def test_cat_d_failure_is_no_go():
     assert cat_d.passed is False
 
 
+def test_human_acceptance_below_conditional_floor_is_no_go():
+    qa_res, coding_res, hardware = _live_inputs_for_decision()
+    coding_res.arm_b_governed_sidecar["human_acceptance_a_b_rate"] = 50.0
+
+    decision = QualificationPolicyEvaluator().evaluate(qa_res, coding_res, hardware)
+
+    assert decision.decision == "NO_GO"
+
+
 def test_non_live_qa_evidence_cannot_produce_go():
     qa_res, coding_res, hardware = _live_inputs_for_decision()
     qa_res.evidence_class = "deterministic_offline"

@@ -190,6 +190,7 @@ class QualificationPolicyEvaluator:
         is_synthetic = (
             not qa_result.admissible_for_model_qualification
             or qa_result.evidence_class != "live_model_inference"
+            or not qa_result.endpoint_observed
             or coding_summary.is_synthetic_simulation
             or not coding_summary.admissible_for_model_qualification
             or not hardware_profile.get("hardware_observed", False)
@@ -197,6 +198,9 @@ class QualificationPolicyEvaluator:
 
         all_gates_pass = all(g.passed for g in gates)
         human_rating_collected = observed_human_acc is not None
+        conditional_floor = self.policy.get("decision_rules", {}).get(
+            "CONDITIONAL_GO", {}
+        ).get("min_human_acceptance_a_b_rate", 60.0)
         non_human_gates_pass = all(
             gate.passed
             for gate in gates
@@ -212,6 +216,9 @@ class QualificationPolicyEvaluator:
         elif not human_rating_collected:
             decision = "PENDING_HUMAN_REVIEW"
             reason = "All non-human qualification gates passed, but human acceptance evidence has not been collected."
+        elif observed_human_acc < conditional_floor:
+            decision = "NO_GO"
+            reason = f"Human acceptance is below the conditional approval floor of {conditional_floor}%."
         elif not g_cd_human.passed:
             decision = "CONDITIONAL_GO"
             reason = "All non-human qualification gates passed, but human acceptance is below the configured threshold."

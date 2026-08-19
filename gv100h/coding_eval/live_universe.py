@@ -152,7 +152,10 @@ def summarize_manifest_universe(
     duplicate_keys = sorted(key for key, count in key_counts.items() if count > 1)
     unique_keys = set(manifest_keys)
     pair_members = defaultdict(set)
+    cell_counts = Counter()
     for task_id, repetition, arm, pair_id in records:
+        if arm and repetition:
+            cell_counts[(arm, repetition)] += 1
         if pair_id:
             pair_members[pair_id].add((task_id, repetition, arm))
 
@@ -171,12 +174,17 @@ def summarize_manifest_universe(
         and pair_shape_valid
         and all(pair_id for *_, pair_id in records)
     )
+    missing_cells = sorted(
+        (arm, repetition)
+        for arm, repetition in full_universe_cells()
+        if cell_counts[(arm, repetition)] != len(expected_tasks)
+    )
     return {
         "universe_complete_claim_allowed": complete,
         "produced_cells": sorted(
             {(arm, repetition) for _, repetition, arm, _ in records if arm and repetition}
         ),
-        "missing_cells": [],
+        "missing_cells": missing_cells,
         "tasks_covered_count": len({task_id for task_id, *_ in records if task_id}),
         "required_task_count": len(expected_tasks),
         "manifest_count": len(records),
