@@ -3,10 +3,12 @@ from pathlib import Path
 from typing import List, Dict, Any
 
 
-class VectorRetrieverStub:
+class TFCosineRetriever:
     """
-    Vector Similarity Embedding RAG Baseline.
-    Simulates dense semantic embedding retrieval via TF-IDF vector cosine similarity.
+    Term-frequency cosine retrieval baseline.
+
+    This is not dense embedding retrieval: it uses whitespace-token term
+    frequency vectors and cosine similarity as a deterministic lexical baseline.
     Lacks governance metadata filtering.
     """
 
@@ -65,3 +67,7 @@ class VectorRetrieverStub:
 
         results.sort(key=lambda x: x["score"], reverse=True)
         return results[:top_k]
+
+
+# Backward-compatible import name for historical Gate 1 callers.
+VectorRetrieverStub = TFCosineRetriever

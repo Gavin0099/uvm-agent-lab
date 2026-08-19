@@ -1,0 +1,17 @@
+{
+  "receipt_schema": "test_evidence_receipt.v0.1",
+  "status": "report_only",
+  "command": "C:\\Users\\reiko\\AppData\\Local\\Programs\\Python\\Python313\\python.exe -X utf8 -m pytest -q tests/ --ignore=tests/gv100h/test_m05_e2e_pipeline.py --basetemp .tmp_hybrid_review_full_receipt",
+  "exit_code": 0,
+  "started_at": "2026-08-19T06:58:12Z",
+  "finished_at": "2026-08-19T06:59:18Z",
+  "runner": "copilot",
+  "linked_commit": "acc40b5e049da24e8f098d04e7257700864f949b",
+  "output_artifacts": [
+    "artifacts/evidence/test-results/gate1-hybrid-full-final-20260819.txt"
+  ],
+  "cannot_claim": [
+    "semantic correctness of the tested behavior",
+    "receipt authenticity: every field is fabricatable by a direct writer"
+  ]
+}

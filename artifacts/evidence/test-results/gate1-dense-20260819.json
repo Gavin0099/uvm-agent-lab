@@ -1,0 +1,17 @@
+{
+  "receipt_schema": "test_evidence_receipt.v0.1",
+  "status": "report_only",
+  "command": "C:\\Users\\reiko\\AppData\\Local\\Programs\\Python\\Python313\\python.exe -X utf8 -c \"import json; from retrieval.evaluator import Gate1RetrievalEvaluator; e=Gate1RetrievalEvaluator(dense_model='sentence-transformers/all-MiniLM-L6-v2', dense_model_revision='1110a243fdf4706b3f48f1d95db1a4f5529b4d41'); print(json.dumps(e.evaluate()['dense_embedding']))\"",
+  "exit_code": 0,
+  "started_at": "2026-08-19T06:36:30Z",
+  "finished_at": "2026-08-19T06:36:46Z",
+  "runner": "copilot",
+  "linked_commit": "acc40b5e049da24e8f098d04e7257700864f949b",
+  "output_artifacts": [
+    "artifacts/evidence/test-results/gate1-dense-20260819.txt"
+  ],
+  "cannot_claim": [
+    "semantic correctness of the tested behavior",
+    "receipt authenticity: every field is fabricatable by a direct writer"
+  ]
+}

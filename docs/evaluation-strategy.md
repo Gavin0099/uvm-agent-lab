@@ -15,7 +15,8 @@ This document defines the quantitative evaluation framework for assessing UVM AI
                                        ▼
 +─────────────────────────────────────────────────────────────────────────────+
 | Gate 1: Spec / Retrieval Accuracy                                           |
-| - Compare spec-reference-kit vs BM25 vs Vector RAG vs Hybrid.               |
+| - Compare governed canonical retrieval, BM25, TF cosine, dense embedding,   |
+|   and standard/governed dense hybrids. Dense arms are explicit opt-in.       |
 | - Metrics: Recall@1, Recall@3, Wrong-Version %, Wrong-Authority %.          |
 +─────────────────────────────────────────────────────────────────────────────+
                                        │
@@ -49,6 +50,24 @@ This document defines the quantitative evaluation framework for assessing UVM AI
 - **Wrong-Version Rate**: Percentage of queries returning deprecated or mismatching spec version clauses.
 - **Wrong-Authority Rate**: Percentage of queries returning non-authoritative discussion notes instead of certified spec text.
 - **Wrong-Customer Leak Rate**: Percentage of queries returning clauses restricted to different customer tiers.
+
+Gate 1 v2 retrieval arms are explicitly separated by implementation and governance:
+
+```text
+A. spec-reference-kit / governed canonical retrieval
+B. BM25 only
+C. TF cosine lexical historical baseline
+D. Dense embedding only (optional rag backend)
+E. Governed lexical hybrid: canonical prefilter + BM25 + RRF
+F. Standard dense hybrid: BM25 + dense + RRF, no governance prefilter
+G. Governed dense hybrid: canonical prefilter + BM25 + dense + RRF
+```
+
+The canonical layer defines the eligible corpus before lexical or dense scoring.
+Dense model revision, corpus hash, query-set hash, embedding dimension, and
+normalization must be recorded with every dense evaluation. Retrieval metrics
+alone do not establish production RAG, hardware qualification, or agent
+qualification admission.
 
 ### Gate 2 & 3: Agent Performance Metrics
 - **Task Success Rate ($S_{task}$)**: Fully compiled and simulated pass without human intervention.

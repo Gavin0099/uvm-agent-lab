@@ -35,5 +35,9 @@ This document tracks supported and tested configurations across EDA Simulators, 
 | :--- | :--- | :--- | :--- |
 | **Canonical Spec** | Python / JSON | `spec-reference-kit` | Certified Authoritative |
 | **BM25 Keyword** | Python In-Memory | Local text index | Baseline |
-| **Vector RAG** | Embedding Cosine | Local / Remote Vector DB | Baseline |
+| **TF Cosine Baseline** | Term-frequency Cosine | Python In-Memory | Lexical baseline; not dense embeddings |
+| **Governed Lexical Hybrid** | Canonical filter + BM25 + RRF | Python In-Memory | Governed lexical baseline; not dense hybrid |
+| **Dense Vector RAG** | Model Embeddings + Vector Search | Optional `rag` extra | Gate 1 opt-in; model/revision must be pinned |
+| **Standard Dense Hybrid** | BM25 + Dense Embeddings + RRF | Optional `rag` extra | No governance prefilter; comparison baseline |
+| **Governed Dense Hybrid** | Canonical prefilter + BM25 + Dense + RRF | Optional `rag` extra | Governance-first retrieval baseline |
 | **MCP Adapter** | JSON-RPC (Model Context Protocol) | External Knowledge Server | Standardized Interoperability |
