@@ -15,6 +15,7 @@ class AgentExecutionContext(BaseModel):
 
     workspace_root: Path
     sidecar_guardrail: Optional[ScopeGuardrail] = None
+    runtime_attestation_seed: Optional[Dict[str, Any]] = None
     eda_router: Optional[Any] = None
     treatment: Literal["prompt_only", "governed_sidecar"] = "governed_sidecar"
     token_budget: int = 8000

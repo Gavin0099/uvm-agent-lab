@@ -153,6 +153,8 @@ def test_live_admission_requires_all_independent_runtime_signals():
             eda_backend="vcs",
             verification_level="full_uvm_regression",
             qualification_admissible=True,
+            runtime_attestation_sha256="f" * 64,
+                endpoint_url="http://127.0.0.1:8000/v1",
         ),
     })
 
@@ -178,6 +180,27 @@ def test_live_admission_requires_all_independent_runtime_signals():
     assert runner._has_live_qualification_evidence(
         live_manifest.model_copy(update={
             "hardware": live_manifest.hardware.model_copy(update={"hardware_observed": False})
+        })
+    ) is False
+    assert runner._has_live_qualification_evidence(
+        live_manifest.model_copy(update={
+            "evidence": live_manifest.evidence.model_copy(
+                update={"runtime_attestation_sha256": None}
+            )
+        })
+    ) is False
+    assert runner._has_live_qualification_evidence(
+        live_manifest.model_copy(update={
+            "evidence": live_manifest.evidence.model_copy(
+                update={"endpoint_url": None}
+            )
+        })
+    ) is False
+    assert runner._has_live_qualification_evidence(
+        live_manifest.model_copy(update={
+            "evidence": live_manifest.evidence.model_copy(
+                update={"runtime_attestation_sha256": "invalid"}
+            )
         })
     ) is False
 

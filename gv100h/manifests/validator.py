@@ -19,6 +19,7 @@ from gv100h.runner.worktree_runner import FatalWorktreeError, GitWorktreeRunner
 from gv100h.utils.case_contract import resolve_benchmark_case
 from gv100h.utils.evidence_commit import compute_reconstructed_head_commit
 from gv100h.utils.pairing import compute_canonical_pair_id
+from gv100h.runtime.attestation import RuntimeAttestation
 
 
 class ManifestValidationError(Exception):
@@ -62,6 +63,7 @@ class ManifestValidator:
             "file_snapshots_sha256",
             "tool_trace_sha256",
             "verification_sha256",
+            "runtime_attestation_sha256",
         ):
             field_value = getattr(manifest.evidence, field_name)
             if field_value is not None and (
@@ -143,6 +145,50 @@ class ManifestValidator:
                 raise ManifestValidationError(
                     f"Tamper detected: test_log_sha256 mismatch! "
                     f"Manifest claims {manifest.evidence.test_log_sha256}, physical file is {real_sim_sha}"
+                )
+
+        if manifest.runtime != "mock_replay":
+            attestation_file = bundle_path / "runtime_attestation.json"
+            if not manifest.evidence.runtime_attestation_sha256:
+                raise ManifestValidationError(
+                    "Live evidence requires runtime_attestation_sha256"
+                )
+            if not attestation_file.exists():
+                raise ManifestValidationError(
+                    "Live evidence requires runtime_attestation.json"
+                )
+            attestation_bytes = attestation_file.read_bytes()
+            if hashlib.sha256(attestation_bytes).hexdigest() != manifest.evidence.runtime_attestation_sha256:
+                raise ManifestValidationError(
+                    "runtime_attestation_sha256 does not match physical attestation"
+                )
+            try:
+                attestation = RuntimeAttestation.model_validate(
+                    json.loads(attestation_bytes.decode("utf-8"))
+                )
+            except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+                raise ManifestValidationError(
+                    f"Invalid runtime attestation: {exc}"
+                ) from exc
+            if (
+                attestation.model_id != manifest.model_id
+                or attestation.model_sha256.lower() != (manifest.model_hash or "").lower()
+                or attestation.runtime != manifest.runtime
+                or attestation.runtime_commit != manifest.runtime_commit
+                or attestation.response_model != manifest.model_id
+                or not isinstance(attestation.models_endpoint_response, dict)
+                or manifest.model_id
+                not in {
+                    item.get("id")
+                    for item in attestation.models_endpoint_response.get("data", [])
+                    if isinstance(item, dict)
+                }
+                or not manifest.evidence.endpoint_url
+                or attestation.endpoint_url.rstrip("/")
+                != manifest.evidence.endpoint_url.rstrip("/")
+            ):
+                raise ManifestValidationError(
+                    "Runtime attestation identity does not match manifest"
                 )
 
         bound_fields = {

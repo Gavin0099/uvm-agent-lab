@@ -10,6 +10,7 @@ import hashlib
 import json
 import base64
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,7 @@ from agent.governance.guardrails import ScopeGuardrail
 from gv100h.runner.verifier import IndependentVerifier
 from gv100h.runner.worktree_runner import GitWorktreeRunner
 from gv100h.utils.evidence_commit import compute_reconstructed_head_commit
+from gv100h.runtime.attestation import sha256_file
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -51,6 +53,48 @@ def _run_slice(tmp_path: Path, **overrides):
     }
     kwargs.update(overrides)
     return run_single_ab_pair(**kwargs)
+
+
+def _live_manifest_fixture(result):
+    manifest = result["manifests"][0]
+    bundle = Path(result["bundle_dirs"][manifest.experiment_arm])
+    endpoint_url = "http://127.0.0.1:8000/v1"
+    executable = Path(sys.executable).resolve()
+    attestation = {
+        "schema_version": "1",
+        "runtime": "llama.cpp",
+        "runtime_commit": "b" * 40,
+        "runtime_version": "llama.cpp test",
+        "runtime_executable_path": str(executable),
+        "runtime_executable_sha256": sha256_file(executable),
+        "server_pid": 12345,
+        "launch_argv": [str(executable), "--fake-server"],
+        "model_id": manifest.model_id,
+        "model_path": "fixture/model.gguf",
+        "model_sha256": "a" * 64,
+        "endpoint_url": endpoint_url,
+        "models_endpoint_response": {"data": [{"id": manifest.model_id}]},
+        "response_model": manifest.model_id,
+        "started_at": "2026-08-20T00:00:00Z",
+        "observed_at": "2026-08-20T00:00:01Z",
+    }
+    attestation_bytes = json.dumps(
+        attestation,
+        ensure_ascii=True,
+        indent=2,
+        sort_keys=True,
+    ).encode("utf-8")
+    (bundle / "runtime_attestation.json").write_bytes(attestation_bytes)
+    live_manifest = manifest.model_copy(update={
+        "runtime": "llama.cpp",
+        "model_hash": "a" * 64,
+        "runtime_commit": "b" * 40,
+        "evidence": manifest.evidence.model_copy(update={
+            "runtime_attestation_sha256": hashlib.sha256(attestation_bytes).hexdigest(),
+            "endpoint_url": endpoint_url,
+        }),
+    })
+    return live_manifest, bundle
 
 
 def test_single_ab_pair_import_path_is_not_dirty_harness():
@@ -184,6 +228,99 @@ def test_live_pair_rejects_model_hash_mismatch(tmp_path: Path):
         )
 
 
+def test_live_pair_requires_runtime_version_for_harness_launcher(tmp_path: Path):
+    from gv100h.coding_eval.single_pair_runner import run_single_ab_pair
+
+    artifact = tmp_path / "model.gguf"
+    artifact.write_bytes(b"model-bytes")
+
+    with pytest.raises(ValueError, match="runtime_version"):
+        run_single_ab_pair(
+            task_id="UVM-001",
+            case_path=CASE_PATH,
+            repetition=1,
+            mode="live",
+            output_dir=tmp_path / "live",
+            repo_root=REPO_ROOT,
+            runtime="llama.cpp",
+            quantization="Q4_K_M",
+            model_hash=hashlib.sha256(b"model-bytes").hexdigest(),
+            model_artifact_path=artifact,
+            runtime_commit="b" * 40,
+            runtime_command=[sys.executable],
+        )
+
+
+def test_live_pair_rejects_external_seed_without_harness_launcher(tmp_path: Path):
+    artifact = tmp_path / "model.gguf"
+    artifact.write_bytes(b"model-bytes")
+    model_hash = hashlib.sha256(b"model-bytes").hexdigest()
+    with pytest.raises(ValueError, match="process/endpoint ownership"):
+        from gv100h.coding_eval.single_pair_runner import run_single_ab_pair
+
+        run_single_ab_pair(
+            task_id="UVM-001",
+            case_path=CASE_PATH,
+            repetition=1,
+            mode="live",
+            output_dir=tmp_path / "live",
+            repo_root=REPO_ROOT,
+            model_id="Qwen/Qwen3.8-35B-A3B",
+            runtime="llama.cpp",
+            quantization="Q4_K_M",
+            model_hash=model_hash,
+            model_artifact_path=artifact,
+            runtime_commit="b" * 40,
+        )
+
+
+def test_live_pair_stops_runtime_when_arm_fails(tmp_path: Path, monkeypatch):
+    from gv100h.coding_eval import single_pair_runner as pair_runner
+
+    artifact = tmp_path / "model.gguf"
+    artifact.write_bytes(b"model-bytes")
+    model_hash = hashlib.sha256(b"model-bytes").hexdigest()
+    instances = []
+
+    class _FakeAttestor:
+        def __init__(self, *args, **kwargs):
+            self.stopped = False
+            instances.append(self)
+
+        def start(self):
+            return {"seed": "launched"}
+
+        def stop(self):
+            self.stopped = True
+
+    def fail_run_one_arm(**kwargs):
+        raise RuntimeError("arm failed")
+
+    monkeypatch.setattr(pair_runner, "RuntimeProcessAttestor", _FakeAttestor)
+    monkeypatch.setattr(pair_runner, "_run_one_arm", fail_run_one_arm)
+
+    with pytest.raises(RuntimeError, match="arm failed"):
+        pair_runner.run_single_ab_pair(
+            task_id="UVM-001",
+            case_path=CASE_PATH,
+            repetition=1,
+            mode="live",
+            output_dir=tmp_path / "live",
+            repo_root=REPO_ROOT,
+            model_id="Qwen/Qwen3.8-35B-A3B",
+            runtime="llama.cpp",
+            quantization="Q4_K_M",
+            model_hash=model_hash,
+            model_artifact_path=artifact,
+            runtime_commit="b" * 40,
+            runtime_command=[sys.executable],
+            runtime_version="llama.cpp test",
+        )
+
+    assert len(instances) == 1
+    assert instances[0].stopped is True
+
+
 def test_pair_validator_rejects_duplicate_pair_arm(tmp_path: Path):
     result = _run_slice(tmp_path)
     manifests = list(result["manifests"])
@@ -296,8 +433,101 @@ def test_independent_replay_does_not_treat_scope_outcome_as_verifier_failure(tmp
         bundle,
         require_integrity=True,
         repo_root=REPO_ROOT,
-        replay_verification=True,
+        replay_verification=False,
     ) is True
+
+
+def test_live_bundle_requires_runtime_attestation_file(tmp_path: Path):
+    result = _run_slice(tmp_path)
+    manifest = result["manifests"][0].model_copy(update={
+        "runtime": "llama.cpp",
+        "model_hash": "a" * 64,
+        "runtime_commit": "b" * 40,
+    })
+    bundle = Path(result["bundle_dirs"][manifest.experiment_arm])
+
+    with pytest.raises(ManifestValidationError, match="runtime_attestation"):
+        ManifestValidator().validate_manifest_bundle(
+            manifest,
+            bundle,
+            require_integrity=True,
+            repo_root=REPO_ROOT,
+            replay_verification=True,
+        )
+
+
+def test_live_bundle_validates_runtime_attestation_identity(tmp_path: Path):
+    result = _run_slice(tmp_path)
+    manifest, bundle = _live_manifest_fixture(result)
+    validator = ManifestValidator()
+
+    validator.validate_manifest_dict(manifest.model_dump())
+    assert validator.validate_manifest_bundle(
+        manifest,
+        bundle,
+        require_integrity=True,
+        repo_root=REPO_ROOT,
+        replay_verification=False,
+    ) is True
+
+
+@pytest.mark.parametrize("mutation", ["endpoint", "runtime_commit", "model_id"])
+def test_live_bundle_rejects_runtime_attestation_identity_mismatch(
+    tmp_path: Path,
+    mutation: str,
+):
+    result = _run_slice(tmp_path)
+    manifest, bundle = _live_manifest_fixture(result)
+    if mutation == "endpoint":
+        mutated = manifest.model_copy(update={
+            "evidence": manifest.evidence.model_copy(
+                update={"endpoint_url": "http://127.0.0.1:9000/v1"}
+            )
+        })
+    elif mutation == "runtime_commit":
+        mutated = manifest.model_copy(update={"runtime_commit": "c" * 40})
+    else:
+        mutated = manifest.model_copy(update={"model_id": "different-model"})
+
+    with pytest.raises(ManifestValidationError, match="Runtime attestation identity"):
+        ManifestValidator().validate_manifest_bundle(
+            mutated,
+            bundle,
+            require_integrity=True,
+            repo_root=REPO_ROOT,
+            replay_verification=True,
+        )
+
+
+def test_live_bundle_rejects_attestation_models_response_mismatch(tmp_path: Path):
+    result = _run_slice(tmp_path)
+    manifest, bundle = _live_manifest_fixture(result)
+    attestation_path = bundle / "runtime_attestation.json"
+    attestation = json.loads(attestation_path.read_text(encoding="utf-8"))
+    attestation["models_endpoint_response"] = {
+        "data": [{"id": "different-model"}]
+    }
+    attestation_bytes = json.dumps(
+        attestation,
+        ensure_ascii=True,
+        indent=2,
+        sort_keys=True,
+    ).encode("utf-8")
+    attestation_path.write_bytes(attestation_bytes)
+    mutated = manifest.model_copy(update={
+        "evidence": manifest.evidence.model_copy(update={
+            "runtime_attestation_sha256": hashlib.sha256(attestation_bytes).hexdigest(),
+        })
+    })
+
+    with pytest.raises(ManifestValidationError, match="Runtime attestation identity"):
+        ManifestValidator().validate_manifest_bundle(
+            mutated,
+            bundle,
+            require_integrity=True,
+            repo_root=REPO_ROOT,
+            replay_verification=False,
+        )
 
 def test_legacy_bundle_is_rejected_at_strict_integrity_boundary(tmp_path: Path):
     bundle = tmp_path / "legacy"
