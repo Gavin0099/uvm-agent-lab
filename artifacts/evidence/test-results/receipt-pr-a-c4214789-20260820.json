@@ -1,0 +1,17 @@
+{
+  "receipt_schema": "test_evidence_receipt.v0.1",
+  "status": "report_only",
+  "command": "C:\\Users\\reiko\\AppData\\Local\\Programs\\Python\\Python313\\python.exe -X utf8 -m pytest -q tests/ --ignore=tests/gv100h/test_m05_e2e_pipeline.py --basetemp .tmp_pr_a_receipt_c4214789",
+  "exit_code": 0,
+  "started_at": "2026-08-20T05:57:00Z",
+  "finished_at": "2026-08-20T06:00:53Z",
+  "runner": "governance_tools.test_evidence_receipt_writer",
+  "linked_commit": "c4214789de21122a4111c655e1222d179912b717",
+  "output_artifacts": [
+    "artifacts/evidence/test-results/receipt-pr-a-c4214789-20260820.txt"
+  ],
+  "cannot_claim": [
+    "semantic correctness of the tested behavior",
+    "receipt authenticity: every field is fabricatable by a direct writer"
+  ]
+}
