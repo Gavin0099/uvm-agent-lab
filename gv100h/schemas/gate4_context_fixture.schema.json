@@ -31,23 +31,23 @@
   "allOf": [
     {
       "if": { "properties": { "context_length": { "const": 32768 } } },
-      "then": { "properties": { "actual_prompt_tokens": { "minimum": 29491 } } }
+      "then": { "properties": { "actual_prompt_tokens": { "minimum": 29491, "maximum": 32768 } } }
     },
     {
       "if": { "properties": { "context_length": { "const": 65536 } } },
-      "then": { "properties": { "actual_prompt_tokens": { "minimum": 58982 } } }
+      "then": { "properties": { "actual_prompt_tokens": { "minimum": 58982, "maximum": 65536 } } }
     },
     {
       "if": { "properties": { "context_length": { "const": 131072 } } },
-      "then": { "properties": { "actual_prompt_tokens": { "minimum": 117964 } } }
+      "then": { "properties": { "actual_prompt_tokens": { "minimum": 117964, "maximum": 131072 } } }
     },
     {
       "if": { "properties": { "context_length": { "const": 196608 } } },
-      "then": { "properties": { "actual_prompt_tokens": { "minimum": 176947 } } }
+      "then": { "properties": { "actual_prompt_tokens": { "minimum": 176947, "maximum": 196608 } } }
     },
     {
       "if": { "properties": { "context_length": { "const": 262144 } } },
-      "then": { "properties": { "actual_prompt_tokens": { "minimum": 235929 } } }
+      "then": { "properties": { "actual_prompt_tokens": { "minimum": 235929, "maximum": 262144 } } }
     }
   ]
 }

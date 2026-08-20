@@ -192,7 +192,12 @@ def test_live_missing_hardware_fields_are_metric_missing_not_synthetic_pass():
         vram_per_gpu=14.96,
         hw_budget={"per_gpu_vram_gb": 14.96},
     )
-    decision = evaluator.evaluate(qa_res, coding_res, missing)
+    decision = evaluator.evaluate(
+        qa_res,
+        coding_res,
+        missing,
+        expected_candidate_name="candidate_a_llama_cpp_gguf",
+    )
     vram_gate = next(g for g in decision.gates if g.gate_name == "hardware_feasibility.max_vram_usage_per_gpu_gb")
     tps_gate = next(g for g in decision.gates if g.gate_name == "hardware_feasibility.min_est_decode_tps")
     assert vram_gate.observed == "METRIC_MISSING"
@@ -250,7 +255,12 @@ def _live_inputs_for_decision():
 def test_non_human_gate_failure_cannot_be_conditional_go():
     qa_res, coding_res, hardware = _live_inputs_for_decision()
     coding_res.arm_b_governed_sidecar["task_success_rate"] = 10.0
-    decision = QualificationPolicyEvaluator().evaluate(qa_res, coding_res, hardware)
+    decision = QualificationPolicyEvaluator().evaluate(
+        qa_res,
+        coding_res,
+        hardware,
+        expected_candidate_name="candidate_a_llama_cpp_gguf",
+    )
 
     assert decision.decision == "NO_GO"
 
@@ -259,7 +269,12 @@ def test_profile_gate_failure_forces_no_go_even_when_numeric_metrics_pass():
     qa_res, coding_res, hardware = _live_inputs_for_decision()
     hardware["gate_passed"] = False
 
-    decision = QualificationPolicyEvaluator().evaluate(qa_res, coding_res, hardware)
+    decision = QualificationPolicyEvaluator().evaluate(
+        qa_res,
+        coding_res,
+        hardware,
+        expected_candidate_name="candidate_a_llama_cpp_gguf",
+    )
 
     assert decision.decision == "NO_GO"
     profile_gate = next(
@@ -273,7 +288,12 @@ def test_operator_attested_model_provenance_forces_no_go():
     qa_res, coding_res, hardware = _live_inputs_for_decision()
     hardware["model_provenance_independent"] = False
 
-    decision = QualificationPolicyEvaluator().evaluate(qa_res, coding_res, hardware)
+    decision = QualificationPolicyEvaluator().evaluate(
+        qa_res,
+        coding_res,
+        hardware,
+        expected_candidate_name="candidate_a_llama_cpp_gguf",
+    )
 
     assert decision.decision == "NO_GO"
     provenance_gate = next(
@@ -293,17 +313,35 @@ def test_production_hardware_mapping_preserves_profile_gate_identity():
             "corruption_count": 0,
             "vram_peak_per_gpu_gb": 18.0,
             "decode_tps": 20.0,
+            "success_count": 100,
+            "prefill_evidence": True,
+            "prefill_tps": 100.0,
+            "prefill_latency_sec": 1.0,
+            "prefill_tokens": 100,
+            "decode_evidence": True,
+            "decode_tokens": 128,
             "hardware_observed": True,
-            "gate_passed": True,
+            "gate_passed": False,
             "profile_identity": {"profile_id": "candidate_a_llama_cpp_gguf"},
             "model_provenance_ready": True,
             "model_provenance_independent": True,
+            "runtime_process_owned": True,
+            "runtime_attestation_bound": True,
             "context_fixture_bound": True,
             "launch_context_bound": True,
+            "launch_profile_arm_consistent": True,
+            "expected_response_hash_bound": True,
+            "gpu_telemetry": {
+                "initial": {
+                    "gpu_count": 2,
+                    "nvlink": {"nvlink_observed": True},
+                }
+            },
             "response_oracle": "strict-v1",
         },
         vram_per_gpu=14.96,
         hw_budget={"per_gpu_vram_gb": 14.96},
+        expected_candidate_name="candidate_a_llama_cpp_gguf",
     )
 
     assert mapped["model_id"] == "Qwen3.8-27B"
@@ -325,23 +363,46 @@ def test_profile_summary_mapping_reaches_qualification_gate():
         "corruption_count": hardware["corruption_count"],
         "vram_peak_per_gpu_gb": hardware["vram_peak_per_gpu_gb"],
         "decode_tps": hardware["decode_tps"],
+        "success_count": 100,
+        "prefill_evidence": True,
+        "prefill_tps": 100.0,
+        "prefill_latency_sec": 1.0,
+        "prefill_tokens": 100,
+        "decode_evidence": True,
+        "decode_tokens": 128,
         "hardware_observed": hardware["hardware_observed"],
         "gate_passed": hardware["gate_passed"],
         "profile_identity": hardware["profile_identity"],
         "model_provenance_ready": True,
         "model_provenance_independent": True,
+        "runtime_process_owned": True,
+        "runtime_attestation_bound": True,
         "context_fixture_bound": True,
         "launch_context_bound": True,
+        "launch_profile_arm_consistent": True,
+        "expected_response_hash_bound": True,
+        "gpu_telemetry": {
+            "initial": {
+                "gpu_count": 2,
+                "nvlink": {"nvlink_observed": True},
+            }
+        },
         "response_oracle": "strict-v1",
     }
     mapped = build_hardware_profile(
         profile_summary,
         vram_per_gpu=14.96,
         hw_budget={"per_gpu_vram_gb": 14.96},
+        expected_candidate_name="candidate_a_llama_cpp_gguf",
     )
     hardware.update(mapped)
 
-    decision = QualificationPolicyEvaluator().evaluate(qa_res, coding_res, hardware)
+    decision = QualificationPolicyEvaluator().evaluate(
+        qa_res,
+        coding_res,
+        hardware,
+        expected_candidate_name="candidate_a_llama_cpp_gguf",
+    )
 
     assert next(
         gate for gate in decision.gates
@@ -375,7 +436,12 @@ def test_profile_identity_mismatch_forces_no_go():
     hardware["profile_identity"] = dict(hardware["profile_identity"])
     hardware["profile_identity"]["spec_draft_n_max"] = 2
 
-    decision = QualificationPolicyEvaluator().evaluate(qa_res, coding_res, hardware)
+    decision = QualificationPolicyEvaluator().evaluate(
+        qa_res,
+        coding_res,
+        hardware,
+        expected_candidate_name="candidate_a_llama_cpp_gguf",
+    )
 
     assert decision.decision == "NO_GO"
     identity_gate = next(
@@ -385,9 +451,41 @@ def test_profile_identity_mismatch_forces_no_go():
     assert identity_gate.passed is False
 
 
+def test_observed_self_declared_candidate_cannot_override_expected_candidate():
+    qa_res, coding_res, hardware = _live_inputs_for_decision()
+    observed_candidate = RuntimeAdmissionMatrix.get_candidate(
+        "candidate_b_pinned_vllm_gptq"
+    )
+    hardware["profile_identity"] = canonical_profile_identity(
+        observed_candidate,
+        model_id="Qwen3.8-27B",
+        kv_cache_type_k="engine_managed",
+        kv_cache_type_v="engine_managed",
+    )
+    hardware["model_id"] = "Qwen3.8-27B"
+
+    decision = QualificationPolicyEvaluator().evaluate(
+        qa_res,
+        coding_res,
+        hardware,
+        expected_candidate_name="candidate_a_llama_cpp_gguf",
+    )
+
+    identity_gate = next(
+        gate for gate in decision.gates
+        if gate.gate_name == "hardware_feasibility.profile_identity"
+    )
+    assert identity_gate.passed is False
+
+
 def test_missing_human_rating_is_pending_not_conditional_go():
     qa_res, coding_res, hardware = _live_inputs_for_decision()
-    decision = QualificationPolicyEvaluator().evaluate(qa_res, coding_res, hardware)
+    decision = QualificationPolicyEvaluator().evaluate(
+        qa_res,
+        coding_res,
+        hardware,
+        expected_candidate_name="candidate_a_llama_cpp_gguf",
+    )
 
     assert decision.decision == "PENDING_HUMAN_REVIEW"
     assert decision.details["human_review"]["status"] == "PENDING"
@@ -396,7 +494,12 @@ def test_missing_human_rating_is_pending_not_conditional_go():
 def test_cat_d_failure_is_no_go():
     qa_res, coding_res, hardware = _live_inputs_for_decision()
     qa_res.cat_d_adversarial_pass_rate = 0.0
-    decision = QualificationPolicyEvaluator().evaluate(qa_res, coding_res, hardware)
+    decision = QualificationPolicyEvaluator().evaluate(
+        qa_res,
+        coding_res,
+        hardware,
+        expected_candidate_name="candidate_a_llama_cpp_gguf",
+    )
 
     assert decision.decision == "NO_GO"
     cat_d = next(g for g in decision.gates if g.gate_name == "spec_qa.min_adversarial_pass_rate")
@@ -407,7 +510,12 @@ def test_human_acceptance_below_conditional_floor_is_no_go():
     qa_res, coding_res, hardware = _live_inputs_for_decision()
     coding_res.arm_b_governed_sidecar["human_acceptance_a_b_rate"] = 50.0
 
-    decision = QualificationPolicyEvaluator().evaluate(qa_res, coding_res, hardware)
+    decision = QualificationPolicyEvaluator().evaluate(
+        qa_res,
+        coding_res,
+        hardware,
+        expected_candidate_name="candidate_a_llama_cpp_gguf",
+    )
 
     assert decision.decision == "NO_GO"
 
@@ -417,7 +525,12 @@ def test_non_live_qa_evidence_cannot_produce_go():
     qa_res.evidence_class = "deterministic_offline"
     qa_res.admissible_for_model_qualification = False
 
-    decision = QualificationPolicyEvaluator().evaluate(qa_res, coding_res, hardware)
+    decision = QualificationPolicyEvaluator().evaluate(
+        qa_res,
+        coding_res,
+        hardware,
+        expected_candidate_name="candidate_a_llama_cpp_gguf",
+    )
 
     assert decision.decision == "NO_GO — synthetic/offline scaffold only"
     assert decision.is_synthetic is True

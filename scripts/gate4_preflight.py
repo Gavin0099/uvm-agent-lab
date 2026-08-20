@@ -16,6 +16,7 @@ from gv100h.runtime.ssot import GV100H_BASELINE
 from gv100h.runtime.model_provenance import (
     ModelArtifactManifest,
     load_model_manifest,
+    verify_model_verification_receipt,
 )
 from gv100h.runtime.launch_profiles import LaunchProfileError, resolve_launch_command
 
@@ -64,6 +65,7 @@ def build_preflight_report(
     config_path: Optional[Path] = None,
     model_path: Optional[Path] = None,
     model_manifest_path: Optional[Path] = None,
+    model_verification_receipt_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
     root = Path(repo_root).resolve()
     config_file = (config_path or root / "deploy" / "llama_cpp_gv100.yaml").resolve()
@@ -100,6 +102,19 @@ def build_preflight_report(
         except ValueError as exc:
             model_manifest_error = str(exc)
 
+    configured_receipt = config_data.get("model_verification_receipt")
+    if model_verification_receipt_path is not None:
+        receipt_file = Path(model_verification_receipt_path)
+        if not receipt_file.is_absolute():
+            receipt_file = root / receipt_file
+    elif configured_receipt:
+        receipt_file = Path(str(configured_receipt))
+        if not receipt_file.is_absolute():
+            receipt_file = root / receipt_file
+    else:
+        receipt_file = root / "deploy" / "gate4_model_verification_receipt.json"
+    receipt_file = receipt_file.resolve()
+
     artifact_path = Path(model_path).resolve() if model_path else None
     model_artifact_present = bool(artifact_path and artifact_path.is_file())
     model_artifact_hash: Optional[str] = None
@@ -116,6 +131,22 @@ def build_preflight_report(
         and model_artifact_present
         and model_artifact_hash_matches
     )
+    model_provenance_independent = False
+    model_receipt_error: Optional[str] = (
+        "independent model verification receipt not supplied"
+    )
+    if model_manifest is not None and artifact_path is not None and receipt_file.is_file():
+        try:
+            verify_model_verification_receipt(
+                manifest_file,
+                artifact_path,
+                receipt_file,
+                expected_model_id=GV100H_BASELINE.model_id,
+                expected_model_artifact=GV100H_BASELINE.model_artifact,
+            )
+            model_provenance_independent = True
+        except ValueError as exc:
+            model_receipt_error = str(exc)
     launch_profile_results: Dict[str, Any] = {}
     for profile_id in ("mtp_off", "mtp_n2"):
         try:
@@ -268,13 +299,18 @@ def build_preflight_report(
             "expected_sha256": model_manifest.model_sha256 if model_manifest else None,
             "provenance_class": model_manifest.provenance_class if model_manifest else None,
             "independent_verification": (
-                model_manifest.independent_verification if model_manifest else False
+                model_provenance_independent
             ),
             "claim_ceiling": (
-                "operator_attested_model_bytes"
+                "independently_verified_model_bytes"
+                if model_provenance_independent
+                else "operator_attested_model_bytes"
                 if model_manifest is not None
                 else "model_provenance_missing"
             ),
+            "receipt_path": str(receipt_file),
+            "receipt_present": receipt_file.is_file(),
+            "receipt_error": model_receipt_error,
             "artifact_path": str(artifact_path) if artifact_path else None,
             "artifact_present": model_artifact_present,
             "artifact_sha256": model_artifact_hash,
@@ -292,6 +328,13 @@ def build_preflight_report(
         "hardware_observed": hardware_observed,
         "bringup_ready": bringup_ready,
         "qualification_admissible": False,
+        "qualification_blockers": (
+            []
+            if model_provenance_independent
+            else [
+                "independent model verification receipt is missing or invalid"
+            ]
+        ),
         "claim_ceiling": "pre-hardware-readiness-only",
         "blockers": blockers,
     }
@@ -303,6 +346,7 @@ def main() -> int:
     parser.add_argument("--config", default=None)
     parser.add_argument("--model-path", default=None)
     parser.add_argument("--model-manifest", default=None)
+    parser.add_argument("--model-verification-receipt", default=None)
     parser.add_argument(
         "--require-bringup",
         action="store_true",
@@ -316,6 +360,11 @@ def main() -> int:
         config_path=Path(args.config) if args.config else None,
         model_path=Path(args.model_path) if args.model_path else None,
         model_manifest_path=Path(args.model_manifest) if args.model_manifest else None,
+        model_verification_receipt_path=(
+            Path(args.model_verification_receipt)
+            if args.model_verification_receipt
+            else None
+        ),
     )
     rendered = json.dumps(report, indent=2, ensure_ascii=False)
     print(rendered)

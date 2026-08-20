@@ -29,6 +29,8 @@ def _summary(**overrides):
         "model_artifact_hash": "a" * 64,
         "model_provenance_ready": True,
         "model_provenance_independent": True,
+        "runtime_process_owned": True,
+        "runtime_attestation_bound": True,
         "kv_cache_type_k": "q8_0",
         "kv_cache_type_v": "q8_0",
         "vram_peak_per_gpu_gb": 18.0,
@@ -340,6 +342,7 @@ def test_profile_endpoint_binds_context_prompt_and_response_hash(tmp_path, monke
         api_key="test-token",
         launch_profile_config_path=str(launch_config),
         launch_profile_id="mtp_off",
+        require_harness_owned_runtime=False,
     )
 
     request_payload = json.loads(captured["request"].data.decode("utf-8"))
@@ -348,6 +351,8 @@ def test_profile_endpoint_binds_context_prompt_and_response_hash(tmp_path, monke
     assert summary["context_fixture_bound"] is True
     assert summary["launch_context_bound"] is True
     assert summary["context_cell"]["actual_prompt_tokens"] == 30000
+    assert summary["request_timeout_source"] == "context_aware_default"
+    assert summary["request_timeout_sec"] == 120.0
     assert summary["success_count"] == 1
     assert summary["corruption_count"] == 0
 

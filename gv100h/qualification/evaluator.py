@@ -46,7 +46,9 @@ class QualificationPolicyEvaluator:
         self,
         qa_result: QAEvaluationResult,
         coding_summary: ABExperimentSummary,
-        hardware_profile: Dict[str, Any]
+        hardware_profile: Dict[str, Any],
+        *,
+        expected_candidate_name: Optional[str] = None,
     ) -> QualificationDecision:
         gates_cfg = self.policy.get("policy_gates", {})
         gates: List[GateResult] = []
@@ -202,37 +204,47 @@ class QualificationPolicyEvaluator:
         )
         gates.append(g_hw_profile_gate)
 
+        expected_candidate = None
+        if expected_candidate_name:
+            try:
+                expected_candidate = RuntimeAdmissionMatrix.get_candidate(
+                    expected_candidate_name
+                )
+            except KeyError:
+                expected_candidate = None
         observed_identity = hardware_profile.get("profile_identity")
         expected_identity = None
         identity_passed = False
-        if isinstance(observed_identity, dict):
+        if expected_candidate is not None and isinstance(observed_identity, dict):
             try:
-                profile_candidate = RuntimeAdmissionMatrix.get_candidate(
-                    str(observed_identity.get("profile_id", ""))
-                )
                 observed_model_id = str(hardware_profile.get("model_id", ""))
                 observed_k = str(observed_identity.get("kv_cache_type_k", ""))
                 observed_v = str(observed_identity.get("kv_cache_type_v", ""))
-                allowed_kv = set(profile_candidate.kv_cache_variants)
+                allowed_kv = set(expected_candidate.kv_cache_variants)
                 if not allowed_kv:
                     allowed_kv = {
-                        profile_candidate.kv_cache_type_k,
-                        profile_candidate.kv_cache_type_v,
+                        expected_candidate.kv_cache_type_k,
+                        expected_candidate.kv_cache_type_v,
                     }
                 if (
-                    observed_model_id in profile_candidate.supported_models
+                    observed_identity.get("profile_id") == expected_candidate.name
+                    and observed_identity.get("launch_profile_id")
+                    == expected_candidate.launch_profile_id
+                    and observed_model_id in expected_candidate.supported_models
                     and observed_k in allowed_kv
                     and observed_v in allowed_kv
                 ):
                     expected_identity = canonical_profile_identity(
-                        profile_candidate,
+                        expected_candidate,
                         model_id=observed_model_id,
                         kv_cache_type_k=observed_k,
                         kv_cache_type_v=observed_v,
                     )
                     identity_passed = observed_identity == expected_identity
-            except KeyError:
+            except (KeyError, TypeError):
                 identity_passed = False
+        elif hardware_profile.get("hardware_observed") is True:
+            expected_identity = "explicit expected candidate required"
         g_hw_profile_identity = GateResult(
             gate_name="hardware_feasibility.profile_identity",
             required=expected_identity or "METRIC_MISSING",

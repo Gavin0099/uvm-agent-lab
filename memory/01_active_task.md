@@ -2,9 +2,18 @@
 
 <!-- governance:reviewer_verified -->
 
-> **最後更新**: 2026-08-18
+> **最後更新**: 2026-08-20
 > **Owner**: Gavin0099
-> **狀態**: Active (M0.5 Evidence Pipeline Admission — human review REJECT; keep NO_GO — synthetic)
+> **狀態**: Active (Gate 4 repair implementation complete; PR pending; qualification blocked; keep NO_GO)
+
+## 🔒 Current Truth (2026-08-20)
+- PR #6 runtime attestation and PR #7 Gate 4 execution-contract slices are merged into `main` at `ce200d58`, but post-merge review found that G4.1 must not be marked `CLOSED`.
+- Repair branch `fix/gv100h-gate4-repair` completed the independent model provenance, harness-owned runtime execution, context-aware timeout evidence, raw profile re-evaluation, expected candidate identity, selected-pair NVLink evidence, and schema consistency hardening.
+- Fresh read-only subagent review: `PASS`, no P0/P1 findings. Residual P2: the independent receipt still relies on organizational approval of the supplied external values, not a cryptographic signature.
+- Validation: final focused contract suite `25 passed`; final isolated tracked suite `213 passed`; 2 hardware-dependent tests skipped. CI benchmark/retrieval/validators/drift/quickstart steps passed.
+- Gate 4 status: `CHANGES_REQUIRED` / `Gate4 bring-up partially ready`.
+- Qualification status: `NOT_READY` / blocked by missing real runtime, exact GGUF, independent receipt, and physical GPU telemetry. Keep `NO_GO`.
+- Software evidence is not hardware qualification evidence. Do not claim live llama.cpp/vLLM execution, GPU/NVLink qualification, or `GO`.
 
 ## 📌 Project Overview
 `uvm-agent-lab` is an industrial-grade evaluation and self-healing agent testbed for LLM-assisted IEEE 1800.2 UVM digital chip verification. It features deterministic benchmarking, multi-turn syntax/timing self-healing, functional coverage closure, real EDA toolchain adapters, MCP protocol knowledge integration, and zero-trust AI governance.
@@ -81,11 +90,13 @@
 - **Generic Qualification Policy & Offline Scaffold (not admitted)**:
   - `qualification_policy.yaml` exists with declared gates; human review still REJECTS the M0.5 `approved` receipt.
   - Keep `QualificationDecision = NO_GO — synthetic/offline scaffold only`. Do not treat Pipeline Admission as PASS.
+- **Gate 4 G4.1 software slice**:
+  - PR #7 is merged, but its execution contracts are not a qualification closeout; the repair PR must complete the trust-chain corrections before hardware bring-up.
 
 ---
 
 ## 🎯 Next Steps & Future Roadmap
-1. **M0.5 P0 repair (blocking)**: Aggregator must revalidate physical Evidence Bundles; hardware profile field mapping must not treat synthetic fallback as live.
-2. **Do not close M0.5** on the advisory subagent `approved` receipt; human review remains REJECT.
-3. **Live Inference Deployment**: only after M0.5 admission is actually repaired and re-reviewed.
-4. **Physical GPU Telemetry / live eval**: still pending; current qualification stays `NO_GO — synthetic`.
+1. **Gate 4 repair PR (blocking)**: complete receipt-backed provenance, harness-owned runtime lifecycle, raw gate re-evaluation, explicit candidate binding, selected-pair NVLink evidence, and schema tests.
+2. **Fresh subagent review**: review the repair branch before any hardware qualification claim.
+3. **Physical bring-up**: supply and hash `llama-server`, the exact Qwen GGUF, independent verification receipt, and observed GPU telemetry.
+4. **Qualification**: run the real context/profile sweep and live A/B evidence only after bring-up is ready; current qualification stays `NOT_READY` / `NO_GO`.

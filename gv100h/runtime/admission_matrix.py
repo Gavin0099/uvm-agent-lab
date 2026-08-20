@@ -1,7 +1,7 @@
 import hashlib
 import json
 from typing import List, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from gv100h.runtime.ssot import GV100H_BASELINE, GV100_MTP_N2
 
@@ -18,6 +18,7 @@ class RuntimeCandidate(BaseModel):
     model_artifact: str = ""
     launch_profile_id: str = ""
     gpu_count: int = 1
+    selected_gpu_pair: List[int] = Field(default_factory=list)
     kv_cache_type: str = "F16"
     kv_cache_type_k: str = "q8_0"
     kv_cache_type_v: str = "q8_0"
@@ -119,6 +120,7 @@ class RuntimeAdmissionMatrix:
             positioning="Experimental Throughput Acceleration",
             launch_profile_id="candidate_b_pinned_vllm_gptq",
             gpu_count=2,
+            selected_gpu_pair=[0, 1],
             exit_gate_criteria={
                 "min_success_requests": 100,
                 "max_corruption_count": 0,
@@ -138,6 +140,7 @@ class RuntimeAdmissionMatrix:
             supported_models=["Qwen/Qwen3.8-27B"],
             positioning="Golden Output Reference / Ground Truth Baseline",
             gpu_count=2,
+            selected_gpu_pair=[0, 1],
             exit_gate_criteria={
                 "min_success_requests": 10,
                 "max_corruption_count": 0,
@@ -180,6 +183,7 @@ def canonical_profile_identity(
         "quantization": candidate.quantization,
         "tensor_parallel": candidate.tensor_parallel,
         "gpu_count": candidate.gpu_count,
+        "selected_gpu_pair": list(candidate.selected_gpu_pair),
         "parallel": candidate.parallel,
         "mtp_enabled": candidate.mtp_enabled,
         "spec_draft_n_max": candidate.spec_draft_n_max,

@@ -6,6 +6,9 @@ import pytest
 import yaml
 
 from scripts.gate4_preflight import build_preflight_report
+from scripts.create_gate4_model_manifest import build_manifest
+from scripts.verify_gate4_model_manifest import build_receipt
+from gv100h.runtime.model_provenance import verify_model_verification_receipt
 from gv100h.runtime.launch_profiles import LaunchProfileError, resolve_launch_command
 
 
@@ -146,6 +149,8 @@ def test_preflight_accepts_approved_model_manifest_and_matching_artifact(
                 "model_revision": "revision-20260820",
                 "model_artifact": "Qwen3.8-27B-Q4_K_M.gguf",
                 "model_sha256": artifact_hash,
+                "provenance_class": "operator_attested",
+                "independent_verification": False,
             }
         ),
         encoding="utf-8",
@@ -183,6 +188,8 @@ def test_preflight_rejects_artifact_with_unapproved_hash(tmp_path: Path, monkeyp
                 "model_revision": "revision-20260820",
                 "model_artifact": "Qwen3.8-27B-Q4_K_M.gguf",
                 "model_sha256": "0" * 64,
+                "provenance_class": "operator_attested",
+                "independent_verification": False,
             }
         ),
         encoding="utf-8",
@@ -200,6 +207,81 @@ def test_preflight_rejects_artifact_with_unapproved_hash(tmp_path: Path, monkeyp
     assert report["model_provenance"]["ready"] is False
     assert report["bringup_ready"] is False
     assert any("SHA-256" in blocker for blocker in report["blockers"])
+
+
+def test_independent_model_verification_receipt_binds_manifest_and_artifact(
+    tmp_path: Path,
+):
+    artifact = tmp_path / "Qwen3.8-27B-Q4_K_M.gguf"
+    artifact.write_bytes(b"approved-model-bytes")
+    artifact_hash = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    manifest_path = tmp_path / "model-manifest.json"
+    receipt_path = tmp_path / "verification-receipt.json"
+    build_manifest(
+        artifact,
+        model_source="https://models.example.invalid/qwen38",
+        model_revision="revision-20260820",
+        output_path=manifest_path,
+    )
+    build_receipt(
+        manifest_path,
+        artifact,
+        approved_sha256=artifact_hash,
+        approved_source="https://models.example.invalid/qwen38",
+        approved_revision="revision-20260820",
+        verifier_id="release-checksum-verifier",
+        verification_basis="vendor-release-checksum",
+        output_path=receipt_path,
+    )
+
+    receipt = verify_model_verification_receipt(
+        manifest_path,
+        artifact,
+        receipt_path,
+        expected_model_id="Qwen3.8-27B",
+        expected_model_artifact="Qwen3.8-27B-Q4_K_M.gguf",
+    )
+
+    assert receipt["independent_verification"] is True
+    assert receipt["approved_artifact_sha256"] == artifact_hash
+
+
+def test_preflight_reports_independent_model_receipt(tmp_path: Path, monkeypatch):
+    config = tmp_path / "llama.yaml"
+    config.write_text(yaml.safe_dump(_matching_config()), encoding="utf-8")
+    artifact = tmp_path / "Qwen3.8-27B-Q4_K_M.gguf"
+    artifact.write_bytes(b"approved-model-bytes")
+    artifact_hash = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    manifest_path = tmp_path / "model-manifest.json"
+    receipt_path = tmp_path / "verification-receipt.json"
+    build_manifest(
+        artifact,
+        model_source="https://models.example.invalid/qwen38",
+        model_revision="revision-20260820",
+        output_path=manifest_path,
+    )
+    build_receipt(
+        manifest_path,
+        artifact,
+        approved_sha256=artifact_hash,
+        approved_source="https://models.example.invalid/qwen38",
+        approved_revision="revision-20260820",
+        verifier_id="release-checksum-verifier",
+        verification_basis="vendor-release-checksum",
+        output_path=receipt_path,
+    )
+    monkeypatch.setattr("shutil.which", lambda _name: "tool")
+
+    report = build_preflight_report(
+        repo_root=tmp_path,
+        config_path=config,
+        model_path=artifact,
+        model_manifest_path=manifest_path,
+        model_verification_receipt_path=receipt_path,
+    )
+
+    assert report["model_provenance"]["independent_verification"] is True
+    assert report["qualification_blockers"] == []
 
 
 def test_preflight_exit_code_can_require_full_bringup():

@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Gate4ModelVerificationReceipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "verification_status",
+    "independent_verification",
+    "verifier_id",
+    "verified_at",
+    "verification_basis",
+    "manifest_sha256",
+    "artifact_sha256",
+    "approved_artifact_sha256",
+    "model_source",
+    "model_revision"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "verification_status": { "type": "string", "const": "verified" },
+    "independent_verification": { "type": "boolean", "const": true },
+    "verifier_id": { "type": "string", "minLength": 1 },
+    "verified_at": { "type": "string", "minLength": 1 },
+    "verification_basis": { "type": "string", "minLength": 1 },
+    "manifest_sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "artifact_sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "approved_artifact_sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "model_source": { "type": "string", "minLength": 1 },
+    "model_revision": { "type": "string", "minLength": 1 }
+  }
+}
