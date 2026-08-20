@@ -2,6 +2,7 @@
 # not local qualification evidence. Run MTP OFF and n-max=2 on the same host.
 model_id: "Qwen3.8-27B"
 model_artifact: "Qwen3.8-27B-Q4_K_M.gguf"
+model_manifest: "deploy/gate4_model_manifest.json"
 runtime: "llama.cpp"
 quantization: "Q4_K_M"
 gpu_count: 1
@@ -18,11 +19,13 @@ parallel: 1
 
 profiles:
   mtp_off:
-    spec_type: null
+    spec_type: "none"
     spec_draft_n_max: 0
+    launch_args: ["--spec-type", "{spec_type}", "--spec-draft-n-max", "{spec_draft_n_max}"]
   mtp_n2:
     spec_type: "draft-mtp"
     spec_draft_n_max: 2
+    launch_args: ["--spec-type", "{spec_type}", "--spec-draft-n-max", "{spec_draft_n_max}"]
   q4_kv_experimental:
     cache_type_k: "q4_0"
     cache_type_v: "q4_0"

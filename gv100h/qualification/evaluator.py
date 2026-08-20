@@ -6,6 +6,10 @@ from pydantic import BaseModel, Field
 
 from gv100h.spec_qa.evaluation.deterministic_evaluator import QAEvaluationResult
 from gv100h.coding_eval.governance_ab_runner import ABExperimentSummary
+from gv100h.runtime.admission_matrix import (
+    RuntimeAdmissionMatrix,
+    canonical_profile_identity,
+)
 
 
 class GateResult(BaseModel):
@@ -186,6 +190,68 @@ class QualificationPolicyEvaluator:
             description="Sustained decode throughput",
         )
         gates.append(g_hw_tps)
+
+        profile_gate_required = hw_cfg.get("require_profile_gate_passed", True)
+        profile_gate_observed = hardware_profile.get("gate_passed")
+        g_hw_profile_gate = GateResult(
+            gate_name="hardware_feasibility.profile_gate_passed",
+            required=True,
+            observed=profile_gate_observed,
+            passed=(not profile_gate_required or profile_gate_observed is True),
+            description="Qualification consumes the canonical profiler gate result",
+        )
+        gates.append(g_hw_profile_gate)
+
+        observed_identity = hardware_profile.get("profile_identity")
+        expected_identity = None
+        identity_passed = False
+        if isinstance(observed_identity, dict):
+            try:
+                profile_candidate = RuntimeAdmissionMatrix.get_candidate(
+                    str(observed_identity.get("profile_id", ""))
+                )
+                observed_model_id = str(hardware_profile.get("model_id", ""))
+                observed_k = str(observed_identity.get("kv_cache_type_k", ""))
+                observed_v = str(observed_identity.get("kv_cache_type_v", ""))
+                allowed_kv = set(profile_candidate.kv_cache_variants)
+                if not allowed_kv:
+                    allowed_kv = {
+                        profile_candidate.kv_cache_type_k,
+                        profile_candidate.kv_cache_type_v,
+                    }
+                if (
+                    observed_model_id in profile_candidate.supported_models
+                    and observed_k in allowed_kv
+                    and observed_v in allowed_kv
+                ):
+                    expected_identity = canonical_profile_identity(
+                        profile_candidate,
+                        model_id=observed_model_id,
+                        kv_cache_type_k=observed_k,
+                        kv_cache_type_v=observed_v,
+                    )
+                    identity_passed = observed_identity == expected_identity
+            except KeyError:
+                identity_passed = False
+        g_hw_profile_identity = GateResult(
+            gate_name="hardware_feasibility.profile_identity",
+            required=expected_identity or "METRIC_MISSING",
+            observed=observed_identity or "METRIC_MISSING",
+            passed=identity_passed,
+            description="Runtime profile identity must match the canonical admission matrix",
+        )
+        gates.append(g_hw_profile_identity)
+
+        provenance_required = hw_cfg.get("require_independent_model_provenance", True)
+        provenance_observed = hardware_profile.get("model_provenance_independent")
+        g_hw_provenance = GateResult(
+            gate_name="hardware_feasibility.independent_model_provenance",
+            required=True,
+            observed=provenance_observed,
+            passed=(not provenance_required or provenance_observed is True),
+            description="Qualification requires an independently verified model trust root",
+        )
+        gates.append(g_hw_provenance)
 
         is_synthetic = (
             not qa_result.admissible_for_model_qualification

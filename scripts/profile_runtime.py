@@ -13,6 +13,7 @@ import shutil
 import argparse
 import subprocess
 import urllib.request
+import re
 from statistics import fmean
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -21,7 +22,13 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from gv100h.runtime.admission_matrix import RuntimeAdmissionMatrix
+from gv100h.runtime.admission_matrix import (
+    RuntimeAdmissionMatrix,
+    canonical_profile_identity,
+)
+from gv100h.runtime.context_fixtures import load_context_fixture
+from gv100h.runtime.launch_profiles import resolve_launch_command
+from gv100h.runtime.model_provenance import load_model_manifest
 from gv100h.runtime.ssot import GV100H_BASELINE
 from gv100h.utils.url import normalize_openai_base_url
 
@@ -90,6 +97,86 @@ def extract_response_timing(response: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def validate_profile_response(
+    response: Dict[str, Any],
+    *,
+    expected_model_id: str,
+    expected_response_sha256: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Validate response semantics before counting a request as successful."""
+
+    if not isinstance(response, dict):
+        return {"valid": False, "reason": "response_not_object"}
+    if response.get("model") != expected_model_id:
+        return {"valid": False, "reason": "response_model_mismatch"}
+    choices = response.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return {"valid": False, "reason": "choices_missing"}
+    message = choices[0].get("message") if isinstance(choices[0], dict) else None
+    content = message.get("content") if isinstance(message, dict) else None
+    if not isinstance(content, str) or not content.strip():
+        return {"valid": False, "reason": "content_missing"}
+    if "\ufffd" in content or any(
+        ord(char) < 32 and char not in "\n\r\t" for char in content
+    ):
+        return {"valid": False, "reason": "content_malformed"}
+    tokens = content.split()
+    if len(tokens) >= 12:
+        max_repetition = max(tokens.count(token) for token in set(tokens))
+        if max_repetition / len(tokens) >= 0.8:
+            return {"valid": False, "reason": "content_repetition"}
+    content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    if expected_response_sha256 and content_hash.lower() != expected_response_sha256.lower():
+        return {"valid": False, "reason": "expected_response_hash_mismatch"}
+    return {
+        "valid": True,
+        "reason": None,
+        "content_sha256": content_hash,
+    }
+
+
+def sample_nvlink_topology(gpu_count: int = 0) -> Dict[str, Any]:
+    """Capture nvidia-smi topology evidence without inferring it from GPU count."""
+
+    if not shutil.which("nvidia-smi"):
+        return {
+            "telemetry_source": "unavailable_no_nvidia_smi",
+            "gpu_count": gpu_count,
+            "nvlink_observed": False,
+            "nvlink_links": [],
+        }
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "topo", "-m"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {
+            "telemetry_source": "nvidia_smi_topology_failed",
+            "gpu_count": gpu_count,
+            "nvlink_observed": False,
+            "nvlink_links": [],
+            "error": str(exc),
+        }
+    if result.returncode != 0:
+        return {
+            "telemetry_source": "nvidia_smi_topology_failed",
+            "gpu_count": gpu_count,
+            "nvlink_observed": False,
+            "nvlink_links": [],
+        }
+    links = sorted(set(re.findall(r"\bNV\d+\b", result.stdout)))
+    return {
+        "telemetry_source": "nvidia_smi_topology_live",
+        "gpu_count": gpu_count,
+        "nvlink_observed": gpu_count >= 2 and bool(links),
+        "nvlink_links": links,
+        "topology_sha256": hashlib.sha256(result.stdout.encode("utf-8")).hexdigest(),
+    }
+
+
 def sample_gpu_telemetry() -> Dict[str, Any]:
     """
     Samples physical GPU telemetry using nvidia-smi if available.
@@ -99,7 +186,8 @@ def sample_gpu_telemetry() -> Dict[str, Any]:
             "telemetry_source": "unavailable_no_nvidia_smi",
             "hardware_observed": False,
             "gpu_count": 0,
-            "gpus": []
+            "gpus": [],
+            "nvlink": sample_nvlink_topology(0),
         }
 
     try:
@@ -129,13 +217,15 @@ def sample_gpu_telemetry() -> Dict[str, Any]:
             "telemetry_source": "nvidia_smi_live",
             "hardware_observed": len(gpus) > 0,
             "gpu_count": len(gpus),
-            "gpus": gpus
+            "gpus": gpus,
+            "nvlink": sample_nvlink_topology(len(gpus)),
         }
     except Exception as e:
         return {
             "telemetry_source": f"error: {str(e)}",
             "hardware_observed": False,
-            "gpus": []
+            "gpus": [],
+            "nvlink": sample_nvlink_topology(0),
         }
 
 
@@ -221,7 +311,8 @@ def evaluate_profile_gate(candidate: Any, summary: Dict[str, Any]) -> Dict[str, 
     experimental_kv = selected_k in EXPERIMENTAL_KV_CACHE_TYPES or selected_v in EXPERIMENTAL_KV_CACHE_TYPES
     checks = {
         "hardware_observed": summary.get("hardware_observed") is True,
-        "gpu_count": summary.get("gpu_telemetry", {}).get("initial", {}).get("gpu_count", 0) >= candidate.gpu_count,
+        "gpu_count": summary.get("gpu_telemetry", {}).get("initial", {}).get("gpu_count", 0)
+        >= max(candidate.gpu_count, candidate.tensor_parallel),
         "min_success_requests": summary.get("success_count", 0) >= criteria["min_success_requests"],
         "max_corruption_count": summary.get("corruption_count", 999999) <= criteria["max_corruption_count"],
         "max_vram_per_gpu_gb": observed_vram is not None and observed_vram <= criteria["max_vram_per_gpu_gb"],
@@ -235,12 +326,22 @@ def evaluate_profile_gate(candidate: Any, summary: Dict[str, Any]) -> Dict[str, 
             (summary.get("decode_tps", 0) or 0) > 0
             and (summary.get("decode_tokens", 0) or 0) > 0
         ),
-        "model_artifact_hash": bool(summary.get("model_artifact_hash")),
+        "model_artifact_hash": summary.get("model_provenance_ready") is True,
+        "model_provenance_independent": summary.get("model_provenance_independent") is True,
         "kv_cache_pair_consistent": selected_k == selected_v,
         "experimental_kv_build_provenance": not experimental_kv or _has_build_provenance(summary, candidate),
         "experimental_kv_prefill_validation": not experimental_kv
         or summary.get("prefill_benchmark_passed") is True,
+        "response_oracle": (
+            summary.get("response_oracle") == "strict-v1"
+            and summary.get("expected_response_hash_bound") is True
+        ),
+        "context_fixture_bound": summary.get("context_fixture_bound") is True,
+        "launch_context_bound": summary.get("launch_context_bound") is True,
+        "launch_profile_arm_consistent": summary.get("launch_profile_arm_consistent") is True,
     }
+    initial_nvlink = summary.get("gpu_telemetry", {}).get("initial", {}).get("nvlink", {})
+    checks["nvlink_observed"] = max(candidate.gpu_count, candidate.tensor_parallel) < 2 or initial_nvlink.get("nvlink_observed") is True
     if criteria.get("comparison_only"):
         checks["target_decode_tps"] = True
     else:
@@ -271,9 +372,81 @@ def profile_endpoint(
     prefill_tokens: Optional[int] = None,
     prefill_benchmark_passed: Optional[bool] = None,
     kv_cache_fix_verified: Optional[bool] = None,
+    expected_response_sha256: Optional[str] = None,
+    api_key: str = "EMPTY",
+    context_fixture_path: Optional[str] = None,
+    model_manifest_path: Optional[str] = None,
+    launch_profile_config_path: Optional[str] = None,
+    launch_profile_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     candidate = RuntimeAdmissionMatrix.get_candidate(candidate_name)
     effective_model_id = model_id or candidate.supported_models[0]
+    context_fixture = load_context_fixture(context_fixture_path) if context_fixture_path else None
+    if context_fixture is not None:
+        allowed_contexts = set(candidate.context_sweep) | set(candidate.stretch_context_sweep)
+        if context_fixture.context_length not in allowed_contexts:
+            raise ValueError(
+                f"context fixture length {context_fixture.context_length} is not in candidate sweep"
+            )
+        if expected_response_sha256 and (
+            expected_response_sha256.lower() != context_fixture.expected_response_sha256.lower()
+        ):
+            raise ValueError("expected response hash does not match context fixture")
+        expected_response_sha256 = context_fixture.expected_response_sha256
+    prompt_content = (
+        context_fixture.prompt
+        if context_fixture is not None
+        else "Ping request: calculate checksum"
+    )
+    launch_profile = None
+    launch_context_bound = False
+    launch_profile_arm_consistent = False
+    if context_fixture is not None:
+        if not launch_profile_config_path or not launch_profile_id:
+            raise ValueError(
+                "context fixture execution requires launch_profile_config_path and launch_profile_id"
+            )
+        launch_profile = resolve_launch_command(
+            launch_profile_config_path,
+            profile_id=launch_profile_id,
+            model_artifact=candidate.model_artifact,
+            context_length=context_fixture.context_length,
+        )
+        resolved_argv = launch_profile["resolved_launch_argv"]
+        launch_context_bound = any(
+            resolved_argv[index:index + 2] in (
+                ["-c", str(context_fixture.context_length)],
+                ["--ctx-size", str(context_fixture.context_length)],
+            )
+            for index in range(len(resolved_argv) - 1)
+        )
+        launch_profile_arm_consistent = (
+            launch_profile["profile_id"] == (candidate.launch_profile_id or candidate.name)
+            and launch_profile["spec_draft_n_max"] == candidate.spec_draft_n_max
+            and launch_profile.get("spec_type")
+            == ("draft-mtp" if candidate.mtp_enabled else "none")
+            and [
+                "--spec-type",
+                launch_profile.get("spec_type"),
+                "--spec-draft-n-max",
+                str(launch_profile["spec_draft_n_max"]),
+            ] == resolved_argv[-4:]
+        )
+    model_manifest = None
+    model_manifest_error = "approved model provenance manifest not supplied"
+    if model_manifest_path:
+        try:
+            model_manifest = load_model_manifest(model_manifest_path)
+            model_manifest.validate_ssot(
+                model_id=effective_model_id,
+                model_artifact=candidate.model_artifact,
+            )
+            if not model_path:
+                raise ValueError("model_path is required with a model provenance manifest")
+            model_manifest.verify_artifact(model_path)
+            model_manifest_error = None
+        except ValueError as exc:
+            model_manifest_error = str(exc)
     norm_base = normalize_openai_base_url(api_base)
     url = f"{norm_base}/chat/completions"
 
@@ -281,6 +454,7 @@ def profile_endpoint(
     latencies = []
     success_count = 0
     corruption_count = 0
+    corruption_reasons: List[str] = []
     prefill_tps_samples: List[float] = []
     prefill_latency_samples: List[float] = []
     prefill_token_samples: List[int] = []
@@ -298,12 +472,15 @@ def profile_endpoint(
     for i in range(num_requests):
         payload = {
             "model": effective_model_id,
-            "messages": [{"role": "user", "content": f"Ping request {i}: calculate checksum"}],
+            "messages": [{"role": "user", "content": prompt_content}],
             "temperature": 0.0,
             "max_tokens": 128
         }
         data = json.dumps(payload).encode("utf-8")
-        headers = {"Content-Type": "application/json"}
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        }
 
         t0 = time.time()
         try:
@@ -311,9 +488,23 @@ def profile_endpoint(
             with urllib.request.urlopen(req, timeout=30) as resp:
                 if resp.status == 200:
                     resp_json = json.loads(resp.read().decode("utf-8"))
-                    if "choices" in resp_json and len(resp_json["choices"]) > 0:
+                    validation = validate_profile_response(
+                        resp_json,
+                        expected_model_id=effective_model_id,
+                        expected_response_sha256=expected_response_sha256,
+                    )
+                    timing = extract_response_timing(resp_json)
+                    if (
+                        validation["valid"]
+                        and context_fixture is not None
+                        and timing.get("prefill_tokens") != context_fixture.actual_prompt_tokens
+                    ):
+                        validation = {
+                            "valid": False,
+                            "reason": "context_prompt_token_mismatch",
+                        }
+                    if validation["valid"]:
                         success_count += 1
-                        timing = extract_response_timing(resp_json)
                         if timing.get("prefill_tps"):
                             prefill_tps_samples.append(timing["prefill_tps"])
                         if timing.get("prefill_latency_sec"):
@@ -328,10 +519,16 @@ def profile_endpoint(
                             decode_token_samples.append(timing["decode_tokens"])
                     else:
                         corruption_count += 1
+                        corruption_reasons.append(validation["reason"])
                 else:
                     corruption_count += 1
+                    corruption_reasons.append(f"http_status_{resp.status}")
+        except json.JSONDecodeError:
+            corruption_count += 1
+            corruption_reasons.append("invalid_json")
         except Exception:
             corruption_count += 1
+            corruption_reasons.append("request_exception")
 
         duration = time.time() - t0
         latencies.append(duration)
@@ -373,11 +570,19 @@ def profile_endpoint(
     effective_server_version = llama_server_version or collect_llama_server_version(llama_server_path)
     selected_k = normalize_kv_cache_type(kv_cache_type_k or candidate.kv_cache_type_k)
     selected_v = normalize_kv_cache_type(kv_cache_type_v or candidate.kv_cache_type_v)
+    profile_identity = canonical_profile_identity(
+        candidate,
+        model_id=effective_model_id,
+        kv_cache_type_k=selected_k,
+        kv_cache_type_v=selected_v,
+    )
     artifact_hash = sha256_file(model_path)
     prefill_evidence = bool(effective_prefill_tps and effective_prefill_latency and effective_prefill_tokens)
     decode_evidence = decode_timing_observed
     summary = {
         "candidate": candidate.model_dump(),
+        "candidate_name": candidate.name,
+        "profile_identity": profile_identity,
         "model_id": effective_model_id,
         "runtime_profile": {
             "model_artifact": candidate.model_artifact,
@@ -400,6 +605,25 @@ def profile_endpoint(
         "corruption_count": corruption_count,
         "avg_latency_sec": round(avg_latency, 4),
         "model_artifact_hash": artifact_hash,
+        "model_provenance_ready": model_manifest is not None and model_manifest_error is None,
+        "model_provenance_independent": bool(
+            model_manifest is not None
+            and model_manifest.independent_verification is True
+        ),
+        "model_provenance": {
+            "manifest_path": str(Path(model_manifest_path).resolve())
+            if model_manifest_path
+            else None,
+            "model_source": model_manifest.model_source if model_manifest else None,
+            "model_revision": model_manifest.model_revision if model_manifest else None,
+            "model_artifact": model_manifest.model_artifact if model_manifest else None,
+            "expected_sha256": model_manifest.model_sha256 if model_manifest else None,
+            "provenance_class": model_manifest.provenance_class if model_manifest else None,
+            "independent_verification": (
+                model_manifest.independent_verification if model_manifest else False
+            ),
+            "error": model_manifest_error,
+        },
         "llama_cpp_commit": llama_cpp_commit,
         "llama_server_version": effective_server_version,
         "build_provenance": {
@@ -410,6 +634,23 @@ def profile_endpoint(
             "fix_verified": kv_cache_fix_verified is True,
         },
         "prefill_benchmark_passed": prefill_benchmark_passed,
+        "response_oracle": "strict-v1",
+        "expected_response_hash_bound": bool(expected_response_sha256),
+        "context_fixture_bound": context_fixture is not None,
+        "launch_context_bound": launch_context_bound,
+        "launch_profile_arm_consistent": launch_profile_arm_consistent,
+        "launch_profile": launch_profile,
+        "context_cell": (
+            {
+                "context_length": context_fixture.context_length,
+                "prompt_hash": context_fixture.prompt_hash,
+                "actual_prompt_tokens": context_fixture.actual_prompt_tokens,
+                "expected_response_sha256": context_fixture.expected_response_sha256,
+            }
+            if context_fixture is not None
+            else None
+        ),
+        "corruption_reasons": corruption_reasons,
         "prefill_evidence": prefill_evidence,
         "decode_evidence": decode_evidence,
         "prefill_tps": metrics["prefill_tps"],
@@ -459,6 +700,12 @@ if __name__ == "__main__":
     parser.add_argument("--prefill-tokens", type=int, default=None)
     parser.add_argument("--prefill-benchmark-passed", action="store_true", default=None)
     parser.add_argument("--kv-cache-fix-verified", action="store_true", default=None)
+    parser.add_argument("--expected-response-sha256", default=None)
+    parser.add_argument("--api-key", default="EMPTY")
+    parser.add_argument("--context-fixture", default=None)
+    parser.add_argument("--model-manifest", default=None)
+    parser.add_argument("--launch-profile-config", default=None)
+    parser.add_argument("--launch-profile-id", default=None)
     args = parser.parse_args()
 
     profile_endpoint(
@@ -478,4 +725,10 @@ if __name__ == "__main__":
         prefill_tokens=args.prefill_tokens,
         prefill_benchmark_passed=args.prefill_benchmark_passed,
         kv_cache_fix_verified=args.kv_cache_fix_verified,
+        expected_response_sha256=args.expected_response_sha256,
+        api_key=args.api_key,
+        context_fixture_path=args.context_fixture,
+        model_manifest_path=args.model_manifest,
+        launch_profile_config_path=args.launch_profile_config,
+        launch_profile_id=args.launch_profile_id,
     )

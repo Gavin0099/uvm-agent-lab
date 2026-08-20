@@ -25,7 +25,36 @@ The external MTP report is a hypothesis and reference only. It is not local hard
    python scripts/gate4_preflight.py --repo-root . --output artifacts/preflight/gate4-preflight.json
    ```
 
-2. Obtain the exact GGUF artifact and record its SHA-256. Do not replace the model with a similarly named file.
+    The command above is a software-readiness check. Before hardware bring-up,
+    run the strict form with the approved artifact manifest and exact file:
+
+    ```powershell
+    python scripts/gate4_preflight.py `
+       --repo-root . `
+       --model-manifest deploy/gate4_model_manifest.json `
+       --model-path <absolute-path-to-Qwen3.8-27B-Q4_K_M.gguf> `
+       --require-bringup `
+       --output artifacts/preflight/gate4-bringup-preflight.json
+    ```
+
+    A zero exit code from the strict form means only that the runtime, model
+    provenance, launch profiles, and observed hardware prerequisites are ready;
+    it does not grant Gate 4 qualification or `GO`.
+
+2. Obtain the exact GGUF artifact and create the operator-attested manifest:
+
+    ```powershell
+    python scripts/create_gate4_model_manifest.py `
+       --model-path <absolute-path-to-Qwen3.8-27B-Q4_K_M.gguf> `
+       --model-source <vendor-or-approved-registry-url> `
+       --model-revision <vendor-revision-or-release-id> `
+       --output deploy/gate4_model_manifest.json
+    ```
+
+    Compare the generated hash with an independent vendor/release checksum
+    before treating the manifest as approved. Do not replace the model with a
+    similarly named file. Until that external comparison is recorded, model
+    provenance remains `operator_attested` and Gate 4 qualification is blocked.
 3. Install or build `llama-server` with `draft-mtp` support and record the binary version/commit.
 4. Keep the same model, KV type, Flash Attention setting, parallelism, prompt corpus, and sampling configuration between MTP OFF and n-max=2.
 5. Prepare the context sweep: 32K, 64K, and 128K primary; 192K and exploratory 256K stretch.
@@ -40,6 +69,42 @@ The external MTP report is a hypothesis and reference only. It is not local hard
    - per-GPU VRAM peak
    - request success/corruption count
    - agent work-item success, wall-clock time, and human intervention count
+
+For each primary context cell, the profiler invocation must bind all execution
+contracts explicitly. The following is illustrative for the MTP OFF 32K cell:
+
+```powershell
+python scripts/profile_runtime.py `
+   --api-base http://127.0.0.1:8000/v1 `
+   --candidate candidate_a_llama_cpp_gguf `
+   --model-path <absolute-path-to-Qwen3.8-27B-Q4_K_M.gguf> `
+   --model-manifest deploy/gate4_model_manifest.json `
+   --context-fixture gate4/prompts/ctx_32k.json `
+   --launch-profile-config deploy/llama_cpp_gv100.yaml `
+   --launch-profile-id mtp_off `
+   --expected-response-sha256 <fixture-expected-response-sha256> `
+   --requests 100 `
+   --output results/hardware/mtp_off_ctx32k.json
+```
+
+The MTP n=2 cell uses the same inputs, but must switch to
+`--candidate candidate_a_llama_cpp_gguf_mtp_n2` and
+`--launch-profile-id mtp_n2`.
+Metadata-only `context_sweep` values, unbound launch profiles, missing model
+manifests, and missing response oracles must remain non-admissible.
+
+Each cell is a separate profile artifact. To evaluate one selected cell, pass
+it explicitly to the report generator:
+
+```powershell
+python scripts/generate_poc_report.py `
+   --hardware-profile results/hardware/mtp_off_ctx32k.json
+```
+
+The current software slice wires one explicit profile summary into
+qualification; it does not yet aggregate the 32K/64K/128K cells into a single
+campaign decision. A missing explicit profile path fails closed instead of
+silently falling back to synthetic input.
 
 ## On Hardware Arrival
 

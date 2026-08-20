@@ -13,6 +13,11 @@ from typing import Any, Dict, Optional
 import yaml
 
 from gv100h.runtime.ssot import GV100H_BASELINE
+from gv100h.runtime.model_provenance import (
+    ModelArtifactManifest,
+    load_model_manifest,
+)
+from gv100h.runtime.launch_profiles import LaunchProfileError, resolve_launch_command
 
 EXPERIMENTAL_KV_CACHE_TYPES = frozenset({"q4_0", "q4_1", "q5_0", "q5_1"})
 
@@ -45,11 +50,20 @@ def _collect_llama_server_version() -> Optional[str]:
     return None
 
 
+def preflight_exit_code(report: Dict[str, Any], *, require_bringup: bool) -> int:
+    """Return a CLI status without confusing software readiness with bring-up."""
+
+    return 0 if (
+        report["bringup_ready"] if require_bringup else report["software_preflight_passed"]
+    ) else 1
+
+
 def build_preflight_report(
     *,
     repo_root: Path,
     config_path: Optional[Path] = None,
     model_path: Optional[Path] = None,
+    model_manifest_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
     root = Path(repo_root).resolve()
     config_file = (config_path or root / "deploy" / "llama_cpp_gv100.yaml").resolve()
@@ -61,6 +75,66 @@ def build_preflight_report(
             config_data = yaml.safe_load(config_file.read_text(encoding="utf-8")) or {}
         except (OSError, yaml.YAMLError) as exc:
             config_error = str(exc)
+
+    configured_manifest = config_data.get("model_manifest")
+    if model_manifest_path is not None:
+        manifest_file = Path(model_manifest_path)
+        if not manifest_file.is_absolute():
+            manifest_file = root / manifest_file
+    elif configured_manifest:
+        manifest_file = Path(str(configured_manifest))
+        if not manifest_file.is_absolute():
+            manifest_file = root / manifest_file
+    else:
+        manifest_file = root / "deploy" / "gate4_model_manifest.json"
+    manifest_file = manifest_file.resolve()
+    model_manifest: Optional[ModelArtifactManifest] = None
+    model_manifest_error: Optional[str] = None
+    if manifest_file.is_file():
+        try:
+            model_manifest = load_model_manifest(manifest_file)
+            model_manifest.validate_ssot(
+                model_id=GV100H_BASELINE.model_id,
+                model_artifact=GV100H_BASELINE.model_artifact,
+            )
+        except ValueError as exc:
+            model_manifest_error = str(exc)
+
+    artifact_path = Path(model_path).resolve() if model_path else None
+    model_artifact_present = bool(artifact_path and artifact_path.is_file())
+    model_artifact_hash: Optional[str] = None
+    model_artifact_hash_matches = False
+    if model_manifest is not None and artifact_path is not None:
+        try:
+            model_artifact_hash = model_manifest.verify_artifact(artifact_path)
+            model_artifact_hash_matches = True
+        except ValueError as exc:
+            model_manifest_error = str(exc)
+    model_provenance_ready = (
+        model_manifest is not None
+        and model_manifest_error is None
+        and model_artifact_present
+        and model_artifact_hash_matches
+    )
+    launch_profile_results: Dict[str, Any] = {}
+    for profile_id in ("mtp_off", "mtp_n2"):
+        try:
+            launch_profile_results[profile_id] = resolve_launch_command(
+                config_file,
+                profile_id=profile_id,
+                model_artifact=GV100H_BASELINE.model_artifact,
+                context_length=GV100H_BASELINE.baseline_context_length,
+            )
+        except (LaunchProfileError, OSError, KeyError, TypeError) as exc:
+            launch_profile_results[profile_id] = {
+                "ready": False,
+                "error": str(exc),
+            }
+        else:
+            launch_profile_results[profile_id]["ready"] = True
+    launch_profiles_ready = all(
+        result.get("ready") is True for result in launch_profile_results.values()
+    )
 
     config_matches_ssot = (
         config_present
@@ -113,14 +187,13 @@ def build_preflight_report(
         "nvidia_smi": bool(shutil.which("nvidia-smi")),
     }
     llama_server_version = _collect_llama_server_version()
-    artifact_path = Path(model_path).resolve() if model_path else None
-    model_artifact_present = bool(artifact_path and artifact_path.is_file())
     software_preflight_passed = config_matches_ssot and commands["docker"]
     hardware_observed = commands["nvidia_smi"]
     bringup_ready = (
         software_preflight_passed
         and commands["llama_server"]
-        and model_artifact_present
+        and model_provenance_ready
+        and launch_profiles_ready
         and hardware_observed
     )
 
@@ -139,8 +212,16 @@ def build_preflight_report(
         blockers.append("experimental q4/q5 KV profile requires a passing local prefill benchmark")
     if not commands["llama_server"]:
         blockers.append("llama-server command is unavailable")
+    if not launch_profiles_ready:
+        blockers.append("one or more Gate 4 launch profiles cannot be rendered")
+    if not manifest_file.is_file():
+        blockers.append("approved model provenance manifest is missing")
+    elif model_manifest_error:
+        blockers.append(f"model provenance manifest is invalid: {model_manifest_error}")
     if not model_artifact_present:
         blockers.append("Qwen3.8-27B GGUF model artifact was not supplied")
+    elif not model_artifact_hash_matches:
+        blockers.append("model artifact SHA-256 does not match approved manifest")
     if not hardware_observed:
         blockers.append("nvidia-smi is unavailable; hardware is not observed")
 
@@ -177,6 +258,34 @@ def build_preflight_report(
             "fix_reference": config_data.get("kv_cache_fix_reference"),
             "fix_verified": config_data.get("kv_cache_fix_verified") is True,
         },
+        "model_provenance": {
+            "manifest_path": str(manifest_file),
+            "manifest_present": manifest_file.is_file(),
+            "manifest_valid": model_manifest is not None and model_manifest_error is None,
+            "model_source": model_manifest.model_source if model_manifest else None,
+            "model_revision": model_manifest.model_revision if model_manifest else None,
+            "model_artifact": model_manifest.model_artifact if model_manifest else None,
+            "expected_sha256": model_manifest.model_sha256 if model_manifest else None,
+            "provenance_class": model_manifest.provenance_class if model_manifest else None,
+            "independent_verification": (
+                model_manifest.independent_verification if model_manifest else False
+            ),
+            "claim_ceiling": (
+                "operator_attested_model_bytes"
+                if model_manifest is not None
+                else "model_provenance_missing"
+            ),
+            "artifact_path": str(artifact_path) if artifact_path else None,
+            "artifact_present": model_artifact_present,
+            "artifact_sha256": model_artifact_hash,
+            "artifact_hash_matches": model_artifact_hash_matches,
+            "ready": model_provenance_ready,
+            "error": model_manifest_error,
+        },
+        "launch_profiles": {
+            "ready": launch_profiles_ready,
+            "profiles": launch_profile_results,
+        },
         "model_artifact_path": str(artifact_path) if artifact_path else None,
         "model_artifact_present": model_artifact_present,
         "software_preflight_passed": software_preflight_passed,
@@ -193,6 +302,12 @@ def main() -> int:
     parser.add_argument("--repo-root", default=".")
     parser.add_argument("--config", default=None)
     parser.add_argument("--model-path", default=None)
+    parser.add_argument("--model-manifest", default=None)
+    parser.add_argument(
+        "--require-bringup",
+        action="store_true",
+        help="Exit non-zero unless model, runtime, launch profiles, and hardware are ready.",
+    )
     parser.add_argument("--output", default=None)
     args = parser.parse_args()
 
@@ -200,6 +315,7 @@ def main() -> int:
         repo_root=Path(args.repo_root),
         config_path=Path(args.config) if args.config else None,
         model_path=Path(args.model_path) if args.model_path else None,
+        model_manifest_path=Path(args.model_manifest) if args.model_manifest else None,
     )
     rendered = json.dumps(report, indent=2, ensure_ascii=False)
     print(rendered)
@@ -207,7 +323,7 @@ def main() -> int:
         output_path = Path(args.output)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(rendered + "\n", encoding="utf-8")
-    return 0 if report["software_preflight_passed"] else 1
+    return preflight_exit_code(report, require_bringup=args.require_bringup)
 
 
 if __name__ == "__main__":
