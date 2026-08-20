@@ -4,12 +4,13 @@
 
 > **最後更新**: 2026-08-20
 > **Owner**: Gavin0099
-> **狀態**: Active (Gate 4 repair implementation complete; PR pending; qualification blocked; keep NO_GO)
+> **狀態**: Active (Gate 4 repair PR #8 open; qualification blocked; keep NO_GO)
 
 ## 🔒 Current Truth (2026-08-20)
 - PR #6 runtime attestation and PR #7 Gate 4 execution-contract slices are merged into `main` at `ce200d58`, but post-merge review found that G4.1 must not be marked `CLOSED`.
 - Repair branch `fix/gv100h-gate4-repair` completed the independent model provenance, harness-owned runtime execution, context-aware timeout evidence, raw profile re-evaluation, expected candidate identity, selected-pair NVLink evidence, and schema consistency hardening.
 - Fresh read-only subagent review: `PASS`, no P0/P1 findings. Residual P2: the independent receipt still relies on organizational approval of the supplied external values, not a cryptographic signature.
+- Repair PR: `#8` is open at `https://github.com/Gavin0099/uvm-agent-lab/pull/8`; no merge or branch-protection change was performed.
 - Validation: final focused contract suite `25 passed`; final isolated tracked suite `213 passed`; 2 hardware-dependent tests skipped. CI benchmark/retrieval/validators/drift/quickstart steps passed.
 - Gate 4 status: `CHANGES_REQUIRED` / `Gate4 bring-up partially ready`.
 - Qualification status: `NOT_READY` / blocked by missing real runtime, exact GGUF, independent receipt, and physical GPU telemetry. Keep `NO_GO`.
@@ -96,7 +97,6 @@
 ---
 
 ## 🎯 Next Steps & Future Roadmap
-1. **Gate 4 repair PR (blocking)**: complete receipt-backed provenance, harness-owned runtime lifecycle, raw gate re-evaluation, explicit candidate binding, selected-pair NVLink evidence, and schema tests.
-2. **Fresh subagent review**: review the repair branch before any hardware qualification claim.
-3. **Physical bring-up**: supply and hash `llama-server`, the exact Qwen GGUF, independent verification receipt, and observed GPU telemetry.
-4. **Qualification**: run the real context/profile sweep and live A/B evidence only after bring-up is ready; current qualification stays `NOT_READY` / `NO_GO`.
+1. **Review PR #8 (blocking)**: obtain human review and resolve any findings before merge.
+2. **Physical bring-up**: supply and hash `llama-server`, the exact Qwen GGUF, independent verification receipt, and observed GPU telemetry.
+3. **Qualification**: run the real context/profile sweep and live A/B evidence only after bring-up is ready; current qualification stays `NOT_READY` / `NO_GO`.
