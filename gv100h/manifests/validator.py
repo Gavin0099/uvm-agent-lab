@@ -176,6 +176,13 @@ class ManifestValidator:
                 or attestation.runtime != manifest.runtime
                 or attestation.runtime_commit != manifest.runtime_commit
                 or attestation.response_model != manifest.model_id
+                or not isinstance(attestation.models_endpoint_response, dict)
+                or manifest.model_id
+                not in {
+                    item.get("id")
+                    for item in attestation.models_endpoint_response.get("data", [])
+                    if isinstance(item, dict)
+                }
                 or not manifest.evidence.endpoint_url
                 or attestation.endpoint_url.rstrip("/")
                 != manifest.evidence.endpoint_url.rstrip("/")

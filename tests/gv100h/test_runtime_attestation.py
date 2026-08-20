@@ -183,6 +183,35 @@ def test_runner_rejects_endpoint_models_without_requested_model(monkeypatch):
         runner._call_llm_api([])
 
 
+def test_runner_authenticates_models_preflight(monkeypatch):
+    observed = {}
+
+    def fake_urlopen(request, timeout):
+        observed[request.full_url] = request.get_header("Authorization")
+        if request.full_url.endswith("/models"):
+            return _Response({"data": [{"id": "Qwen/Qwen3.8-27B"}]})
+        return _Response({
+            "model": "Qwen/Qwen3.8-27B",
+            "choices": [{"message": {"content": "answer"}}],
+            "usage": {},
+        })
+
+    monkeypatch.setattr(
+        "agent.runners.openai_compatible_runner.urllib.request.urlopen",
+        fake_urlopen,
+    )
+    runner = OpenAICompatibleLLMRunner(
+        model_id="Qwen/Qwen3.8-27B",
+        api_key="test-token",
+        mock_mode=False,
+    )
+
+    result = runner._call_llm_api([])
+
+    assert result["response_model"] == "Qwen/Qwen3.8-27B"
+    assert observed["http://localhost:8000/v1/models"] == "Bearer test-token"
+
+
 def test_runner_rejects_chat_response_for_different_model(monkeypatch):
     def fake_urlopen(request, timeout):
         if request.full_url.endswith("/models"):

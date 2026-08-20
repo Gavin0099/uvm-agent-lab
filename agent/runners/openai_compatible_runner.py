@@ -77,7 +77,7 @@ class OpenAICompatibleLLMRunner(BaseAgentRunner):
         }
 
         try:
-            models_req = urllib.request.Request(models_url, method="GET")
+            models_req = urllib.request.Request(models_url, headers=headers, method="GET")
             with urllib.request.urlopen(models_req, timeout=10) as models_resp:
                 models_data = json.loads(models_resp.read().decode("utf-8"))
             model_ids = {

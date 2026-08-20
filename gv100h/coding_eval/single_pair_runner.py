@@ -38,7 +38,6 @@ from gv100h.utils.pairing import compute_canonical_pair_id
 from scripts.profile_runtime import sample_gpu_telemetry, sha256_file
 from gv100h.runtime.attestation import (
     finalize_attestation,
-    load_attestation_seed,
     RuntimeProcessAttestor,
 )
 
@@ -387,7 +386,6 @@ def run_single_ab_pair(
     model_hash: Optional[str] = None,
     model_artifact_path: Optional[Union[str, Path]] = None,
     runtime_commit: Optional[str] = None,
-    runtime_attestation_path: Optional[Union[str, Path]] = None,
     runtime_command: Optional[List[str]] = None,
     runtime_version: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -413,8 +411,10 @@ def run_single_ab_pair(
                 "runtime_commit": runtime_commit,
             }.items() if not value
         ]
-        if not runtime_attestation_path and not runtime_command:
-            missing.append("runtime_attestation_path or runtime_command")
+        if not runtime_command:
+            missing.append(
+                "runtime_command (external runtime attestation seeds cannot prove process/endpoint ownership)"
+            )
         if runtime_command and not runtime_version:
             missing.append("runtime_version")
         if missing:
@@ -487,19 +487,10 @@ def run_single_ab_pair(
                     model_id=model_id,
                     model_path=model_artifact_path or "",
                     endpoint_url=api_base,
+                    api_key=runner.api_key,
                     cwd=repo,
                 )
                 runtime_attestation_seed = runtime_process.start()
-            else:
-                runtime_attestation_seed = load_attestation_seed(
-                    runtime_attestation_path or "",
-                    expected_runtime=runtime or "",
-                    expected_runtime_commit=runtime_commit or "",
-                    expected_model_id=model_id,
-                    expected_model_hash=model_hash or "",
-                    expected_model_path=model_artifact_path or "",
-                    expected_endpoint_url=api_base,
-                )
         for arm in ARMS:
             bundle = out_path / task_id / pair_id / f"rep-{repetition}" / arm
             bundle_dirs[arm] = bundle

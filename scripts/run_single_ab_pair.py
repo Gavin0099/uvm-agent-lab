@@ -51,7 +51,6 @@ def main() -> int:
     parser.add_argument("--model-hash", default=None)
     parser.add_argument("--model-artifact-path", default=None)
     parser.add_argument("--runtime-commit", default=None)
-    parser.add_argument("--runtime-attestation-path", default=None)
     parser.add_argument("--runtime-command-json", type=_parse_runtime_command_json, default=None)
     parser.add_argument("--runtime-version", default=None)
     parser.add_argument("--api-base", default="http://localhost:8000/v1")
@@ -71,7 +70,6 @@ def main() -> int:
         model_hash=args.model_hash,
         model_artifact_path=args.model_artifact_path,
         runtime_commit=args.runtime_commit,
-        runtime_attestation_path=args.runtime_attestation_path,
         runtime_command=args.runtime_command_json,
         runtime_version=args.runtime_version,
     )

@@ -251,57 +251,27 @@ def test_live_pair_requires_runtime_version_for_harness_launcher(tmp_path: Path)
         )
 
 
-def test_live_pair_binds_external_seed_to_api_endpoint(tmp_path: Path, monkeypatch):
-    from gv100h.coding_eval import single_pair_runner as pair_runner
-
+def test_live_pair_rejects_external_seed_without_harness_launcher(tmp_path: Path):
     artifact = tmp_path / "model.gguf"
     artifact.write_bytes(b"model-bytes")
     model_hash = hashlib.sha256(b"model-bytes").hexdigest()
-    api_base = "http://127.0.0.1:8123/v1"
-    captured = {}
+    with pytest.raises(ValueError, match="process/endpoint ownership"):
+        from gv100h.coding_eval.single_pair_runner import run_single_ab_pair
 
-    def fake_load_seed(path, **kwargs):
-        captured["seed_kwargs"] = kwargs
-        return {"seed": "validated"}
-
-    def fake_run_one_arm(**kwargs):
-        captured.setdefault("arms", []).append(kwargs)
-        return kwargs["arm"]
-
-    def skip_pair_validation(self, manifests, require_complete_pairs=False):
-        return None
-
-    monkeypatch.setattr(pair_runner, "load_attestation_seed", fake_load_seed)
-    monkeypatch.setattr(pair_runner, "_run_one_arm", fake_run_one_arm)
-    monkeypatch.setattr(
-        pair_runner.ManifestValidator,
-        "validate_manifest_set",
-        skip_pair_validation,
-    )
-
-    result = pair_runner.run_single_ab_pair(
-        task_id="UVM-001",
-        case_path=CASE_PATH,
-        repetition=1,
-        mode="live",
-        output_dir=tmp_path / "live",
-        repo_root=REPO_ROOT,
-        model_id="Qwen/Qwen3.8-35B-A3B",
-        api_base=api_base,
-        runtime="llama.cpp",
-        quantization="Q4_K_M",
-        model_hash=model_hash,
-        model_artifact_path=artifact,
-        runtime_commit="b" * 40,
-        runtime_attestation_path=tmp_path / "seed.json",
-    )
-
-    assert result["manifests"] == list(ARMS)
-    assert captured["seed_kwargs"]["expected_endpoint_url"] == api_base
-    assert [item["runtime_attestation_seed"] for item in captured["arms"]] == [
-        {"seed": "validated"},
-        {"seed": "validated"},
-    ]
+        run_single_ab_pair(
+            task_id="UVM-001",
+            case_path=CASE_PATH,
+            repetition=1,
+            mode="live",
+            output_dir=tmp_path / "live",
+            repo_root=REPO_ROOT,
+            model_id="Qwen/Qwen3.8-35B-A3B",
+            runtime="llama.cpp",
+            quantization="Q4_K_M",
+            model_hash=model_hash,
+            model_artifact_path=artifact,
+            runtime_commit="b" * 40,
+        )
 
 
 def test_live_pair_stops_runtime_when_arm_fails(tmp_path: Path, monkeypatch):
@@ -526,6 +496,37 @@ def test_live_bundle_rejects_runtime_attestation_identity_mismatch(
             require_integrity=True,
             repo_root=REPO_ROOT,
             replay_verification=True,
+        )
+
+
+def test_live_bundle_rejects_attestation_models_response_mismatch(tmp_path: Path):
+    result = _run_slice(tmp_path)
+    manifest, bundle = _live_manifest_fixture(result)
+    attestation_path = bundle / "runtime_attestation.json"
+    attestation = json.loads(attestation_path.read_text(encoding="utf-8"))
+    attestation["models_endpoint_response"] = {
+        "data": [{"id": "different-model"}]
+    }
+    attestation_bytes = json.dumps(
+        attestation,
+        ensure_ascii=True,
+        indent=2,
+        sort_keys=True,
+    ).encode("utf-8")
+    attestation_path.write_bytes(attestation_bytes)
+    mutated = manifest.model_copy(update={
+        "evidence": manifest.evidence.model_copy(update={
+            "runtime_attestation_sha256": hashlib.sha256(attestation_bytes).hexdigest(),
+        })
+    })
+
+    with pytest.raises(ManifestValidationError, match="Runtime attestation identity"):
+        ManifestValidator().validate_manifest_bundle(
+            mutated,
+            bundle,
+            require_integrity=True,
+            repo_root=REPO_ROOT,
+            replay_verification=False,
         )
 
 def test_legacy_bundle_is_rejected_at_strict_integrity_boundary(tmp_path: Path):

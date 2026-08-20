@@ -58,6 +58,7 @@ def load_attestation_seed(
     expected_model_path: str | Path,
     expected_endpoint_url: str,
 ) -> Dict[str, Any]:
+    """Validate static seed fields; live pair admission requires harness launch."""
     seed_path = Path(path).resolve()
     try:
         raw = json.loads(seed_path.read_text(encoding="utf-8"))
@@ -130,6 +131,7 @@ class RuntimeProcessAttestor:
         model_id: str,
         model_path: str | Path,
         endpoint_url: str,
+        api_key: str = "EMPTY",
         cwd: str | Path | None = None,
         startup_timeout_sec: int = 60,
     ):
@@ -140,12 +142,17 @@ class RuntimeProcessAttestor:
         self.model_id = model_id
         self.model_path = Path(model_path).resolve()
         self.endpoint_url = endpoint_url.rstrip("/")
+        self.api_key = api_key
         self.cwd = Path(cwd).resolve() if cwd else None
         self.startup_timeout_sec = startup_timeout_sec
         self.process: Optional[subprocess.Popen] = None
 
     def _endpoint_models(self) -> Dict[str, Any]:
-        request = urllib.request.Request(f"{self.endpoint_url}/models", method="GET")
+        request = urllib.request.Request(
+            f"{self.endpoint_url}/models",
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            method="GET",
+        )
         with urllib.request.urlopen(request, timeout=5) as response:
             return json.loads(response.read().decode("utf-8"))
 
