@@ -1,0 +1,17 @@
+{
+  "receipt_schema": "test_evidence_receipt.v0.1",
+  "status": "report_only",
+  "command": "C:\\Users\\reiko\\AppData\\Local\\Programs\\Python\\Python313\\python.exe -X utf8 -m pytest -q tests/ --basetemp .tmp_g4_receipt_full",
+  "exit_code": 0,
+  "started_at": "2026-08-20T10:29:59Z",
+  "finished_at": "2026-08-20T10:33:01Z",
+  "runner": "governance_tools.test_evidence_receipt_writer",
+  "linked_commit": "514e977956704016938c3729cedc8613ac80d6b6",
+  "output_artifacts": [
+    "artifacts/evidence/test-results/receipt-g4-1-514e977-20260820.txt"
+  ],
+  "cannot_claim": [
+    "semantic correctness of the tested behavior",
+    "receipt authenticity: every field is fabricatable by a direct writer"
+  ]
+}

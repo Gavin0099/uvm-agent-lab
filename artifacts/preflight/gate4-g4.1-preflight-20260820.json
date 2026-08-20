@@ -1,0 +1,136 @@
+{
+  "baseline": {
+    "candidate_name": "candidate_a_llama_cpp_gguf",
+    "model_id": "Qwen3.8-27B",
+    "model_artifact": "Qwen3.8-27B-Q4_K_M.gguf",
+    "runtime": "llama.cpp",
+    "quantization": "Q4_K_M",
+    "mtp_enabled": false,
+    "spec_draft_n_max": 0,
+    "kv_cache_type_k": "q8_0",
+    "kv_cache_type_v": "q8_0",
+    "baseline_context_length": 32768,
+    "context_sweep": [
+      32768,
+      65536,
+      131072
+    ]
+  },
+  "config_path": "E:\\BackUp\\Git_EE\\uvm-agent-lab\\.tmp_g4_execution_closure\\deploy\\llama_cpp_gv100.yaml",
+  "config_present": true,
+  "config_matches_ssot": true,
+  "config_error": null,
+  "selected_kv_cache": {
+    "type_k": "q8_0",
+    "type_v": "q8_0",
+    "experimental": false,
+    "build_provenance": null,
+    "prefill_validation": null
+  },
+  "commands": {
+    "docker": true,
+    "llama_server": false,
+    "nvidia_smi": false
+  },
+  "build_provenance": {
+    "llama_cpp_commit": null,
+    "llama_server_version": null,
+    "issue_reference": "https://github.com/ggml-org/llama.cpp/issues/27109",
+    "fix_reference": null,
+    "fix_verified": false
+  },
+  "model_provenance": {
+    "manifest_path": "E:\\BackUp\\Git_EE\\uvm-agent-lab\\.tmp_g4_execution_closure\\deploy\\gate4_model_manifest.json",
+    "manifest_present": false,
+    "manifest_valid": false,
+    "model_source": null,
+    "model_revision": null,
+    "model_artifact": null,
+    "expected_sha256": null,
+    "provenance_class": null,
+    "independent_verification": false,
+    "claim_ceiling": "model_provenance_missing",
+    "artifact_path": null,
+    "artifact_present": false,
+    "artifact_sha256": null,
+    "artifact_hash_matches": false,
+    "ready": false,
+    "error": null
+  },
+  "launch_profiles": {
+    "ready": true,
+    "profiles": {
+      "mtp_off": {
+        "profile_id": "mtp_off",
+        "context_length": 32768,
+        "spec_type": "none",
+        "spec_draft_n_max": 0,
+        "resolved_launch_argv": [
+          "llama-server",
+          "-m",
+          "Qwen3.8-27B-Q4_K_M.gguf",
+          "-c",
+          "32768",
+          "--cache-type-k",
+          "q8_0",
+          "--cache-type-v",
+          "q8_0",
+          "-ngl",
+          "999",
+          "-fa",
+          "1",
+          "--parallel",
+          "1",
+          "--spec-type",
+          "none",
+          "--spec-draft-n-max",
+          "0"
+        ],
+        "launch_argv_sha256": "c2302c93d54708655033247bc17d6831b1863bb2ac67ceb26b659a54a32da574",
+        "ready": true
+      },
+      "mtp_n2": {
+        "profile_id": "mtp_n2",
+        "context_length": 32768,
+        "spec_type": "draft-mtp",
+        "spec_draft_n_max": 2,
+        "resolved_launch_argv": [
+          "llama-server",
+          "-m",
+          "Qwen3.8-27B-Q4_K_M.gguf",
+          "-c",
+          "32768",
+          "--cache-type-k",
+          "q8_0",
+          "--cache-type-v",
+          "q8_0",
+          "-ngl",
+          "999",
+          "-fa",
+          "1",
+          "--parallel",
+          "1",
+          "--spec-type",
+          "draft-mtp",
+          "--spec-draft-n-max",
+          "2"
+        ],
+        "launch_argv_sha256": "310bed6ca32955a91c1758bfbe029c1582b396ad12c588232057ff620499721f",
+        "ready": true
+      }
+    }
+  },
+  "model_artifact_path": null,
+  "model_artifact_present": false,
+  "software_preflight_passed": true,
+  "hardware_observed": false,
+  "bringup_ready": false,
+  "qualification_admissible": false,
+  "claim_ceiling": "pre-hardware-readiness-only",
+  "blockers": [
+    "llama-server command is unavailable",
+    "approved model provenance manifest is missing",
+    "Qwen3.8-27B GGUF model artifact was not supplied",
+    "nvidia-smi is unavailable; hardware is not observed"
+  ]
+}
