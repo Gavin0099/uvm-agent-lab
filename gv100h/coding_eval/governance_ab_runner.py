@@ -63,6 +63,11 @@ class GovernanceABRunner:
             and manifest.runtime_commit is not None
             and re.fullmatch(r"[0-9a-fA-F]{7,64}", manifest.runtime_commit) is not None
             and evidence.endpoint_observed is True
+            and isinstance(evidence.endpoint_url, str)
+            and bool(evidence.endpoint_url.strip())
+            and re.fullmatch(
+                r"[0-9a-fA-F]{64}", evidence.runtime_attestation_sha256 or ""
+            ) is not None
             and evidence.qualification_admissible is True
             and evidence.verification_level in {"full_uvm_regression", "compile_and_test"}
             and evidence.eda_backend not in {

@@ -36,6 +36,11 @@ from gv100h.utils.evidence_commit import compute_reconstructed_head_commit
 from gv100h.utils.case_contract import compute_benchmark_case_hash
 from gv100h.utils.pairing import compute_canonical_pair_id
 from scripts.profile_runtime import sample_gpu_telemetry, sha256_file
+from gv100h.runtime.attestation import (
+    finalize_attestation,
+    load_attestation_seed,
+    RuntimeProcessAttestor,
+)
 
 ARMS = ("arm_a_prompt_only", "arm_b_governed_sidecar")
 DEFAULT_MODEL_ID = "Qwen/Qwen3.8-27B"
@@ -157,6 +162,7 @@ def _run_one_arm(
     quantization: str,
     model_hash: Optional[str],
     runtime_commit: Optional[str],
+    runtime_attestation_seed: Optional[Dict[str, Any]],
 ) -> GV100HRunManifest:
     worktree_path, resolved_sha = worktree_mgr.create_worktree(base_commit)
     if resolved_sha != base_commit:
@@ -185,6 +191,7 @@ def _run_one_arm(
         context = AgentExecutionContext(
             workspace_root=worktree_path,
             sidecar_guardrail=sidecar,
+            runtime_attestation_seed=runtime_attestation_seed,
             treatment=treatment,
             token_budget=TOKEN_BUDGET,
             tool_budget=TOOL_BUDGET,
@@ -255,6 +262,26 @@ def _run_one_arm(
             indent=2,
             sort_keys=True,
         ).encode("utf-8")
+        runtime_attestation_bytes = None
+        runtime_attestation_hash = None
+        if mode == "live":
+            try:
+                runtime_attestation = finalize_attestation(
+                    runtime_attestation_seed or {},
+                    endpoint_url=runner.api_base,
+                    models_endpoint_response=agent_result.execution["models_endpoint_response"],
+                    response_model=agent_result.execution["response_model"],
+                    observed_at=agent_result.execution["runtime_attestation_observed_at"],
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                raise RuntimeError(f"runtime attestation finalization failed: {exc}") from exc
+            runtime_attestation_bytes = json.dumps(
+                runtime_attestation,
+                ensure_ascii=True,
+                indent=2,
+                sort_keys=True,
+            ).encode("utf-8")
+            runtime_attestation_hash = _sha256_bytes(runtime_attestation_bytes)
         target_rel = str(target_rel).replace("\\", "/")
         target_bytes = (worktree_path / target_rel).read_bytes()
         _write_bundle_file(bundle_dir / "diff.patch", diff_bytes)
@@ -264,6 +291,8 @@ def _run_one_arm(
         _write_bundle_file(bundle_dir / "file_snapshots.json", file_snapshots_bytes)
         _write_bundle_file(bundle_dir / "tool_trace.json", tool_trace_bytes)
         _write_bundle_file(bundle_dir / "verification.json", verification_bytes)
+        if runtime_attestation_bytes is not None:
+            _write_bundle_file(bundle_dir / "runtime_attestation.json", runtime_attestation_bytes)
 
         manifest = GV100HRunManifest(
             run_id=run_id,
@@ -317,6 +346,8 @@ def _run_one_arm(
                 test_command=verifier_res.test_command,
                 test_exit_code=verifier_res.test_exit_code,
                 test_log_sha256=_sha256_bytes(sim_log_bytes),
+                runtime_attestation_sha256=runtime_attestation_hash,
+                endpoint_url=runner.api_base if mode == "live" else None,
             ),
             outcome=OutcomeManifest(
                 status=final_status,
@@ -356,6 +387,9 @@ def run_single_ab_pair(
     model_hash: Optional[str] = None,
     model_artifact_path: Optional[Union[str, Path]] = None,
     runtime_commit: Optional[str] = None,
+    runtime_attestation_path: Optional[Union[str, Path]] = None,
+    runtime_command: Optional[List[str]] = None,
+    runtime_version: Optional[str] = None,
 ) -> Dict[str, Any]:
     if mode not in {"mock", "live"}:
         raise ValueError(f"Unknown mode '{mode}'. Must be 'live' or 'mock'.")
@@ -379,6 +413,10 @@ def run_single_ab_pair(
                 "runtime_commit": runtime_commit,
             }.items() if not value
         ]
+        if not runtime_attestation_path and not runtime_command:
+            missing.append("runtime_attestation_path or runtime_command")
+        if runtime_command and not runtime_version:
+            missing.append("runtime_version")
         if missing:
             raise ValueError(
                 "Live pair execution requires explicit provenance: "
@@ -395,6 +433,8 @@ def run_single_ab_pair(
     repo = _resolve_repo_root(repo_root)
     case_file = Path(case_path).resolve()
     case_data = _load_case(case_file)
+    runtime_attestation_seed = None
+    runtime_process = None
     if case_data.get("id") and case_data["id"] != task_id:
         raise ValueError(f"case id {case_data['id']!r} does not match task_id {task_id!r}")
 
@@ -436,45 +476,73 @@ def run_single_ab_pair(
 
     manifests: List[GV100HRunManifest] = []
     bundle_dirs: Dict[str, Path] = {}
-    for arm in ARMS:
-        bundle = out_path / task_id / pair_id / f"rep-{repetition}" / arm
-        bundle_dirs[arm] = bundle
-        manifests.append(
-            _run_one_arm(
-                arm=arm,
-                case_data=case_data,
-                task_id=task_id,
-                pair_id=pair_id,
-                repetition=repetition,
-                mode=mode,
-                model_id=model_id,
-                base_commit=base_commit,
-                framework_commit=framework_commit,
-                bundle_dir=bundle,
-                worktree_mgr=worktree_mgr,
-                runner=runner,
-                bridge=bridge,
-                validator=validator,
-                runtime=runtime,
-                quantization=quantization,
-                model_hash=model_hash,
-                runtime_commit=runtime_commit,
+    try:
+        if mode == "live":
+            if runtime_command:
+                runtime_process = RuntimeProcessAttestor(
+                    runtime_command,
+                    runtime=runtime or "",
+                    runtime_commit=runtime_commit or "",
+                    runtime_version=runtime_version or "",
+                    model_id=model_id,
+                    model_path=model_artifact_path or "",
+                    endpoint_url=api_base,
+                    cwd=repo,
+                )
+                runtime_attestation_seed = runtime_process.start()
+            else:
+                runtime_attestation_seed = load_attestation_seed(
+                    runtime_attestation_path or "",
+                    expected_runtime=runtime or "",
+                    expected_runtime_commit=runtime_commit or "",
+                    expected_model_id=model_id,
+                    expected_model_hash=model_hash or "",
+                    expected_model_path=model_artifact_path or "",
+                    expected_endpoint_url=api_base,
+                )
+        for arm in ARMS:
+            bundle = out_path / task_id / pair_id / f"rep-{repetition}" / arm
+            bundle_dirs[arm] = bundle
+            manifests.append(
+                _run_one_arm(
+                    arm=arm,
+                    case_data=case_data,
+                    task_id=task_id,
+                    pair_id=pair_id,
+                    repetition=repetition,
+                    mode=mode,
+                    model_id=model_id,
+                    base_commit=base_commit,
+                    framework_commit=framework_commit,
+                    bundle_dir=bundle,
+                    worktree_mgr=worktree_mgr,
+                    runner=runner,
+                    bridge=bridge,
+                    validator=validator,
+                    runtime=runtime,
+                    quantization=quantization,
+                    model_hash=model_hash,
+                    runtime_commit=runtime_commit,
+                    runtime_attestation_seed=runtime_attestation_seed,
+                )
             )
-        )
 
-    validator.validate_manifest_set(manifests, require_complete_pairs=True)
+        validator.validate_manifest_set(manifests, require_complete_pairs=True)
 
-    return {
-        "task_id": task_id,
-        "repetition": repetition,
-        "pair_id": pair_id,
-        "manifests": manifests,
-        "bundle_dirs": bundle_dirs,
-        "output_dir": out_path,
-        "universe_complete_claim_allowed": False,
-        "admissible_for_model_qualification": False,
-        "evidence_class": "synthetic_offline_scaffold",
-        "qualification_decision": "NO_GO",
-        "planned_runs": 2,
-        "required_total_runs": 60,
-    }
+        return {
+            "task_id": task_id,
+            "repetition": repetition,
+            "pair_id": pair_id,
+            "manifests": manifests,
+            "bundle_dirs": bundle_dirs,
+            "output_dir": out_path,
+            "universe_complete_claim_allowed": False,
+            "admissible_for_model_qualification": False,
+            "evidence_class": "synthetic_offline_scaffold",
+            "qualification_decision": "NO_GO",
+            "planned_runs": 2,
+            "required_total_runs": 60,
+        }
+    finally:
+        if runtime_process is not None:
+            runtime_process.stop()

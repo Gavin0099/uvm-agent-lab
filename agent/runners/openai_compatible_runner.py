@@ -3,6 +3,7 @@ import json
 import time
 import urllib.request
 import urllib.error
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, Optional
 
@@ -57,8 +58,11 @@ class OpenAICompatibleLLMRunner(BaseAgentRunner):
                 "content": f"// Verified UVM generation by {self.name}\nclass evaluated_test;\nendclass\n",
                 "prompt_tokens": 450,
                 "completion_tokens": 120,
+                "response_model": self.model_id,
+                "models_endpoint_response": {"data": [{"id": self.model_id}]},
             }
 
+        models_url = f"{self.api_base}/models"
         url = f"{self.api_base}/chat/completions"
         payload = {
             "model": self.model_id,
@@ -73,15 +77,35 @@ class OpenAICompatibleLLMRunner(BaseAgentRunner):
         }
 
         try:
+            models_req = urllib.request.Request(models_url, method="GET")
+            with urllib.request.urlopen(models_req, timeout=10) as models_resp:
+                models_data = json.loads(models_resp.read().decode("utf-8"))
+            model_ids = {
+                item.get("id")
+                for item in models_data.get("data", [])
+                if isinstance(item, dict)
+            }
+            if self.model_id not in model_ids:
+                raise ConnectionError(
+                    f"ENDPOINT_MODEL_MISMATCH: /models does not expose {self.model_id}"
+                )
             req = urllib.request.Request(url, data=data, headers=headers, method="POST")
             with urllib.request.urlopen(req, timeout=30) as resp:
                 resp_json = json.loads(resp.read().decode("utf-8"))
                 choice = resp_json["choices"][0]["message"]
                 usage = resp_json.get("usage", {})
+                response_model = resp_json.get("model")
+                if response_model != self.model_id:
+                    raise ConnectionError(
+                        f"ENDPOINT_MODEL_MISMATCH: response model {response_model!r} "
+                        f"does not match {self.model_id!r}"
+                    )
                 return {
                     "content": choice.get("content", ""),
                     "prompt_tokens": usage.get("prompt_tokens", 400),
                     "completion_tokens": usage.get("completion_tokens", 100),
+                    "response_model": response_model,
+                    "models_endpoint_response": models_data,
                 }
         except urllib.error.URLError as e:
             raise ConnectionError(f"ENDPOINT_UNAVAILABLE: Failed to connect to OpenAI-compatible endpoint at {url}: {e}")
@@ -98,6 +122,14 @@ class OpenAICompatibleLLMRunner(BaseAgentRunner):
         workspace_root = context.workspace_root if context else Path(".").resolve()
         token_budget = context.token_budget if context else self.token_budget
         treatment = context.treatment if context else "governed_sidecar"
+        if not self.mock_mode and not context:
+            raise ConnectionError(
+                "RUNTIME_ATTESTATION_REQUIRED: live execution requires an attestation seed"
+            )
+        if not self.mock_mode and not context.runtime_attestation_seed:
+            raise ConnectionError(
+                "RUNTIME_ATTESTATION_REQUIRED: live execution requires an attestation seed"
+            )
         if treatment == "governed_sidecar":
             if context and context.sidecar_guardrail is not None:
                 guardrail = context.sidecar_guardrail
@@ -213,6 +245,9 @@ class OpenAICompatibleLLMRunner(BaseAgentRunner):
                 "endpoint_observed": not self.mock_mode,
                 "treatment": treatment,
                 "interception_mode": interception_mode,
+                "response_model": llm_res.get("response_model"),
+                "models_endpoint_response": llm_res.get("models_endpoint_response"),
+                "runtime_attestation_observed_at": datetime.now(timezone.utc).isoformat(),
                 "step_count": len(tool_calls),
                 "retry_count": 0,
                 "tool_calls": tool_calls,

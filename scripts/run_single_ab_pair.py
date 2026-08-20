@@ -15,6 +15,24 @@ if str(PROJECT_ROOT) not in sys.path:
 from gv100h.coding_eval.single_pair_runner import run_single_ab_pair
 
 
+def _parse_runtime_command_json(value: str) -> list[str]:
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise argparse.ArgumentTypeError(
+            "--runtime-command-json must contain valid JSON"
+        ) from exc
+    if (
+        not isinstance(parsed, list)
+        or not parsed
+        or any(not isinstance(item, str) or not item for item in parsed)
+    ):
+        raise argparse.ArgumentTypeError(
+            "--runtime-command-json must be a non-empty JSON array of non-empty strings"
+        )
+    return parsed
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Run one UVM task for one repetition across both A/B arms."
@@ -33,6 +51,9 @@ def main() -> int:
     parser.add_argument("--model-hash", default=None)
     parser.add_argument("--model-artifact-path", default=None)
     parser.add_argument("--runtime-commit", default=None)
+    parser.add_argument("--runtime-attestation-path", default=None)
+    parser.add_argument("--runtime-command-json", type=_parse_runtime_command_json, default=None)
+    parser.add_argument("--runtime-version", default=None)
     parser.add_argument("--api-base", default="http://localhost:8000/v1")
     args = parser.parse_args()
 
@@ -50,6 +71,9 @@ def main() -> int:
         model_hash=args.model_hash,
         model_artifact_path=args.model_artifact_path,
         runtime_commit=args.runtime_commit,
+        runtime_attestation_path=args.runtime_attestation_path,
+        runtime_command=args.runtime_command_json,
+        runtime_version=args.runtime_version,
     )
     printable = {
         "task_id": result["task_id"],

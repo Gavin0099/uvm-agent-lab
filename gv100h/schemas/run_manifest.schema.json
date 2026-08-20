@@ -180,7 +180,12 @@
         "build_log_sha256": { "type": ["string", "null"] },
         "test_command": { "type": ["string", "null"] },
         "test_exit_code": { "type": ["integer", "null"] },
-        "test_log_sha256": { "type": ["string", "null"] }
+        "test_log_sha256": { "type": ["string", "null"] },
+        "runtime_attestation_sha256": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "endpoint_url": { "type": ["string", "null"] }
       }
     },
     "outcome": {

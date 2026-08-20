@@ -52,6 +52,8 @@ class EvidenceManifest(BaseModel):
     test_command: Optional[str] = None
     test_exit_code: Optional[int] = None
     test_log_sha256: Optional[str] = None
+    runtime_attestation_sha256: Optional[str] = None
+    endpoint_url: Optional[str] = None
 
 
 class OutcomeManifest(BaseModel):
