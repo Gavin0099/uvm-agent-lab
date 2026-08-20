@@ -34,11 +34,20 @@ def build_hardware_profile(hw_live_data, vram_per_gpu, hw_budget):
     if not hw_live_data:
         return {
             "candidate": SYNTHETIC_CANDIDATE,
+            "model_id": None,
             "total_requests": 100,
             "corruption_count": 0,
             "vram_peak_per_gpu_gb": vram_per_gpu,
             "decode_tps": SYNTHETIC_DECODE_TPS,
             "hardware_observed": False,
+            "gate_passed": False,
+            "profile_identity": None,
+            "model_provenance_ready": False,
+            "model_provenance_independent": False,
+            "context_fixture_bound": False,
+            "launch_context_bound": False,
+            "launch_profile_arm_consistent": False,
+            "response_oracle": None,
             "budget": hw_budget,
         }
 
@@ -50,18 +59,61 @@ def build_hardware_profile(hw_live_data, vram_per_gpu, hw_budget):
     if decode is None:
         decode = hw_live_data.get("est_decode_tps")
 
+    candidate_value = hw_live_data.get("candidate", SYNTHETIC_CANDIDATE)
+    if isinstance(candidate_value, dict):
+        candidate_value = (
+            hw_live_data.get("candidate_name")
+            or candidate_value.get("name")
+            or SYNTHETIC_CANDIDATE
+        )
+
     return {
-        "candidate": hw_live_data.get("candidate", SYNTHETIC_CANDIDATE),
+        "candidate": candidate_value,
+        "model_id": hw_live_data.get("model_id"),
         "total_requests": hw_live_data.get("total_requests"),
         "corruption_count": hw_live_data.get("corruption_count"),
         "vram_peak_per_gpu_gb": vram,
         "decode_tps": decode,
         "hardware_observed": bool(hw_live_data.get("hardware_observed", False)),
+        "gate_passed": hw_live_data.get("gate_passed"),
+        "profile_identity": hw_live_data.get("profile_identity"),
+        "model_provenance_ready": hw_live_data.get("model_provenance_ready"),
+        "model_provenance_independent": hw_live_data.get("model_provenance_independent"),
+        "context_fixture_bound": hw_live_data.get("context_fixture_bound"),
+        "launch_context_bound": hw_live_data.get("launch_context_bound"),
+        "launch_profile_arm_consistent": hw_live_data.get("launch_profile_arm_consistent"),
+        "response_oracle": hw_live_data.get("response_oracle"),
+        "nvlink": gpu_tel.get("initial", {}).get("nvlink"),
+        "launch_profile": hw_live_data.get("launch_profile"),
         "budget": hw_budget,
     }
 
 
-def generate_report(output_path: str = "results/GV100H_POC_REPORT.md") -> str:
+def _load_hardware_profile(hardware_profile_path: str | None) -> dict | None:
+    """Load an explicitly selected profile; no path means synthetic input only."""
+
+    if not hardware_profile_path:
+        return None
+    profile_path = Path(hardware_profile_path)
+    if not profile_path.is_absolute():
+        profile_path = PROJECT_ROOT / profile_path
+    if not profile_path.is_file():
+        raise FileNotFoundError(
+            f"explicit hardware profile summary does not exist: {profile_path}"
+        )
+    try:
+        profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"invalid explicit hardware profile summary: {profile_path}") from exc
+    if not isinstance(profile, dict):
+        raise ValueError("explicit hardware profile summary must be a JSON object")
+    return profile
+
+
+def generate_report(
+    output_path: str = "results/GV100H_POC_REPORT.md",
+    hardware_profile_path: str | None = None,
+) -> str:
     candidate = GV100H_BASELINE
     model_reference = candidate.model_id if "/" in candidate.model_id else f"Qwen/{candidate.model_id}"
     # 1. Gather empirical inputs & Ingest live artifacts if present
@@ -78,7 +130,6 @@ def generate_report(output_path: str = "results/GV100H_POC_REPORT.md") -> str:
         manifest_dir=str(live_manifest_dir) if live_manifest_dir.exists() else None
     )
 
-    hw_profile_path = PROJECT_ROOT / "results" / "hardware" / "profile_summary.json"
     hw_budget = DualGV100VRAMTracker.estimate_memory_budget(
         model_name=model_reference,
         quantization=candidate.quantization,
@@ -92,13 +143,7 @@ def generate_report(output_path: str = "results/GV100H_POC_REPORT.md") -> str:
         else getattr(hw_budget, "peak_vram_per_gpu_gb", None)
     )
 
-    hw_live_data = None
-    if hw_profile_path.exists():
-        try:
-            with open(hw_profile_path, "r", encoding="utf-8") as f:
-                hw_live_data = json.load(f)
-        except Exception:
-            hw_live_data = None
+    hw_live_data = _load_hardware_profile(hardware_profile_path)
     hardware_profile = build_hardware_profile(hw_live_data, vram_per_gpu, hw_budget)
 
     # 2. Execute Deterministic Policy Evaluator
@@ -174,7 +219,7 @@ def generate_report(output_path: str = "results/GV100H_POC_REPORT.md") -> str:
 2. **禁止宣稱「完美支撐」或「0% 假成功已在生產落地」**：此類宣稱必須依賴後續實機收集之真實 Run Manifests 與 GPU Telemetry 日誌。
 3. **下一步行動 (Action Items to Achieve GO)**：
    - 部署本地推論伺服器（llama.cpp / vLLM）載入 Qwen 權重（端點設於 `http://localhost:8000/v1`）。
-   - 在具備 NVIDIA 驅動與 GPU 的環境下執行 `python scripts/profile_runtime.py --requests 100` 獲取真實 NVML/nvidia-smi GPU Telemetry 儲存於 `results/hardware/profile_summary.json`。
+    - 在具備 NVIDIA 驅動與 GPU 的環境下，使用 approved model manifest、context fixture、resolved launch profile 與 expected response hash 執行 `scripts/profile_runtime.py`；每個 context/profile cell 必須輸出獨立 profile summary，不能以 metadata-only sweep 或預設檔案路徑取代實際 evidence。
     - 先以 32K、64K、128K 執行 primary context sweep，再將 192K、256K 作為 stretch；`python scripts/run_live_universe.py --full-universe` 才能執行 10×3×2 母體。`python scripts/run_live_eval.py` 已 deprecated，不可作為 producer。
    - 透過 `GovernanceABRunner` 聚合真實 Manifests 並重新執行評審以解除 `NO_GO — synthetic` 限制。
 """
@@ -187,5 +232,15 @@ def generate_report(output_path: str = "results/GV100H_POC_REPORT.md") -> str:
 
 
 if __name__ == "__main__":
-    generate_report()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Render the Gate 4 qualification report")
+    parser.add_argument("--output", default="results/GV100H_POC_REPORT.md")
+    parser.add_argument(
+        "--hardware-profile",
+        default=None,
+        help="Explicit profile summary JSON; missing paths fail closed.",
+    )
+    args = parser.parse_args()
+    generate_report(output_path=args.output, hardware_profile_path=args.hardware_profile)
 

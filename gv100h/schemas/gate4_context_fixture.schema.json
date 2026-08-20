@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Gate4ContextPromptFixture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "context_length",
+    "prompt",
+    "prompt_hash",
+    "actual_prompt_tokens",
+    "expected_response_sha256"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "context_length": {
+      "type": "integer",
+      "enum": [32768, 65536, 131072, 196608, 262144]
+    },
+    "prompt": { "type": "string", "minLength": 1 },
+    "prompt_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{64}$"
+    },
+    "actual_prompt_tokens": { "type": "integer", "minimum": 1 },
+    "expected_response_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{64}$"
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "context_length": { "const": 32768 } } },
+      "then": { "properties": { "actual_prompt_tokens": { "minimum": 29491 } } }
+    },
+    {
+      "if": { "properties": { "context_length": { "const": 65536 } } },
+      "then": { "properties": { "actual_prompt_tokens": { "minimum": 58982 } } }
+    },
+    {
+      "if": { "properties": { "context_length": { "const": 131072 } } },
+      "then": { "properties": { "actual_prompt_tokens": { "minimum": 117964 } } }
+    },
+    {
+      "if": { "properties": { "context_length": { "const": 196608 } } },
+      "then": { "properties": { "actual_prompt_tokens": { "minimum": 176947 } } }
+    },
+    {
+      "if": { "properties": { "context_length": { "const": 262144 } } },
+      "then": { "properties": { "actual_prompt_tokens": { "minimum": 235929 } } }
+    }
+  ]
+}

@@ -22,6 +22,8 @@ policy_gates:
     max_corruption_count: 0
     max_vram_usage_per_gpu_gb: 30.0
     min_est_decode_tps: 15.0
+    require_profile_gate_passed: true
+    require_independent_model_provenance: true
 
 decision_rules:
   GO:

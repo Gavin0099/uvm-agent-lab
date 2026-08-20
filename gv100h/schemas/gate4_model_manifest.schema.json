@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Gate4ModelArtifactManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "model_id",
+    "model_source",
+    "model_revision",
+    "model_artifact",
+    "model_sha256",
+    "provenance_class",
+    "independent_verification"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "model_id": { "type": "string", "minLength": 1 },
+    "model_source": { "type": "string", "minLength": 1 },
+    "model_revision": { "type": "string", "minLength": 1 },
+    "model_artifact": { "type": "string", "minLength": 1 },
+    "model_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{64}$"
+    },
+    "provenance_class": { "type": "string", "const": "operator_attested" },
+    "independent_verification": { "type": "boolean", "const": false }
+  }
+}

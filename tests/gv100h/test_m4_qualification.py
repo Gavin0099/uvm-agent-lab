@@ -1,5 +1,6 @@
 import pytest
 import sys
+import json
 import yaml
 from pathlib import Path
 
@@ -7,10 +8,18 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.generate_poc_report import generate_report, build_hardware_profile
+from scripts.generate_poc_report import (
+    _load_hardware_profile,
+    build_hardware_profile,
+    generate_report,
+)
 from scripts.profile_runtime import compute_profile_metrics
 from gv100h.coding_eval.governance_ab_runner import ABExperimentSummary
 from gv100h.qualification.evaluator import QualificationPolicyEvaluator
+from gv100h.runtime.admission_matrix import (
+    RuntimeAdmissionMatrix,
+    canonical_profile_identity,
+)
 from gv100h.spec_qa.evaluation.deterministic_evaluator import QAEvaluationResult
 
 
@@ -43,7 +52,7 @@ def _numeric_policy_gate_names(policy: dict) -> set[str]:
         if not isinstance(cfg, dict):
             continue
         for key, value in cfg.items():
-            if isinstance(value, (int, float)):
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
                 names.add(f"{group}.{key}")
     return names - _SUPPORTING_POLICY_KEYS
 
@@ -217,12 +226,23 @@ def _live_inputs_for_decision():
         arm_b_governed_sidecar={"false_success_rate": 0.0, "scope_violations_count": 0, "task_success_rate": 80.0},
         governance_benefit={},
     )
+    candidate = RuntimeAdmissionMatrix.get_candidate("candidate_a_llama_cpp_gguf")
+    profile_identity = canonical_profile_identity(
+        candidate,
+        model_id="Qwen3.8-27B",
+        kv_cache_type_k="q8_0",
+        kv_cache_type_v="q8_0",
+    )
     hardware = {
         "total_requests": 100,
         "corruption_count": 0,
         "hardware_observed": True,
         "vram_peak_per_gpu_gb": 18.0,
         "decode_tps": 20.0,
+        "model_id": "Qwen3.8-27B",
+        "model_provenance_independent": True,
+        "gate_passed": True,
+        "profile_identity": profile_identity,
     }
     return qa_res, coding_res, hardware
 
@@ -233,6 +253,136 @@ def test_non_human_gate_failure_cannot_be_conditional_go():
     decision = QualificationPolicyEvaluator().evaluate(qa_res, coding_res, hardware)
 
     assert decision.decision == "NO_GO"
+
+
+def test_profile_gate_failure_forces_no_go_even_when_numeric_metrics_pass():
+    qa_res, coding_res, hardware = _live_inputs_for_decision()
+    hardware["gate_passed"] = False
+
+    decision = QualificationPolicyEvaluator().evaluate(qa_res, coding_res, hardware)
+
+    assert decision.decision == "NO_GO"
+    profile_gate = next(
+        gate for gate in decision.gates
+        if gate.gate_name == "hardware_feasibility.profile_gate_passed"
+    )
+    assert profile_gate.passed is False
+
+
+def test_operator_attested_model_provenance_forces_no_go():
+    qa_res, coding_res, hardware = _live_inputs_for_decision()
+    hardware["model_provenance_independent"] = False
+
+    decision = QualificationPolicyEvaluator().evaluate(qa_res, coding_res, hardware)
+
+    assert decision.decision == "NO_GO"
+    provenance_gate = next(
+        gate for gate in decision.gates
+        if gate.gate_name == "hardware_feasibility.independent_model_provenance"
+    )
+    assert provenance_gate.passed is False
+
+
+def test_production_hardware_mapping_preserves_profile_gate_identity():
+    mapped = build_hardware_profile(
+        {
+            "candidate": {"name": "candidate_a_llama_cpp_gguf"},
+            "candidate_name": "candidate_a_llama_cpp_gguf",
+            "model_id": "Qwen3.8-27B",
+            "total_requests": 100,
+            "corruption_count": 0,
+            "vram_peak_per_gpu_gb": 18.0,
+            "decode_tps": 20.0,
+            "hardware_observed": True,
+            "gate_passed": True,
+            "profile_identity": {"profile_id": "candidate_a_llama_cpp_gguf"},
+            "model_provenance_ready": True,
+            "model_provenance_independent": True,
+            "context_fixture_bound": True,
+            "launch_context_bound": True,
+            "response_oracle": "strict-v1",
+        },
+        vram_per_gpu=14.96,
+        hw_budget={"per_gpu_vram_gb": 14.96},
+    )
+
+    assert mapped["model_id"] == "Qwen3.8-27B"
+    assert mapped["gate_passed"] is True
+    assert mapped["profile_identity"]["profile_id"] == "candidate_a_llama_cpp_gguf"
+    assert mapped["model_provenance_ready"] is True
+    assert mapped["context_fixture_bound"] is True
+    assert mapped["launch_context_bound"] is True
+    assert mapped["response_oracle"] == "strict-v1"
+
+
+def test_profile_summary_mapping_reaches_qualification_gate():
+    qa_res, coding_res, hardware = _live_inputs_for_decision()
+    profile_summary = {
+        "candidate": {"name": "candidate_a_llama_cpp_gguf"},
+        "candidate_name": "candidate_a_llama_cpp_gguf",
+        "model_id": hardware["model_id"],
+        "total_requests": hardware["total_requests"],
+        "corruption_count": hardware["corruption_count"],
+        "vram_peak_per_gpu_gb": hardware["vram_peak_per_gpu_gb"],
+        "decode_tps": hardware["decode_tps"],
+        "hardware_observed": hardware["hardware_observed"],
+        "gate_passed": hardware["gate_passed"],
+        "profile_identity": hardware["profile_identity"],
+        "model_provenance_ready": True,
+        "model_provenance_independent": True,
+        "context_fixture_bound": True,
+        "launch_context_bound": True,
+        "response_oracle": "strict-v1",
+    }
+    mapped = build_hardware_profile(
+        profile_summary,
+        vram_per_gpu=14.96,
+        hw_budget={"per_gpu_vram_gb": 14.96},
+    )
+    hardware.update(mapped)
+
+    decision = QualificationPolicyEvaluator().evaluate(qa_res, coding_res, hardware)
+
+    assert next(
+        gate for gate in decision.gates
+        if gate.gate_name == "hardware_feasibility.profile_gate_passed"
+    ).passed is True
+    assert next(
+        gate for gate in decision.gates
+        if gate.gate_name == "hardware_feasibility.profile_identity"
+    ).passed is True
+
+
+def test_report_rejects_missing_explicit_hardware_profile(tmp_path):
+    with pytest.raises(FileNotFoundError, match="explicit hardware profile"):
+        generate_report(
+            output_path=str(tmp_path / "report.md"),
+            hardware_profile_path=str(tmp_path / "missing-profile.json"),
+        )
+
+
+def test_report_without_profile_path_never_reads_default_live_summary(tmp_path, monkeypatch):
+    default_profile = tmp_path / "results" / "hardware" / "profile_summary.json"
+    default_profile.parent.mkdir(parents=True)
+    default_profile.write_text(json.dumps({"hardware_observed": True}), encoding="utf-8")
+    monkeypatch.setattr("scripts.generate_poc_report.PROJECT_ROOT", tmp_path)
+
+    assert _load_hardware_profile(None) is None
+
+
+def test_profile_identity_mismatch_forces_no_go():
+    qa_res, coding_res, hardware = _live_inputs_for_decision()
+    hardware["profile_identity"] = dict(hardware["profile_identity"])
+    hardware["profile_identity"]["spec_draft_n_max"] = 2
+
+    decision = QualificationPolicyEvaluator().evaluate(qa_res, coding_res, hardware)
+
+    assert decision.decision == "NO_GO"
+    identity_gate = next(
+        gate for gate in decision.gates
+        if gate.gate_name == "hardware_feasibility.profile_identity"
+    )
+    assert identity_gate.passed is False
 
 
 def test_missing_human_rating_is_pending_not_conditional_go():

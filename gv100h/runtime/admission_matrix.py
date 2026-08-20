@@ -1,3 +1,5 @@
+import hashlib
+import json
 from typing import List, Dict, Any
 from pydantic import BaseModel
 
@@ -14,6 +16,7 @@ class RuntimeCandidate(BaseModel):
     positioning: str
     exit_gate_criteria: Dict[str, Any]
     model_artifact: str = ""
+    launch_profile_id: str = ""
     gpu_count: int = 1
     kv_cache_type: str = "F16"
     kv_cache_type_k: str = "q8_0"
@@ -47,6 +50,7 @@ class RuntimeAdmissionMatrix:
             supported_models=[GV100H_BASELINE.model_id],
             positioning="Baseline Qualification & Correctness First",
             model_artifact=GV100H_BASELINE.model_artifact,
+            launch_profile_id="mtp_off",
             gpu_count=GV100H_BASELINE.gpu_count,
             kv_cache_type=GV100H_BASELINE.kv_cache_type,
             kv_cache_type_k=GV100H_BASELINE.kv_cache_type_k,
@@ -79,6 +83,7 @@ class RuntimeAdmissionMatrix:
             supported_models=[GV100_MTP_N2.model_id],
             positioning="MTP n-max=2 comparison arm for the Qwen3.8-27B V100 baseline",
             model_artifact=GV100_MTP_N2.model_artifact,
+            launch_profile_id="mtp_n2",
             gpu_count=GV100_MTP_N2.gpu_count,
             kv_cache_type=GV100_MTP_N2.kv_cache_type,
             kv_cache_type_k=GV100_MTP_N2.kv_cache_type_k,
@@ -112,6 +117,8 @@ class RuntimeAdmissionMatrix:
             kv_cache_type_v="engine_managed",
             supported_models=["Qwen/Qwen3.8-35B-A3B", "Qwen/Qwen3.8-27B"],
             positioning="Experimental Throughput Acceleration",
+            launch_profile_id="candidate_b_pinned_vllm_gptq",
+            gpu_count=2,
             exit_gate_criteria={
                 "min_success_requests": 100,
                 "max_corruption_count": 0,
@@ -125,10 +132,12 @@ class RuntimeAdmissionMatrix:
             quantization="FP16",
             tensor_parallel=2,
             kv_cache_type="F16",
+            launch_profile_id="candidate_c_transformers_reference",
             kv_cache_type_k="f16",
             kv_cache_type_v="f16",
             supported_models=["Qwen/Qwen3.8-27B"],
             positioning="Golden Output Reference / Ground Truth Baseline",
+            gpu_count=2,
             exit_gate_criteria={
                 "min_success_requests": 10,
                 "max_corruption_count": 0,
@@ -148,3 +157,42 @@ class RuntimeAdmissionMatrix:
             if c.name == name:
                 return c
         raise KeyError(f"Candidate '{name}' not in Admission Matrix.")
+
+
+def normalize_profile_cache_type(value: str) -> str:
+    return str(value or "").strip().lower().replace("-", "_")
+
+
+def canonical_profile_identity(
+    candidate: RuntimeCandidate,
+    *,
+    model_id: str,
+    kv_cache_type_k: str,
+    kv_cache_type_v: str,
+) -> Dict[str, Any]:
+    """Return stable profile fields and digest used at qualification time."""
+
+    fields = {
+        "profile_id": candidate.name,
+        "launch_profile_id": candidate.launch_profile_id or candidate.name,
+        "model_id": model_id,
+        "runtime_type": candidate.runtime_type,
+        "quantization": candidate.quantization,
+        "tensor_parallel": candidate.tensor_parallel,
+        "gpu_count": candidate.gpu_count,
+        "parallel": candidate.parallel,
+        "mtp_enabled": candidate.mtp_enabled,
+        "spec_draft_n_max": candidate.spec_draft_n_max,
+        "kv_cache_type_k": normalize_profile_cache_type(kv_cache_type_k),
+        "kv_cache_type_v": normalize_profile_cache_type(kv_cache_type_v),
+    }
+    encoded = json.dumps(
+        fields,
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return {
+        **fields,
+        "identity_sha256": hashlib.sha256(encoded).hexdigest(),
+    }
