@@ -36,7 +36,11 @@ interchangeable:
 The source roles and binding state are recorded in
 [`gv100h/spec_qa/contracts/corpus.lock.yaml`](../gv100h/spec_qa/contracts/corpus.lock.yaml).
 Pending source bindings are an explicit incomplete state; they cannot support
-a claim of complete Phase 1 corpus qualification.
+a claim of complete Phase 1 corpus qualification. At runtime,
+`GovernedSpecRetriever` validates the required layers, Phase 1 source IDs,
+authority roles, revision/commit fields, scope binding fields, USB4 exclusion,
+and evaluation-only boundary. Pending markers are reported as a qualification
+block rather than silently treated as a complete binding.
 
 The first benchmark is intentionally limited to this USB Hub baseline:
 

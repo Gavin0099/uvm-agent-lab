@@ -116,7 +116,11 @@ binding_requirements:
     - "immutable_commit_or_document_revision"
     - "content_sha256"
     - "authority_role"
-    - "included_scope"
+  scope_binding:
+    requires_one_of:
+      - "included_chapters"
+      - "included_scope"
+      - "canonical_entrypoint"
   pending_markers_block:
     - "full_phase1_qualification"
     - "claim_of_complete_official_corpus"
