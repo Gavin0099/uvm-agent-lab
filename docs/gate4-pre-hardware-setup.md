@@ -55,6 +55,27 @@ The external MTP report is a hypothesis and reference only. It is not local hard
     before treating the manifest as approved. Do not replace the model with a
     similarly named file. Until that external comparison is recorded, model
     provenance remains `operator_attested` and Gate 4 qualification is blocked.
+
+   Record the independently approved model in the committed trust anchor
+   `governance/gate4_approved_models.json`, then issue the verification receipt
+   by approval ID. Do not pass a locally computed checksum as an approval value:
+
+   ```powershell
+   python scripts/verify_gate4_model_manifest.py `
+      --repo-root . `
+      --manifest deploy/gate4_model_manifest.json `
+      --artifact <absolute-path-to-Qwen3.8-27B-Q4_K_M.gguf> `
+      --approval-id <committed-approval-id> `
+      --approval-registry governance/gate4_approved_models.json `
+      --verifier-id <independent-verifier-id> `
+      --verification-basis <vendor-release-checksum-or-equivalent> `
+      --output deploy/gate4_model_verification_receipt.json
+   ```
+
+   The receipt binds the approval ID, registry bytes hash, registry commit,
+   manifest bytes, and artifact bytes. A dirty, untracked, alternate-path, or
+   caller-only registry fails closed. The registry in this repository remains
+   empty until a real external checksum is reviewed and committed.
 3. Install or build `llama-server` with `draft-mtp` support and record the binary version/commit.
 4. Keep the same model, KV type, Flash Attention setting, parallelism, prompt corpus, and sampling configuration between MTP OFF and n-max=2.
 5. Prepare the context sweep: 32K, 64K, and 128K primary; 192K and exploratory 256K stretch.
@@ -79,6 +100,8 @@ python scripts/profile_runtime.py `
    --candidate candidate_a_llama_cpp_gguf `
    --model-path <absolute-path-to-Qwen3.8-27B-Q4_K_M.gguf> `
    --model-manifest deploy/gate4_model_manifest.json `
+   --model-verification-receipt deploy/gate4_model_verification_receipt.json `
+   --model-approval-registry governance/gate4_approved_models.json `
    --context-fixture gate4/prompts/ctx_32k.json `
    --launch-profile-config deploy/llama_cpp_gv100.yaml `
    --launch-profile-id mtp_off `

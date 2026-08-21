@@ -30,6 +30,7 @@ from gv100h.runtime.admission_matrix import (
 from gv100h.runtime.context_fixtures import load_context_fixture
 from gv100h.runtime.launch_profiles import resolve_launch_command
 from gv100h.runtime.model_provenance import (
+    DEFAULT_APPROVAL_REGISTRY_RELATIVE_PATH,
     load_model_manifest,
     verify_model_verification_receipt,
 )
@@ -653,6 +654,7 @@ def profile_endpoint(
     context_fixture_path: Optional[str] = None,
     model_manifest_path: Optional[str] = None,
     model_verification_receipt_path: Optional[str] = None,
+    model_approval_registry_path: Optional[str] = None,
     launch_profile_config_path: Optional[str] = None,
     launch_profile_id: Optional[str] = None,
     runtime_command: Optional[List[str]] = None,
@@ -665,6 +667,11 @@ def profile_endpoint(
 ) -> Dict[str, Any]:
     candidate = RuntimeAdmissionMatrix.get_candidate(candidate_name)
     effective_model_id = model_id or candidate.supported_models[0]
+    if effective_model_id not in candidate.supported_models:
+        raise ValueError(
+            f"model_id {effective_model_id!r} is not supported by candidate "
+            f"{candidate.name!r}"
+        )
     context_fixture = load_context_fixture(context_fixture_path) if context_fixture_path else None
     timeout_was_explicit = request_timeout_sec is not None
     if request_timeout_sec is None:
@@ -743,7 +750,17 @@ def profile_endpoint(
     model_manifest = None
     model_manifest_error = "approved model provenance manifest not supplied"
     model_provenance_independent = False
+    model_receipt: Optional[Dict[str, Any]] = None
     model_receipt_error = "independent model verification receipt not supplied"
+    if model_approval_registry_path:
+        approval_registry_path = Path(model_approval_registry_path)
+        if not approval_registry_path.is_absolute():
+            approval_registry_path = PROJECT_ROOT / approval_registry_path
+        approval_registry_path = approval_registry_path.resolve()
+    else:
+        approval_registry_path = (
+            PROJECT_ROOT / DEFAULT_APPROVAL_REGISTRY_RELATIVE_PATH
+        )
     if model_manifest_path:
         try:
             model_manifest = load_model_manifest(model_manifest_path)
@@ -760,12 +777,14 @@ def profile_endpoint(
         else:
             if model_verification_receipt_path:
                 try:
-                    verify_model_verification_receipt(
+                    model_receipt = verify_model_verification_receipt(
                         model_manifest_path,
                         model_path,
                         model_verification_receipt_path,
                         expected_model_id=effective_model_id,
                         expected_model_artifact=candidate.model_artifact,
+                        approval_registry_path=approval_registry_path,
+                        repo_root=PROJECT_ROOT,
                     )
                     model_provenance_independent = True
                     model_receipt_error = None
@@ -909,6 +928,18 @@ def profile_endpoint(
             if model_verification_receipt_path
             else None,
             "receipt_error": model_receipt_error,
+            "approval_registry_path": str(approval_registry_path),
+            "approval_id": model_receipt.get("approval_id") if model_receipt else None,
+            "approval_registry_sha256": (
+                model_receipt.get("approval_registry_sha256")
+                if model_receipt
+                else None
+            ),
+            "approval_registry_commit": (
+                model_receipt.get("approval_registry_commit")
+                if model_receipt
+                else None
+            ),
         },
         "llama_cpp_commit": llama_cpp_commit,
         "llama_server_version": effective_server_version,
@@ -1010,6 +1041,7 @@ if __name__ == "__main__":
     parser.add_argument("--context-fixture", default=None)
     parser.add_argument("--model-manifest", default=None)
     parser.add_argument("--model-verification-receipt", default=None)
+    parser.add_argument("--model-approval-registry", default=None)
     parser.add_argument("--launch-profile-config", default=None)
     parser.add_argument("--launch-profile-id", default=None)
     parser.add_argument("--runtime-command-json", type=parse_runtime_command_json, default=None)
@@ -1042,6 +1074,7 @@ if __name__ == "__main__":
         context_fixture_path=args.context_fixture,
         model_manifest_path=args.model_manifest,
         model_verification_receipt_path=args.model_verification_receipt,
+        model_approval_registry_path=args.model_approval_registry,
         launch_profile_config_path=args.launch_profile_config,
         launch_profile_id=args.launch_profile_id,
         runtime_command=args.runtime_command_json,

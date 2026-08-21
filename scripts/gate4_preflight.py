@@ -66,6 +66,7 @@ def build_preflight_report(
     model_path: Optional[Path] = None,
     model_manifest_path: Optional[Path] = None,
     model_verification_receipt_path: Optional[Path] = None,
+    model_approval_registry_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
     root = Path(repo_root).resolve()
     config_file = (config_path or root / "deploy" / "llama_cpp_gv100.yaml").resolve()
@@ -115,6 +116,19 @@ def build_preflight_report(
         receipt_file = root / "deploy" / "gate4_model_verification_receipt.json"
     receipt_file = receipt_file.resolve()
 
+    configured_registry = config_data.get("model_approval_registry")
+    if model_approval_registry_path is not None:
+        registry_file = Path(model_approval_registry_path)
+        if not registry_file.is_absolute():
+            registry_file = root / registry_file
+    elif configured_registry:
+        registry_file = Path(str(configured_registry))
+        if not registry_file.is_absolute():
+            registry_file = root / registry_file
+    else:
+        registry_file = root / "governance" / "gate4_approved_models.json"
+    registry_file = registry_file.resolve()
+
     artifact_path = Path(model_path).resolve() if model_path else None
     model_artifact_present = bool(artifact_path and artifact_path.is_file())
     model_artifact_hash: Optional[str] = None
@@ -132,17 +146,20 @@ def build_preflight_report(
         and model_artifact_hash_matches
     )
     model_provenance_independent = False
+    model_receipt: Optional[Dict[str, Any]] = None
     model_receipt_error: Optional[str] = (
         "independent model verification receipt not supplied"
     )
     if model_manifest is not None and artifact_path is not None and receipt_file.is_file():
         try:
-            verify_model_verification_receipt(
+            model_receipt = verify_model_verification_receipt(
                 manifest_file,
                 artifact_path,
                 receipt_file,
                 expected_model_id=GV100H_BASELINE.model_id,
                 expected_model_artifact=GV100H_BASELINE.model_artifact,
+                approval_registry_path=registry_file,
+                repo_root=root,
             )
             model_provenance_independent = True
         except ValueError as exc:
@@ -311,6 +328,18 @@ def build_preflight_report(
             "receipt_path": str(receipt_file),
             "receipt_present": receipt_file.is_file(),
             "receipt_error": model_receipt_error,
+            "approval_registry_path": str(registry_file),
+            "approval_id": model_receipt.get("approval_id") if model_receipt else None,
+            "approval_registry_sha256": (
+                model_receipt.get("approval_registry_sha256")
+                if model_receipt
+                else None
+            ),
+            "approval_registry_commit": (
+                model_receipt.get("approval_registry_commit")
+                if model_receipt
+                else None
+            ),
             "artifact_path": str(artifact_path) if artifact_path else None,
             "artifact_present": model_artifact_present,
             "artifact_sha256": model_artifact_hash,
@@ -347,6 +376,7 @@ def main() -> int:
     parser.add_argument("--model-path", default=None)
     parser.add_argument("--model-manifest", default=None)
     parser.add_argument("--model-verification-receipt", default=None)
+    parser.add_argument("--model-approval-registry", default=None)
     parser.add_argument(
         "--require-bringup",
         action="store_true",
@@ -363,6 +393,11 @@ def main() -> int:
         model_verification_receipt_path=(
             Path(args.model_verification_receipt)
             if args.model_verification_receipt
+            else None
+        ),
+        model_approval_registry_path=(
+            Path(args.model_approval_registry)
+            if args.model_approval_registry
             else None
         ),
     )

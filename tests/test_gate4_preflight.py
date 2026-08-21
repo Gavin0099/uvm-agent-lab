@@ -1,6 +1,7 @@
 from pathlib import Path
 import hashlib
 import json
+import subprocess
 import pytest
 
 import yaml
@@ -48,6 +49,50 @@ def _matching_config() -> dict:
         },
         "launch_template": ["llama-server", "-m", "{model_artifact}", "-c", "{context_length}"],
     }
+
+
+def _create_trusted_registry(
+    repo_root: Path,
+    *,
+    artifact_hash: str,
+    source: str,
+    revision: str,
+) -> tuple[Path, str]:
+    approval_id = "test-qwen38-27b-q4km-v1"
+    registry_path = repo_root / "governance" / "gate4_approved_models.json"
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
+    registry_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "1",
+                "approvals": {
+                    approval_id: {
+                        "model_id": "Qwen3.8-27B",
+                        "source": source,
+                        "revision": revision,
+                        "artifact": "Qwen3.8-27B-Q4_K_M.gguf",
+                        "sha256": artifact_hash,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    for command in (
+        ["git", "init"],
+        ["git", "config", "user.email", "gate4-test@example.invalid"],
+        ["git", "config", "user.name", "Gate 4 Test"],
+        ["git", "add", "governance/gate4_approved_models.json"],
+        ["git", "commit", "-m", "test: add approved model registry"],
+    ):
+        subprocess.run(
+            command,
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    return registry_path, approval_id
 
 
 def test_preflight_report_matches_mtp_ssot_without_claiming_hardware(tmp_path: Path, monkeypatch):
@@ -215,6 +260,12 @@ def test_independent_model_verification_receipt_binds_manifest_and_artifact(
     artifact = tmp_path / "Qwen3.8-27B-Q4_K_M.gguf"
     artifact.write_bytes(b"approved-model-bytes")
     artifact_hash = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    registry_path, approval_id = _create_trusted_registry(
+        tmp_path,
+        artifact_hash=artifact_hash,
+        source="https://models.example.invalid/qwen38",
+        revision="revision-20260820",
+    )
     manifest_path = tmp_path / "model-manifest.json"
     receipt_path = tmp_path / "verification-receipt.json"
     build_manifest(
@@ -226,12 +277,12 @@ def test_independent_model_verification_receipt_binds_manifest_and_artifact(
     build_receipt(
         manifest_path,
         artifact,
-        approved_sha256=artifact_hash,
-        approved_source="https://models.example.invalid/qwen38",
-        approved_revision="revision-20260820",
+        approval_id=approval_id,
+        approval_registry_path=registry_path,
         verifier_id="release-checksum-verifier",
         verification_basis="vendor-release-checksum",
         output_path=receipt_path,
+        repo_root=tmp_path,
     )
 
     receipt = verify_model_verification_receipt(
@@ -240,6 +291,8 @@ def test_independent_model_verification_receipt_binds_manifest_and_artifact(
         receipt_path,
         expected_model_id="Qwen3.8-27B",
         expected_model_artifact="Qwen3.8-27B-Q4_K_M.gguf",
+        approval_registry_path=registry_path,
+        repo_root=tmp_path,
     )
 
     assert receipt["independent_verification"] is True
@@ -252,6 +305,12 @@ def test_preflight_reports_independent_model_receipt(tmp_path: Path, monkeypatch
     artifact = tmp_path / "Qwen3.8-27B-Q4_K_M.gguf"
     artifact.write_bytes(b"approved-model-bytes")
     artifact_hash = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    registry_path, approval_id = _create_trusted_registry(
+        tmp_path,
+        artifact_hash=artifact_hash,
+        source="https://models.example.invalid/qwen38",
+        revision="revision-20260820",
+    )
     manifest_path = tmp_path / "model-manifest.json"
     receipt_path = tmp_path / "verification-receipt.json"
     build_manifest(
@@ -263,12 +322,12 @@ def test_preflight_reports_independent_model_receipt(tmp_path: Path, monkeypatch
     build_receipt(
         manifest_path,
         artifact,
-        approved_sha256=artifact_hash,
-        approved_source="https://models.example.invalid/qwen38",
-        approved_revision="revision-20260820",
+        approval_id=approval_id,
+        approval_registry_path=registry_path,
         verifier_id="release-checksum-verifier",
         verification_basis="vendor-release-checksum",
         output_path=receipt_path,
+        repo_root=tmp_path,
     )
     monkeypatch.setattr("shutil.which", lambda _name: "tool")
 
@@ -278,9 +337,13 @@ def test_preflight_reports_independent_model_receipt(tmp_path: Path, monkeypatch
         model_path=artifact,
         model_manifest_path=manifest_path,
         model_verification_receipt_path=receipt_path,
+        model_approval_registry_path=registry_path,
     )
 
     assert report["model_provenance"]["independent_verification"] is True
+    assert report["model_provenance"]["approval_id"] == approval_id
+    assert len(report["model_provenance"]["approval_registry_sha256"]) == 64
+    assert report["model_provenance"]["approval_registry_commit"]
     assert report["qualification_blockers"] == []
 
 

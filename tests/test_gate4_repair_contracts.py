@@ -1,6 +1,8 @@
 import hashlib
 import json
 from pathlib import Path
+import subprocess
+import sys
 
 import jsonschema
 import pytest
@@ -27,10 +29,49 @@ def _schema(name: str) -> dict:
     )
 
 
-def _manifest_and_receipt(tmp_path: Path) -> tuple[Path, Path, Path, str]:
+def _create_trusted_registry(tmp_path: Path, artifact_hash: str) -> tuple[Path, str]:
+    approval_id = "test-qwen38-27b-q4km-v1"
+    registry_path = tmp_path / "governance" / "gate4_approved_models.json"
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
+    registry_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "1",
+                "approvals": {
+                    approval_id: {
+                        "model_id": "Qwen3.8-27B",
+                        "source": "https://models.example.invalid/qwen38",
+                        "revision": "revision-20260820",
+                        "artifact": "Qwen3.8-27B-Q4_K_M.gguf",
+                        "sha256": artifact_hash,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    for command in (
+        ["git", "init"],
+        ["git", "config", "user.email", "gate4-test@example.invalid"],
+        ["git", "config", "user.name", "Gate 4 Test"],
+        ["git", "add", "governance/gate4_approved_models.json"],
+        ["git", "commit", "-m", "test: add approved model registry"],
+    ):
+        subprocess.run(
+            command,
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    return registry_path, approval_id
+
+
+def _manifest_and_receipt(tmp_path: Path) -> tuple[Path, Path, Path, str, Path, str]:
     artifact = tmp_path / "Qwen3.8-27B-Q4_K_M.gguf"
     artifact.write_bytes(b"approved-model-bytes")
     artifact_hash = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    registry_path, approval_id = _create_trusted_registry(tmp_path, artifact_hash)
     manifest_path = tmp_path / "manifest.json"
     receipt_path = tmp_path / "receipt.json"
     build_manifest(
@@ -42,18 +83,18 @@ def _manifest_and_receipt(tmp_path: Path) -> tuple[Path, Path, Path, str]:
     build_receipt(
         manifest_path,
         artifact,
-        approved_sha256=artifact_hash,
-        approved_source="https://models.example.invalid/qwen38",
-        approved_revision="revision-20260820",
+        approval_id=approval_id,
+        approval_registry_path=registry_path,
         verifier_id="release-checksum-verifier",
         verification_basis="vendor-release-checksum",
         output_path=receipt_path,
+        repo_root=tmp_path,
     )
-    return artifact, manifest_path, receipt_path, artifact_hash
+    return artifact, manifest_path, receipt_path, artifact_hash, registry_path, approval_id
 
 
 def test_gate4_manifest_receipt_and_context_schemas_validate_contracts(tmp_path):
-    artifact, manifest_path, receipt_path, _ = _manifest_and_receipt(tmp_path)
+    artifact, manifest_path, receipt_path, _, registry_path, _ = _manifest_and_receipt(tmp_path)
     jsonschema.validate(
         json.loads(manifest_path.read_text(encoding="utf-8")),
         _schema("gate4_model_manifest.schema.json"),
@@ -62,6 +103,14 @@ def test_gate4_manifest_receipt_and_context_schemas_validate_contracts(tmp_path)
         json.loads(receipt_path.read_text(encoding="utf-8")),
         _schema("gate4_model_verification_receipt.schema.json"),
     )
+    jsonschema.validate(
+        json.loads(registry_path.read_text(encoding="utf-8")),
+        _schema("gate4_approved_models.schema.json"),
+    )
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    assert receipt["approval_id"]
+    assert len(receipt["approval_registry_sha256"]) == 64
+    assert len(receipt["approval_registry_commit"]) >= 40
 
     prompt = "token " * 29491
     context = {
@@ -79,7 +128,7 @@ def test_gate4_manifest_receipt_and_context_schemas_validate_contracts(tmp_path)
 
 
 def test_receipt_rejects_wrong_approved_hash_source_and_revision(tmp_path):
-    artifact, manifest_path, receipt_path, artifact_hash = _manifest_and_receipt(tmp_path)
+    artifact, manifest_path, receipt_path, artifact_hash, registry_path, _ = _manifest_and_receipt(tmp_path)
 
     wrong_hash_receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     wrong_hash_receipt["approved_artifact_sha256"] = "f" * 64
@@ -92,6 +141,8 @@ def test_receipt_rejects_wrong_approved_hash_source_and_revision(tmp_path):
             wrong_hash_path,
             expected_model_id="Qwen3.8-27B",
             expected_model_artifact="Qwen3.8-27B-Q4_K_M.gguf",
+            approval_registry_path=registry_path,
+            repo_root=tmp_path,
         )
 
     for field, expected_message in (
@@ -109,11 +160,13 @@ def test_receipt_rejects_wrong_approved_hash_source_and_revision(tmp_path):
                 mutated_path,
                 expected_model_id="Qwen3.8-27B",
                 expected_model_artifact="Qwen3.8-27B-Q4_K_M.gguf",
+                approval_registry_path=registry_path,
+                repo_root=tmp_path,
             )
 
 
 def test_receipt_requires_explicit_verified_status_claim(tmp_path):
-    artifact, manifest_path, receipt_path, _ = _manifest_and_receipt(tmp_path)
+    artifact, manifest_path, receipt_path, _, registry_path, _ = _manifest_and_receipt(tmp_path)
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     receipt.pop("verification_status")
     receipt.pop("independent_verification")
@@ -127,6 +180,136 @@ def test_receipt_requires_explicit_verified_status_claim(tmp_path):
             invalid_path,
             expected_model_id="Qwen3.8-27B",
             expected_model_artifact="Qwen3.8-27B-Q4_K_M.gguf",
+            approval_registry_path=registry_path,
+            repo_root=tmp_path,
+        )
+
+
+def test_operator_supplied_hash_cannot_mint_independent_receipt(tmp_path):
+    artifact = tmp_path / "Qwen3.8-27B-Q4_K_M.gguf"
+    artifact.write_bytes(b"operator-selected-model-bytes")
+    registry_path, approval_id = _create_trusted_registry(
+        tmp_path,
+        hashlib.sha256(b"independently-approved-model-bytes").hexdigest(),
+    )
+    manifest_path = tmp_path / "manifest.json"
+    build_manifest(
+        artifact,
+        model_source="https://models.example.invalid/qwen38",
+        model_revision="revision-20260820",
+        output_path=manifest_path,
+    )
+
+    with pytest.raises(ValueError, match="committed approval registry"):
+        build_receipt(
+            manifest_path,
+            artifact,
+            approval_id=approval_id,
+            approval_registry_path=registry_path,
+            verifier_id="release-checksum-verifier",
+            verification_basis="vendor-release-checksum",
+            output_path=tmp_path / "receipt.json",
+            repo_root=tmp_path,
+        )
+
+
+def test_verifier_cli_exposes_registry_id_not_caller_approval_values():
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(PROJECT_ROOT / "scripts" / "verify_gate4_model_manifest.py"),
+            "--help",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "--approval-id" in result.stdout
+    assert "--approval-registry" in result.stdout
+    assert "--approved-sha256" not in result.stdout
+    assert "--approved-source" not in result.stdout
+    assert "--approved-revision" not in result.stdout
+
+
+def test_receipt_is_invalidated_when_committed_registry_changes(tmp_path):
+    artifact, manifest_path, receipt_path, _, registry_path, approval_id = _manifest_and_receipt(
+        tmp_path
+    )
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    registry["approvals"][approval_id]["revision"] = "revision-20260821"
+    registry_path.write_text(json.dumps(registry), encoding="utf-8")
+    for command in (
+        ["git", "add", "governance/gate4_approved_models.json"],
+        ["git", "commit", "-m", "test: rotate approval revision"],
+    ):
+        subprocess.run(
+            command,
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    with pytest.raises(ValueError, match="registry hash"):
+        verify_model_verification_receipt(
+            manifest_path,
+            artifact,
+            receipt_path,
+            expected_model_id="Qwen3.8-27B",
+            expected_model_artifact="Qwen3.8-27B-Q4_K_M.gguf",
+            approval_registry_path=registry_path,
+            repo_root=tmp_path,
+        )
+
+
+def test_dirty_approval_registry_cannot_verify_receipt(tmp_path):
+    artifact, manifest_path, receipt_path, _, registry_path, _ = _manifest_and_receipt(
+        tmp_path
+    )
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    registry["approvals"]["test-qwen38-27b-q4km-v1"]["revision"] = "dirty"
+    registry_path.write_text(json.dumps(registry), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="clean and committed"):
+        verify_model_verification_receipt(
+            manifest_path,
+            artifact,
+            receipt_path,
+            expected_model_id="Qwen3.8-27B",
+            expected_model_artifact="Qwen3.8-27B-Q4_K_M.gguf",
+            approval_registry_path=registry_path,
+            repo_root=tmp_path,
+        )
+
+
+def test_untracked_approval_registry_cannot_verify_receipt(tmp_path):
+    artifact, manifest_path, receipt_path, _, registry_path, _ = _manifest_and_receipt(
+        tmp_path
+    )
+    subprocess.run(
+        ["git", "rm", "--cached", "--", "governance/gate4_approved_models.json"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "test: remove approval registry from index"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    with pytest.raises(ValueError, match="tracked and committed"):
+        verify_model_verification_receipt(
+            manifest_path,
+            artifact,
+            receipt_path,
+            expected_model_id="Qwen3.8-27B",
+            expected_model_artifact="Qwen3.8-27B-Q4_K_M.gguf",
+            approval_registry_path=registry_path,
+            repo_root=tmp_path,
         )
 
 
@@ -183,6 +366,15 @@ def test_formal_profile_requires_harness_owned_runtime(tmp_path):
             "http://localhost:8000/v1",
             num_requests=0,
             output_file=str(tmp_path / "profile.json"),
+        )
+
+
+def test_profiler_rejects_model_id_outside_candidate_ssot():
+    with pytest.raises(ValueError, match="not supported by candidate"):
+        profile_endpoint(
+            "http://localhost:8000/v1",
+            model_id="Qwen/unknown-model",
+            num_requests=0,
         )
 
 

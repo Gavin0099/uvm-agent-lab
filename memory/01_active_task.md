@@ -4,14 +4,15 @@
 
 > **最後更新**: 2026-08-20
 > **Owner**: Gavin0099
-> **狀態**: Active (Gate 4 repair PR #8 open; qualification blocked; keep NO_GO)
+> **狀態**: Active (Gate 4 repair PR #8 CHANGES_REQUESTED; P1 trust-root repair in progress; keep NO_GO)
 
 ## 🔒 Current Truth (2026-08-20)
 - PR #6 runtime attestation and PR #7 Gate 4 execution-contract slices are merged into `main` at `ce200d58`, but post-merge review found that G4.1 must not be marked `CLOSED`.
 - Repair branch `fix/gv100h-gate4-repair` completed the independent model provenance, harness-owned runtime execution, context-aware timeout evidence, raw profile re-evaluation, expected candidate identity, selected-pair NVLink evidence, and schema consistency hardening.
-- Fresh read-only subagent review: `PASS`, no P0/P1 findings. Residual P2: the independent receipt still relies on organizational approval of the supplied external values, not a cryptographic signature.
+- Latest PR #8 human review found one P1: caller-supplied approved hash/source/revision could mint `independent_verification=true`. The prior static review's `no P0/P1` statement is superseded.
+- This repair replaces caller-supplied approval values with a committed, clean Git-tracked registry and binds receipt approval ID, registry bytes hash, and registry commit. The production registry remains empty until a real external checksum is reviewed and committed; no model approval is fabricated here.
 - Repair PR: `#8` is open at `https://github.com/Gavin0099/uvm-agent-lab/pull/8`; no merge or branch-protection change was performed.
-- Validation: final focused contract suite `25 passed`; final isolated tracked suite `213 passed`; 2 hardware-dependent tests skipped. CI benchmark/retrieval/validators/drift/quickstart steps passed.
+- Previous validation: final focused contract suite `25 passed`; final isolated tracked suite `213 passed`; 2 hardware-dependent tests skipped. CI benchmark/retrieval/validators/drift/quickstart steps passed. P1 repair validation is pending.
 - Gate 4 status: `CHANGES_REQUIRED` / `Gate4 bring-up partially ready`.
 - Qualification status: `NOT_READY` / blocked by missing real runtime, exact GGUF, independent receipt, and physical GPU telemetry. Keep `NO_GO`.
 - Software evidence is not hardware qualification evidence. Do not claim live llama.cpp/vLLM execution, GPU/NVLink qualification, or `GO`.

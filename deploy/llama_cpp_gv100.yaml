@@ -3,6 +3,7 @@
 model_id: "Qwen3.8-27B"
 model_artifact: "Qwen3.8-27B-Q4_K_M.gguf"
 model_manifest: "deploy/gate4_model_manifest.json"
+model_approval_registry: "governance/gate4_approved_models.json"
 runtime: "llama.cpp"
 quantization: "Q4_K_M"
 gpu_count: 1
