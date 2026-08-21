@@ -13,9 +13,11 @@ This document defines the quantitative evaluation framework for the v1 Local AI 
                                        ▼
 +─────────────────────────────────────────────────────────────────────────────+
 | Gate 1: Spec / Retrieval Accuracy                                           |
+| - Evaluate the POC-1 capability contract before comparing retrieval arms.    |
 | - Compare governed canonical retrieval, BM25, TF cosine, dense embedding,   |
 |   and standard/governed dense hybrids. Dense arms are explicit opt-in.       |
-| - Metrics: Recall@1, Recall@3, Wrong-Version %, Wrong-Authority %.          |
+| - Metrics: Recall@1, Recall@3, grounding, citation, abstention, and         |
+|   Wrong-Version / Wrong-Authority %.                                        |
 +─────────────────────────────────────────────────────────────────────────────+
                                        │
                                        ▼
@@ -48,6 +50,39 @@ This document defines the quantitative evaluation framework for the v1 Local AI 
 - **Wrong-Version Rate**: Percentage of queries returning deprecated or mismatching spec version clauses.
 - **Wrong-Authority Rate**: Percentage of queries returning non-authoritative discussion notes instead of certified spec text.
 - **Wrong-Customer Leak Rate**: Percentage of queries returning clauses restricted to different customer tiers.
+
+### Gate 1: POC-1 USB Hub Spec QA Capability Contract
+
+The POC-1 scope and acceptance contract is defined in
+[`docs/USB_SPEC_QA_POC1_SCOPE.md`](USB_SPEC_QA_POC1_SCOPE.md). Gate 1 must
+report these capabilities separately from raw retrieval quality:
+
+The corpus is a locked two-layer surface: Layer A is the governed structured
+reference `Gavin0099/usb-if-hub-spec-reference`; Layer B is the official raw
+USB 2.0/USB 3.2/LVS text bound by
+`gv100h/spec_qa/contracts/corpus.lock.yaml`. The governed reference supplies
+authority and claim boundaries but does not imply full specification coverage.
+Unbound raw sources keep the result at manifest-only status.
+
+- **P0 Retrieval**: correct authoritative document, revision, chapter, and section.
+- **P0 Grounded Answer**: every material claim maps to retrieved evidence.
+- **P0 Citation**: document, revision, chapter, section, page or stable anchor, and excerpt/evidence ID are present and valid.
+- **P1 Cross-Spec Reasoning**: the requirement -> Hub behavior -> LVS test chain is retrieved and explained as a separate score.
+- **P0 Unknown/Conflict Handling**: unsupported, out-of-scope, wrong-version, wrong-authority, and contradictory questions produce abstain/conflict results without fabricated evidence.
+
+The first corpus includes USB 2.0 FW Ch.5 and Ch.8-11, USB 2.0 SE Ch.6-7,
+USB 3.2 Rev.1.1 Ch.6/7/9/10, and SuperSpeed Hub LVS Rev.1.15. USB4 is Phase 2 and
+must remain a Phase 1 negative control. The existing Golden 30 is a smoke
+baseline; the final POC-1 benchmark is a fixed, versioned 50-100 question set
+covering L1 single-spec facts, L2 engineering interpretation, L3 cross-document
+QA, and L4 uncertainty/contradiction. Golden questions are evaluation-only and
+must be independently reviewed rather than generated from retrieved corpus
+chunks or same-corpus model answers.
+
+P0 admission requires `Recall@1 >= 95%`, `Wrong-Version Rate = 0%`, zero
+fabricated citations, zero unsupported claims on negative controls, and 100%
+valid citations for accepted answer cases. P1 results are never collapsed into
+the P0 retrieval score.
 
 Gate 1 v2 retrieval arms are explicitly separated by implementation and governance:
 

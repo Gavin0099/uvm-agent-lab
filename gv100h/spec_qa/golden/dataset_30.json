@@ -1,5 +1,12 @@
 {
   "dataset_version": "1.0.0",
+  "benchmark_role": "deterministic_smoke_baseline",
+  "scope_contract": "docs/USB_SPEC_QA_POC1_SCOPE.md",
+  "corpus_lock": "gv100h/spec_qa/contracts/corpus.lock.yaml",
+  "coverage_status": "partial_poc1",
+  "poc1_acceptance_set": false,
+  "generated_from_corpus": false,
+  "independent_from_corpus": true,
   "knowledge_repo": "Gavin0099/usb-if-hub-spec-reference",
   "knowledge_repo_commit": "808f23c24bd8651da9cdcd63ea8669126917a379",
   "total_questions": 30,

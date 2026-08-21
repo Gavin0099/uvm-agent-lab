@@ -20,6 +20,20 @@ def test_governed_retriever_query():
     assert results[0].scope == "USB_3_X"
 
 
+@pytest.mark.contract
+def test_poc1_corpus_lock_binds_governed_reference_and_blocks_incomplete_claims():
+    retriever = GovernedSpecRetriever()
+
+    assert retriever.corpus_id == "usb-hub-poc1-phase1"
+    assert retriever.knowledge_repo == "Gavin0099/usb-if-hub-spec-reference"
+    assert retriever.knowledge_repo_commit == "808f23c24bd8651da9cdcd63ea8669126917a379"
+    assert retriever.corpus_binding_status == "manifest_only_pending_binding"
+    assert retriever.corpus_lock["sources"]["usb32"]["revision"] == "Rev 1.1"
+    assert retriever.corpus_lock["sources"]["superspeed_hub_lvs"]["revision"] == "Rev 1.15"
+    assert retriever.corpus_lock["sources"]["usb4"]["included"] is False
+    assert retriever.corpus_lock["benchmark"]["independent_from_corpus"] is True
+
+
 @pytest.mark.unit
 def test_governed_qa_service_abstention():
     service = GovernedQAService()

@@ -3,6 +3,7 @@ import hashlib
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
+import yaml
 
 
 class GovernedEvidence(BaseModel):
@@ -23,6 +24,7 @@ class GovernedSpecRetriever:
 
     KNOWLEDGE_REPO = "Gavin0099/usb-if-hub-spec-reference"
     KNOWLEDGE_REPO_COMMIT = "808f23c24bd8651da9cdcd63ea8669126917a379"
+    DEFAULT_CORPUS_LOCK_PATH = Path(__file__).resolve().parent.parent / "contracts" / "corpus.lock.yaml"
 
     # Governed Knowledge Base Table Entries (Embedded Verified Baseline)
     EVIDENCE_REGISTRY: List[GovernedEvidence] = [
@@ -73,13 +75,50 @@ class GovernedSpecRetriever:
         )
     ]
 
-    def __init__(self, knowledge_repo_path: Optional[str] = None):
-        self.binding_mode = "embedded_registry_baseline"
+    def __init__(
+        self,
+        knowledge_repo_path: Optional[str] = None,
+        corpus_lock_path: Optional[str] = None,
+    ):
+        self.corpus_lock_path = (
+            Path(corpus_lock_path).resolve()
+            if corpus_lock_path
+            else self.DEFAULT_CORPUS_LOCK_PATH
+        )
+        self.corpus_lock = self._load_corpus_lock(self.corpus_lock_path)
+        governed_source = self.corpus_lock["sources"]["hub_reference"]
+        self.knowledge_repo = governed_source["repo"]
+        self.knowledge_repo_commit = governed_source["commit"]
+        self.corpus_id = self.corpus_lock["corpus_id"]
+        self.corpus_binding_status = self.corpus_lock["status"]
+        self.binding_mode = f"embedded_registry_baseline ({self.corpus_binding_status})"
         self.bound_repo_head_commit = None
         self.bound_repo_files_hash = None
 
         if knowledge_repo_path and Path(knowledge_repo_path).exists():
             self.verify_and_bind_knowledge_repo(knowledge_repo_path)
+
+    @staticmethod
+    def _load_corpus_lock(lock_path: Path) -> Dict[str, Any]:
+        if not lock_path.exists():
+            raise FileNotFoundError(f"POC-1 corpus lock not found: {lock_path}")
+
+        with lock_path.open("r", encoding="utf-8") as handle:
+            lock = yaml.safe_load(handle)
+
+        if not isinstance(lock, dict):
+            raise ValueError("POC-1 corpus lock must contain a YAML mapping")
+        if not lock.get("corpus_id") or not lock.get("status"):
+            raise ValueError("POC-1 corpus lock requires corpus_id and status")
+
+        sources = lock.get("sources")
+        governed_source = sources.get("hub_reference") if isinstance(sources, dict) else None
+        if not isinstance(governed_source, dict) or not governed_source.get("repo"):
+            raise ValueError("POC-1 corpus lock requires sources.hub_reference.repo")
+        if not governed_source.get("commit"):
+            raise ValueError("POC-1 corpus lock requires sources.hub_reference.commit")
+
+        return lock
 
     def verify_and_bind_knowledge_repo(self, repo_path: str) -> bool:
         """
