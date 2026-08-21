@@ -491,6 +491,7 @@ def run_single_ab_pair(
                     runtime_version=runtime_version or "",
                     model_id=model_id,
                     model_path=model_artifact_path or "",
+                    expected_model_hash=model_hash,
                     endpoint_url=api_base,
                     api_key=runner.api_key,
                     cwd=repo,

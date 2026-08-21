@@ -20,7 +20,7 @@ from agent.governance.guardrails import ScopeGuardrail
 from gv100h.runner.verifier import IndependentVerifier
 from gv100h.runner.worktree_runner import GitWorktreeRunner
 from gv100h.utils.evidence_commit import compute_reconstructed_head_commit
-from gv100h.runtime.attestation import sha256_file
+from gv100h.runtime.attestation import sha256_file, sha256_launch_argv
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -69,6 +69,9 @@ def _live_manifest_fixture(result):
         "runtime_executable_sha256": sha256_file(executable),
         "server_pid": 12345,
         "launch_argv": [str(executable), "--fake-server"],
+        "launch_cwd": str(REPO_ROOT),
+        "launch_argv_sha256": sha256_launch_argv([str(executable), "--fake-server"]),
+        "effective_model_argument": str((REPO_ROOT / "fixture/model.gguf").resolve()),
         "model_id": manifest.model_id,
         "model_path": "fixture/model.gguf",
         "model_sha256": "a" * 64,
