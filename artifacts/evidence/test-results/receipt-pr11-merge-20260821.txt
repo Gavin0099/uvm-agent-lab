@@ -1,0 +1,1 @@
+{"enforce_admins": true, "head": "eea5b579c93e1f66fdf5c434bbadaa939461837a", "merge_commit": "5662df7466ff67d396c38495bc1f6d8794ff23e8", "pr_state": "MERGED", "required_approving_review_count": 1}
