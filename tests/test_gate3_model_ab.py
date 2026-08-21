@@ -6,7 +6,7 @@ from experiments.gate3.run_gate3_ab import evaluate_model
 
 def test_openai_compatible_runner_mock_mode():
     runner = OpenAICompatibleLLMRunner(name="test_qwen", mock_mode=True)
-    cases = list(Path("benchmarks/cases").glob("*.yaml"))
+    cases = list(Path("benchmarks/cases").glob("UVM-*.yaml"))
     
     summary = evaluate_model(runner, cases)
     assert summary["model_name"] == "test_qwen"

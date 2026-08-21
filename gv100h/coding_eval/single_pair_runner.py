@@ -30,7 +30,9 @@ from gv100h.manifests.models import (
     TimingManifest,
 )
 from gv100h.manifests.validator import ManifestValidator
-from gv100h.runner.verifier import FinalVerificationResult, IndependentVerifier
+from gv100h.runner.verifier import FinalVerificationResult
+from gv100h.runner.validator_plugins import create_validator
+from gv100h.runner.validator_profiles import resolve_validator_profile
 from gv100h.runner.worktree_runner import GitWorktreeRunner
 from gv100h.utils.evidence_commit import compute_reconstructed_head_commit
 from gv100h.utils.case_contract import compute_benchmark_case_hash
@@ -218,8 +220,11 @@ def _run_one_arm(
             guardrail=guardrail,
         )
         target_rel = case_data.get("inputs", {}).get("target_file")
-        verifier_res: FinalVerificationResult = IndependentVerifier(
-            workspace_root=worktree_path, mode=mode
+        validator_profile = resolve_validator_profile(case_data)
+        verifier_res: FinalVerificationResult = create_validator(
+            validator_profile,
+            workspace_root=worktree_path,
+            mode=mode,
         ).verify_task(
             changed_paths=changed_paths,
             target_file=target_rel,

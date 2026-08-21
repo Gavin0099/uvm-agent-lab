@@ -12,6 +12,10 @@ def test_end_to_end_mock_runner_all_cases():
         result = run_benchmark(str(cf), runner_name="mock")
         assert result["case_id"] is not None
         assert result["governance_status"]["passed"] is True
+        if result["validator_profile"] == "lightweight":
+            assert result["execution"]["validator_status"] == "not_run"
+            assert result["metrics"]["task_success"] is False
+            continue
         assert result["metrics"]["total_score"] >= 80.0
         assert result["metrics"]["task_success"] is True
 

@@ -16,7 +16,7 @@
   "properties": {
     "id": {
       "type": "string",
-      "pattern": "^UVM-[0-9]{3}$"
+      "pattern": "^(UVM-[0-9]{3}|AGENT-[A-Z0-9-]+)$"
     },
     "title": {
       "type": "string"
@@ -35,7 +35,10 @@
             "modify_sequence",
             "fix_compile_error",
             "debug_simulation_mismatch",
-            "coverage_closure"
+            "coverage_closure",
+            "code_change",
+            "refactor",
+            "test_change"
           ]
         },
         "goal": {
@@ -73,13 +76,28 @@
     },
     "acceptance": {
       "type": "object",
-      "required": ["compile", "simulation"],
       "properties": {
         "compile": {
           "type": "string",
           "enum": ["pass", "optional", "ignore"]
         },
         "simulation": {
+          "type": "string",
+          "enum": ["pass", "optional", "ignore"]
+        },
+        "build": {
+          "type": "string",
+          "enum": ["pass", "optional", "ignore"]
+        },
+        "test": {
+          "type": "string",
+          "enum": ["pass", "optional", "ignore"]
+        },
+        "lint": {
+          "type": "string",
+          "enum": ["pass", "optional", "ignore"]
+        },
+        "validator": {
           "type": "string",
           "enum": ["pass", "optional", "ignore"]
         },
@@ -99,11 +117,19 @@
           "git_diff",
           "compile_log",
           "simulation_log",
-          "coverage_report"
-        ]
-      },
+            "coverage_report",
+            "build_log",
+            "test_log",
+            "lint_log",
+            "validator_report"
+          ]
+        },
       "minItems": 2
     },
+      "validator_profile": {
+        "type": "string",
+        "enum": ["lightweight", "eda"]
+      },
     "max_steps": {
       "type": "integer",
       "default": 10
@@ -112,5 +138,16 @@
       "type": "integer",
       "default": 60
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "id": { "pattern": "^AGENT-[A-Z0-9-]+$" }
+        },
+        "required": ["id"]
+      },
+      "then": { "required": ["validator_profile"] }
+    }
+  ]
 }

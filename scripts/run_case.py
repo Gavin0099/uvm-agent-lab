@@ -17,6 +17,7 @@ from agent.runners.llm_stub import LLMAgentRunnerStub
 from agent.governance.guardrails import ScopeGuardrail
 from agent.governance.evidence_verifier import EvidenceVerifier
 from agent.governance.policy import GovernancePolicyEngine
+from gv100h.runner.validator_profiles import resolve_validator_profile
 
 
 def load_yaml(file_path: str) -> dict:
@@ -27,6 +28,43 @@ def load_yaml(file_path: str) -> dict:
 def run_benchmark(case_path: str, runner_name: str, fault_mode: str = None) -> dict:
     case_dict = load_yaml(case_path)
     case_id = case_dict["id"]
+    validator_profile = resolve_validator_profile(case_dict)
+
+    if validator_profile == "lightweight":
+        return {
+            "case_id": case_id,
+            "validator_profile": validator_profile,
+            "runner_name": f"legacy_{runner_name}_not_run",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "duration_seconds": 0.0,
+            "governance_status": {"passed": True, "violations": []},
+            "evidence": {
+                "requirement_id": case_dict["inputs"]["requirement_id"],
+                "git_diff": "NOT RUN: legacy benchmark CLI has no disposable worktree",
+                "build_log": "NOT RUN: use the production coding-agent worktree entrypoint",
+                "test_log": "NOT RUN: use LightweightValidator through single_pair_runner",
+                "validator_report": "NOT RUN: lightweight profile is not executed by the legacy CLI",
+            },
+            "execution": {
+                "compile_status": "not_run",
+                "simulation_status": "not_run",
+                "validator_status": "not_run",
+                "step_count": 0,
+                "retry_count": 0,
+                "tool_calls": [],
+            },
+            "metrics": {
+                "total_score": 0.0,
+                "task_success": False,
+                "compile_score": 0.0,
+                "simulation_score": 0.0,
+                "validator_score": 0.0,
+                "evidence_score": 100.0,
+                "penalty_deductions": 0.0,
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+            },
+        }
 
     # Select runner
     if runner_name == "mock":
@@ -63,16 +101,30 @@ def run_benchmark(case_path: str, runner_name: str, fault_mode: str = None) -> d
 
     passed_governance = (len(violations) == 0) and (not evid_report.fatal)
 
-    # Calculate execution score
-    comp_score = 100.0 if raw_result["execution"]["compile_status"] == "pass" else 0.0
-    sim_score = 100.0 if raw_result["execution"]["simulation_status"] == "pass" else 0.0
-    
+    # Keep legacy EDA scoring stable while making v1 lightweight cases independent.
+    execution = raw_result["execution"]
+    comp_score = 100.0 if execution.get("compile_status") == "pass" else 0.0
+    sim_score = 100.0 if execution.get("simulation_status") == "pass" else 0.0
+    validator_score = (
+        100.0 if execution.get("validator_status") == "pass" else 0.0
+    )
     penalties = 100.0 if not passed_governance else 0.0
-    total_score = max(0.0, (0.30 * comp_score + 0.50 * sim_score + 0.20 * evidence_score) - penalties)
+    if validator_profile == "lightweight":
+        total_score = max(
+            0.0,
+            (0.80 * validator_score + 0.20 * evidence_score) - penalties,
+        )
+    else:
+        total_score = max(
+            0.0,
+            (0.30 * comp_score + 0.50 * sim_score + 0.20 * evidence_score)
+            - penalties,
+        )
     task_success = (total_score >= 80.0) and passed_governance
 
     final_packet = {
         "case_id": case_id,
+        "validator_profile": validator_profile,
         "runner_name": runner.name,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "duration_seconds": round(raw_result.get("duration_seconds", 0.0), 3),
@@ -87,6 +139,7 @@ def run_benchmark(case_path: str, runner_name: str, fault_mode: str = None) -> d
             "task_success": task_success,
             "compile_score": comp_score,
             "simulation_score": sim_score,
+            "validator_score": validator_score,
             "evidence_score": round(evidence_score, 2),
             "penalty_deductions": penalties,
             "prompt_tokens": raw_result.get("metrics", {}).get("prompt_tokens", 0),

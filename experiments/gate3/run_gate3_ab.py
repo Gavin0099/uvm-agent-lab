@@ -80,7 +80,7 @@ def evaluate_model(runner, cases):
 
 def main():
     cases_dir = Path("benchmarks/cases")
-    cases = sorted(list(cases_dir.glob("*.yaml")))
+    cases = sorted(list(cases_dir.glob("UVM-*.yaml")))
 
     models_to_test = [
         OpenAICompatibleLLMRunner(name="Qwen-2.5-Coder-32B", model_id="Qwen/Qwen2.5-Coder-32B-Instruct", mock_mode=True),

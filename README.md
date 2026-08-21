@@ -1,8 +1,8 @@
 # uvm-agent-lab
 
-> **Deterministic Evaluation and AI Governance Testbed for UVM AI Verification Agents**
+> **Local AI Agent Qualification Harness for GV100, Spec QA, Coding Agent, and Governed Evidence**
 
-`uvm-agent-lab` is an evaluation, harness, and AI governance platform engineered to determine whether and how AI verification agents can perform meaningful, robust, and safe Universal Verification Methodology (UVM) engineering tasks.
+`uvm-agent-lab` is a deterministic, zero-trust harness for answering whether a local model is useful as a company Spec QA assistant and coding assistant on target hardware. UVM/EDA validation remains supported through an explicit Phase 2 plugin boundary; it is not a v1 GO/NO_GO dependency.
 
 ---
 
@@ -17,11 +17,11 @@ Instead of rushing to benchmark massive LLMs on raw GPUs, `uvm-agent-lab` establ
 2. **Evidence-Based Acceptance (Zero Trust)**:
    - `exit 0 ≠ success`: A process exiting cleanly does not prove correctness.
    - `timeout ≠ pass`: Incomplete runs cannot be scored optimistically.
-   - `missing evidence = fail`: Valid runs require proof: `requirement_id`, `git_diff`, `compile_log`, and `simulation_log`.
+    - `missing evidence = fail`: Valid runs require profile-appropriate proof: `requirement_id`, `git_diff`, and build/test/lint/validator evidence; EDA profiles additionally require compile/simulation evidence.
    - `hallucinated evidence = fail`: Logs and diffs are cryptographically checked against sandbox state; fabricated pass markers result in forfeiture.
 3. **Architectural Decoupling**:
    - **`spec-reference-kit`**: Governed Knowledge Layer (authoritative specs, versioning, customer access rules).
-   - **`uvm-agent-lab`**: Evaluation, Agent Harness, and Experiment Layer.
+    - **`uvm-agent-lab`**: Local Model/Runtime, Spec QA, Coding Agent, Governance/Evidence, and Hardware Qualification Harness.
    - Inter-system communication occurs solely over structured protocols (CLI, JSON/YAML, MCP).
 
 ---
@@ -37,20 +37,33 @@ Instead of rushing to benchmark massive LLMs on raw GPUs, `uvm-agent-lab` establ
 
 - **Gate 0 — Benchmark Definition**: 
   - Standardized benchmark schemas (`case_schema.json`, `result_schema.json`).
-  - 10 canonical UVM benchmark cases (`UVM-001` ~ `UVM-010`).
+  - Existing UVM cases (`UVM-001` ~ `UVM-010`) remain available as legacy Phase 2 EDA fixtures; their compile/simulation acceptance infers the `eda` profile without changing pinned case content.
 - **Gate 1 — Spec / Retrieval Evaluation**: 
   - Compare `spec-reference-kit` vs BM25 vs Vector RAG vs Hybrid.
   - Metrics: `Recall@1`, `Recall@3`, `wrong-version rate`, `wrong-authority rate`, `wrong-customer rate`.
 - **Gate 2 — Agent Harness & Governance Stress Test**: 
-  - Validate tool contracts (`read`, `search`, `edit`, `compile`, `simulate`, `read_log`, `retry`).
-  - Enforce anti-hallucination, scope sandboxing, and timeout management.
+  - Validate worktree, static checks, tests, lint, scope, timeout, and evidence contracts.
+  - Enforce anti-hallucination and false-success defenses without requiring an EDA installation.
 - **Gate 3 — Model A/B Testing**: 
-  - Planned live evaluation under identical tool budgets using 10 canonical UVM tasks, 3 repetitions, and 2 treatment arms.
-  - Metrics: `task_success`, `compile_success`, `simulation_success`, `retry_count`, `tool_errors`, `token_efficiency`, `latency`.
+  - Planned live evaluation under identical tool budgets using coding-agent tasks, paired treatment arms, and durable evidence.
+  - Metrics: `task_success`, `test_pass`, `scope_violation`, `false_success`, `retry_count`, `token_efficiency`, `latency`, and human acceptance.
   - Current claim ceiling: scripted one-shot generation and mock scaffolding are not coding-agent qualification evidence.
 - **Gate 4 — GV100 Hardware Profiling**: 
   - Active pre-hardware candidate: Qwen3.8-27B Q4_K_M GGUF with llama.cpp and q8_0 K/V, single-V100 first.
   - Hardware benchmarks: VRAM footprint, TTFT, prefill/decode timing, 32K/64K/128K primary sweep, 192K/256K stretch, then dual-GV100/NVLink expansion.
+
+  ### v1 critical path
+
+  ```text
+  Local Model / Runtime
+    ├── Spec QA / RAG
+    ├── Local Coding Agent
+    ├── Governance + Evidence
+    └── Hardware Profiling
+      └── Qualification Engine
+  ```
+
+  `LightweightValidator` is the v1 profile: file scope, git diff, syntax, pytest, lint, and deterministic assertions. `EDAValidator` is a Phase 2 plugin for Verilator, Icarus, VCS, UVM simulation, and coverage. Existing EDA adapters are retained, but their availability is not a v1 blocking dependency.
 
 ---
 

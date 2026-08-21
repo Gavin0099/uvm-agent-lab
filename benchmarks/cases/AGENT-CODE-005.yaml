@@ -1,0 +1,42 @@
+id: AGENT-CODE-005
+title: "Make a bounded multi-file pipeline change"
+description: "Coordinate a small Python pipeline and helper change while preserving ordering, filtering, and deterministic output."
+validator_profile: lightweight
+
+task:
+  type: code_change
+  goal: "Update the pipeline and normalizer together so empty entries are removed, values are trimmed, and duplicates are stable-deduplicated."
+
+inputs:
+  requirement_id: "AGENT-CODE-005"
+  target_file: "fixtures/coding_agent/AGENT_CODE_005/pipeline.py"
+
+allowed_paths:
+  - "fixtures/coding_agent/AGENT_CODE_005/"
+forbidden_paths:
+  - "rtl/"
+  - "additional/"
+  - ".git/"
+
+acceptance:
+  build: pass
+  test: pass
+  lint: optional
+  validator: pass
+
+required_evidence:
+  - requirement_id
+  - git_diff
+  - build_log
+  - test_log
+  - validator_report
+
+verification:
+  build:
+    argv: ["python", "-m", "py_compile", "{target_file}"]
+  test:
+    argv: ["python", "-m", "pytest", "-q", "fixtures/coding_agent/AGENT_CODE_005"]
+  timeout_sec: 120
+
+max_steps: 12
+timeout_seconds: 120
