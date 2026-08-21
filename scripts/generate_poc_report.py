@@ -17,6 +17,8 @@ from gv100h.spec_qa.api.qa_service import GovernedQAService
 from gv100h.coding_eval.governance_ab_runner import GovernanceABRunner
 from gv100h.health.vram_tracker import DualGV100VRAMTracker
 from gv100h.qualification.evaluator import QualificationPolicyEvaluator, QualificationDecision
+from scripts.profile_runtime import evaluate_profile_gate
+from gv100h.runtime.admission_matrix import RuntimeAdmissionMatrix
 from gv100h.runtime.ssot import GV100H_BASELINE
 
 
@@ -24,7 +26,13 @@ SYNTHETIC_DECODE_TPS = 20.0
 SYNTHETIC_CANDIDATE = "candidate_a_llama_cpp_gguf"
 
 
-def build_hardware_profile(hw_live_data, vram_per_gpu, hw_budget):
+def build_hardware_profile(
+    hw_live_data,
+    vram_per_gpu,
+    hw_budget,
+    *,
+    expected_candidate_name: str | None = None,
+):
     """
     Map profiler JSON onto QualificationPolicyEvaluator hardware fields.
 
@@ -41,6 +49,7 @@ def build_hardware_profile(hw_live_data, vram_per_gpu, hw_budget):
             "decode_tps": SYNTHETIC_DECODE_TPS,
             "hardware_observed": False,
             "gate_passed": False,
+            "gate_evaluation": None,
             "profile_identity": None,
             "model_provenance_ready": False,
             "model_provenance_independent": False,
@@ -67,6 +76,11 @@ def build_hardware_profile(hw_live_data, vram_per_gpu, hw_budget):
             or SYNTHETIC_CANDIDATE
         )
 
+    fresh_gate = None
+    if expected_candidate_name:
+        candidate = RuntimeAdmissionMatrix.get_candidate(expected_candidate_name)
+        fresh_gate = evaluate_profile_gate(candidate, hw_live_data)
+
     return {
         "candidate": candidate_value,
         "model_id": hw_live_data.get("model_id"),
@@ -75,7 +89,12 @@ def build_hardware_profile(hw_live_data, vram_per_gpu, hw_budget):
         "vram_peak_per_gpu_gb": vram,
         "decode_tps": decode,
         "hardware_observed": bool(hw_live_data.get("hardware_observed", False)),
-        "gate_passed": hw_live_data.get("gate_passed"),
+        "gate_passed": (
+            fresh_gate.get("passed") if fresh_gate is not None else None
+        ),
+        "gate_evaluation": fresh_gate,
+        "raw_gate_passed": hw_live_data.get("gate_passed"),
+        "raw_gate_evaluation": hw_live_data.get("gate_evaluation"),
         "profile_identity": hw_live_data.get("profile_identity"),
         "model_provenance_ready": hw_live_data.get("model_provenance_ready"),
         "model_provenance_independent": hw_live_data.get("model_provenance_independent"),
@@ -113,9 +132,18 @@ def _load_hardware_profile(hardware_profile_path: str | None) -> dict | None:
 def generate_report(
     output_path: str = "results/GV100H_POC_REPORT.md",
     hardware_profile_path: str | None = None,
+    expected_candidate_name: str | None = None,
 ) -> str:
-    candidate = GV100H_BASELINE
-    model_reference = candidate.model_id if "/" in candidate.model_id else f"Qwen/{candidate.model_id}"
+    hw_live_data = _load_hardware_profile(hardware_profile_path)
+    if hw_live_data is not None and not expected_candidate_name:
+        raise ValueError(
+            "expected_candidate_name is required when evaluating a hardware profile"
+        )
+    candidate = RuntimeAdmissionMatrix.get_candidate(
+        expected_candidate_name or GV100H_BASELINE.candidate_name
+    )
+    model_id = candidate.supported_models[0]
+    model_reference = model_id if "/" in model_id else f"Qwen/{model_id}"
     # 1. Gather empirical inputs & Ingest live artifacts if present
     qa_evaluator = DeterministicSpecQAEvaluator()
     qa_service = GovernedQAService()
@@ -143,12 +171,25 @@ def generate_report(
         else getattr(hw_budget, "peak_vram_per_gpu_gb", None)
     )
 
-    hw_live_data = _load_hardware_profile(hardware_profile_path)
-    hardware_profile = build_hardware_profile(hw_live_data, vram_per_gpu, hw_budget)
+    hardware_profile = build_hardware_profile(
+        hw_live_data,
+        vram_per_gpu,
+        hw_budget,
+        expected_candidate_name=expected_candidate_name
+        if hw_live_data is not None
+        else None,
+    )
 
     # 2. Execute Deterministic Policy Evaluator
     evaluator = QualificationPolicyEvaluator()
-    decision: QualificationDecision = evaluator.evaluate(qa_res, coding_res, hardware_profile)
+    decision: QualificationDecision = evaluator.evaluate(
+        qa_res,
+        coding_res,
+        hardware_profile,
+        expected_candidate_name=expected_candidate_name
+        if hw_live_data is not None
+        else None,
+    )
 
     # 3. Render Markdown Report directly from Policy Decision
     gate_rows = []
@@ -241,6 +282,11 @@ if __name__ == "__main__":
         default=None,
         help="Explicit profile summary JSON; missing paths fail closed.",
     )
+    parser.add_argument("--expected-candidate", default=None)
     args = parser.parse_args()
-    generate_report(output_path=args.output, hardware_profile_path=args.hardware_profile)
+    generate_report(
+        output_path=args.output,
+        hardware_profile_path=args.hardware_profile,
+        expected_candidate_name=args.expected_candidate,
+    )
 

@@ -37,6 +37,8 @@ def build_manifest(
         model_revision=model_revision,
         model_artifact=GV100H_BASELINE.model_artifact,
         model_sha256=digest.hexdigest(),
+        provenance_class="operator_attested",
+        independent_verification=False,
     )
     output = Path(output_path).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)

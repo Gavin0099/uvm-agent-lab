@@ -1,0 +1,17 @@
+{
+  "receipt_schema": "test_evidence_receipt.v0.1",
+  "status": "report_only",
+  "command": "python -X utf8 -m pytest -q tests/test_gate4_repair_contracts.py tests/test_gate4_preflight.py tests/test_profile_runtime.py tests/gv100h/test_m4_qualification.py tests/gv100h/test_qualification_policy_evaluator.py --basetemp .tmp_registry_durability_receipt",
+  "exit_code": 0,
+  "started_at": "2026-08-21T03:40:42Z",
+  "finished_at": "2026-08-21T03:40:51Z",
+  "runner": "copilot-g4-durability",
+  "linked_commit": "649f9b35c06d74884a347eb083616263a95a2210",
+  "output_artifacts": [
+    "artifacts/evidence/test-results/receipt-g4-registry-durability-20260821.txt"
+  ],
+  "cannot_claim": [
+    "semantic correctness of the tested behavior",
+    "receipt authenticity: every field is fabricatable by a direct writer"
+  ]
+}
