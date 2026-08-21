@@ -16,6 +16,10 @@ def resolve_validator_profile(case_data: Mapping[str, Any]) -> ValidatorProfile:
     explicit = case_data.get("validator_profile")
     if explicit in {"lightweight", "eda"}:
         return explicit
+    if explicit is not None:
+        raise ValueError(
+            "validator_profile must be one of: lightweight, eda"
+        )
 
     acceptance = case_data.get("acceptance") or {}
     if any(

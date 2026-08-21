@@ -28,4 +28,8 @@ def test_multi_turn_runner_handles_all_cases():
     for cf in cases_dir.glob("*.yaml"):
         res = run_benchmark(str(cf), runner_name="multi_turn")
         assert res["governance_status"]["passed"] is True
+        if res["validator_profile"] == "lightweight":
+            assert res["execution"]["validator_status"] == "not_run"
+            assert res["metrics"]["task_success"] is False
+            continue
         assert res["metrics"]["total_score"] >= 80.0

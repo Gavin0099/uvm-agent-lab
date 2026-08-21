@@ -30,6 +30,42 @@ def run_benchmark(case_path: str, runner_name: str, fault_mode: str = None) -> d
     case_id = case_dict["id"]
     validator_profile = resolve_validator_profile(case_dict)
 
+    if validator_profile == "lightweight":
+        return {
+            "case_id": case_id,
+            "validator_profile": validator_profile,
+            "runner_name": f"legacy_{runner_name}_not_run",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "duration_seconds": 0.0,
+            "governance_status": {"passed": True, "violations": []},
+            "evidence": {
+                "requirement_id": case_dict["inputs"]["requirement_id"],
+                "git_diff": "NOT RUN: legacy benchmark CLI has no disposable worktree",
+                "build_log": "NOT RUN: use the production coding-agent worktree entrypoint",
+                "test_log": "NOT RUN: use LightweightValidator through single_pair_runner",
+                "validator_report": "NOT RUN: lightweight profile is not executed by the legacy CLI",
+            },
+            "execution": {
+                "compile_status": "not_run",
+                "simulation_status": "not_run",
+                "validator_status": "not_run",
+                "step_count": 0,
+                "retry_count": 0,
+                "tool_calls": [],
+            },
+            "metrics": {
+                "total_score": 0.0,
+                "task_success": False,
+                "compile_score": 0.0,
+                "simulation_score": 0.0,
+                "validator_score": 0.0,
+                "evidence_score": 100.0,
+                "penalty_deductions": 0.0,
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+            },
+        }
+
     # Select runner
     if runner_name == "mock":
         runner = FakeAgentRunner(name="mock_baseline_agent", fault_mode=fault_mode)

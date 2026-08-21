@@ -49,7 +49,7 @@ def run_full_universe(
     that file, or the last cell would overwrite the full plan.
     """
     case_registry = []
-    for case_path in sorted(Path(cases_dir).glob("*.yaml")):
+    for case_path in sorted(Path(cases_dir).glob("UVM-*.yaml")):
         import yaml
 
         case_data = yaml.safe_load(case_path.read_text(encoding="utf-8")) or {}
@@ -152,7 +152,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    cases = sorted(Path(args.cases_dir).glob("*.yaml"))
+    cases = sorted(Path(args.cases_dir).glob("UVM-*.yaml"))
     plan = describe_live_invocation(
         task_count=len(cases),
         experiment_arm=args.experiment_arm,

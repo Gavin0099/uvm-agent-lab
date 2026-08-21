@@ -1,0 +1,42 @@
+id: AGENT-CODE-001
+title: "Fix safe division zero handling"
+description: "Repair a small Python helper so zero denominators fail explicitly instead of returning a misleading value."
+validator_profile: lightweight
+
+task:
+  type: code_change
+  goal: "Update safe_divide to raise ValueError for a zero denominator while preserving numeric division for valid inputs."
+
+inputs:
+  requirement_id: "AGENT-CODE-001"
+  target_file: "fixtures/coding_agent/AGENT_CODE_001/calculator.py"
+
+allowed_paths:
+  - "fixtures/coding_agent/AGENT_CODE_001/"
+forbidden_paths:
+  - "rtl/"
+  - "additional/"
+  - ".git/"
+
+acceptance:
+  build: pass
+  test: pass
+  lint: optional
+  validator: pass
+
+required_evidence:
+  - requirement_id
+  - git_diff
+  - build_log
+  - test_log
+  - validator_report
+
+verification:
+  build:
+    argv: ["python", "-m", "py_compile", "{target_file}"]
+  test:
+    argv: ["python", "-m", "pytest", "-q", "fixtures/coding_agent/AGENT_CODE_001/test_calculator.py"]
+  timeout_sec: 120
+
+max_steps: 10
+timeout_seconds: 120

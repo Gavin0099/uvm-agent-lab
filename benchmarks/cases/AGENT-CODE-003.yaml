@@ -1,0 +1,42 @@
+id: AGENT-CODE-003
+title: "Add version parser boundary coverage"
+description: "Extend the Python unit-test coverage for version parsing without changing production code outside the bounded fixture."
+validator_profile: lightweight
+
+task:
+  type: test_change
+  goal: "Add deterministic tests for malformed, incomplete, and valid semantic version inputs."
+
+inputs:
+  requirement_id: "AGENT-CODE-003"
+  target_file: "fixtures/coding_agent/AGENT_CODE_003/test_version_parser.py"
+
+allowed_paths:
+  - "fixtures/coding_agent/AGENT_CODE_003/"
+forbidden_paths:
+  - "rtl/"
+  - "additional/"
+  - ".git/"
+
+acceptance:
+  build: pass
+  test: pass
+  lint: optional
+  validator: pass
+
+required_evidence:
+  - requirement_id
+  - git_diff
+  - build_log
+  - test_log
+  - validator_report
+
+verification:
+  build:
+    argv: ["python", "-m", "py_compile", "{target_file}"]
+  test:
+    argv: ["python", "-m", "pytest", "-q", "fixtures/coding_agent/AGENT_CODE_003"]
+  timeout_sec: 120
+
+max_steps: 10
+timeout_seconds: 120

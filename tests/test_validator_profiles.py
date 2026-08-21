@@ -3,7 +3,7 @@ from pathlib import Path
 
 import yaml
 import pytest
-from jsonschema import validate
+from jsonschema import ValidationError, validate
 
 from gv100h.runner.validator_profiles import (
     resolve_validator_profile,
@@ -66,7 +66,62 @@ def test_private_legacy_task_shape_resolves_to_eda():
     assert resolve_validator_profile({"task_id": "ENG-BUG-001"}) == "eda"
 
 
-def test_lightweight_scoring_uses_validator_status_not_eda_statuses(tmp_path, monkeypatch):
+def test_invalid_explicit_validator_profile_fails_schema_and_resolver():
+    case = {
+        "id": "AGENT-CODE-BAD",
+        "title": "Invalid profile",
+        "description": "The profile typo must fail closed.",
+        "validator_profile": "lighweight",
+        "task": {"type": "code_change", "goal": "Reject this contract."},
+        "inputs": {"requirement_id": "AGENT-CODE-BAD"},
+        "allowed_paths": ["fixtures/coding_agent/"],
+        "forbidden_paths": ["rtl/"],
+        "acceptance": {"build": "pass", "test": "pass"},
+        "required_evidence": ["requirement_id", "git_diff"],
+    }
+
+    with pytest.raises(ValidationError):
+        validate(instance=case, schema=_case_schema())
+    with pytest.raises(ValueError, match="validator_profile"):
+        resolve_validator_profile(case)
+
+
+def test_agent_case_requires_explicit_validator_profile():
+    case = {
+        "id": "AGENT-CODE-NO-PROFILE",
+        "title": "Missing profile",
+        "description": "The profile must be explicit for AGENT cases.",
+        "task": {"type": "code_change", "goal": "Reject this contract."},
+        "inputs": {"requirement_id": "AGENT-CODE-NO-PROFILE"},
+        "allowed_paths": ["fixtures/coding_agent/"],
+        "forbidden_paths": ["rtl/"],
+        "acceptance": {"build": "pass", "test": "pass"},
+        "required_evidence": ["requirement_id", "git_diff"],
+    }
+
+    with pytest.raises(ValidationError):
+        validate(instance=case, schema=_case_schema())
+
+
+def test_canonical_agent_code_universe_has_five_lightweight_cases():
+    cases = sorted(Path("benchmarks/cases").glob("AGENT-CODE-*.yaml"))
+    assert [path.stem for path in cases] == [
+        "AGENT-CODE-001",
+        "AGENT-CODE-002",
+        "AGENT-CODE-003",
+        "AGENT-CODE-004",
+        "AGENT-CODE-005",
+    ]
+    for case_path in cases:
+        case = yaml.safe_load(case_path.read_text(encoding="utf-8"))
+        validate(instance=case, schema=_case_schema())
+        assert case["validator_profile"] == "lightweight"
+        assert case["inputs"]["target_file"].endswith(".py")
+        assert "compile_log" not in case["required_evidence"]
+        assert "simulation_log" not in case["required_evidence"]
+
+
+def test_lightweight_legacy_cli_is_explicitly_not_run(tmp_path):
     case_path = tmp_path / "agent-case.yaml"
     case_path.write_text(
         yaml.safe_dump(
@@ -91,38 +146,24 @@ def test_lightweight_scoring_uses_validator_status_not_eda_statuses(tmp_path, mo
         encoding="utf-8",
     )
 
-    class LightweightRunner:
-        name = "lightweight-test-runner"
-
-        def __init__(self, **_kwargs):
-            pass
-
-        def run_case(self, _case):
-            return {
-                "duration_seconds": 0.01,
-                "governance_violations": [],
-                "evidence": {
-                    "requirement_id": "AGENT-CODE-001",
-                    "git_diff": "diff --git a/example.py b/example.py",
-                    "build_log": "py_compile passed",
-                    "test_log": "pytest passed",
-                },
-                "execution": {
-                    "compile_status": "not_run",
-                    "simulation_status": "not_run",
-                    "validator_status": "pass",
-                    "step_count": 2,
-                },
-                "metrics": {},
-            }
-
-    monkeypatch.setattr("scripts.run_case.FakeAgentRunner", LightweightRunner)
     result = run_benchmark(str(case_path), runner_name="mock")
 
     assert result["validator_profile"] == "lightweight"
-    assert result["metrics"]["validator_score"] == 100.0
-    assert result["metrics"]["total_score"] == 100.0
-    assert result["metrics"]["task_success"] is True
+    assert result["execution"]["validator_status"] == "not_run"
+    assert result["metrics"]["validator_score"] == 0.0
+    assert result["metrics"]["total_score"] == 0.0
+    assert result["metrics"]["task_success"] is False
+
+
+def test_legacy_cli_does_not_claim_lightweight_execution():
+    result = run_benchmark(
+        "benchmarks/cases/AGENT-CODE-001.yaml",
+        runner_name="mock",
+    )
+
+    assert result["governance_status"]["passed"] is True
+    assert result["execution"]["validator_status"] == "not_run"
+    assert result["metrics"]["task_success"] is False
 
 
 def test_lightweight_validator_runs_python_checks_without_eda(tmp_path):

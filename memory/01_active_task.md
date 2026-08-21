@@ -15,6 +15,9 @@
 - P1 durability validation: complete Gate 4 focused suite `63 passed`; unrelated-commit survival, registry-change invalidation, dirty/untracked registry, and wrong-artifact tests pass. PR #8 final CI passed.
 - v1 critical path is intentionally limited to Local Model/Runtime, Spec QA/RAG, Local Coding Agent, Governance/Evidence, and GV100 Hardware Profiling. EDA compile/simulate/coverage remains a retained Phase 2 plugin.
 - Benchmark contracts distinguish `lightweight` and `eda` validator profiles; the canonical v1 coding benchmark universe is `AGENT-CODE-001` through `AGENT-CODE-005`.
+- Canonical coding cases are now real Python fixture tasks: bug fix, refactor, test coverage, configuration change, and bounded multi-file change. Cases `001` and `004` intentionally have red untouched baselines and become acceptance oracles after the agent change.
+- `validator_profile` is a top-level schema property, required for `AGENT-*` cases; invalid explicit values fail closed instead of silently falling back. Legacy UVM/live-universe aggregators remain UVM-only.
+- Phase 1 software closeout status: architecture, scope boundary, strict profile contract, and canonical lightweight task universe are implemented. Real local model, GV100 telemetry, and live agent runs remain pending.
 - Gate 4 status: `CHANGES_REQUIRED` / `Gate4 bring-up partially ready`.
 - Qualification status: `NOT_READY` / blocked by missing real runtime, exact GGUF, independent receipt, and physical GPU telemetry. Keep `NO_GO`.
 - Software evidence is not hardware qualification evidence. Do not claim live llama.cpp/vLLM execution, GPU/NVLink qualification, or `GO`.

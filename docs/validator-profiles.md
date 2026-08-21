@@ -21,6 +21,18 @@ acceptance is declared. Legacy UVM cases infer `eda` from their existing
 compile/simulation acceptance so their pinned content and evidence hashes stay
 stable.
 
+The canonical v1 Python benchmark universe is:
+
+- `AGENT-CODE-001`: bug fix;
+- `AGENT-CODE-002`: refactor;
+- `AGENT-CODE-003`: add unit-test coverage;
+- `AGENT-CODE-004`: configuration change;
+- `AGENT-CODE-005`: bounded multi-file change.
+
+The fixture tests are acceptance oracles for the agent. Bug-fix and
+configuration cases may intentionally fail on the untouched baseline and are
+expected to pass only after the agent change.
+
 ## EDAValidator (Phase 2)
 
 Use `validator_profile: eda` for cases that intentionally require:

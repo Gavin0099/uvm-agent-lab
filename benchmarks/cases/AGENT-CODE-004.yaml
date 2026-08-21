@@ -1,0 +1,42 @@
+id: AGENT-CODE-004
+title: "Apply bounded retry configuration"
+description: "Change a Python configuration default while keeping explicit caller overrides and validation deterministic."
+validator_profile: lightweight
+
+task:
+  type: code_change
+  goal: "Set the default retry limit to three and preserve valid explicit overrides while rejecting non-positive values."
+
+inputs:
+  requirement_id: "AGENT-CODE-004"
+  target_file: "fixtures/coding_agent/AGENT_CODE_004/settings.py"
+
+allowed_paths:
+  - "fixtures/coding_agent/AGENT_CODE_004/"
+forbidden_paths:
+  - "rtl/"
+  - "additional/"
+  - ".git/"
+
+acceptance:
+  build: pass
+  test: pass
+  lint: optional
+  validator: pass
+
+required_evidence:
+  - requirement_id
+  - git_diff
+  - build_log
+  - test_log
+  - validator_report
+
+verification:
+  build:
+    argv: ["python", "-m", "py_compile", "{target_file}"]
+  test:
+    argv: ["python", "-m", "pytest", "-q", "fixtures/coding_agent/AGENT_CODE_004/test_settings.py"]
+  timeout_sec: 120
+
+max_steps: 10
+timeout_seconds: 120

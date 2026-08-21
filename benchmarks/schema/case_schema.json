@@ -122,14 +122,14 @@
             "test_log",
             "lint_log",
             "validator_report"
-        ]
-      },
+          ]
+        },
+      "minItems": 2
+    },
       "validator_profile": {
         "type": "string",
         "enum": ["lightweight", "eda"]
       },
-      "minItems": 2
-    },
     "max_steps": {
       "type": "integer",
       "default": 10
@@ -138,5 +138,16 @@
       "type": "integer",
       "default": 60
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "id": { "pattern": "^AGENT-[A-Z0-9-]+$" }
+        },
+        "required": ["id"]
+      },
+      "then": { "required": ["validator_profile"] }
+    }
+  ]
 }

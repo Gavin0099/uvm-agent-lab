@@ -1,0 +1,42 @@
+id: AGENT-CODE-002
+title: "Refactor whitespace normalization"
+description: "Refactor a Python text helper without changing its public behavior for repeated whitespace and casing."
+validator_profile: lightweight
+
+task:
+  type: refactor
+  goal: "Refactor normalize_words into a clear deterministic implementation that preserves the existing output contract."
+
+inputs:
+  requirement_id: "AGENT-CODE-002"
+  target_file: "fixtures/coding_agent/AGENT_CODE_002/text_utils.py"
+
+allowed_paths:
+  - "fixtures/coding_agent/AGENT_CODE_002/"
+forbidden_paths:
+  - "rtl/"
+  - "additional/"
+  - ".git/"
+
+acceptance:
+  build: pass
+  test: pass
+  lint: optional
+  validator: pass
+
+required_evidence:
+  - requirement_id
+  - git_diff
+  - build_log
+  - test_log
+  - validator_report
+
+verification:
+  build:
+    argv: ["python", "-m", "py_compile", "{target_file}"]
+  test:
+    argv: ["python", "-m", "pytest", "-q", "fixtures/coding_agent/AGENT_CODE_002/test_text_utils.py"]
+  timeout_sec: 120
+
+max_steps: 10
+timeout_seconds: 120

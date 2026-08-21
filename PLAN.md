@@ -54,7 +54,7 @@
 | 任務分類 | 說明 | 代表案例 |
 | :--- | :--- | :--- |
 | **Retrieval Tasks** | 規格查詢、跨版本比對、時序約束條款擷取。 | Gate 1 Spec Benchmark |
-| **Coding Tasks** | 以 worktree 修改程式、測試、設定或 UVM code，通過 lightweight validator。 | Coding Agent task universe |
+| **Coding Tasks** | 以 worktree 修改程式、測試、設定或 UVM code，通過 lightweight validator。 | `AGENT-CODE-001` ~ `AGENT-CODE-005` |
 | **Spec QA Tasks** | 規格查詢、跨版本比對、條款引用、權威性與 abstention。 | Gate 1 Spec QA |
 | **EDA Tasks (Phase 2)** | 以可插拔 EDAValidator 執行 compile/simulate/coverage，不作 v1 blocker。 | `UVM-001` ~ `UVM-010` |
 
