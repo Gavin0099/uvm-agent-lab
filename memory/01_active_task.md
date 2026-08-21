@@ -4,15 +4,17 @@
 
 > **最後更新**: 2026-08-21
 > **Owner**: Gavin0099
-> **狀態**: Active (Gate 4 repair PR #8 registry durability P1 fixed locally; updated review pending; keep NO_GO)
+> **狀態**: Active (PR #8 merged; v1 Local AI Qualification Harness scope refactor; keep NO_GO until live evidence)
 
-## 🔒 Current Truth (2026-08-20)
-- PR #6 runtime attestation and PR #7 Gate 4 execution-contract slices are merged into `main` at `ce200d58`, but post-merge review found that G4.1 must not be marked `CLOSED`.
+## 🔒 Current Truth (2026-08-21)
+- PR #6 runtime attestation, PR #7 Gate 4 execution contracts, and PR #8 Gate 4 trust-root/durability repair are merged into `main` at `9f9fc0d`; G4.1 software trust chain is repaired, but no live hardware qualification is claimed.
 - Repair branch `fix/gv100h-gate4-repair` completed the independent model provenance, harness-owned runtime execution, context-aware timeout evidence, raw profile re-evaluation, expected candidate identity, selected-pair NVLink evidence, and schema consistency hardening.
 - Latest PR #8 human review found a new P1: binding receipt identity to repository `HEAD` made unrelated commits invalidate otherwise unchanged approval registries. The earlier caller-supplied approval P1 remains fixed; this durability P1 is repaired locally and awaits updated external review.
 - This repair replaces caller-supplied approval values with a committed, clean Git-tracked registry and binds receipt approval ID, registry bytes hash, registry Git blob OID, and last registry-change commit. Unrelated commits do not invalidate an unchanged registry; registry changes still invalidate receipts. The production registry remains empty until a real external checksum is reviewed and committed; no model approval is fabricated here.
-- Repair PR: `#8` is open at `https://github.com/Gavin0099/uvm-agent-lab/pull/8`; no merge or branch-protection change was performed.
-- P1 durability validation: complete Gate 4 focused suite `63 passed`; unrelated-commit survival, registry-change invalidation, dirty/untracked registry, and wrong-artifact tests pass. Previous GitHub CI for head `649f9b3` was PASS; updated CI/external review for this durability fix is pending.
+- PR #8 is merged; main branch protection was restored to one required approval after the authorized merge.
+- P1 durability validation: complete Gate 4 focused suite `63 passed`; unrelated-commit survival, registry-change invalidation, dirty/untracked registry, and wrong-artifact tests pass. PR #8 final CI passed.
+- v1 critical path is intentionally limited to Local Model/Runtime, Spec QA/RAG, Local Coding Agent, Governance/Evidence, and GV100 Hardware Profiling. EDA compile/simulate/coverage remains a retained Phase 2 plugin.
+- Benchmark contracts distinguish `lightweight` and `eda` validator profiles; the canonical v1 coding benchmark universe is `AGENT-CODE-001` through `AGENT-CODE-005`.
 - Gate 4 status: `CHANGES_REQUIRED` / `Gate4 bring-up partially ready`.
 - Qualification status: `NOT_READY` / blocked by missing real runtime, exact GGUF, independent receipt, and physical GPU telemetry. Keep `NO_GO`.
 - Software evidence is not hardware qualification evidence. Do not claim live llama.cpp/vLLM execution, GPU/NVLink qualification, or `GO`.

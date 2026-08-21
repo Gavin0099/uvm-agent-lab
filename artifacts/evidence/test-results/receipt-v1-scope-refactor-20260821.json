@@ -1,0 +1,17 @@
+{
+  "receipt_schema": "test_evidence_receipt.v0.1",
+  "status": "report_only",
+  "command": "python -X utf8 -m pytest -q tests/ --ignore=tests/gv100h/test_m05_e2e_pipeline.py --ignore=tests/gv100h/test_single_ab_pair_slice.py --basetemp .tmp_v1_scope_receipt",
+  "exit_code": 0,
+  "started_at": "2026-08-21T03:01:25Z",
+  "finished_at": "2026-08-21T03:02:36Z",
+  "runner": "copilot-v1-scope",
+  "linked_commit": "cd59de41475a2561110af70ce3c9623fa7ac4a71",
+  "output_artifacts": [
+    "artifacts/evidence/test-results/receipt-v1-scope-refactor-20260821.txt"
+  ],
+  "cannot_claim": [
+    "semantic correctness of the tested behavior",
+    "receipt authenticity: every field is fabricatable by a direct writer"
+  ]
+}

@@ -12,6 +12,14 @@ This document establishes the operational contract, role definitions, and tool c
 - **Forbidden paths**: `rtl/`, `additional/`, `.git/` — modifying `rtl/` is strictly prohibited and triggers immediate fatal 0% score override.
 - **File extensions**: `.sv`, `.svh`, `.v`, `.yaml`, `.json`, `.py`
 
+### v1 lightweight validator scope
+
+The UVM paths above remain the legacy EDA-validator scope. v1 Local Coding
+Agent tasks may declare a different `allowed_paths` set in their case contract,
+but every path must remain explicit, task-scoped, and subject to the same
+`forbidden_paths` and evidence rules. This does not authorize `rtl/`,
+`additional/`, or `.git/` access.
+
 ## 🛠️ Commands and Checks
 <!-- governance:key=commands_and_checks -->
 - Run unit & governance tests: `pytest -v tests/`

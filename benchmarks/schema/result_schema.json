@@ -15,7 +15,11 @@
   "properties": {
     "case_id": {
       "type": "string",
-      "pattern": "^UVM-[0-9]{3}$"
+      "pattern": "^(UVM-[0-9]{3}|AGENT-[A-Z0-9-]+)$"
+    },
+    "validator_profile": {
+      "type": "string",
+      "enum": ["lightweight", "eda"]
     },
     "runner_name": {
       "type": "string"
@@ -55,6 +59,10 @@
         "compile_log": { "type": "string" },
         "simulation_log": { "type": "string" },
         "coverage_report": { "type": "string" },
+        "build_log": { "type": "string" },
+        "test_log": { "type": "string" },
+        "lint_log": { "type": "string" },
+        "validator_report": { "type": "string" },
         "log_hash": { "type": "string" }
       }
     },
@@ -67,6 +75,18 @@
           "enum": ["pass", "fail", "not_run"]
         },
         "simulation_status": {
+          "type": "string",
+          "enum": ["pass", "fail", "timeout", "not_run"]
+        },
+        "build_status": {
+          "type": "string",
+          "enum": ["pass", "fail", "timeout", "not_run"]
+        },
+        "test_status": {
+          "type": "string",
+          "enum": ["pass", "fail", "timeout", "not_run"]
+        },
+        "validator_status": {
           "type": "string",
           "enum": ["pass", "fail", "timeout", "not_run"]
         },
@@ -102,6 +122,7 @@
         },
         "compile_score": { "type": "number" },
         "simulation_score": { "type": "number" },
+        "validator_score": { "type": "number" },
         "evidence_score": { "type": "number" },
         "penalty_deductions": { "type": "number" },
         "prompt_tokens": { "type": "integer" },

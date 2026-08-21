@@ -31,6 +31,7 @@ class FinalVerificationResult(BaseModel):
     verification_cwd: str = ""
     tool_path: str = ""
     qualification_admissible: bool = True
+    validator_profile: Literal["lightweight", "eda"] = "eda"
 
 
 class IndependentVerifier:

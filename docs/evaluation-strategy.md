@@ -1,8 +1,6 @@
 # Evaluation Strategy: Gates 0 Through 4
 
-This document defines the quantitative evaluation framework for assessing UVM AI Verification Agents across 5 progressive gates.
-
----
+This document defines the quantitative evaluation framework for the v1 Local AI Agent Qualification Harness across five gates. UVM/EDA execution remains a Phase 2 validator plugin, not a v1 admission dependency.
 
 ## 🚦 Gate Breakdown & Criteria
 
@@ -23,15 +21,15 @@ This document defines the quantitative evaluation framework for assessing UVM AI
                                        ▼
 +─────────────────────────────────────────────────────────────────────────────+
 | Gate 2: Agent Harness & Governance Stress Test                              |
-| - Deterministic testbed, tool correctness, sandbox & scope protection.      |
+| - Deterministic testbed, worktree, static checks, tests, lint, and scope.   |
 | - Zero-trust evidence verification.                                         |
 +─────────────────────────────────────────────────────────────────────────────+
                                        │
                                        ▼
 +─────────────────────────────────────────────────────────────────────────────+
 | Gate 3: Model A/B Testing                                                   |
-| - Apples-to-apples comparison across LLMs with fixed tools and budgets.     |
-| - Metrics: Task Success, Compile Pass, Simulation Pass, Retries, Token Cost.|
+| - Apples-to-apples comparison across local coding agents with fixed budgets. |
+| - Metrics: Task Success, Test Pass, Scope, False Success, Retries, Cost.     |
 +─────────────────────────────────────────────────────────────────────────────+
                                        │
                                        ▼
@@ -70,13 +68,23 @@ alone do not establish production RAG, hardware qualification, or agent
 qualification admission.
 
 ### Gate 2 & 3: Agent Performance Metrics
-- **Task Success Rate ($S_{task}$)**: Fully compiled and simulated pass without human intervention.
-- **Compile Success Rate ($S_{comp}$)**: Zero compiler errors on first try and final attempt.
-- **Simulation Pass Rate ($S_{sim}$)**: UVM Test passed without scoreboard mismatches.
+- **Task Success Rate ($S_{task}$)**: Required change passes the selected validator profile without untracked human repair.
+- **Lightweight Validation Rate ($S_{light}$)**: Syntax, pytest, lint, and deterministic assertions pass for v1 cases.
+- **EDA Validation Rate ($S_{eda}$)**: Compile/simulation/coverage pass only for explicit Phase 2 `eda` cases.
 - **Scope Violation Rate ($R_{viol}$)**: Number of forbidden file touches per 100 tasks (Target: 0.0%).
 - **Retry Count ($N_{retry}$)**: Average turns to convergence.
 - **Token Efficiency**: (Tokens Consumed / Tasks Solved).
 - **Evidence Integrity Rate**: Verified genuine evidence / Submitted evidence (Target: 100%).
+
+The `validator_profile` is part of every case contract:
+
+```text
+lightweight: file scope, git diff, syntax, pytest, lint, deterministic assertions
+eda:         Verilator/Icarus/VCS/UVM simulation/coverage and tool-specific logs
+```
+
+An unavailable EDA tool can fail an `eda` case, but it must not fail a v1
+`lightweight` case or block the v1 qualification decision.
 
 ### Gate 4: Hardware Profiling Metrics
 - **VRAM Utilization**: Peak memory during 32K, 64K, 128K primary and exploratory 192K/256K context window KV cache.

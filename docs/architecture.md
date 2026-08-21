@@ -1,6 +1,6 @@
-# Architecture: Decoupled Knowledge and Verification Layers
+# Architecture: Decoupled Knowledge and Local AI Qualification Layers
 
-A critical architectural principle of `uvm-agent-lab` is the **strict separation** between the **Governed Knowledge Layer** (`spec-reference-kit`) and the **Verification Agent Evaluation Layer** (`uvm-agent-lab`).
+A critical architectural principle of `uvm-agent-lab` is the **strict separation** between the **Governed Knowledge Layer** (`spec-reference-kit`) and the **Local AI Qualification Layer** (`uvm-agent-lab`).
 
 ---
 
@@ -20,13 +20,14 @@ A critical architectural principle of `uvm-agent-lab` is the **strict separation
                                     │
                                     ▼
 +-------------------------------------------------------------------------+
-|                  Verification Agent Layer: uvm-agent-lab                |
+|                  Local AI Qualification Layer: uvm-agent-lab            |
 |                                                                         |
-|  - Benchmark Suites (UVM-001 .. UVM-xxx)                                |
-|  - Agent Harness & Tool Orchestrator                                    |
-|  - Zero-Trust AI Governance Engine                                      |
-|  - Compile / Simulation Stubs & EDA Wrappers (VCS/Verilator/Xcelium)     |
-|  - Metric Aggregation & Hardware Profiling                              |
+|  - Local Model / Runtime and GV100 Hardware Profiling                    |
+|  - Spec QA / RAG                                                         |
+|  - Local Coding Agent Worktree Harness                                   |
+|  - Zero-Trust Governance and Evidence                                    |
+|  - LightweightValidator (v1)                                             |
+|  - EDAValidator plugin (Phase 2: VCS/Verilator/Icarus/UVM/coverage)      |
 +-------------------------------------------------------------------------+
 ```
 
@@ -44,6 +45,29 @@ A critical architectural principle of `uvm-agent-lab` is the **strict separation
 3. **Isolated Governance Boundaries**:
    - **Knowledge Governance** audits: Is this customer allowed to read v2.1? Is section 4.2 deprecated?
    - **Verification Governance** audits: Did the agent modify RTL? Did simulation pass with genuine evidence?
+
+---
+
+## 🧭 v1 Qualification Harness Boundary
+
+The v1 critical path answers five bounded questions:
+
+1. Can the local model/runtime run reliably on the target GV100 hardware?
+2. Can it answer governed company specifications with correct citations, version scope, authority, and abstention?
+3. Can it act as a useful local coding assistant inside a disposable worktree?
+4. Can governance and evidence controls reject scope violations, fake success, and missing proof?
+5. Can a lightweight validator measure syntax, tests, lint, deterministic assertions, and human-reviewable diffs?
+
+The case contract carries an explicit `validator_profile`:
+
+```text
+lightweight -> file scope, git diff, syntax, pytest, lint, deterministic assertions
+eda         -> compile, simulation, UVM, coverage, and tool-specific evidence
+```
+
+`EDAValidator` is a Phase 2 plugin boundary. Existing `scripts/eda/` adapters,
+`EDARouter`, and UVM cases are retained as reusable capability, but EDA tool
+availability is not a v1 GO/NO_GO dependency.
 
 ---
 
