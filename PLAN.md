@@ -13,7 +13,7 @@
 ### 專案目標 (Goals)
 1. **建立客觀、可重現的 Local AI Agent Qualification Harness**：以 Local Model/Runtime、Spec QA/RAG、Local Coding Agent、Governance/Evidence、Hardware Profiling 五個 v1 pillars 驗證公司使用價值。
 2. **導入 Policy-as-Code AI Governance**：落實嚴格的 Scope 隔離（`allowed_paths` vs `forbidden_paths`）、Zero-Trust 驗證合約（`exit 0 ≠ success`、`missing evidence = fail`、反幻覺檢驗）。
-3. **驗證 Governed Knowledge Layer 價值**：比較 `spec-reference-kit` 與傳統 BM25、Vector RAG、Hybrid 在規格檢索精準度與版本治理上的差異（Gate 1）。
+3. **驗證 POC-1 USB Hub Spec QA 能力**：以 locked dual-layer corpus（`usb-if-hub-spec-reference` governed reference + official raw USB 2.0/3.2/LVS sources）驗證 retrieval、grounded answer、section-level citation、cross-spec reasoning，以及 unknown/conflict handling；再比較 `spec-reference-kit` 與 BM25、Vector RAG、Hybrid 的差異（Gate 1）。
 4. **標準化 Local Coding Agent 與錯誤修復能力**：以 worktree、static checks、tests、lint、scope 與 evidence 驗證 coding assistant，不把 EDA compile/simulate 當成 v1 必要條件（Gate 2/3）。
 5. **公平的模型 A/B 比較 (Apples-to-Apples)**：在相同 Tool 預算、Token 限制與驗證標準下，對 canonical coding tasks 執行 paired runs；真實模型 qualification 仍待 live evidence（Gate 3）。
 6. **GV100 hardware qualification**：先以 Qwen3.8-27B Q4_K_M llama.cpp q8_0 K/V single-V100 baseline 驗證 32K/64K/128K，再將 192K/256K 作 stretch，最後才進入 dual-GV100/NVLink qualification（Gate 4）。
@@ -23,6 +23,7 @@
 - ❌ **v1 不把 EDA compile/simulate 放入 critical path**：Verilator、Icarus、VCS、UVM simulation 與 coverage 保留為 Phase 2 `EDAValidator` plugin，不阻塞 v1 harness。
 - ❌ **第一版不依賴即時 LLM API / GPU**：Milestone 0 / PR-001 專注於確定性 Harness、Schema 驗證與治理規則測試。
 - ❌ **不把規格解析器 (PDF/Word parser) 塞進驗證層**：規格解析與治理留在 `spec-reference-kit`，透過 CLI/JSON/MCP 介面解耦。
+- ❌ **POC-1 第一輪不納入 USB4 corpus**：USB4 僅作為 Phase 1 out-of-scope negative control，待 USB 2.0、USB 3.2 與 SuperSpeed Hub LVS 基線穩定後再擴充。
 
 ---
 
@@ -58,6 +59,24 @@
 | **Spec QA Tasks** | 規格查詢、跨版本比對、條款引用、權威性與 abstention。 | Gate 1 Spec QA |
 | **EDA Tasks (Phase 2)** | 以可插拔 EDAValidator 執行 compile/simulate/coverage，不作 v1 blocker。 | `UVM-001` ~ `UVM-010` |
 
+### 3.1 POC-1 USB Hub Spec QA 基線
+
+POC-1 的第一輪 corpus 固定為雙層模型：
+
+- Layer A governed reference：`Gavin0099/usb-if-hub-spec-reference`，提供 structured entries、authority metadata、verification state 與 claim boundary；它不是完整 USB specification 的替代品。
+- Layer B official raw corpus：以 immutable revision/commit 與 content hash 鎖定官方原文，補足 Layer A 尚未結構化的 coverage。
+- Lock SSOT：`gv100h/spec_qa/contracts/corpus.lock.yaml`。在所有 Phase 1 source 尚未完成 binding 前，不得宣稱 complete official corpus qualification。
+
+- USB 2.0 FW：Ch.5、Ch.8-11。
+- USB 2.0 SE：Ch.6-7。
+- USB 3.2 Rev. 1.1：Ch.6、7、9、10。
+- SuperSpeed Hub LVS Test Specification Rev. 1.15。
+- USB4：Phase 2；第一輪只測試 agent 是否正確 abstain。
+
+驗收分成四層：L1 single-spec factual QA、L2 engineering interpretation、L3 cross-document requirement-to-LVS QA，以及 L4 uncertainty/contradiction handling。P0 為 retrieval、grounded answer、citation、unknown/conflict handling；P1 為 cross-spec reasoning，必須獨立報告，不能被 single-spec 分數掩蓋。
+
+完整的能力、證據欄位、Golden QA 獨立性、corpus lock 與 admission rules 以 [`docs/USB_SPEC_QA_POC1_SCOPE.md`](docs/USB_SPEC_QA_POC1_SCOPE.md) 和 `gv100h/spec_qa/contracts/corpus.lock.yaml` 為準。現有 `dataset_30.json` 是 deterministic smoke baseline，不是最終 POC-1 acceptance set；Golden QA 不得由同一 corpus 的 retrieved chunks 或 model answers 自動生成，最終 benchmark 目標為固定、版本化的 50-100 題。
+
 ---
 
 ## 🚦 4. Gate 0 ～ Gate 4 階段規劃與 Exit Criteria
@@ -72,8 +91,10 @@
                                        ▼
 +─────────────────────────────────────────────────────────────────────────────+
 | Gate 1: Spec / Retrieval 評測 (spec-reference-kit vs RAG)                   |
-| 產物: Canonical, BM25, Vector, Hybrid Retriever, evaluator.py               |
-| Exit Criteria: Spec-Ref-Kit Recall@1 >= 95%, Wrong-Version Rate = 0%.        |
+| 產物: POC-1 scope contract, corpus.lock.yaml, corpus manifest,             |
+|        Canonical/BM25/Vector/Hybrid                                        |
+| Exit Criteria: P0 evidence/citation/abstention gates pass; Recall@1 >= 95%;  |
+|        Wrong-Version Rate = 0%; P1 cross-spec result is reported separately. |
 +─────────────────────────────────────────────────────────────────────────────+
                                        │
                                        ▼

@@ -78,10 +78,11 @@ tasks:
       - ".git/"
 
   GV100H-M2:
-    description: "M2: POC-1 USB Hub Spec QA Agent (Backend, Golden 30, UI Spec)"
+    description: "M2: POC-1 USB Hub Spec QA Agent (Scope Contract, Backend, Golden QA, UI Spec)"
     allowed_paths:
       - "gv100h/spec_qa/"
       - "docs/USB_SPEC_QA_INTEGRATION_SPEC.md"
+      - "docs/USB_SPEC_QA_POC1_SCOPE.md"
       - "tests/gv100h/"
       - "results/spec_qa/"
     forbidden_paths:

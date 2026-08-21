@@ -3,6 +3,7 @@ import hashlib
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
+import yaml
 
 
 class GovernedEvidence(BaseModel):
@@ -23,6 +24,20 @@ class GovernedSpecRetriever:
 
     KNOWLEDGE_REPO = "Gavin0099/usb-if-hub-spec-reference"
     KNOWLEDGE_REPO_COMMIT = "808f23c24bd8651da9cdcd63ea8669126917a379"
+    DEFAULT_CORPUS_LOCK_PATH = Path(__file__).resolve().parent.parent / "contracts" / "corpus.lock.yaml"
+    REQUIRED_LAYERS = ("governed_reference", "official_raw", "evaluation_only")
+    REQUIRED_PHASE1_SOURCES = ("hub_reference", "usb20_fw", "usb20_se", "usb32", "superspeed_hub_lvs")
+    VALID_CORPUS_STATUSES = ("manifest_only_pending_binding", "phase1_bound", "fully_bound")
+    VALID_BINDING_STATUSES = ("pending", "smoke_baseline_only", "bound", "verified", "locked")
+    VALID_AUTHORITY_ROLES = ("canonical_structured_reference", "normative_official")
+    REQUIRED_PENDING_BLOCKS = ("full_phase1_qualification",)
+    REQUIRED_BINDING_REQUIREMENTS = (
+        "immutable_commit_or_document_revision",
+        "content_sha256",
+        "authority_role",
+    )
+    SCOPE_BINDING_FIELDS = ("included_chapters", "included_scope", "canonical_entrypoint")
+    PENDING_MARKERS = ("PENDING_ACQUISITION", "NOT_BOUND")
 
     # Governed Knowledge Base Table Entries (Embedded Verified Baseline)
     EVIDENCE_REGISTRY: List[GovernedEvidence] = [
@@ -73,13 +88,151 @@ class GovernedSpecRetriever:
         )
     ]
 
-    def __init__(self, knowledge_repo_path: Optional[str] = None):
-        self.binding_mode = "embedded_registry_baseline"
+    def __init__(
+        self,
+        knowledge_repo_path: Optional[str] = None,
+        corpus_lock_path: Optional[str] = None,
+    ):
+        self.corpus_lock_path = (
+            Path(corpus_lock_path).resolve()
+            if corpus_lock_path
+            else self.DEFAULT_CORPUS_LOCK_PATH
+        )
+        self.corpus_lock = self._load_corpus_lock(self.corpus_lock_path)
+        self.corpus_lock_validation = self.validate_corpus_lock(self.corpus_lock)
+        self.qualification_blocked = self.corpus_lock_validation["qualification_blocked"]
+        self.qualification_block_reasons = self.corpus_lock_validation["block_reasons"]
+        governed_source = self.corpus_lock["sources"]["hub_reference"]
+        self.knowledge_repo = governed_source["repo"]
+        self.knowledge_repo_commit = governed_source["commit"]
+        self.corpus_id = self.corpus_lock["corpus_id"]
+        self.corpus_binding_status = self.corpus_lock["status"]
+        self.binding_mode = f"embedded_registry_baseline ({self.corpus_binding_status})"
         self.bound_repo_head_commit = None
         self.bound_repo_files_hash = None
 
         if knowledge_repo_path and Path(knowledge_repo_path).exists():
             self.verify_and_bind_knowledge_repo(knowledge_repo_path)
+
+    @classmethod
+    def validate_corpus_lock(cls, lock: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(lock, dict):
+            raise ValueError("POC-1 corpus lock must contain a YAML mapping")
+        if not lock.get("corpus_id") or not lock.get("status"):
+            raise ValueError("POC-1 corpus lock requires corpus_id and status")
+        if lock["status"] not in cls.VALID_CORPUS_STATUSES:
+            raise ValueError(f"invalid corpus status: {lock['status']}")
+
+        layers = lock.get("layers")
+        missing_layers = [layer for layer in cls.REQUIRED_LAYERS if not isinstance(layers, dict) or layer not in layers]
+        if missing_layers:
+            raise ValueError(f"required layers missing: {', '.join(missing_layers)}")
+        for layer_name in cls.REQUIRED_LAYERS:
+            if not isinstance(layers[layer_name], dict):
+                raise ValueError(f"layer {layer_name} must be a mapping")
+            if not isinstance(layers[layer_name].get("allowed_as_answer_evidence"), bool):
+                raise ValueError(f"layer {layer_name} requires boolean allowed_as_answer_evidence")
+        if layers["evaluation_only"]["allowed_as_answer_evidence"] is not False:
+            raise ValueError("evaluation_only layer must not be answer evidence")
+
+        sources = lock.get("sources")
+        if not isinstance(sources, dict):
+            raise ValueError("POC-1 corpus lock requires sources mapping")
+        missing_sources = [source_id for source_id in cls.REQUIRED_PHASE1_SOURCES if source_id not in sources]
+        if missing_sources:
+            raise ValueError(f"required Phase 1 source IDs missing: {', '.join(missing_sources)}")
+
+        binding_requirements = lock.get("binding_requirements")
+        if not isinstance(binding_requirements, dict):
+            raise ValueError("POC-1 corpus lock requires binding_requirements mapping")
+        declared_requirements = binding_requirements.get("source_entry_must_have")
+        if not isinstance(declared_requirements, list) or not set(cls.REQUIRED_BINDING_REQUIREMENTS).issubset(declared_requirements):
+            raise ValueError("binding_requirements.source_entry_must_have is incomplete")
+        scope_binding = binding_requirements.get("scope_binding")
+        declared_scope_fields = scope_binding.get("requires_one_of") if isinstance(scope_binding, dict) else None
+        if not isinstance(declared_scope_fields, list) or set(declared_scope_fields) != set(cls.SCOPE_BINDING_FIELDS):
+            raise ValueError("binding_requirements.scope_binding.requires_one_of is invalid")
+        pending_blocks = binding_requirements.get("pending_markers_block")
+        if not isinstance(pending_blocks, list) or not set(cls.REQUIRED_PENDING_BLOCKS).issubset(pending_blocks):
+            raise ValueError("binding_requirements.pending_markers_block is incomplete")
+
+        block_reasons = []
+        for source_id in cls.REQUIRED_PHASE1_SOURCES:
+            source = sources[source_id]
+            if not isinstance(source, dict):
+                raise ValueError(f"source {source_id} must be a mapping")
+            if source.get("phase") != "phase_1":
+                raise ValueError(f"source {source_id} must be phase_1")
+            if source.get("layer") not in ("governed_reference", "official_raw"):
+                raise ValueError(f"source {source_id} has invalid layer")
+            if source.get("role") not in cls.VALID_AUTHORITY_ROLES:
+                raise ValueError(f"source {source_id} has invalid authority role")
+            if not (source.get("commit") or source.get("revision")):
+                raise ValueError(f"source {source_id} requires immutable commit or revision")
+            if not source.get("content_sha256"):
+                raise ValueError(f"source {source_id} requires content_sha256")
+            if not any(source.get(field) for field in declared_scope_fields):
+                raise ValueError(f"source {source_id} requires one of {', '.join(declared_scope_fields)}")
+
+            binding_status = source.get("binding_status")
+            if binding_status not in cls.VALID_BINDING_STATUSES:
+                raise ValueError(f"source {source_id} has invalid binding_status")
+            if binding_status not in ("bound", "verified", "locked"):
+                block_reasons.append(f"sources.{source_id}.binding_status={binding_status}")
+            for marker_path in cls._find_pending_markers(source, f"sources.{source_id}"):
+                block_reasons.append(f"{marker_path} contains pending marker")
+
+        usb4 = sources.get("usb4")
+        if not isinstance(usb4, dict) or usb4.get("included") is not False:
+            raise ValueError("USB4 must be excluded from Phase 1")
+
+        benchmark = lock.get("benchmark")
+        if not isinstance(benchmark, dict) or benchmark.get("benchmark_role") != "independent_evaluation":
+            raise ValueError("benchmark must be independent_evaluation")
+        if benchmark.get("generated_from_corpus") is not False or benchmark.get("independent_from_corpus") is not True:
+            raise ValueError("benchmark independence contract is invalid")
+
+        if lock["status"] in ("phase1_bound", "fully_bound") and block_reasons:
+            raise ValueError("corpus status claims qualification while pending markers remain")
+        return {
+            "qualification_blocked": bool(block_reasons),
+            "block_reasons": tuple(block_reasons),
+        }
+
+    @classmethod
+    def _find_pending_markers(cls, value: Any, path: str) -> List[str]:
+        markers = []
+        if isinstance(value, dict):
+            for key, child in value.items():
+                markers.extend(cls._find_pending_markers(child, f"{path}.{key}"))
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                markers.extend(cls._find_pending_markers(child, f"{path}[{index}]"))
+        elif isinstance(value, str) and value in cls.PENDING_MARKERS:
+            markers.append(path)
+        return markers
+
+    @staticmethod
+    def _load_corpus_lock(lock_path: Path) -> Dict[str, Any]:
+        if not lock_path.exists():
+            raise FileNotFoundError(f"POC-1 corpus lock not found: {lock_path}")
+
+        with lock_path.open("r", encoding="utf-8") as handle:
+            lock = yaml.safe_load(handle)
+
+        if not isinstance(lock, dict):
+            raise ValueError("POC-1 corpus lock must contain a YAML mapping")
+        if not lock.get("corpus_id") or not lock.get("status"):
+            raise ValueError("POC-1 corpus lock requires corpus_id and status")
+
+        sources = lock.get("sources")
+        governed_source = sources.get("hub_reference") if isinstance(sources, dict) else None
+        if not isinstance(governed_source, dict) or not governed_source.get("repo"):
+            raise ValueError("POC-1 corpus lock requires sources.hub_reference.repo")
+        if not governed_source.get("commit"):
+            raise ValueError("POC-1 corpus lock requires sources.hub_reference.commit")
+
+        return lock
 
     def verify_and_bind_knowledge_repo(self, repo_path: str) -> bool:
         """

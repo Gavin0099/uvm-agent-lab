@@ -1,0 +1,127 @@
+schema_version: "1.0"
+corpus_id: "usb-hub-poc1-phase1"
+status: "manifest_only_pending_binding"
+
+layers:
+  governed_reference:
+    purpose: "high-confidence structured reference and claim boundary"
+    allowed_as_answer_evidence: true
+  official_raw:
+    purpose: "normative source text for coverage beyond the structured reference"
+    allowed_as_answer_evidence: true
+  evaluation_only:
+    purpose: "independent benchmark questions and expected outcomes"
+    allowed_as_answer_evidence: false
+
+authority_policy:
+  unlisted_sources: "excluded"
+  community_or_archive_sources: "context_only_not_normative"
+  governed_reference_does_not_imply_full_spec_coverage: true
+  full_phase1_qualification_requires_all_phase1_sources_bound: true
+
+sources:
+  hub_reference:
+    layer: "governed_reference"
+    role: "canonical_structured_reference"
+    repo: "Gavin0099/usb-if-hub-spec-reference"
+    commit: "808f23c24bd8651da9cdcd63ea8669126917a379"
+    commit_status: "recorded_from_existing_smoke_baseline"
+    content_sha256: "NOT_BOUND"
+    canonical_entrypoint: "exports/hub_governed_surface_manifest.yaml"
+    phase: "phase_1"
+    binding_status: "smoke_baseline_only"
+    claim_ceiling: "governed_matrix_identity_and_boundary_reference_only"
+    known_limits:
+      - "not_full_usb_spec_coverage"
+      - "not_firmware_compliance_proof"
+      - "not_electrical_or_lvs_compliance_proof"
+      - "not_usb4_corpus"
+
+  usb20_fw:
+    layer: "official_raw"
+    role: "normative_official"
+    document: "USB 2.0 Specification"
+    revision: "2.0"
+    included_chapters:
+      - "5"
+      - "8-11"
+    phase: "phase_1"
+    source_locator: "PENDING_ACQUISITION"
+    content_sha256: "NOT_BOUND"
+    binding_status: "pending"
+
+  usb20_se:
+    layer: "official_raw"
+    role: "normative_official"
+    document: "USB 2.0 Specification"
+    revision: "2.0"
+    included_chapters:
+      - "6-7"
+    phase: "phase_1"
+    source_locator: "PENDING_ACQUISITION"
+    content_sha256: "NOT_BOUND"
+    binding_status: "pending"
+
+  usb32:
+    layer: "official_raw"
+    role: "normative_official"
+    document: "USB 3.2 Specification"
+    revision: "Rev 1.1"
+    included_chapters:
+      - "6"
+      - "7"
+      - "9"
+      - "10"
+    phase: "phase_1"
+    source_locator: "PENDING_ACQUISITION"
+    content_sha256: "NOT_BOUND"
+    binding_status: "pending"
+
+  superspeed_hub_lvs:
+    layer: "official_raw"
+    role: "normative_official"
+    document: "SuperSpeed Hub LVS Test Specification"
+    revision: "Rev 1.15"
+    included_scope: "Hub compliance test items and conditions"
+    phase: "phase_1"
+    source_locator: "PENDING_ACQUISITION"
+    content_sha256: "NOT_BOUND"
+    binding_status: "pending"
+
+  usb4:
+    layer: "official_raw"
+    role: "normative_official"
+    document: "USB4 Specification"
+    revision: "NOT_BOUND"
+    phase: "phase_2"
+    included: false
+    retrieval_status: "excluded_from_phase_1"
+    source_locator: "NOT_APPLICABLE"
+    content_sha256: "NOT_APPLICABLE"
+
+benchmark:
+  golden_qa_path: "gv100h/spec_qa/golden/dataset_30.json"
+  benchmark_role: "independent_evaluation"
+  generated_from_corpus: false
+  independent_from_corpus: true
+  evaluation_leakage_policy:
+    golden_questions_must_not_be_generated_from_retrieved_evidence: true
+    expected_outcomes_require_independent_review: true
+    benchmark_answers_are_not_retrieval_evidence: true
+  current_status: "deterministic_smoke_baseline_only"
+  full_poc1_acceptance_set: false
+
+binding_requirements:
+  source_entry_must_have:
+    - "immutable_commit_or_document_revision"
+    - "content_sha256"
+    - "authority_role"
+  scope_binding:
+    requires_one_of:
+      - "included_chapters"
+      - "included_scope"
+      - "canonical_entrypoint"
+  pending_markers_block:
+    - "full_phase1_qualification"
+    - "claim_of_complete_official_corpus"
+    - "live_model_qualification"
