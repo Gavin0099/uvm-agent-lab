@@ -294,6 +294,7 @@ def test_runtime_process_attestor_stops_after_startup_failure(tmp_path, monkeypa
         runtime_version="llama.cpp test",
         model_id="Qwen/Qwen3.8-27B",
         model_path=model,
+        expected_model_hash=sha256_file(model),
         endpoint_url="http://127.0.0.1:8000/v1",
         startup_timeout_sec=1,
     )
@@ -336,6 +337,7 @@ def test_runtime_process_attestor_stop_does_not_raise_cleanup_error():
         runtime_version="llama.cpp test",
         model_id="Qwen/Qwen3.8-27B",
         model_path=Path(sys.executable),
+        expected_model_hash=sha256_file(sys.executable),
         endpoint_url="http://127.0.0.1:8000/v1",
     )
     attestor.process = _UnstoppableProcess()
@@ -372,6 +374,7 @@ def test_runtime_process_attestor_captures_started_process(tmp_path, monkeypatch
         runtime_version="llama.cpp test",
         model_id="Qwen/Qwen3.8-27B",
         model_path=model,
+        expected_model_hash=sha256_file(model),
         endpoint_url="http://127.0.0.1:8000/v1",
     )
     responses = iter([
@@ -411,6 +414,7 @@ def test_runtime_process_attestor_rejects_existing_endpoint(tmp_path, monkeypatc
         runtime_version="llama.cpp test",
         model_id="Qwen/Qwen3.8-27B",
         model_path=model,
+        expected_model_hash=sha256_file(model),
         endpoint_url="http://127.0.0.1:8000/v1",
     )
     monkeypatch.setattr(
@@ -449,6 +453,7 @@ def test_runtime_process_attestor_rejects_early_exit(tmp_path, monkeypatch):
         runtime_version="llama.cpp test",
         model_id="Qwen/Qwen3.8-27B",
         model_path=model,
+        expected_model_hash=sha256_file(model),
         endpoint_url="http://127.0.0.1:8000/v1",
     )
     def endpoint_unavailable():
@@ -493,6 +498,7 @@ def test_runtime_process_attestor_rejects_launched_model_mismatch(tmp_path, monk
         runtime_version="llama.cpp test",
         model_id="Qwen/Qwen3.8-27B",
         model_path=approved_model,
+        expected_model_hash=sha256_file(approved_model),
         endpoint_url="http://127.0.0.1:8000/v1",
     )
     monkeypatch.setattr(attestor, "_endpoint_models", lambda: (_ for _ in ()).throw(OSError("unavailable")))
@@ -535,6 +541,7 @@ def test_runtime_process_attestor_rejects_unsupported_runtime_contract(tmp_path)
         runtime_version="vllm test",
         model_id="Qwen/Qwen3.8-27B",
         model_path=model,
+        expected_model_hash=sha256_file(model),
         endpoint_url="http://127.0.0.1:8000/v1",
     )
 
@@ -550,6 +557,7 @@ def test_runtime_process_attestor_reads_current_process_command_line():
         runtime_version="llama.cpp test",
         model_id="Qwen/Qwen3.8-27B",
         model_path=Path(sys.executable),
+        expected_model_hash=sha256_file(sys.executable),
         endpoint_url="http://127.0.0.1:8000/v1",
     )
 

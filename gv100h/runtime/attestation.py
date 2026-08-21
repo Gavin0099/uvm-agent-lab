@@ -244,7 +244,7 @@ class RuntimeProcessAttestor:
         runtime_version: str,
         model_id: str,
         model_path: str | Path,
-        expected_model_hash: str | None = None,
+        expected_model_hash: str,
         endpoint_url: str,
         api_key: str = "EMPTY",
         cwd: str | Path | None = None,
@@ -256,7 +256,7 @@ class RuntimeProcessAttestor:
         self.runtime_version = runtime_version
         self.model_id = model_id
         self.model_path = Path(model_path).resolve()
-        self.expected_model_hash = expected_model_hash.lower() if expected_model_hash else None
+        self.expected_model_hash = expected_model_hash.lower()
         self.endpoint_url = endpoint_url.rstrip("/")
         self.api_key = api_key
         self.cwd = Path(cwd).resolve() if cwd else None
@@ -337,10 +337,7 @@ class RuntimeProcessAttestor:
             raise ValueError(f"runtime executable does not exist: {executable_path}")
         if not self.model_path.is_file():
             raise ValueError(f"model artifact does not exist: {self.model_path}")
-        if (
-            self.expected_model_hash is not None
-            and sha256_file(self.model_path).lower() != self.expected_model_hash
-        ):
+        if sha256_file(self.model_path).lower() != self.expected_model_hash:
             raise ValueError("model artifact hash does not match approved model hash")
         if not self.runtime_commit or not self.runtime_version:
             raise ValueError("runtime commit and version are required for attestation")
