@@ -1,5 +1,7 @@
 import json
 import hashlib
+import re
+import subprocess
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
@@ -38,6 +40,7 @@ class GovernedSpecRetriever:
     )
     SCOPE_BINDING_FIELDS = ("included_chapters", "included_scope", "canonical_entrypoint")
     PENDING_MARKERS = ("PENDING_ACQUISITION", "NOT_BOUND")
+    CONTENT_HASH_ALGORITHM = "sha256_tracked_relative_posix_path_content_bytes_v3"
 
     # Governed Knowledge Base Table Entries (Embedded Verified Baseline)
     EVIDENCE_REGISTRY: List[GovernedEvidence] = [
@@ -155,6 +158,8 @@ class GovernedSpecRetriever:
         pending_blocks = binding_requirements.get("pending_markers_block")
         if not isinstance(pending_blocks, list) or not set(cls.REQUIRED_PENDING_BLOCKS).issubset(pending_blocks):
             raise ValueError("binding_requirements.pending_markers_block is incomplete")
+        if binding_requirements.get("content_hash_algorithm") != cls.CONTENT_HASH_ALGORITHM:
+            raise ValueError("binding_requirements.content_hash_algorithm is invalid")
 
         block_reasons = []
         for source_id in cls.REQUIRED_PHASE1_SOURCES:
@@ -171,6 +176,9 @@ class GovernedSpecRetriever:
                 raise ValueError(f"source {source_id} requires immutable commit or revision")
             if not source.get("content_sha256"):
                 raise ValueError(f"source {source_id} requires content_sha256")
+            if source_id == "hub_reference" and source.get("binding_status") in ("bound", "verified", "locked"):
+                if not re.fullmatch(r"[0-9a-fA-F]{64}", str(source["content_sha256"])):
+                    raise ValueError("bound hub_reference requires a SHA-256 content hash")
             if not any(source.get(field) for field in declared_scope_fields):
                 raise ValueError(f"source {source_id} requires one of {', '.join(declared_scope_fields)}")
 
@@ -236,22 +244,70 @@ class GovernedSpecRetriever:
 
     def verify_and_bind_knowledge_repo(self, repo_path: str) -> bool:
         """
-        Computes SHA-256 manifest hash of physical knowledge repository files.
+        Verifies the physical governed reference against the corpus lock.
         """
-        r_path = Path(repo_path)
+        r_path = Path(repo_path).resolve()
         if not r_path.exists():
             return False
 
-        hasher = hashlib.sha256()
-        file_count = 0
-        for f in sorted(list(r_path.rglob("*.md")) + list(r_path.rglob("*.yaml")) + list(r_path.rglob("*.json"))):
-            if ".git" not in f.parts:
-                hasher.update(f.read_bytes())
-                file_count += 1
+        head_result = subprocess.run(
+            ["git", "-C", str(r_path), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        if head_result.returncode != 0 or not head_result.stdout.strip():
+            raise ValueError("governed reference path is not a Git checkout")
+        actual_commit = head_result.stdout.strip()
+        expected_source = self.corpus_lock["sources"]["hub_reference"]
+        if actual_commit != expected_source["commit"]:
+            raise ValueError(
+                "governed reference commit does not match corpus lock: "
+                f"{actual_commit} != {expected_source['commit']}"
+            )
 
-        self.bound_repo_files_hash = hasher.hexdigest()
+        entrypoint = expected_source.get("canonical_entrypoint")
+        if entrypoint and not (r_path / entrypoint).is_file():
+            raise ValueError(f"governed reference canonical entrypoint is missing: {entrypoint}")
+
+        content_hash, file_count = self._compute_knowledge_repo_content_hash(r_path)
+        expected_hash = expected_source["content_sha256"]
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", str(expected_hash)):
+            raise ValueError("corpus lock content hash is not bound")
+        if content_hash.lower() != str(expected_hash).lower():
+            raise ValueError(
+                "governed reference content hash does not match corpus lock: "
+                f"{content_hash} != {expected_hash}"
+            )
+
+        self.bound_repo_head_commit = actual_commit
+        self.bound_repo_files_hash = content_hash
         self.binding_mode = f"live_repo_bound ({file_count} files verified)"
         return True
+
+    @staticmethod
+    def _compute_knowledge_repo_content_hash(repo_path: Path) -> tuple[str, int]:
+        result = subprocess.run(
+            ["git", "-C", str(repo_path), "ls-files", "-z"],
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise ValueError("governed reference tracked file list is unavailable")
+
+        tracked_paths = sorted(
+            path.decode("utf-8")
+            for path in result.stdout.split(b"\0")
+            if path and Path(path.decode("utf-8")).suffix.lower() in {".md", ".yaml", ".json"}
+        )
+        hasher = hashlib.sha256()
+        for relative_path in tracked_paths:
+            hasher.update(relative_path.encode("utf-8"))
+            hasher.update(b"\0")
+            hasher.update((repo_path / relative_path).read_bytes())
+        return hasher.hexdigest(), len(tracked_paths)
 
     def query(self, query_text: str, target_scope: Optional[str] = None) -> List[GovernedEvidence]:
         q_lower = query_text.lower()

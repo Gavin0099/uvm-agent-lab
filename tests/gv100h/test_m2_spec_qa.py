@@ -1,6 +1,7 @@
 import copy
 import pytest
 import sys
+import subprocess
 from pathlib import Path
 import yaml
 
@@ -30,6 +31,8 @@ def test_poc1_corpus_lock_binds_governed_reference_and_blocks_incomplete_claims(
     assert retriever.knowledge_repo == "Gavin0099/usb-if-hub-spec-reference"
     assert retriever.knowledge_repo_commit == "808f23c24bd8651da9cdcd63ea8669126917a379"
     assert retriever.corpus_binding_status == "manifest_only_pending_binding"
+    assert retriever.corpus_lock["sources"]["hub_reference"]["binding_status"] == "locked"
+    assert retriever.corpus_lock["binding_requirements"]["content_hash_algorithm"] == "sha256_tracked_relative_posix_path_content_bytes_v3"
     assert retriever.corpus_lock["sources"]["usb32"]["revision"] == "Rev 1.1"
     assert retriever.corpus_lock["sources"]["superspeed_hub_lvs"]["revision"] == "Rev 1.15"
     assert retriever.corpus_lock["sources"]["usb4"]["included"] is False
@@ -42,6 +45,28 @@ def _write_corpus_lock(tmp_path, lock):
     lock_path = tmp_path / "corpus.lock.yaml"
     lock_path.write_text(yaml.safe_dump(lock, sort_keys=False), encoding="utf-8")
     return str(lock_path)
+
+
+def _create_bound_reference_repo(tmp_path, lock):
+    repo_path = tmp_path / "reference"
+    (repo_path / "exports").mkdir(parents=True)
+    (repo_path / "exports" / "hub_governed_surface_manifest.yaml").write_text(
+        "manifest_id: test\n", encoding="utf-8"
+    )
+    (repo_path / "README.md").write_text("bound reference\n", encoding="utf-8")
+    subprocess.run(["git", "init", "--quiet", str(repo_path)], check=True)
+    subprocess.run(["git", "-C", str(repo_path), "config", "user.name", "Test"], check=True)
+    subprocess.run(["git", "-C", str(repo_path), "config", "user.email", "test@example.invalid"], check=True)
+    subprocess.run(["git", "-C", str(repo_path), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(repo_path), "commit", "--quiet", "-m", "bind fixture"], check=True)
+    commit = subprocess.check_output(
+        ["git", "-C", str(repo_path), "rev-parse", "HEAD"], text=True
+    ).strip()
+    content_hash, _file_count = GovernedSpecRetriever._compute_knowledge_repo_content_hash(repo_path)
+    lock["sources"]["hub_reference"]["commit"] = commit
+    lock["sources"]["hub_reference"]["content_sha256"] = content_hash
+    lock["sources"]["hub_reference"]["binding_status"] = "locked"
+    return repo_path
 
 
 @pytest.mark.contract
@@ -82,6 +107,73 @@ def test_poc1_corpus_lock_rejects_invalid_contract(tmp_path, mutation, expected_
 
     with pytest.raises(ValueError, match=expected_message):
         GovernedSpecRetriever(corpus_lock_path=_write_corpus_lock(tmp_path, lock))
+
+
+@pytest.mark.contract
+def test_poc1_governed_reference_binding_verifies_commit_hash_and_entrypoint(tmp_path):
+    lock = copy.deepcopy(GovernedSpecRetriever().corpus_lock)
+    repo_path = _create_bound_reference_repo(tmp_path, lock)
+    retriever = GovernedSpecRetriever(
+        knowledge_repo_path=str(repo_path),
+        corpus_lock_path=_write_corpus_lock(tmp_path, lock),
+    )
+
+    assert retriever.bound_repo_head_commit == lock["sources"]["hub_reference"]["commit"]
+    assert retriever.bound_repo_files_hash == lock["sources"]["hub_reference"]["content_sha256"]
+    assert retriever.binding_mode == "live_repo_bound (2 files verified)"
+
+
+@pytest.mark.contract
+def test_poc1_governed_reference_binding_ignores_untracked_files(tmp_path):
+    lock = copy.deepcopy(GovernedSpecRetriever().corpus_lock)
+    repo_path = _create_bound_reference_repo(tmp_path, lock)
+    (repo_path / "untracked.md").write_text("ignored from Git tree hash\n", encoding="utf-8")
+
+    retriever = GovernedSpecRetriever(
+        knowledge_repo_path=str(repo_path),
+        corpus_lock_path=_write_corpus_lock(tmp_path, lock),
+    )
+
+    assert retriever.bound_repo_files_hash == lock["sources"]["hub_reference"]["content_sha256"]
+
+
+@pytest.mark.contract
+def test_poc1_governed_reference_binding_rejects_tracked_content_drift(tmp_path):
+    lock = copy.deepcopy(GovernedSpecRetriever().corpus_lock)
+    repo_path = _create_bound_reference_repo(tmp_path, lock)
+    (repo_path / "README.md").write_text("tracked drift\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="content hash does not match corpus lock"):
+        GovernedSpecRetriever(
+            knowledge_repo_path=str(repo_path),
+            corpus_lock_path=_write_corpus_lock(tmp_path, lock),
+        )
+
+
+@pytest.mark.contract
+@pytest.mark.parametrize(
+    "mutation,expected_message",
+    [
+        ("commit", "commit does not match corpus lock"),
+        ("content_sha256", "content hash does not match corpus lock"),
+        ("entrypoint", "canonical entrypoint is missing"),
+    ],
+)
+def test_poc1_governed_reference_binding_rejects_physical_drift(tmp_path, mutation, expected_message):
+    lock = copy.deepcopy(GovernedSpecRetriever().corpus_lock)
+    repo_path = _create_bound_reference_repo(tmp_path, lock)
+    if mutation == "commit":
+        lock["sources"]["hub_reference"]["commit"] = "0" * 40
+    elif mutation == "content_sha256":
+        lock["sources"]["hub_reference"]["content_sha256"] = "f" * 64
+    else:
+        lock["sources"]["hub_reference"]["canonical_entrypoint"] = "exports/missing.yaml"
+
+    with pytest.raises(ValueError, match=expected_message):
+        GovernedSpecRetriever(
+            knowledge_repo_path=str(repo_path),
+            corpus_lock_path=_write_corpus_lock(tmp_path, lock),
+        )
 
 
 @pytest.mark.unit
