@@ -25,11 +25,12 @@ sources:
     role: "canonical_structured_reference"
     repo: "Gavin0099/usb-if-hub-spec-reference"
     commit: "808f23c24bd8651da9cdcd63ea8669126917a379"
-    commit_status: "recorded_from_existing_smoke_baseline"
-    content_sha256: "NOT_BOUND"
+    commit_status: "locked_and_verified"
+    content_sha256: "c774c4c31b088348a4f2deaae2e0d8448f083a1a9793d91c59fc719de3536083"
+    content_hash_algorithm: "sha256_tracked_relative_posix_path_content_bytes_v3"
     canonical_entrypoint: "exports/hub_governed_surface_manifest.yaml"
     phase: "phase_1"
-    binding_status: "smoke_baseline_only"
+    binding_status: "locked"
     claim_ceiling: "governed_matrix_identity_and_boundary_reference_only"
     known_limits:
       - "not_full_usb_spec_coverage"
@@ -112,6 +113,7 @@ benchmark:
   full_poc1_acceptance_set: false
 
 binding_requirements:
+  content_hash_algorithm: "sha256_tracked_relative_posix_path_content_bytes_v3"
   source_entry_must_have:
     - "immutable_commit_or_document_revision"
     - "content_sha256"
