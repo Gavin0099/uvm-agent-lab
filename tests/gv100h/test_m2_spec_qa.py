@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import pytest
 import sys
 import subprocess
@@ -84,6 +85,20 @@ def _make_phase1_bound_lock(lock):
     return lock
 
 
+def _create_phase1_bound_sources(tmp_path, lock):
+    lock = _make_phase1_bound_lock(lock)
+    repo_path = _create_bound_reference_repo(tmp_path, lock)
+    source_paths = {"hub_reference": repo_path}
+    for source_id in ("usb20_fw", "usb20_se", "usb32", "superspeed_hub_lvs"):
+        source_path = tmp_path / f"{source_id}.pdf"
+        source_path.write_bytes(f"{source_id} bound fixture\n".encode("utf-8"))
+        source_hash = hashlib.sha256(source_path.read_bytes()).hexdigest()
+        lock["sources"][source_id]["content_sha256"] = source_hash
+        lock["sources"][source_id]["source_locator"] = str(source_path)
+        source_paths[source_id] = source_path
+    return lock, source_paths
+
+
 @pytest.mark.contract
 @pytest.mark.parametrize(
     "mutation,expected_message",
@@ -139,8 +154,9 @@ def test_poc1_governed_reference_binding_verifies_commit_hash_and_entrypoint(tmp
     assert retriever.bound_repo_head_commit == lock["sources"]["hub_reference"]["commit"]
     assert retriever.bound_repo_files_hash == lock["sources"]["hub_reference"]["content_sha256"]
     assert retriever.binding_mode == "live_repo_bound (2 files verified)"
-    assert retriever.runtime_binding_status == "verified"
-    assert retriever.physical_binding_verified is True
+    assert retriever.runtime_bindings["hub_reference"]["status"] == "verified"
+    assert retriever.runtime_binding_status == "unverified"
+    assert retriever.physical_binding_verified is False
     assert retriever.qualification_blocked is True
 
 
@@ -181,7 +197,7 @@ def test_poc1_governed_reference_binding_rejects_missing_checkout(tmp_path):
 def test_poc1_phase1_bound_requires_physical_binding_path(tmp_path):
     lock = _make_phase1_bound_lock(copy.deepcopy(GovernedSpecRetriever().corpus_lock))
 
-    with pytest.raises(ValueError, match="physical corpus binding is required"):
+    with pytest.raises(ValueError, match="physical corpus binding requires paths for"):
         GovernedSpecRetriever(
             corpus_lock_path=_write_corpus_lock(tmp_path, lock),
             require_physical_binding=True,
@@ -201,16 +217,62 @@ def test_poc1_phase1_bound_without_physical_binding_stays_blocked(tmp_path):
 
 
 @pytest.mark.contract
-def test_poc1_phase1_bound_with_verified_reference_is_not_blocked(tmp_path):
+def test_poc1_phase1_bound_with_verified_reference_but_missing_raw_stays_blocked(tmp_path):
     lock = _make_phase1_bound_lock(copy.deepcopy(GovernedSpecRetriever().corpus_lock))
     repo_path = _create_bound_reference_repo(tmp_path, lock)
     retriever = GovernedSpecRetriever(
-        knowledge_repo_path=str(repo_path),
+        source_paths={"hub_reference": repo_path},
+        corpus_lock_path=_write_corpus_lock(tmp_path, lock),
+    )
+
+    assert retriever.lock_binding_status == "phase1_bound"
+    assert retriever.runtime_bindings["hub_reference"]["status"] == "verified"
+    assert retriever.runtime_bindings["usb20_fw"]["status"] == "unverified"
+    assert retriever.runtime_bindings["usb32"]["status"] == "unverified"
+    assert retriever.runtime_binding_status == "unverified"
+    assert retriever.physical_binding_verified is False
+    assert retriever.qualification_blocked is True
+
+
+@pytest.mark.contract
+def test_poc1_raw_source_hash_mismatch_fails_closed(tmp_path):
+    lock, source_paths = _create_phase1_bound_sources(tmp_path, copy.deepcopy(GovernedSpecRetriever().corpus_lock))
+    source_paths["usb20_fw"].write_bytes(b"different raw source bytes\n")
+
+    with pytest.raises(ValueError, match="source usb20_fw content hash does not match"):
+        GovernedSpecRetriever(
+            source_paths=source_paths,
+            corpus_lock_path=_write_corpus_lock(tmp_path, lock),
+            require_physical_binding=True,
+        )
+
+
+@pytest.mark.contract
+def test_poc1_raw_source_missing_fails_closed(tmp_path):
+    lock, source_paths = _create_phase1_bound_sources(tmp_path, copy.deepcopy(GovernedSpecRetriever().corpus_lock))
+    source_paths.pop("usb32")
+
+    with pytest.raises(ValueError, match="physical corpus binding requires paths for: usb32"):
+        GovernedSpecRetriever(
+            source_paths=source_paths,
+            corpus_lock_path=_write_corpus_lock(tmp_path, lock),
+            require_physical_binding=True,
+        )
+
+
+@pytest.mark.contract
+def test_poc1_all_required_sources_verified_unblocks_qualification(tmp_path):
+    lock, source_paths = _create_phase1_bound_sources(tmp_path, copy.deepcopy(GovernedSpecRetriever().corpus_lock))
+    retriever = GovernedSpecRetriever(
+        source_paths=source_paths,
         corpus_lock_path=_write_corpus_lock(tmp_path, lock),
         require_physical_binding=True,
     )
 
-    assert retriever.lock_binding_status == "phase1_bound"
+    assert all(
+        binding["status"] == "verified"
+        for binding in retriever.runtime_bindings.values()
+    )
     assert retriever.runtime_binding_status == "verified"
     assert retriever.physical_binding_verified is True
     assert retriever.qualification_blocked is False

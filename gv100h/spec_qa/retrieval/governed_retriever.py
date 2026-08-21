@@ -3,7 +3,7 @@ import hashlib
 import re
 import subprocess
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Mapping, Optional
 from pydantic import BaseModel
 import yaml
 
@@ -97,6 +97,7 @@ class GovernedSpecRetriever:
         knowledge_repo_path: Optional[str] = None,
         corpus_lock_path: Optional[str] = None,
         require_physical_binding: bool = False,
+        source_paths: Optional[Mapping[str, str | Path]] = None,
     ):
         self.corpus_lock_path = (
             Path(corpus_lock_path).resolve()
@@ -111,6 +112,15 @@ class GovernedSpecRetriever:
         self.physical_binding_verified = False
         self.qualification_blocked = False
         self.qualification_block_reasons = ()
+        self.runtime_bindings = {
+            source_id: {
+                "status": "unverified",
+                "observed_path": None,
+                "observed_sha256": None,
+                "observed_commit": None,
+            }
+            for source_id in self.REQUIRED_PHASE1_SOURCES
+        }
         governed_source = self.corpus_lock["sources"]["hub_reference"]
         self.knowledge_repo = governed_source["repo"]
         self.knowledge_repo_commit = governed_source["commit"]
@@ -120,32 +130,99 @@ class GovernedSpecRetriever:
         self.bound_repo_head_commit = None
         self.bound_repo_files_hash = None
 
+        requested_paths = dict(source_paths or {})
         if knowledge_repo_path:
-            if not Path(knowledge_repo_path).exists():
-                raise FileNotFoundError(f"governed reference path does not exist: {knowledge_repo_path}")
-            try:
-                self.verify_and_bind_knowledge_repo(knowledge_repo_path)
-            except Exception:
-                self.runtime_binding_status = "failed"
-                self._refresh_qualification_state()
-                raise
-        elif require_physical_binding:
+            if "hub_reference" in requested_paths and Path(requested_paths["hub_reference"]).resolve() != Path(knowledge_repo_path).resolve():
+                raise ValueError("knowledge_repo_path conflicts with source_paths.hub_reference")
+            requested_paths["hub_reference"] = knowledge_repo_path
+        unknown_sources = set(requested_paths) - set(self.REQUIRED_PHASE1_SOURCES)
+        if unknown_sources:
+            raise ValueError(
+                "source_paths contains unknown Phase 1 source IDs: "
+                + ", ".join(sorted(unknown_sources))
+            )
+
+        try:
+            for source_id, source_path in requested_paths.items():
+                self._verify_physical_source(source_id, source_path)
+        except Exception:
+            self.runtime_binding_status = "failed"
+            self._refresh_qualification_state()
+            raise
+
+        missing_sources = [
+            source_id
+            for source_id in self.REQUIRED_PHASE1_SOURCES
+            if source_id not in requested_paths
+        ]
+        if require_physical_binding and missing_sources:
             self.runtime_binding_status = "failed"
             self._refresh_qualification_state()
             raise ValueError(
-                "physical corpus binding is required but governed reference path was not provided"
+                "physical corpus binding requires paths for: "
+                + ", ".join(missing_sources)
             )
 
         self._refresh_qualification_state()
 
     def _refresh_qualification_state(self) -> None:
         block_reasons = list(self.corpus_lock_validation["block_reasons"])
-        if not self.physical_binding_verified:
-            block_reasons.append(
-                f"runtime governed reference physical binding is {self.runtime_binding_status}"
+        unverified_sources = [
+            source_id
+            for source_id, binding in self.runtime_bindings.items()
+            if binding["status"] != "verified"
+        ]
+        self.physical_binding_verified = not unverified_sources
+        if unverified_sources:
+            block_reasons.extend(
+                f"runtime source {source_id} physical binding is {self.runtime_bindings[source_id]['status']}"
+                for source_id in unverified_sources
             )
+            self.runtime_binding_status = (
+                "failed"
+                if any(self.runtime_bindings[source_id]["status"] == "failed" for source_id in unverified_sources)
+                else "unverified"
+            )
+        else:
+            self.runtime_binding_status = "verified"
         self.qualification_block_reasons = tuple(dict.fromkeys(block_reasons))
         self.qualification_blocked = bool(self.qualification_block_reasons)
+
+    def _verify_physical_source(self, source_id: str, source_path: str | Path) -> None:
+        try:
+            if source_id == "hub_reference":
+                if not Path(source_path).resolve().exists():
+                    raise FileNotFoundError(
+                        f"governed reference path does not exist: {source_path}"
+                    )
+                self.verify_and_bind_knowledge_repo(source_path)
+            else:
+                self._verify_document_source(source_id, source_path)
+        except Exception:
+            self.runtime_bindings[source_id]["status"] = "failed"
+            raise
+
+    def _verify_document_source(self, source_id: str, source_path: str | Path) -> None:
+        path = Path(source_path).resolve()
+        if not path.is_file():
+            raise FileNotFoundError(f"physical source file does not exist: {path}")
+
+        expected_hash = self.corpus_lock["sources"][source_id]["content_sha256"]
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", str(expected_hash)):
+            raise ValueError(f"source {source_id} content hash is not bound")
+        observed_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+        if observed_hash.lower() != str(expected_hash).lower():
+            raise ValueError(
+                f"source {source_id} content hash does not match corpus lock: "
+                f"{observed_hash} != {expected_hash}"
+            )
+
+        self.runtime_bindings[source_id] = {
+            "status": "verified",
+            "observed_path": str(path),
+            "observed_sha256": observed_hash,
+            "observed_commit": None,
+        }
 
     @classmethod
     def validate_corpus_lock(cls, lock: Dict[str, Any]) -> Dict[str, Any]:
@@ -316,6 +393,12 @@ class GovernedSpecRetriever:
 
         self.bound_repo_head_commit = actual_commit
         self.bound_repo_files_hash = content_hash
+        self.runtime_bindings["hub_reference"] = {
+            "status": "verified",
+            "observed_path": str(r_path),
+            "observed_sha256": content_hash,
+            "observed_commit": actual_commit,
+        }
         self.runtime_binding_status = "verified"
         self.physical_binding_verified = True
         self.binding_mode = f"live_repo_bound ({file_count} files verified)"
