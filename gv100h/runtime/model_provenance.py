@@ -136,7 +136,19 @@ def _approval_registry_identity(
         "path": str(registry_file),
         "relative_path": relative_path,
         "sha256": sha256_file(registry_file),
-        "commit": _run_git("rev-parse", "HEAD", cwd=git_root),
+        "blob_oid": _run_git(
+            "rev-parse",
+            f"HEAD:{relative_path}",
+            cwd=git_root,
+        ),
+        "last_change_commit": _run_git(
+            "log",
+            "-1",
+            "--format=%H",
+            "--",
+            relative_path,
+            cwd=git_root,
+        ),
     }
 
 
@@ -179,7 +191,10 @@ class ModelVerificationReceipt(BaseModel):
     approval_id: str = Field(min_length=1)
     approval_registry_path: str = Field(min_length=1)
     approval_registry_sha256: str = Field(pattern=r"^[0-9a-fA-F]{64}$")
-    approval_registry_commit: str = Field(pattern=r"^[0-9a-fA-F]{40,64}$")
+    approval_registry_blob_oid: str = Field(pattern=r"^[0-9a-fA-F]{40}$")
+    approval_registry_last_change_commit: str = Field(
+        pattern=r"^[0-9a-fA-F]{40,64}$"
+    )
     verifier_id: str = Field(min_length=1)
     verified_at: str = Field(min_length=1)
     verification_basis: str = Field(min_length=1)
@@ -219,8 +234,15 @@ def verify_model_verification_receipt(
         raise ValueError("model verification receipt registry path does not match")
     if receipt.approval_registry_sha256.lower() != registry_identity["sha256"].lower():
         raise ValueError("model verification receipt registry hash does not match registry bytes")
-    if receipt.approval_registry_commit != registry_identity["commit"]:
-        raise ValueError("model verification receipt registry commit does not match HEAD")
+    if receipt.approval_registry_blob_oid != registry_identity["blob_oid"]:
+        raise ValueError("model verification receipt registry blob does not match")
+    if (
+        receipt.approval_registry_last_change_commit
+        != registry_identity["last_change_commit"]
+    ):
+        raise ValueError(
+            "model verification receipt registry last-change commit does not match"
+        )
     approval = registry.approvals.get(receipt.approval_id)
     if approval is None:
         raise ValueError("model verification receipt approval_id is not in the registry")

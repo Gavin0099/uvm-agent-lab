@@ -72,10 +72,12 @@ The external MTP report is a hypothesis and reference only. It is not local hard
       --output deploy/gate4_model_verification_receipt.json
    ```
 
-   The receipt binds the approval ID, registry bytes hash, registry commit,
-   manifest bytes, and artifact bytes. A dirty, untracked, alternate-path, or
-   caller-only registry fails closed. The registry in this repository remains
-   empty until a real external checksum is reviewed and committed.
+   The receipt binds the approval ID, registry bytes hash, registry Git blob
+   OID, last registry-change commit, manifest bytes, and artifact bytes. An
+   unrelated commit does not invalidate the receipt; a dirty, untracked,
+   alternate-path, or changed registry fails closed. The registry in this
+   repository remains empty until a real external checksum is reviewed and
+   committed.
 3. Install or build `llama-server` with `draft-mtp` support and record the binary version/commit.
 4. Keep the same model, KV type, Flash Attention setting, parallelism, prompt corpus, and sampling configuration between MTP OFF and n-max=2.
 5. Prepare the context sweep: 32K, 64K, and 128K primary; 192K and exploratory 256K stretch.

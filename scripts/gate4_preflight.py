@@ -335,8 +335,13 @@ def build_preflight_report(
                 if model_receipt
                 else None
             ),
-            "approval_registry_commit": (
-                model_receipt.get("approval_registry_commit")
+            "approval_registry_blob_oid": (
+                model_receipt.get("approval_registry_blob_oid")
+                if model_receipt
+                else None
+            ),
+            "approval_registry_last_change_commit": (
+                model_receipt.get("approval_registry_last_change_commit")
                 if model_receipt
                 else None
             ),

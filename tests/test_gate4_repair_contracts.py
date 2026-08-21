@@ -110,7 +110,8 @@ def test_gate4_manifest_receipt_and_context_schemas_validate_contracts(tmp_path)
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     assert receipt["approval_id"]
     assert len(receipt["approval_registry_sha256"]) == 64
-    assert len(receipt["approval_registry_commit"]) >= 40
+    assert len(receipt["approval_registry_blob_oid"]) == 40
+    assert len(receipt["approval_registry_last_change_commit"]) >= 40
 
     prompt = "token " * 29491
     context = {
@@ -260,6 +261,40 @@ def test_receipt_is_invalidated_when_committed_registry_changes(tmp_path):
             approval_registry_path=registry_path,
             repo_root=tmp_path,
         )
+
+
+def test_receipt_survives_unrelated_commit(tmp_path):
+    artifact, manifest_path, receipt_path, _, registry_path, _ = _manifest_and_receipt(
+        tmp_path
+    )
+    unrelated_path = tmp_path / "README.md"
+    unrelated_path.write_text("unrelated commit\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "README.md"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "docs: unrelated change"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    receipt = verify_model_verification_receipt(
+        manifest_path,
+        artifact,
+        receipt_path,
+        expected_model_id="Qwen3.8-27B",
+        expected_model_artifact="Qwen3.8-27B-Q4_K_M.gguf",
+        approval_registry_path=registry_path,
+        repo_root=tmp_path,
+    )
+    assert receipt["approval_registry_blob_oid"]
+    assert receipt["approval_registry_last_change_commit"]
 
 
 def test_dirty_approval_registry_cannot_verify_receipt(tmp_path):

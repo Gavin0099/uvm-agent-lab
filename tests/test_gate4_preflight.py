@@ -343,7 +343,8 @@ def test_preflight_reports_independent_model_receipt(tmp_path: Path, monkeypatch
     assert report["model_provenance"]["independent_verification"] is True
     assert report["model_provenance"]["approval_id"] == approval_id
     assert len(report["model_provenance"]["approval_registry_sha256"]) == 64
-    assert report["model_provenance"]["approval_registry_commit"]
+    assert len(report["model_provenance"]["approval_registry_blob_oid"]) == 40
+    assert report["model_provenance"]["approval_registry_last_change_commit"]
     assert report["qualification_blockers"] == []
 
 

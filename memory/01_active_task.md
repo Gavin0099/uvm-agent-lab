@@ -2,17 +2,17 @@
 
 <!-- governance:reviewer_verified -->
 
-> **最後更新**: 2026-08-20
+> **最後更新**: 2026-08-21
 > **Owner**: Gavin0099
-> **狀態**: Active (Gate 4 repair PR #8 P1 fixed; updated CI/review pending; keep NO_GO)
+> **狀態**: Active (Gate 4 repair PR #8 registry durability P1 fixed locally; updated review pending; keep NO_GO)
 
 ## 🔒 Current Truth (2026-08-20)
 - PR #6 runtime attestation and PR #7 Gate 4 execution-contract slices are merged into `main` at `ce200d58`, but post-merge review found that G4.1 must not be marked `CLOSED`.
 - Repair branch `fix/gv100h-gate4-repair` completed the independent model provenance, harness-owned runtime execution, context-aware timeout evidence, raw profile re-evaluation, expected candidate identity, selected-pair NVLink evidence, and schema consistency hardening.
-- Latest PR #8 human review found one P1: caller-supplied approved hash/source/revision could mint `independent_verification=true`. The P1 is repaired; a fresh read-only review found no P0/P1 findings.
-- This repair replaces caller-supplied approval values with a committed, clean Git-tracked registry and binds receipt approval ID, registry bytes hash, and registry commit. The production registry remains empty until a real external checksum is reviewed and committed; no model approval is fabricated here.
+- Latest PR #8 human review found a new P1: binding receipt identity to repository `HEAD` made unrelated commits invalidate otherwise unchanged approval registries. The earlier caller-supplied approval P1 remains fixed; this durability P1 is repaired locally and awaits updated external review.
+- This repair replaces caller-supplied approval values with a committed, clean Git-tracked registry and binds receipt approval ID, registry bytes hash, registry Git blob OID, and last registry-change commit. Unrelated commits do not invalidate an unchanged registry; registry changes still invalidate receipts. The production registry remains empty until a real external checksum is reviewed and committed; no model approval is fabricated here.
 - Repair PR: `#8` is open at `https://github.com/Gavin0099/uvm-agent-lab/pull/8`; no merge or branch-protection change was performed.
-- P1 validation: focused trust-root suite `41 passed`; final isolated tracked suite `219 passed`; 2 hardware-dependent tests skipped; receipt `artifacts/evidence/test-results/receipt-g4-p1-trust-root-20260821.json` has exit code 0. Updated GitHub CI/review is pending.
+- P1 durability validation: complete Gate 4 focused suite `63 passed`; unrelated-commit survival, registry-change invalidation, dirty/untracked registry, and wrong-artifact tests pass. Previous GitHub CI for head `649f9b3` was PASS; updated CI/external review for this durability fix is pending.
 - Gate 4 status: `CHANGES_REQUIRED` / `Gate4 bring-up partially ready`.
 - Qualification status: `NOT_READY` / blocked by missing real runtime, exact GGUF, independent receipt, and physical GPU telemetry. Keep `NO_GO`.
 - Software evidence is not hardware qualification evidence. Do not claim live llama.cpp/vLLM execution, GPU/NVLink qualification, or `GO`.
