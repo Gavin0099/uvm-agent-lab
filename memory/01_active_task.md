@@ -97,9 +97,6 @@
 - **Generic Qualification Policy & Offline Scaffold (not admitted)**:
   - `qualification_policy.yaml` exists with declared gates; human review still REJECTS the M0.5 `approved` receipt.
   - Keep `QualificationDecision = NO_GO — synthetic/offline scaffold only`. Do not treat Pipeline Admission as PASS.
-- **Gate 4 G4.1 software slice**:
-  - PR #7 is merged, but its execution contracts are not a qualification closeout; the repair PR must complete the trust-chain corrections before hardware bring-up.
-
 ---
 
 ## 🎯 Next Steps & Future Roadmap
