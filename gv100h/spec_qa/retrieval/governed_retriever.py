@@ -114,7 +114,9 @@ class GovernedSpecRetriever:
         self.bound_repo_head_commit = None
         self.bound_repo_files_hash = None
 
-        if knowledge_repo_path and Path(knowledge_repo_path).exists():
+        if knowledge_repo_path:
+            if not Path(knowledge_repo_path).exists():
+                raise FileNotFoundError(f"governed reference path does not exist: {knowledge_repo_path}")
             self.verify_and_bind_knowledge_repo(knowledge_repo_path)
 
     @classmethod

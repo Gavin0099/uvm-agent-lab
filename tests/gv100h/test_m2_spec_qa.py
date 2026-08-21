@@ -154,6 +154,12 @@ def test_poc1_governed_reference_binding_rejects_tracked_content_drift(tmp_path)
 
 
 @pytest.mark.contract
+def test_poc1_governed_reference_binding_rejects_missing_checkout(tmp_path):
+    with pytest.raises(FileNotFoundError, match="governed reference path does not exist"):
+        GovernedSpecRetriever(knowledge_repo_path=str(tmp_path / "missing-reference"))
+
+
+@pytest.mark.contract
 @pytest.mark.parametrize(
     "mutation,expected_message",
     [
