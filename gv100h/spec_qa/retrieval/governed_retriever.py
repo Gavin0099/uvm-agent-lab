@@ -179,6 +179,8 @@ class GovernedSpecRetriever:
             if source_id == "hub_reference" and source.get("binding_status") in ("bound", "verified", "locked"):
                 if not re.fullmatch(r"[0-9a-fA-F]{64}", str(source["content_sha256"])):
                     raise ValueError("bound hub_reference requires a SHA-256 content hash")
+                if source.get("content_hash_algorithm") != cls.CONTENT_HASH_ALGORITHM:
+                    raise ValueError("hub_reference content hash algorithm does not match binding contract")
             if not any(source.get(field) for field in declared_scope_fields):
                 raise ValueError(f"source {source_id} requires one of {', '.join(declared_scope_fields)}")
 

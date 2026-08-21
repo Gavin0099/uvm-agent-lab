@@ -79,6 +79,7 @@ def _create_bound_reference_repo(tmp_path, lock):
         ("missing_scope", "requires one of"),
         ("invalid_authority", "invalid authority role"),
         ("invalid_binding", "invalid binding_status"),
+        ("invalid_hash_algorithm", "content hash algorithm does not match binding contract"),
         ("include_usb4", "USB4 must be excluded"),
         ("answer_from_evaluation", "evaluation_only layer must not be answer evidence"),
         ("missing_pending_policy", "pending_markers_block is incomplete"),
@@ -98,6 +99,8 @@ def test_poc1_corpus_lock_rejects_invalid_contract(tmp_path, mutation, expected_
         lock["sources"]["usb32"]["role"] = "community_reference"
     elif mutation == "invalid_binding":
         lock["sources"]["usb32"]["binding_status"] = "unknown"
+    elif mutation == "invalid_hash_algorithm":
+        lock["sources"]["hub_reference"]["content_hash_algorithm"] = "sha256_sorted_content_bytes_v1"
     elif mutation == "include_usb4":
         lock["sources"]["usb4"]["included"] = True
     elif mutation == "answer_from_evaluation":
