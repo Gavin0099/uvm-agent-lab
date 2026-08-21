@@ -48,6 +48,14 @@ tracked-tree content hash, while the official raw USB 2.0, USB 3.2, and LVS
 sources remain pending acquisition. Therefore a physical Layer A binding can
 pass while the overall Phase 1 corpus remains `qualification_blocked`.
 
+Lock metadata and runtime observation are separate states. A retriever without
+`knowledge_repo_path` may use the embedded smoke baseline, but its
+`runtime_binding_status` is `unverified` and a qualification claim remains
+blocked. Qualification callers must pass `require_physical_binding=True` and a
+checkout path; missing or failed physical verification fails closed. A
+successful checkout verification sets `runtime_binding_status: verified` and
+`physical_binding_verified: true`.
+
 The first benchmark is intentionally limited to this USB Hub baseline:
 
 | Source role | Authoritative scope | Included in Phase 1 |

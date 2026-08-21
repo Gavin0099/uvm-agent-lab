@@ -31,6 +31,9 @@ def test_poc1_corpus_lock_binds_governed_reference_and_blocks_incomplete_claims(
     assert retriever.knowledge_repo == "Gavin0099/usb-if-hub-spec-reference"
     assert retriever.knowledge_repo_commit == "808f23c24bd8651da9cdcd63ea8669126917a379"
     assert retriever.corpus_binding_status == "manifest_only_pending_binding"
+    assert retriever.lock_binding_status == "manifest_only_pending_binding"
+    assert retriever.runtime_binding_status == "unverified"
+    assert retriever.physical_binding_verified is False
     assert retriever.corpus_lock["sources"]["hub_reference"]["binding_status"] == "locked"
     assert retriever.corpus_lock["binding_requirements"]["content_hash_algorithm"] == "sha256_tracked_relative_posix_path_content_bytes_v3"
     assert retriever.corpus_lock["sources"]["usb32"]["revision"] == "Rev 1.1"
@@ -67,6 +70,18 @@ def _create_bound_reference_repo(tmp_path, lock):
     lock["sources"]["hub_reference"]["content_sha256"] = content_hash
     lock["sources"]["hub_reference"]["binding_status"] = "locked"
     return repo_path
+
+
+def _make_phase1_bound_lock(lock):
+    lock["status"] = "phase1_bound"
+    for source_id, source in lock["sources"].items():
+        if source.get("phase") != "phase_1":
+            continue
+        source["binding_status"] = "locked"
+        source.pop("source_locator", None)
+        if source_id != "hub_reference":
+            source["content_sha256"] = "a" * 64
+    return lock
 
 
 @pytest.mark.contract
@@ -124,6 +139,9 @@ def test_poc1_governed_reference_binding_verifies_commit_hash_and_entrypoint(tmp
     assert retriever.bound_repo_head_commit == lock["sources"]["hub_reference"]["commit"]
     assert retriever.bound_repo_files_hash == lock["sources"]["hub_reference"]["content_sha256"]
     assert retriever.binding_mode == "live_repo_bound (2 files verified)"
+    assert retriever.runtime_binding_status == "verified"
+    assert retriever.physical_binding_verified is True
+    assert retriever.qualification_blocked is True
 
 
 @pytest.mark.contract
@@ -157,6 +175,45 @@ def test_poc1_governed_reference_binding_rejects_tracked_content_drift(tmp_path)
 def test_poc1_governed_reference_binding_rejects_missing_checkout(tmp_path):
     with pytest.raises(FileNotFoundError, match="governed reference path does not exist"):
         GovernedSpecRetriever(knowledge_repo_path=str(tmp_path / "missing-reference"))
+
+
+@pytest.mark.contract
+def test_poc1_phase1_bound_requires_physical_binding_path(tmp_path):
+    lock = _make_phase1_bound_lock(copy.deepcopy(GovernedSpecRetriever().corpus_lock))
+
+    with pytest.raises(ValueError, match="physical corpus binding is required"):
+        GovernedSpecRetriever(
+            corpus_lock_path=_write_corpus_lock(tmp_path, lock),
+            require_physical_binding=True,
+        )
+
+
+@pytest.mark.contract
+def test_poc1_phase1_bound_without_physical_binding_stays_blocked(tmp_path):
+    lock = _make_phase1_bound_lock(copy.deepcopy(GovernedSpecRetriever().corpus_lock))
+    retriever = GovernedSpecRetriever(corpus_lock_path=_write_corpus_lock(tmp_path, lock))
+
+    assert retriever.lock_binding_status == "phase1_bound"
+    assert retriever.runtime_binding_status == "unverified"
+    assert retriever.physical_binding_verified is False
+    assert retriever.qualification_blocked is True
+    assert any("physical binding is unverified" in reason for reason in retriever.qualification_block_reasons)
+
+
+@pytest.mark.contract
+def test_poc1_phase1_bound_with_verified_reference_is_not_blocked(tmp_path):
+    lock = _make_phase1_bound_lock(copy.deepcopy(GovernedSpecRetriever().corpus_lock))
+    repo_path = _create_bound_reference_repo(tmp_path, lock)
+    retriever = GovernedSpecRetriever(
+        knowledge_repo_path=str(repo_path),
+        corpus_lock_path=_write_corpus_lock(tmp_path, lock),
+        require_physical_binding=True,
+    )
+
+    assert retriever.lock_binding_status == "phase1_bound"
+    assert retriever.runtime_binding_status == "verified"
+    assert retriever.physical_binding_verified is True
+    assert retriever.qualification_blocked is False
 
 
 @pytest.mark.contract

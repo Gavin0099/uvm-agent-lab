@@ -31,6 +31,7 @@ class GovernedSpecRetriever:
     REQUIRED_PHASE1_SOURCES = ("hub_reference", "usb20_fw", "usb20_se", "usb32", "superspeed_hub_lvs")
     VALID_CORPUS_STATUSES = ("manifest_only_pending_binding", "phase1_bound", "fully_bound")
     VALID_BINDING_STATUSES = ("pending", "smoke_baseline_only", "bound", "verified", "locked")
+    VALID_RUNTIME_BINDING_STATUSES = ("unverified", "verified", "failed")
     VALID_AUTHORITY_ROLES = ("canonical_structured_reference", "normative_official")
     REQUIRED_PENDING_BLOCKS = ("full_phase1_qualification",)
     REQUIRED_BINDING_REQUIREMENTS = (
@@ -95,6 +96,7 @@ class GovernedSpecRetriever:
         self,
         knowledge_repo_path: Optional[str] = None,
         corpus_lock_path: Optional[str] = None,
+        require_physical_binding: bool = False,
     ):
         self.corpus_lock_path = (
             Path(corpus_lock_path).resolve()
@@ -103,8 +105,12 @@ class GovernedSpecRetriever:
         )
         self.corpus_lock = self._load_corpus_lock(self.corpus_lock_path)
         self.corpus_lock_validation = self.validate_corpus_lock(self.corpus_lock)
-        self.qualification_blocked = self.corpus_lock_validation["qualification_blocked"]
-        self.qualification_block_reasons = self.corpus_lock_validation["block_reasons"]
+        self.require_physical_binding = require_physical_binding
+        self.lock_binding_status = self.corpus_lock["status"]
+        self.runtime_binding_status = "unverified"
+        self.physical_binding_verified = False
+        self.qualification_blocked = False
+        self.qualification_block_reasons = ()
         governed_source = self.corpus_lock["sources"]["hub_reference"]
         self.knowledge_repo = governed_source["repo"]
         self.knowledge_repo_commit = governed_source["commit"]
@@ -117,7 +123,29 @@ class GovernedSpecRetriever:
         if knowledge_repo_path:
             if not Path(knowledge_repo_path).exists():
                 raise FileNotFoundError(f"governed reference path does not exist: {knowledge_repo_path}")
-            self.verify_and_bind_knowledge_repo(knowledge_repo_path)
+            try:
+                self.verify_and_bind_knowledge_repo(knowledge_repo_path)
+            except Exception:
+                self.runtime_binding_status = "failed"
+                self._refresh_qualification_state()
+                raise
+        elif require_physical_binding:
+            self.runtime_binding_status = "failed"
+            self._refresh_qualification_state()
+            raise ValueError(
+                "physical corpus binding is required but governed reference path was not provided"
+            )
+
+        self._refresh_qualification_state()
+
+    def _refresh_qualification_state(self) -> None:
+        block_reasons = list(self.corpus_lock_validation["block_reasons"])
+        if not self.physical_binding_verified:
+            block_reasons.append(
+                f"runtime governed reference physical binding is {self.runtime_binding_status}"
+            )
+        self.qualification_block_reasons = tuple(dict.fromkeys(block_reasons))
+        self.qualification_blocked = bool(self.qualification_block_reasons)
 
     @classmethod
     def validate_corpus_lock(cls, lock: Dict[str, Any]) -> Dict[str, Any]:
@@ -288,7 +316,10 @@ class GovernedSpecRetriever:
 
         self.bound_repo_head_commit = actual_commit
         self.bound_repo_files_hash = content_hash
+        self.runtime_binding_status = "verified"
+        self.physical_binding_verified = True
         self.binding_mode = f"live_repo_bound ({file_count} files verified)"
+        self._refresh_qualification_state()
         return True
 
     @staticmethod
