@@ -1,0 +1,124 @@
+{
+  "receipt_schema": "spec_qa_raw_corpus_acquisition_preflight.v0.1",
+  "status": "preflight_complete_not_bound",
+  "observed_at": "2026-08-24T06:32:10.4523917Z",
+  "publisher": "USB Implementers Forum",
+  "official_domain": "www.usb.org",
+  "acquisition_policy": {
+    "official_source_only": true,
+    "raw_spec_text_committed": false,
+    "raw_artifacts_retained_outside_public_repo": true,
+    "license_acknowledgement_required": true,
+    "license_acknowledgement_recorded": false,
+    "claim_ceiling": "source_identity_and_byte_hash_preflight_only"
+  },
+  "sources": {
+    "usb20_fw": {
+      "status": "candidate_acquired_not_bound",
+      "document": "USB 2.0 Specification",
+      "revision": "2.0",
+      "scope": {
+        "included_chapters": ["5", "8-11"]
+      },
+      "official_page": "https://www.usb.org/document-library/usb-20-specification",
+      "official_download": "https://www.usb.org/sites/default/files/usb_20_20250603.zip",
+      "official_page_date": "2025-06-03",
+      "container": {
+        "kind": "zip",
+        "file_name": "usb_20_20250603.zip",
+        "bytes": 14489344,
+        "sha256": "5fe9c53c04033818af396e8852b3acbca5c3a76ba92fab549fd81cd0ea7b3692"
+      },
+      "core_member": {
+        "archive_path": "usb_20_20250603/usb_20_20240927/usb_20_20240927/usb_20.pdf",
+        "file_name": "usb_20.pdf",
+        "bytes": 5983789,
+        "sha256": "d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61",
+        "revision_signals": ["Universal Serial Bus Specification Revision 2.0", "April 27, 2000"]
+      },
+      "binding_status": "NOT_BOUND",
+      "binding_reason": "Candidate core artifact is outside the consumer repository; canonical source locator, license acknowledgement, and lock update are intentionally deferred."
+    },
+    "usb20_se": {
+      "status": "candidate_acquired_not_bound",
+      "document": "USB 2.0 Specification",
+      "revision": "2.0",
+      "scope": {
+        "included_chapters": ["6-7"]
+      },
+      "official_page": "https://www.usb.org/document-library/usb-20-specification",
+      "official_download": "https://www.usb.org/sites/default/files/usb_20_20250603.zip",
+      "official_page_date": "2025-06-03",
+      "same_core_artifact_as": "usb20_fw",
+      "binding_status": "NOT_BOUND",
+      "binding_reason": "The official package supplies one USB 2.0 core PDF for both scoped chapter groups; the two lock entries remain pending until the external source storage and shared-file binding policy are approved."
+    },
+    "usb32": {
+      "status": "candidate_acquired_not_bound",
+      "document": "USB 3.2 Specification",
+      "revision": "Rev 1.1",
+      "scope": {
+        "included_chapters": ["6", "7", "9", "10"]
+      },
+      "official_page": "https://www.usb.org/document-library/usb-32-revision-11-june-2022",
+      "official_download": "https://www.usb.org/sites/default/files/usb_32_202206_0.zip",
+      "official_page_date": "2022-06-03",
+      "container": {
+        "kind": "zip",
+        "file_name": "usb_32_202206_0.zip",
+        "bytes": 24999868,
+        "sha256": "25c48f7a214ed31f5ef6c58b9d6269dd1c872921c8a7a455324d4bd323728b8a"
+      },
+      "core_member": {
+        "archive_path": "usb_32_202206/USB 3.2 Revision 1.1.pdf",
+        "file_name": "USB 3.2 Revision 1.1.pdf",
+        "bytes": 11928585,
+        "sha256": "26e025a56ce0352f4f91fcaaca67b622d8e9e030ca429804bf7da98f52e674fd",
+        "revision_signals": ["USB 3.2 Specification", "Revision 1.1"]
+      },
+      "binding_status": "NOT_BOUND",
+      "binding_reason": "Candidate core artifact is outside the consumer repository; canonical source locator, license acknowledgement, and lock update are intentionally deferred."
+    },
+    "superspeed_hub_lvs": {
+      "status": "candidate_acquired_not_bound",
+      "document": "SuperSpeed Hub LVS Test Specification",
+      "revision": "Rev 1.15",
+      "scope": "Hub compliance test items and conditions",
+      "official_page": "https://www.usb.org/document-library/usb-3-hub-lvs-test-specification",
+      "official_download": "https://www.usb.org/sites/default/files/SSHUB%20LVS%20Specification%202019_11_21.pdf",
+      "official_page_date": "2020-06-02",
+      "artifact": {
+        "file_name": "SSHUB_LVS_Specification_2019_11_21.pdf",
+        "bytes": 802548,
+        "sha256": "f6c647c1acdcaf861555bcef481a104cf72958b787a2db6baab3de0a284440fb",
+        "pages": 57,
+        "revision_signals": ["SuperSpeed Hub LVS Test Specification", "Revision 1.15", "Date: November 21, 2019"]
+      },
+      "binding_status": "NOT_BOUND",
+      "binding_reason": "Candidate artifact is outside the consumer repository; canonical source locator, license acknowledgement, and lock update are intentionally deferred."
+    }
+  },
+  "lock_observation": {
+    "lock_path": "gv100h/spec_qa/contracts/corpus.lock.yaml",
+    "lock_status_before_and_after_preflight": "manifest_only_pending_binding",
+    "source_entries_changed": false,
+    "usb4_status": "excluded_from_phase_1_negative_control"
+  },
+  "preflight_findings": [
+    "No raw PDF source files were present in the consumer worktree before this probe.",
+    "USB-IF official pages expose public download links for the USB 2.0 package, USB 3.2 Rev 1.1 package, and Hub LVS PDF.",
+    "The USB 2.0 package contains the Revision 2.0 core PDF plus errata and ECN material; package hash must not be confused with the core-PDF hash.",
+    "The USB 3.2 package contains the Revision 1.1 core PDF plus redline and ECN material; package hash must not be confused with the core-PDF hash.",
+    "The official Hub LVS PDF contains an explicit Revision 1.15 signal despite the library page showing a 2020-06-02 publication date.",
+    "Official USB-IF legal terms require acknowledgement and restrict use; no acknowledgement or redistribution authorization is recorded by this preflight.",
+    "No corpus lock, runtime binding, or qualification status was changed by this preflight."
+  ],
+  "cannot_claim": [
+    "official raw corpus qualification",
+    "license acceptance or redistribution authorization",
+    "canonical physical source paths for a fresh checkout",
+    "CorpusBindingReceipt verification against the consumer lock",
+    "complete POC-1 Spec QA qualification",
+    "live model or hardware qualification"
+  ]
+}

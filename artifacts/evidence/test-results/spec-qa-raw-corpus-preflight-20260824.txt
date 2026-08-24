@@ -1,0 +1,56 @@
+spec_qa_raw_corpus_acquisition_preflight.v0.1
+observed_at=2026-08-24T06:32:10.4523917Z
+status=preflight_complete_not_bound
+
+validation=PASS
+- receipt_json=true
+- lock_unchanged=true
+- usb20_package=true
+- usb32_package=true
+- usb20_core=true
+- usb32_core=true
+- hub_lvs_pdf=true
+
+official_sources
+- usb20_fw / usb20_se
+  page=https://www.usb.org/document-library/usb-20-specification
+  download=https://www.usb.org/sites/default/files/usb_20_20250603.zip
+  revision=2.0
+  package_bytes=14489344
+  package_sha256=5fe9c53c04033818af396e8852b3acbca5c3a76ba92fab549fd81cd0ea7b3692
+  core_archive_path=usb_20_20250603/usb_20_20240927/usb_20_20240927/usb_20.pdf
+  core_bytes=5983789
+  core_sha256=d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61
+  core_revision_signal=Universal Serial Bus Specification Revision 2.0
+  binding_status=NOT_BOUND
+
+- usb32
+  page=https://www.usb.org/document-library/usb-32-revision-11-june-2022
+  download=https://www.usb.org/sites/default/files/usb_32_202206_0.zip
+  revision=Rev 1.1
+  package_bytes=24999868
+  package_sha256=25c48f7a214ed31f5ef6c58b9d6269dd1c872921c8a7a455324d4bd323728b8a
+  core_archive_path=usb_32_202206/USB 3.2 Revision 1.1.pdf
+  core_bytes=11928585
+  core_sha256=26e025a56ce0352f4f91fcaaca67b622d8e9e030ca429804bf7da98f52e674fd
+  core_revision_signal=USB 3.2 Specification Revision 1.1
+  binding_status=NOT_BOUND
+
+- superspeed_hub_lvs
+  page=https://www.usb.org/document-library/usb-3-hub-lvs-test-specification
+  download=https://www.usb.org/sites/default/files/SSHUB%20LVS%20Specification%202019_11_21.pdf
+  revision=Rev 1.15
+  page_date=2020-06-02
+  artifact_bytes=802548
+  artifact_sha256=f6c647c1acdcaf861555bcef481a104cf72958b787a2db6baab3de0a284440fb
+  artifact_revision_signal=Revision 1.15; Date: November 21, 2019
+  binding_status=NOT_BOUND
+
+claim_boundary
+- source identity and byte hash preflight only
+- raw artifacts retained outside the public consumer repository
+- USB-IF license acknowledgement is not recorded
+- corpus.lock.yaml remains manifest_only_pending_binding
+- no runtime binding or CorpusBindingReceipt qualification claim
+- no complete POC-1 Spec QA qualification claim
+- no live model or hardware qualification claim
