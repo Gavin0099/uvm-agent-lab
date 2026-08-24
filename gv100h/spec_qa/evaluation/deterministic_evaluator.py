@@ -1,8 +1,14 @@
+import hashlib
 import json
 from pathlib import Path
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel
+from typing import Dict, Any, List, Literal, Optional
+from pydantic import BaseModel, Field
 
+from gv100h.spec_qa.contracts.corpus_binding_receipt import (
+    CorpusBindingReceiptError,
+    load_corpus_binding_receipt,
+    verify_corpus_binding_receipt,
+)
 from gv100h.spec_qa.retrieval.governed_retriever import GovernedSpecRetriever
 
 
@@ -21,6 +27,11 @@ class QAEvaluationResult(BaseModel):
     model_id: Optional[str] = None
     endpoint_observed: bool = False
     dataset_hash: Optional[str] = None
+    corpus_receipt_status: Literal["missing", "mismatch", "unverified", "verified"] = "missing"
+    corpus_binding_receipt_hash: Optional[str] = Field(
+        default=None,
+        pattern=r"^[0-9a-fA-F]{64}$",
+    )
 
 
 class DeterministicSpecQAEvaluator:
@@ -28,7 +39,12 @@ class DeterministicSpecQAEvaluator:
     Evaluates QA agent outputs against the 30-question Golden Dataset with 5-tier deterministic verification.
     """
 
-    def __init__(self, dataset_path: Optional[str] = None):
+    def __init__(
+        self,
+        dataset_path: Optional[str] = None,
+        corpus_binding_receipt_path: Optional[str] = None,
+        retriever: Optional[GovernedSpecRetriever] = None,
+    ):
         if dataset_path:
             self.dataset_file = Path(dataset_path).resolve()
         else:
@@ -37,7 +53,25 @@ class DeterministicSpecQAEvaluator:
         with open(self.dataset_file, "r", encoding="utf-8") as f:
             self.dataset = json.load(f)
 
-        self.retriever = GovernedSpecRetriever()
+        self.dataset_hash = hashlib.sha256(self.dataset_file.read_bytes()).hexdigest()
+        self.retriever = retriever or GovernedSpecRetriever()
+        self.corpus_receipt_status = "missing"
+        self.corpus_binding_receipt_hash = None
+        if corpus_binding_receipt_path is not None:
+            receipt_path = Path(corpus_binding_receipt_path)
+            if not receipt_path.is_file():
+                self.corpus_receipt_status = "missing"
+            else:
+                try:
+                    receipt = load_corpus_binding_receipt(receipt_path)
+                    verify_corpus_binding_receipt(receipt, self.retriever)
+                except CorpusBindingReceiptError as exc:
+                    self.corpus_receipt_status = exc.status
+                except (OSError, ValueError):
+                    self.corpus_receipt_status = "mismatch"
+                else:
+                    self.corpus_receipt_status = "verified"
+                    self.corpus_binding_receipt_hash = receipt.receipt_hash
 
     def evaluate_response(
         self,
@@ -132,5 +166,8 @@ class DeterministicSpecQAEvaluator:
             fabricated_citations_count=total_fabricated,
             authority_violations_count=total_auth_violations,
             all_gates_passed=all_passed,
-            details=details
+            details=details,
+            dataset_hash=self.dataset_hash,
+            corpus_receipt_status=self.corpus_receipt_status,
+            corpus_binding_receipt_hash=self.corpus_binding_receipt_hash,
         )
