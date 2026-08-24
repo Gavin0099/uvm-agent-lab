@@ -5,19 +5,20 @@
 > **狀態**: Active (trust foundations merged; qualification paths incomplete; keep NO_GO)
 
 ## 🔒 Current Truth (2026-08-24)
-- `main` is `a6f9962d1357c98f9aad8392d2763fcd7146f6d1`; PR #13, #14, and #15 were merged sequentially.
+- PR #13 through PR #19 were merged sequentially; this corpus binding slice is based on main at `1ce9006cf7fb37a8c3efe339e86df781adcff11c`.
 - PR #13 required CI passed. PR #14 and #15 were merged through explicit administrator bypass after GitHub checkout failed on the private `additional/ai-governance-framework` submodule; their full CI steps did not execute and are not claimed as PASS.
-- Runtime model/process binding, receipt-backed memory provenance, and per-source corpus binding foundations are present. These are software trust foundations, not live qualification results.
+- PR #17, #18, and #19 full GitHub verification passed after public governance checkout was restored; post-PR19 main run `32697971617` also passed with all configured steps executed.
+- Runtime model/process binding, receipt-backed memory provenance, per-source corpus binding foundations, and the Spec QA admission gate are present. Official raw USB 2.0 Rev 2.0, USB 3.2 Rev 1.1, and SuperSpeed Hub LVS Rev 1.15 artifacts are bound to operator-controlled private staging by lock commit `34d503f` and CorpusBindingReceipt `5e3c47b34e2b55dbab100ae571435440c4043c55b2fb89c4a81e204624ab2a48`. These are software/source identity foundations, not live qualification results.
 - This repair replaces caller-supplied approval values with a committed, clean Git-tracked registry and binds receipt approval ID, registry bytes hash, registry Git blob OID, and last registry-change commit. Unrelated commits do not invalidate an unchanged registry; registry changes still invalidate receipts. The production registry remains empty until a real external checksum is reviewed and committed; no model approval is fabricated here.
 - PR #8 and PR #9 remain merged; PR #13, #14, and #15 now extend main with runtime trust, memory receipt, and corpus binding foundations.
-- Phase 1 software foundations are merged, but capability qualification is incomplete: PR #13 CI passed, while PR #14/#15 GitHub full CI stopped at private submodule checkout and did not execute their test steps.
+- Phase 1 software foundations are merged, but capability qualification is incomplete: PR #14/#15 historical full CI stopped at private submodule checkout, while later PR17-19 and post-merge main verification executed successfully.
 - v1 critical path is intentionally limited to Local Model/Runtime, Spec QA/RAG, Local Coding Agent, Governance/Evidence, and GV100 Hardware Profiling. EDA compile/simulate/coverage remains a retained Phase 2 plugin.
 - Benchmark contracts distinguish `lightweight` and `eda` validator profiles; the canonical v1 coding benchmark universe is `AGENT-CODE-001` through `AGENT-CODE-005`.
 - Canonical coding cases are now real Python fixture tasks: bug fix, refactor, test coverage, configuration change, and bounded multi-file change. Cases `001` and `004` intentionally have red untouched baselines and become acceptance oracles after the agent change.
 - `validator_profile` is a top-level schema property, required for `AGENT-*` cases; invalid explicit values fail closed instead of silently falling back. Legacy UVM/live-universe aggregators remain UVM-only.
 - Phase 1 software status: `FOUNDATIONS_MERGED` / qualification paths incomplete.
 - Gate 4 status: bounded hardware identity bring-up may start; formal model/runtime qualification remains pending.
-- Hardware qualification: `NOT_READY` because real Qwen inference and physical GV100 telemetry have not run.
+- Hardware qualification: `NOT_READY` because real Qwen inference and physical GV100 telemetry have not run. Complete POC-1 QA acceptance is also not claimed; the bound raw artifacts remain outside the public repository and USB-IF terms still require owner confirmation for intended internal use.
 - Qualification decision: `NO_GO` until live model, hardware, Spec QA, Coding Agent, Governance/Evidence, and human-review evidence exist.
 - Software evidence is not hardware qualification evidence. Do not claim live llama.cpp/vLLM execution, GPU/NVLink qualification, or `GO`.
 

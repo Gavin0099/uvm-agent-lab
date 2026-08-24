@@ -28,7 +28,7 @@ class CorpusRuntimeBinding(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status: Literal["unverified", "verified", "failed"]
-    observed_path: Optional[str] = None
+    source_locator: str = Field(min_length=1)
     observed_sha256: Optional[str] = Field(
         default=None,
         pattern=r"^[0-9a-fA-F]{64}$",
@@ -140,6 +140,35 @@ def _receipt_hash(receipt: CorpusBindingReceipt) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _source_locator(
+    retriever: "GovernedSpecRetriever",
+    source_id: str,
+) -> str:
+    source = retriever.corpus_lock["sources"][source_id]
+    locator = source.get("source_locator")
+    if locator in (None, "PENDING_ACQUISITION", "NOT_BOUND"):
+        if source_id == "hub_reference":
+            return f"repo://{source['repo']}@{source['commit']}"
+        raise CorpusBindingReceiptError(
+            f"source {source_id} has no portable source locator",
+            status="unverified",
+        )
+    return str(locator)
+
+
+def _receipt_runtime_binding(
+    retriever: "GovernedSpecRetriever",
+    source_id: str,
+) -> CorpusRuntimeBinding:
+    binding = retriever.runtime_bindings[source_id]
+    return CorpusRuntimeBinding(
+        status=binding["status"],
+        source_locator=_source_locator(retriever, source_id),
+        observed_sha256=binding.get("observed_sha256"),
+        observed_commit=binding.get("observed_commit"),
+    )
+
+
 def build_corpus_binding_receipt(
     retriever: "GovernedSpecRetriever",
     *,
@@ -161,9 +190,7 @@ def build_corpus_binding_receipt(
     )
     required_source_ids = list(retriever.REQUIRED_PHASE1_SOURCES)
     runtime_bindings = {
-        source_id: CorpusRuntimeBinding.model_validate(
-            retriever.runtime_bindings[source_id]
-        )
+        source_id: _receipt_runtime_binding(retriever, source_id)
         for source_id in required_source_ids
     }
     observed_source_hashes = {
@@ -252,9 +279,7 @@ def verify_corpus_binding_receipt(
         raise CorpusBindingReceiptError("corpus binding receipt governed hash does not match")
 
     expected_bindings = {
-        source_id: CorpusRuntimeBinding.model_validate(
-            retriever.runtime_bindings[source_id]
-        )
+        source_id: _receipt_runtime_binding(retriever, source_id)
         for source_id in expected_source_ids
     }
     if receipt.runtime_bindings != expected_bindings:

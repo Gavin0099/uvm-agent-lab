@@ -1,0 +1,17 @@
+{
+  "receipt_schema": "test_evidence_receipt.v0.1",
+  "status": "report_only",
+  "command": "python -X utf8 -c \"import json,os; from pathlib import Path; from gv100h.spec_qa.retrieval.governed_retriever import GovernedSpecRetriever; from gv100h.spec_qa.evaluation.deterministic_evaluator import DeterministicSpecQAEvaluator; from gv100h.qualification.evaluator import QualificationPolicyEvaluator; from gv100h.coding_eval.governance_ab_runner import ABExperimentSummary; root=Path('.').resolve(); stage=Path(os.environ['USB_SPEC_QA_RAW_ROOT']); paths={'hub_reference':os.environ['USB_SPEC_QA_REFERENCE_ROOT'],'usb20_fw':str(stage/'usb20'/'usb_20.pdf'),'usb20_se':str(stage/'usb20'/'usb_20.pdf'),'usb32':str(stage/'usb32'/'USB 3.2 Revision 1.1.pdf'),'superspeed_hub_lvs':str(stage/'superspeed_hub_lvs'/'SSHUB_LVS_Specification_2019_11_21.pdf')}; retriever=GovernedSpecRetriever(source_paths=paths,require_physical_binding=True); receipt=root/'artifacts/evidence/test-results/spec-qa-corpus-binding-receipt-20260824.json'; qa=DeterministicSpecQAEvaluator(corpus_binding_receipt_path=str(receipt),retriever=retriever).run_benchmark(lambda _q,_s: ('',[])); coding=ABExperimentSummary(total_runs_per_arm=30,is_synthetic_simulation=True,evidence_class='synthetic_offline_scaffold',admissible_for_model_qualification=False,arm_a_prompt_only={},arm_b_governed_sidecar={},governance_benefit={}); decision=QualificationPolicyEvaluator().evaluate(qa,coding,{'total_requests':100,'corruption_count':0,'hardware_observed':False},corpus_binding_receipt_path=receipt,corpus_retriever=retriever,corpus_repo_root=root); gate=next(g for g in decision.gates if g.gate_name=='spec_qa.corpus_binding_verified'); assert retriever.runtime_binding_status=='verified' and retriever.physical_binding_verified and not retriever.qualification_blocked and qa.corpus_receipt_status=='verified' and gate.passed and decision.decision.startswith('NO_GO'); print(json.dumps({'replay':'PASS','corpus_gate':gate.passed,'qa_status':qa.corpus_receipt_status,'decision':decision.decision},sort_keys=True))\"",
+  "exit_code": 0,
+  "started_at": "2026-08-24T06:53:52Z",
+  "finished_at": "2026-08-24T06:53:54Z",
+  "runner": "spec-qa-corpus-binding-replay",
+  "linked_commit": "04dad7ef9a28529e2e2108a34ade523edc07deac",
+  "output_artifacts": [
+    "artifacts/evidence/test-results/spec-qa-corpus-binding-replay-20260824.txt"
+  ],
+  "cannot_claim": [
+    "semantic correctness of the tested behavior",
+    "receipt authenticity: every field is fabricatable by a direct writer"
+  ]
+}

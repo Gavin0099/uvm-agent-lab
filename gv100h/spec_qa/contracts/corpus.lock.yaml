@@ -1,6 +1,6 @@
 schema_version: "1.0"
 corpus_id: "usb-hub-poc1-phase1"
-status: "manifest_only_pending_binding"
+status: "phase1_bound"
 
 layers:
   governed_reference:
@@ -29,6 +29,7 @@ sources:
     content_sha256: "c774c4c31b088348a4f2deaae2e0d8448f083a1a9793d91c59fc719de3536083"
     content_hash_algorithm: "sha256_tracked_relative_posix_path_content_bytes_v3"
     canonical_entrypoint: "exports/hub_governed_surface_manifest.yaml"
+    source_locator: "repo://Gavin0099/usb-if-hub-spec-reference@808f23c24bd8651da9cdcd63ea8669126917a379"
     phase: "phase_1"
     binding_status: "locked"
     claim_ceiling: "governed_matrix_identity_and_boundary_reference_only"
@@ -47,9 +48,9 @@ sources:
       - "5"
       - "8-11"
     phase: "phase_1"
-    source_locator: "PENDING_ACQUISITION"
-    content_sha256: "NOT_BOUND"
-    binding_status: "pending"
+    source_locator: "env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf"
+    content_sha256: "d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61"
+    binding_status: "locked"
 
   usb20_se:
     layer: "official_raw"
@@ -59,9 +60,9 @@ sources:
     included_chapters:
       - "6-7"
     phase: "phase_1"
-    source_locator: "PENDING_ACQUISITION"
-    content_sha256: "NOT_BOUND"
-    binding_status: "pending"
+    source_locator: "env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf"
+    content_sha256: "d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61"
+    binding_status: "locked"
 
   usb32:
     layer: "official_raw"
@@ -74,9 +75,9 @@ sources:
       - "9"
       - "10"
     phase: "phase_1"
-    source_locator: "PENDING_ACQUISITION"
-    content_sha256: "NOT_BOUND"
-    binding_status: "pending"
+    source_locator: "env://USB_SPEC_QA_RAW_ROOT/usb32/USB 3.2 Revision 1.1.pdf"
+    content_sha256: "26e025a56ce0352f4f91fcaaca67b622d8e9e030ca429804bf7da98f52e674fd"
+    binding_status: "locked"
 
   superspeed_hub_lvs:
     layer: "official_raw"
@@ -85,9 +86,9 @@ sources:
     revision: "Rev 1.15"
     included_scope: "Hub compliance test items and conditions"
     phase: "phase_1"
-    source_locator: "PENDING_ACQUISITION"
-    content_sha256: "NOT_BOUND"
-    binding_status: "pending"
+    source_locator: "env://USB_SPEC_QA_RAW_ROOT/superspeed_hub_lvs/SSHUB_LVS_Specification_2019_11_21.pdf"
+    content_sha256: "f6c647c1acdcaf861555bcef481a104cf72958b787a2db6baab3de0a284440fb"
+    binding_status: "locked"
 
   usb4:
     layer: "official_raw"

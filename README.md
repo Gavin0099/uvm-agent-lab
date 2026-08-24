@@ -6,10 +6,10 @@
 
 ## Current Qualification State (2026-08-24)
 
-- `main` is `a6f9962`, with PR #13, #14, and #15 merged sequentially.
-- Runtime model binding, memory receipt provenance, and per-source corpus binding foundations are merged.
-- Official raw USB 2.0, USB 3.2, and SuperSpeed Hub LVS sources are not yet acquired and bound.
-- The private `additional/ai-governance-framework` submodule currently prevents the public GitHub workflow from completing checkout; affected merge checks are not treated as full CI PASS.
+- PR #13 through PR #19 are merged sequentially; this binding slice is based on main at `1ce9006`.
+- Runtime model binding, memory receipt provenance, per-source corpus binding foundations, and the Spec QA admission gate are merged.
+- Official raw USB 2.0 Rev 2.0, USB 3.2 Rev 1.1, and SuperSpeed Hub LVS Rev 1.15 artifacts are physically bound in operator-controlled private staging; raw bytes are not committed to this public repository.
+- `additional/ai-governance-framework` is publicly checkoutable, and the post-PR17 full GitHub workflow executes checkout, pytest, benchmark, validators, and governance checks successfully.
 - Final Qualification is `NO_GO`; mock, deterministic, and local focused results are not live model, hardware, or internal-pilot qualification evidence.
 
 ---

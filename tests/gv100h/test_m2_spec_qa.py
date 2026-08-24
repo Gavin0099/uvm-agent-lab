@@ -39,8 +39,8 @@ def test_poc1_corpus_lock_binds_governed_reference_and_blocks_incomplete_claims(
     assert retriever.corpus_id == "usb-hub-poc1-phase1"
     assert retriever.knowledge_repo == "Gavin0099/usb-if-hub-spec-reference"
     assert retriever.knowledge_repo_commit == "808f23c24bd8651da9cdcd63ea8669126917a379"
-    assert retriever.corpus_binding_status == "manifest_only_pending_binding"
-    assert retriever.lock_binding_status == "manifest_only_pending_binding"
+    assert retriever.corpus_binding_status == "phase1_bound"
+    assert retriever.lock_binding_status == "phase1_bound"
     assert retriever.runtime_binding_status == "unverified"
     assert retriever.physical_binding_verified is False
     assert retriever.corpus_lock["sources"]["hub_reference"]["binding_status"] == "locked"
@@ -50,7 +50,10 @@ def test_poc1_corpus_lock_binds_governed_reference_and_blocks_incomplete_claims(
     assert retriever.corpus_lock["sources"]["usb4"]["included"] is False
     assert retriever.corpus_lock["benchmark"]["independent_from_corpus"] is True
     assert retriever.qualification_blocked is True
-    assert any("sources.usb20_fw" in reason for reason in retriever.qualification_block_reasons)
+    assert any(
+        "runtime source usb20_fw physical binding is unverified" in reason
+        for reason in retriever.qualification_block_reasons
+    )
 
 
 def _write_corpus_lock(tmp_path, lock):
@@ -102,7 +105,9 @@ def _create_phase1_bound_sources(tmp_path, lock):
         source_path.write_bytes(f"{source_id} bound fixture\n".encode("utf-8"))
         source_hash = hashlib.sha256(source_path.read_bytes()).hexdigest()
         lock["sources"][source_id]["content_sha256"] = source_hash
-        lock["sources"][source_id]["source_locator"] = str(source_path)
+        lock["sources"][source_id]["source_locator"] = (
+            f"env://USB_SPEC_QA_RAW_ROOT/{source_id}.pdf"
+        )
         source_paths[source_id] = source_path
     return lock, source_paths
 

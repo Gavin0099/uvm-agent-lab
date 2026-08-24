@@ -216,6 +216,17 @@ P1 admission signals are cross-document chain retrieval and chain explanation
 accuracy. They are reported as their own score and target, rather than being
 folded into single-spec retrieval accuracy.
 
+### 7.2 Private Raw Source Locator
+
+The official raw source files are retained outside this public repository under
+an operator-controlled private staging root. `corpus.lock.yaml` records logical
+`env://USB_SPEC_QA_RAW_ROOT/...` locators and content hashes; runtime callers
+must resolve those locators to explicit `source_paths` on the executing host.
+Machine-local absolute paths and raw specification bytes must not be committed
+to this repository. The private staging authorization is an operator record,
+not a claim that the USB-IF terms permit redistribution or external commercial
+use.
+
 A benchmark result is not a live qualification result. Real local-model
 inference, dual-GV100 telemetry, latency, and hardware stability remain
 separate evidence required by the wider project plan.
