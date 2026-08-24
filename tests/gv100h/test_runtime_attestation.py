@@ -14,6 +14,7 @@ from gv100h.runtime.attestation import (
     load_attestation_seed,
     RuntimeProcessAttestor,
     sha256_file,
+    sha256_launch_argv,
 )
 
 
@@ -31,6 +32,9 @@ def _seed(tmp_path: Path) -> tuple[Path, Path, str]:
         "runtime_executable_sha256": sha256_file(executable),
         "server_pid": os.getpid(),
         "launch_argv": ["llama-server", "-m", str(model)],
+        "launch_cwd": str(tmp_path),
+        "launch_argv_sha256": sha256_launch_argv(["llama-server", "-m", str(model)]),
+        "effective_model_argument": str(model),
         "model_id": "Qwen/Qwen3.8-27B",
         "model_path": str(model),
         "model_sha256": model_hash,
@@ -91,6 +95,28 @@ def test_attestation_rejects_model_hash_mismatch(tmp_path):
             expected_runtime_commit="a" * 40,
             expected_model_id="Qwen/Qwen3.8-27B",
             expected_model_hash="0" * 64,
+            expected_model_path=model,
+            expected_endpoint_url="http://127.0.0.1:8000/v1",
+        )
+
+
+def test_attestation_rejects_launch_model_argument_mismatch(tmp_path):
+    seed_path, model, model_hash = _seed(tmp_path)
+    raw = json.loads(seed_path.read_text(encoding="utf-8"))
+    other_model = tmp_path / "other-model.gguf"
+    other_model.write_bytes(b"other-model-bytes")
+    raw["launch_argv"] = ["llama-server", "-m", str(other_model)]
+    raw["launch_argv_sha256"] = sha256_launch_argv(raw["launch_argv"])
+    raw["effective_model_argument"] = str(other_model)
+    seed_path.write_text(json.dumps(raw), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="model argument"):
+        load_attestation_seed(
+            seed_path,
+            expected_runtime="llama.cpp",
+            expected_runtime_commit="a" * 40,
+            expected_model_id="Qwen/Qwen3.8-27B",
+            expected_model_hash=model_hash,
             expected_model_path=model,
             expected_endpoint_url="http://127.0.0.1:8000/v1",
         )
@@ -262,12 +288,13 @@ def test_runtime_process_attestor_stops_after_startup_failure(tmp_path, monkeypa
         lambda *args, **kwargs: process,
     )
     attestor = RuntimeProcessAttestor(
-        [sys.executable],
+        [sys.executable, "--model", str(model)],
         runtime="llama.cpp",
         runtime_commit="a" * 40,
         runtime_version="llama.cpp test",
         model_id="Qwen/Qwen3.8-27B",
         model_path=model,
+        expected_model_hash=sha256_file(model),
         endpoint_url="http://127.0.0.1:8000/v1",
         startup_timeout_sec=1,
     )
@@ -280,6 +307,11 @@ def test_runtime_process_attestor_stops_after_startup_failure(tmp_path, monkeypa
         return response
 
     monkeypatch.setattr(attestor, "_endpoint_models", next_response)
+    monkeypatch.setattr(
+        attestor,
+        "_read_process_command_line",
+        lambda _pid: [sys.executable, "--model", str(model)],
+    )
     clock = iter([0.0, 0.0, 2.0])
     monkeypatch.setattr("gv100h.runtime.attestation.time.monotonic", lambda: next(clock))
     monkeypatch.setattr("gv100h.runtime.attestation.time.sleep", lambda _seconds: None)
@@ -299,12 +331,13 @@ def test_runtime_process_attestor_stop_does_not_raise_cleanup_error():
             raise OSError("terminate failed")
 
     attestor = RuntimeProcessAttestor(
-        [sys.executable],
+        [sys.executable, "--model", str(Path(sys.executable))],
         runtime="llama.cpp",
         runtime_commit="a" * 40,
         runtime_version="llama.cpp test",
         model_id="Qwen/Qwen3.8-27B",
         model_path=Path(sys.executable),
+        expected_model_hash=sha256_file(sys.executable),
         endpoint_url="http://127.0.0.1:8000/v1",
     )
     attestor.process = _UnstoppableProcess()
@@ -335,12 +368,13 @@ def test_runtime_process_attestor_captures_started_process(tmp_path, monkeypatch
         lambda *args, **kwargs: process,
     )
     attestor = RuntimeProcessAttestor(
-        [sys.executable],
+        [sys.executable, "--model", str(model)],
         runtime="llama.cpp",
         runtime_commit="a" * 40,
         runtime_version="llama.cpp test",
         model_id="Qwen/Qwen3.8-27B",
         model_path=model,
+        expected_model_hash=sha256_file(model),
         endpoint_url="http://127.0.0.1:8000/v1",
     )
     responses = iter([
@@ -355,11 +389,16 @@ def test_runtime_process_attestor_captures_started_process(tmp_path, monkeypatch
         return response
 
     monkeypatch.setattr(attestor, "_endpoint_models", next_response)
+    monkeypatch.setattr(
+        attestor,
+        "_read_process_command_line",
+        lambda _pid: [sys.executable, "--model", str(model)],
+    )
 
     seed = attestor.start()
 
     assert seed["server_pid"] == 12345
-    assert seed["launch_argv"] == [sys.executable]
+    assert seed["launch_argv"] == [sys.executable, "--model", str(model)]
     assert seed["model_sha256"] == "76e2328f2eedf89c41124f02a920851ef8d6f7dbbec2fb3a7573f062a557e44a"
     assert seed["models_endpoint_response"] == {"data": [{"id": "Qwen/Qwen3.8-27B"}]}
     attestor.stop()
@@ -369,12 +408,13 @@ def test_runtime_process_attestor_rejects_existing_endpoint(tmp_path, monkeypatc
     model = tmp_path / "model.gguf"
     model.write_bytes(b"exact-model-bytes")
     attestor = RuntimeProcessAttestor(
-        [sys.executable],
+        [sys.executable, "--model", str(model)],
         runtime="llama.cpp",
         runtime_commit="a" * 40,
         runtime_version="llama.cpp test",
         model_id="Qwen/Qwen3.8-27B",
         model_path=model,
+        expected_model_hash=sha256_file(model),
         endpoint_url="http://127.0.0.1:8000/v1",
     )
     monkeypatch.setattr(
@@ -407,12 +447,13 @@ def test_runtime_process_attestor_rejects_early_exit(tmp_path, monkeypatch):
         lambda *args, **kwargs: _ExitedProcess(),
     )
     attestor = RuntimeProcessAttestor(
-        [sys.executable],
+        [sys.executable, "--model", str(model)],
         runtime="llama.cpp",
         runtime_commit="a" * 40,
         runtime_version="llama.cpp test",
         model_id="Qwen/Qwen3.8-27B",
         model_path=model,
+        expected_model_hash=sha256_file(model),
         endpoint_url="http://127.0.0.1:8000/v1",
     )
     def endpoint_unavailable():
@@ -422,3 +463,105 @@ def test_runtime_process_attestor_rejects_early_exit(tmp_path, monkeypatch):
 
     with pytest.raises(RuntimeError, match="exited before endpoint"):
         attestor.start()
+
+
+def test_runtime_process_attestor_rejects_launched_model_mismatch(tmp_path, monkeypatch):
+    approved_model = tmp_path / "approved-model.gguf"
+    approved_model.write_bytes(b"approved-model-bytes")
+    launched_model = tmp_path / "launched-model.gguf"
+    launched_model.write_bytes(b"launched-model-bytes")
+
+    class _FakeProcess:
+        pid = 12345
+        returncode = None
+        terminated = False
+
+        def poll(self):
+            return self.returncode
+
+        def terminate(self):
+            self.terminated = True
+            self.returncode = -15
+
+        def wait(self, timeout):
+            return self.returncode
+
+    process = _FakeProcess()
+    monkeypatch.setattr(
+        "gv100h.runtime.attestation.subprocess.Popen",
+        lambda *args, **kwargs: process,
+    )
+    attestor = RuntimeProcessAttestor(
+        [sys.executable, "--model", str(approved_model)],
+        runtime="llama.cpp",
+        runtime_commit="a" * 40,
+        runtime_version="llama.cpp test",
+        model_id="Qwen/Qwen3.8-27B",
+        model_path=approved_model,
+        expected_model_hash=sha256_file(approved_model),
+        endpoint_url="http://127.0.0.1:8000/v1",
+    )
+    monkeypatch.setattr(attestor, "_endpoint_models", lambda: (_ for _ in ()).throw(OSError("unavailable")))
+    monkeypatch.setattr(
+        attestor,
+        "_read_process_command_line",
+        lambda _pid: [sys.executable, "--model", str(launched_model)],
+    )
+
+    with pytest.raises(RuntimeError, match="launched process model argument"):
+        attestor.start()
+    assert process.terminated is True
+
+
+def test_runtime_process_attestor_rejects_unapproved_model_hash(tmp_path):
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"exact-model-bytes")
+    attestor = RuntimeProcessAttestor(
+        [sys.executable, "--model", str(model)],
+        runtime="llama.cpp",
+        runtime_commit="a" * 40,
+        runtime_version="llama.cpp test",
+        model_id="Qwen/Qwen3.8-27B",
+        model_path=model,
+        expected_model_hash="0" * 64,
+        endpoint_url="http://127.0.0.1:8000/v1",
+    )
+
+    with pytest.raises(ValueError, match="approved model hash"):
+        attestor.start()
+
+
+def test_runtime_process_attestor_rejects_unsupported_runtime_contract(tmp_path):
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"exact-model-bytes")
+    attestor = RuntimeProcessAttestor(
+        [sys.executable, "--model", str(model)],
+        runtime="vllm",
+        runtime_commit="a" * 40,
+        runtime_version="vllm test",
+        model_id="Qwen/Qwen3.8-27B",
+        model_path=model,
+        expected_model_hash=sha256_file(model),
+        endpoint_url="http://127.0.0.1:8000/v1",
+    )
+
+    with pytest.raises(ValueError, match="no supported model launch contract"):
+        attestor.start()
+
+
+def test_runtime_process_attestor_reads_current_process_command_line():
+    attestor = RuntimeProcessAttestor(
+        [sys.executable, "--model", str(Path(sys.executable))],
+        runtime="llama.cpp",
+        runtime_commit="a" * 40,
+        runtime_version="llama.cpp test",
+        model_id="Qwen/Qwen3.8-27B",
+        model_path=Path(sys.executable),
+        expected_model_hash=sha256_file(sys.executable),
+        endpoint_url="http://127.0.0.1:8000/v1",
+    )
+
+    command_line = attestor._read_process_command_line(os.getpid())
+
+    assert command_line
+    assert any(Path(item).name.lower() == Path(sys.executable).name.lower() for item in command_line)
