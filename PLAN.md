@@ -8,12 +8,13 @@
 
 ## 0. Current Qualification Checkpoint (2026-08-24)
 
-- PR #13 through PR #19 were merged sequentially; this corpus binding slice is based on main at `1ce9006cf7fb37a8c3efe339e86df781adcff11c`.
+- PR #13 through PR #20 were merged sequentially; this evaluation slice is based on main at `a71a9c641cbc22e49555630e71ee5b7ecbd24ee5`.
 - PR #13's required CI passed. PR #14 and PR #15 were merged with explicit administrator bypass because the GitHub workflow stopped during checkout of the private `additional/ai-governance-framework` submodule; their full CI steps did not execute and are not claimed as PASS.
 - The merge workflow reported a local 77-test validation for PR #14 and a 27-test M2 validation for PR #15. The 77-test result has no durable test artifact or command output committed and is not treated as qualification evidence; neither local result replaces the failed GitHub checkout gate.
 - PR #17, PR #18, and PR #19 passed full GitHub verification after the governance framework became publicly checkoutable; post-PR19 main run `32697971617` completed successfully with checkout, pytest, benchmark, retrieval, validators, drift, and quickstart steps executed.
 - `main` remains protected with `enforce_admins=true` and one required approving review. The administrator bypass used for these merges is not evidence of independent approval.
 - Trust foundations and Spec QA receipt admission plumbing are merged. In this binding slice, the corpus lock status is `phase1_bound`; official USB 2.0 Rev 2.0, USB 3.2 Rev 1.1, and SuperSpeed Hub LVS Rev 1.15 artifacts are hash-verified in operator-controlled private staging and bound through `CorpusBindingReceipt`; raw bytes are not committed to this public repository. The live Coding Agent path remains incomplete, and real model/GV100 evidence is absent.
+- Locked POC-1 smoke evaluation is recorded in `artifacts/evidence/test-results/spec-qa-poc1-locked-smoke-result-20260824.json`: 30/30 deterministic baseline questions passed across Cat A/B/C/D with zero fabricated citations and zero authority violations, using the verified corpus receipt and dataset hash. The final 50-100 question acceptance set and raw-document retrieval coverage remain incomplete.
 - Final qualification remains `NO_GO`. Hardware identity bring-up may begin as a bounded activity; formal model, Spec QA, Coding Agent, or GV100 qualification claims are not admitted.
 
 ---
@@ -178,7 +179,7 @@ EDA compile/simulate/coverage remains an explicit Phase 2 `EDAValidator` plugin.
 
 1. **Keep software feature changes frozen**: do not add unrelated framework, EDA, SFT/DPO, coverage, or dashboard work.
 2. **Keep CI verification healthy**: retain the public governance framework checkout path and require the full workflow to execute before treating a future change as verified.
-3. **Spec QA acceptance evaluation**: run the locked POC-1 QA acceptance set with `USB_SPEC_QA_RAW_ROOT` and the private staging root, then expand beyond the deterministic 30-question smoke baseline; the current source binding receipt is not itself a quality or qualification result.
+3. **Spec QA acceptance evaluation**: expand the locked 30-question smoke baseline into the independently reviewed 50-100 question POC-1 acceptance set, add raw-document retrieval/citation coverage, and run it with `USB_SPEC_QA_RAW_ROOT`; the current smoke result and source binding receipt are not complete qualification results.
 4. **Coding Agent admission**: implement the profile-aware live runner and required CI admission for `AGENT-CODE-001` through `AGENT-CODE-005`.
 5. **Hardware identity**: verify dual GV100, 32GB memory, and NVLink with `nvidia-smi` and `nvidia-smi topo -m`; this is bring-up evidence only.
 6. **Final qualification**: require real model, endpoint, corpus, coding, hardware, and human-review evidence before changing `NO_GO`.
