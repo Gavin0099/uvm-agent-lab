@@ -1,0 +1,17 @@
+{
+  "receipt_schema": "test_evidence_receipt.v0.1",
+  "status": "report_only",
+  "command": "python -c \"import json, subprocess; from pathlib import Path; repo='Gavin0099/uvm-agent-lab'; expected_main='a6f9962d1357c98f9aad8392d2763fcd7146f6d1'; expected_merges={'13':'083c6371bdbffc4b8855559927d3d44a243c8feb','14':'4552b7274ce3d237c2a4c7bafdfe6f9c49cb4a5b','15':'a6f9962d1357c98f9aad8392d2763fcd7146f6d1'}; output=lambda args: subprocess.check_output(args,text=True).strip(); main=output(['gh','api',f'repos/{repo}/branches/main','--jq','.commit.sha']); assert main==expected_main; observed={pr:(output(['gh','api',f'repos/{repo}/pulls/{pr}','--jq','.state']),output(['gh','api',f'repos/{repo}/pulls/{pr}','--jq','.merge_commit_sha'])) for pr in expected_merges}; assert all(state=='closed' and merge==expected_merges[pr] for pr,(state,merge) in observed.items()), observed; enforce=output(['gh','api',f'repos/{repo}/branches/main/protection','--jq','.enforce_admins.enabled']); approvals=output(['gh','api',f'repos/{repo}/branches/main/protection','--jq','.required_pull_request_reviews.required_approving_review_count']); assert enforce=='true' and approvals=='1'; markers={'PLAN.md':['Current Qualification Checkpoint','Current Next Steps'],'README.md':['Current Qualification State','NO_GO'],'memory/01_active_task.md':['Current Truth (2026-08-24)','FOUNDATIONS_MERGED'],'memory/04_review_log.md':['Current Truth (2026-08-24)','Final Qualification remains']}; assert all(value in Path(path).read_text(encoding='utf-8') for path,values in markers.items() for value in values); print(json.dumps({'main':main,'merges':observed,'enforce_admins':enforce,'required_approvals':approvals,'truth_markers':list(markers)},sort_keys=True))\"",
+  "exit_code": 0,
+  "started_at": "2026-08-24T03:12:55Z",
+  "finished_at": "2026-08-24T03:13:02Z",
+  "runner": "post-merge-truth-verification",
+  "linked_commit": "fcaeda35c1646f60c86f69fbd4c27f188e0de763",
+  "output_artifacts": [
+    "artifacts/evidence/test-results/receipt-post-merge-truth-20260824.txt"
+  ],
+  "cannot_claim": [
+    "semantic correctness of the tested behavior",
+    "receipt authenticity: every field is fabricatable by a direct writer"
+  ]
+}
