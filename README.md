@@ -4,6 +4,14 @@
 
 `uvm-agent-lab` is a deterministic, zero-trust harness for answering whether a local model is useful as a company Spec QA assistant and coding assistant on target hardware. UVM/EDA validation remains supported through an explicit Phase 2 plugin boundary; it is not a v1 GO/NO_GO dependency.
 
+## Current Qualification State (2026-08-24)
+
+- `main` is `a6f9962`, with PR #13, #14, and #15 merged sequentially.
+- Runtime model binding, memory receipt provenance, and per-source corpus binding foundations are merged.
+- Official raw USB 2.0, USB 3.2, and SuperSpeed Hub LVS sources are not yet acquired and bound.
+- The private `additional/ai-governance-framework` submodule currently prevents the public GitHub workflow from completing checkout; affected merge checks are not treated as full CI PASS.
+- Final Qualification is `NO_GO`; mock, deterministic, and local focused results are not live model, hardware, or internal-pilot qualification evidence.
+
 ---
 
 ## 🎯 Core Philosophy & AI Governance Principles
@@ -81,7 +89,9 @@ uvm-agent-lab/
 │  ├─ governance.md              # Policy-as-Code & Evidence Rules
 │  ├─ evaluation-strategy.md     # Gate 0-4 evaluation methodology
 │  ├─ hardware-plan.md           # GV100 profiling and NVLink tests
-│  └─ compatibility-matrix.md    # Simulator, tool, and model matrices
+│  ├─ compatibility-matrix.md    # Simulator, tool, and model matrices
+│  ├─ USB_SPEC_QA_INTEGRATION_SPEC.md # Spec QA deployment boundary
+│  └─ USB_SPEC_QA_POC1_SCOPE.md  # POC-1 corpus and acceptance contract
 │
 ├─ benchmarks/
 │  ├─ cases/
@@ -122,6 +132,14 @@ uvm-agent-lab/
 │  ├─ gate3/                     # Gate 3 Model A/B experiments
 │  └─ gate4/                     # Gate 4 GV100 hardware performance logs
 │
+├─ gv100h/
+│  ├─ runtime/                   # Runtime/model attestation and profiling
+│  ├─ spec_qa/                   # Governed retrieval, corpus lock, and QA evaluation
+│  ├─ coding_eval/               # Coding Agent evaluation harness
+│  └─ qualification/             # Qualification policy and decision engine
+│
+├─ artifacts/evidence/           # Durable validation receipts and run evidence
+│
 ├─ results/                      # Execution outputs and run logs
 │
 └─ scripts/
@@ -139,6 +157,10 @@ uvm-agent-lab/
 ```bash
 pip install -r requirements.txt
 ```
+
+The commands below exercise deterministic or mock harness paths. They do not
+constitute live model, GPU, Spec QA, Coding Agent, or internal-pilot
+qualification evidence.
 
 ### 2. Run Single Case with Governed Mock Agent
 ```bash

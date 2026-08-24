@@ -2,9 +2,18 @@
 
 <!-- governance:reviewer_verified -->
 
-> **最後更新**: 2026-08-18
+> **最後更新**: 2026-08-24
 > **Owner**: Gavin0099
 > **狀態**: Active
+
+## 🔎 Current Truth (2026-08-24)
+
+- `main` is `a6f9962d1357c98f9aad8392d2763fcd7146f6d1`; PR #13, #14, and #15 were merged sequentially.
+- PR #13's required CI passed. PR #14 and #15 reached combined heads and passed their local focused validations, but GitHub full CI stopped during checkout of the private `additional/ai-governance-framework` submodule. Their post-merge full CI steps did not execute and are not claimed as PASS.
+- The merge commits are `083c637` (PR #13), `4552b727` (PR #14), and `a6f9962` (PR #15). The #14 and #15 merges used explicit administrator bypass because the governance submodule checkout was unavailable to GitHub Actions.
+- `main` branch protection is restored with `enforce_admins=true` and one required approving review. The administrator bypass is not evidence of an independent approving review.
+- Current technical state: runtime model/process binding, receipt-backed memory provenance, Layer A identity binding, and per-source Layer B physical-binding semantics are implemented. Official raw USB sources, live Spec QA admission, profile-aware Coding Agent qualification, and real GV100/model evidence remain pending.
+- Final Qualification remains `NO_GO`. Hardware identity bring-up can be bounded and exploratory; formal qualification and internal-pilot claims remain inadmissible.
 
 ## 📝 Milestone History
 
