@@ -1,7 +1,5 @@
 # Active Task
 
-<!-- governance:reviewer_verified -->
-
 > **最後更新**: 2026-08-24
 > **Owner**: Gavin0099
 > **狀態**: Active (trust foundations merged; qualification paths incomplete; keep NO_GO)

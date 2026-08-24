@@ -10,7 +10,7 @@
 
 - `main` is `a6f9962d1357c98f9aad8392d2763fcd7146f6d1`; PR #13, PR #14, and PR #15 were merged in sequence.
 - PR #13's required CI passed. PR #14 and PR #15 were merged with explicit administrator bypass because the GitHub workflow stopped during checkout of the private `additional/ai-governance-framework` submodule; their full CI steps did not execute and are not claimed as PASS.
-- Combined-state local evidence remains bounded: the PR #14 branch validation ran 77 tests, and the PR #15 M2 validation ran 27 tests. These results do not replace the failed GitHub checkout gate.
+- The merge workflow reported a local 77-test validation for PR #14 and a 27-test M2 validation for PR #15. The 77-test result has no durable test artifact or command output committed and is not treated as qualification evidence; neither local result replaces the failed GitHub checkout gate.
 - `main` remains protected with `enforce_admins=true` and one required approving review. The administrator bypass used for these merges is not evidence of independent approval.
 - Trust foundations are merged, but v1 qualification capability is not complete: Layer A governed reference binding is implemented, official raw USB 2.0/USB 3.2/LVS sources remain pending, the live Coding Agent path remains incomplete, and real model/GV100 evidence is absent.
 - Final qualification remains `NO_GO`. Hardware identity bring-up may begin as a bounded activity; formal model, Spec QA, Coding Agent, or GV100 qualification claims are not admitted.

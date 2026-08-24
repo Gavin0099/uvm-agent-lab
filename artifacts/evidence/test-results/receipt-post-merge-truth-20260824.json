@@ -1,17 +1,112 @@
 {
   "receipt_schema": "test_evidence_receipt.v0.1",
   "status": "report_only",
-  "command": "python -c \"import json, subprocess; from pathlib import Path; repo='Gavin0099/uvm-agent-lab'; expected_main='a6f9962d1357c98f9aad8392d2763fcd7146f6d1'; expected_merges={'13':'083c6371bdbffc4b8855559927d3d44a243c8feb','14':'4552b7274ce3d237c2a4c7bafdfe6f9c49cb4a5b','15':'a6f9962d1357c98f9aad8392d2763fcd7146f6d1'}; output=lambda args: subprocess.check_output(args,text=True).strip(); main=output(['gh','api',f'repos/{repo}/branches/main','--jq','.commit.sha']); assert main==expected_main; observed={pr:(output(['gh','api',f'repos/{repo}/pulls/{pr}','--jq','.state']),output(['gh','api',f'repos/{repo}/pulls/{pr}','--jq','.merge_commit_sha'])) for pr in expected_merges}; assert all(state=='closed' and merge==expected_merges[pr] for pr,(state,merge) in observed.items()), observed; enforce=output(['gh','api',f'repos/{repo}/branches/main/protection','--jq','.enforce_admins.enabled']); approvals=output(['gh','api',f'repos/{repo}/branches/main/protection','--jq','.required_pull_request_reviews.required_approving_review_count']); assert enforce=='true' and approvals=='1'; markers={'PLAN.md':['Current Qualification Checkpoint','Current Next Steps'],'README.md':['Current Qualification State','NO_GO'],'memory/01_active_task.md':['Current Truth (2026-08-24)','FOUNDATIONS_MERGED'],'memory/04_review_log.md':['Current Truth (2026-08-24)','Final Qualification remains']}; assert all(value in Path(path).read_text(encoding='utf-8') for path,values in markers.items() for value in values); print(json.dumps({'main':main,'merges':observed,'enforce_admins':enforce,'required_approvals':approvals,'truth_markers':list(markers)},sort_keys=True))\"",
+  "command": "python -c \"import json,os,subprocess; from pathlib import Path; clean_env=os.environ.copy(); clean_env.pop('GH_FORCE_TTY',None); repo='Gavin0099/uvm-agent-lab'; expected_main='a6f9962d1357c98f9aad8392d2763fcd7146f6d1'; expected_merges={'13':'083c6371bdbffc4b8855559927d3d44a243c8feb','14':'4552b7274ce3d237c2a4c7bafdfe6f9c49cb4a5b','15':'a6f9962d1357c98f9aad8392d2763fcd7146f6d1'}; expected_heads={'13':'82c499a3d313167b6c5639b775b726d76c7c45be','14':'f045fd16be2d1559656ab27a2558e5482e828cc6','15':'7581d77a00b16675c9c7f47420b72bef68205e23'}; workflow_ids={'13':32469154990,'14':32683886495,'15':32684401044}; api=lambda path: json.loads(subprocess.check_output(['gh','api',path],env=clean_env)); main=api(f'repos/{repo}/branches/main')['commit']['sha']; pulls={pull_request:api(f'repos/{repo}/pulls/{pull_request}') for pull_request in expected_merges}; assert main==expected_main; assert all(pulls[pull_request]['state']=='closed' and pulls[pull_request]['merged'] and pulls[pull_request]['merge_commit_sha']==expected_merges[pull_request] and pulls[pull_request]['head']['sha']==expected_heads[pull_request] for pull_request in expected_merges); runs={pull_request:api(f'repos/{repo}/actions/runs/{run_id}') for pull_request,run_id in workflow_ids.items()}; jobs={pull_request:api(f'repos/{repo}/actions/runs/{run_id}/jobs')['jobs'] for pull_request,run_id in workflow_ids.items()}; ci_jobs={pull_request:next(job for job in jobs[pull_request] if job['name']=='Comprehensive Verification & AI Governance Gate') for pull_request in expected_merges}; step=lambda pull_request,name: next(item for item in ci_jobs[pull_request]['steps'] if item['name']==name); assert runs['13']['head_sha']==expected_heads['13'] and runs['13']['conclusion']=='success' and ci_jobs['13']['conclusion']=='success' and step('13','Run Full Pytest Suite (32 tests)')['conclusion']=='success'; assert all(runs[pull_request]['head_sha']==expected_heads[pull_request] and runs[pull_request]['conclusion']=='failure' and ci_jobs[pull_request]['conclusion']=='failure' and step(pull_request,'Checkout repository with submodules')['conclusion']=='failure' and step(pull_request,'Run Full Pytest Suite (32 tests)')['conclusion']=='skipped' for pull_request in ('14','15')); protection=api(f'repos/{repo}/branches/main/protection'); assert protection['enforce_admins']['enabled'] is True and protection['required_pull_request_reviews']['required_approving_review_count']==1; reviews={pull_request:api(f'repos/{repo}/pulls/{pull_request}/reviews') for pull_request in expected_merges}; automated_reviewers={'chatgpt-codex-connector'}; review_observations={}; assert all(not [review for review in reviews[pull_request] if review.get('state')=='APPROVED'] for pull_request in expected_merges); review_observations={pull_request:{'approved_review_count':len([review for review in reviews[pull_request] if review.get('state')=='APPROVED']),'independent_approved_count':len([review for review in reviews[pull_request] if review.get('state')=='APPROVED' and review.get('user',{}).get('login') not in automated_reviewers])} for pull_request in expected_merges}; markers={'PLAN.md':['Current Qualification Checkpoint','Current Next Steps'],'README.md':['Current Qualification State','NO_GO'],'memory/01_active_task.md':['Current Truth (2026-08-24)','FOUNDATIONS_MERGED'],'memory/04_review_log.md':['Current Truth (2026-08-24)','Final Qualification remains']}; assert all(value in Path(path).read_text(encoding='utf-8') for path,values in markers.items() for value in values); print(json.dumps({'main':main,'merges':{pull_request:[pulls[pull_request]['state'],pulls[pull_request]['merge_commit_sha']] for pull_request in expected_merges},'ci_observations':{pull_request:{'head_sha':runs[pull_request]['head_sha'],'workflow_run_id':workflow_ids[pull_request],'workflow_name':runs[pull_request]['name'],'required_ci_conclusion':runs[pull_request]['conclusion'],'failure_step':None if pull_request=='13' else {'name':step(pull_request,'Checkout repository with submodules')['name'],'conclusion':step(pull_request,'Checkout repository with submodules')['conclusion']},'pytest_step':{'name':step(pull_request,'Run Full Pytest Suite (32 tests)')['name'],'conclusion':step(pull_request,'Run Full Pytest Suite (32 tests)')['conclusion']},'run_url':runs[pull_request]['html_url']} for pull_request in expected_merges},'review_observations':review_observations,'branch_protection_after_merge':{'enforce_admins':protection['enforce_admins']['enabled'],'required_approvals':protection['required_pull_request_reviews']['required_approving_review_count'],'required_checks':protection['required_status_checks']['contexts']},'truth_markers':list(markers)},sort_keys=True))\"",
   "exit_code": 0,
-  "started_at": "2026-08-24T03:12:55Z",
-  "finished_at": "2026-08-24T03:13:02Z",
+  "started_at": "2026-08-24T03:38:51.3852985Z",
+  "finished_at": "2026-08-24T03:39:01.4168663Z",
   "runner": "post-merge-truth-verification",
   "linked_commit": "fcaeda35c1646f60c86f69fbd4c27f188e0de763",
   "output_artifacts": [
     "artifacts/evidence/test-results/receipt-post-merge-truth-20260824.txt"
   ],
+  "github_observed": {
+    "main": "a6f9962d1357c98f9aad8392d2763fcd7146f6d1",
+    "pull_requests": {
+      "13": {
+        "head_sha": "82c499a3d313167b6c5639b775b726d76c7c45be",
+        "merge_commit_sha": "083c6371bdbffc4b8855559927d3d44a243c8feb",
+        "workflow_run_id": 32469154990,
+        "required_ci_conclusion": "success",
+        "failure_step": null,
+        "pytest_step": {
+          "name": "Run Full Pytest Suite (32 tests)",
+          "conclusion": "success"
+        },
+        "run_url": "https://github.com/Gavin0099/uvm-agent-lab/actions/runs/32469154990"
+      },
+      "14": {
+        "head_sha": "f045fd16be2d1559656ab27a2558e5482e828cc6",
+        "merge_commit_sha": "4552b7274ce3d237c2a4c7bafdfe6f9c49cb4a5b",
+        "workflow_run_id": 32683886495,
+        "required_ci_conclusion": "failure",
+        "failure_step": {
+          "name": "Checkout repository with submodules",
+          "conclusion": "failure"
+        },
+        "pytest_step": {
+          "name": "Run Full Pytest Suite (32 tests)",
+          "conclusion": "skipped"
+        },
+        "run_url": "https://github.com/Gavin0099/uvm-agent-lab/actions/runs/32683886495"
+      },
+      "15": {
+        "head_sha": "7581d77a00b16675c9c7f47420b72bef68205e23",
+        "merge_commit_sha": "a6f9962d1357c98f9aad8392d2763fcd7146f6d1",
+        "workflow_run_id": 32684401044,
+        "required_ci_conclusion": "failure",
+        "failure_step": {
+          "name": "Checkout repository with submodules",
+          "conclusion": "failure"
+        },
+        "pytest_step": {
+          "name": "Run Full Pytest Suite (32 tests)",
+          "conclusion": "skipped"
+        },
+        "run_url": "https://github.com/Gavin0099/uvm-agent-lab/actions/runs/32684401044"
+      }
+    },
+    "reviews": {
+      "13": {
+        "approved_review_count": 0,
+        "independent_approved_count": 0
+      },
+      "14": {
+        "approved_review_count": 0,
+        "independent_approved_count": 0
+      },
+      "15": {
+        "approved_review_count": 0,
+        "independent_approved_count": 0
+      }
+    },
+    "branch_protection_after_merge": {
+      "enforce_admins": true,
+      "required_approvals": 1,
+      "required_checks": [
+        "Comprehensive Verification & AI Governance Gate"
+      ]
+    }
+  },
+  "operator_recorded_exceptions": [
+    {
+      "affected_prs": [
+        "14",
+        "15"
+      ],
+      "exception": "administrator_bypass",
+      "authorization": "explicitly authorized in the operator merge workflow",
+      "authorization_provenance": "operator record; not verified by the GitHub API assertions in this receipt",
+      "reason": "required CI could not complete checkout of the private additional/ai-governance-framework submodule",
+      "claim_boundary": "not an independent approval and not a GitHub-observed review fact"
+    }
+  ],
+  "reported_local_validation": {
+    "claim": "77 passed for PR #14 combined-state validation",
+    "status": "reported_not_durable",
+    "evidence_ref": null,
+    "qualification_use": "not_admissible"
+  },
+  "truth_markers": [
+    "PLAN.md",
+    "README.md",
+    "memory/01_active_task.md",
+    "memory/04_review_log.md"
+  ],
   "cannot_claim": [
     "semantic correctness of the tested behavior",
-    "receipt authenticity: every field is fabricatable by a direct writer"
+    "receipt authenticity: every field is fabricatable by a direct writer",
+    "operator-recorded administrator bypass as a GitHub-observed fact",
+    "the reported local 77-test count as durable qualification evidence"
   ]
 }
