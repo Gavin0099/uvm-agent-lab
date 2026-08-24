@@ -1,0 +1,17 @@
+{
+  "receipt_schema": "test_evidence_receipt.v0.1",
+  "status": "report_only",
+  "command": "python -c \"import json, subprocess; repo='Gavin0099/uvm-agent-lab'; expected_merge='5662df7466ff67d396c38495bc1f6d8794ff23e8'; expected_head='eea5b579c93e1f66fdf5c434bbadaa939461837a'; pr=json.loads(subprocess.check_output(['gh','pr','view','11','--repo',repo,'--json','state,mergedAt,mergeCommit,headRefOid'], text=True)); assert pr['state']=='MERGED' and pr['mergeCommit']['oid']==expected_merge and pr['headRefOid']==expected_head; admins=json.loads(subprocess.check_output(['gh','api','repos/'+repo+'/branches/main/protection/enforce_admins'], text=True)); assert admins['enabled'] is True; reviews=json.loads(subprocess.check_output(['gh','api','repos/'+repo+'/branches/main/protection/required_pull_request_reviews'], text=True)); assert reviews['required_approving_review_count']==1; print(json.dumps({'pr_state':pr['state'],'merge_commit':pr['mergeCommit']['oid'],'head':pr['headRefOid'],'enforce_admins':admins['enabled'],'required_approving_review_count':reviews['required_approving_review_count']}, sort_keys=True))\"",
+  "exit_code": 0,
+  "started_at": "2026-08-21T09:09:05Z",
+  "finished_at": "2026-08-21T09:09:08Z",
+  "runner": "pr11-merge-verification",
+  "linked_commit": "5662df7466ff67d396c38495bc1f6d8794ff23e8",
+  "output_artifacts": [
+    "artifacts/evidence/test-results/receipt-pr11-merge-20260821.txt"
+  ],
+  "cannot_claim": [
+    "semantic correctness of the tested behavior",
+    "receipt authenticity: every field is fabricatable by a direct writer"
+  ]
+}
