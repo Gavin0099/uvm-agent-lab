@@ -1,10 +1,19 @@
 # UVM Agent Lab — Master Project Plan (PLAN.md)
 
-> **最後更新**: 2026-08-21
+> **最後更新**: 2026-08-24
 > **Owner**: Gavin0099
 > **Freshness**: Phase (30d)
 > **Status**: Active (v1 Local AI Agent Qualification Harness)
 > **Deterministic Local Model, Spec QA, Coding Agent, Governance/Evidence, and GV100 Hardware Qualification**
+
+## 0. Current Qualification Checkpoint (2026-08-24)
+
+- `main` is `a6f9962d1357c98f9aad8392d2763fcd7146f6d1`; PR #13, PR #14, and PR #15 were merged in sequence.
+- PR #13's required CI passed. PR #14 and PR #15 were merged with explicit administrator bypass because the GitHub workflow stopped during checkout of the private `additional/ai-governance-framework` submodule; their full CI steps did not execute and are not claimed as PASS.
+- The merge workflow reported a local 77-test validation for PR #14 and a 27-test M2 validation for PR #15. The 77-test result has no durable test artifact or command output committed and is not treated as qualification evidence; neither local result replaces the failed GitHub checkout gate.
+- `main` remains protected with `enforce_admins=true` and one required approving review. The administrator bypass used for these merges is not evidence of independent approval.
+- Trust foundations are merged, but v1 qualification capability is not complete: Layer A governed reference binding is implemented, official raw USB 2.0/USB 3.2/LVS sources remain pending, the live Coding Agent path remains incomplete, and real model/GV100 evidence is absent.
+- Final qualification remains `NO_GO`. Hardware identity bring-up may begin as a bounded activity; formal model, Spec QA, Coding Agent, or GV100 qualification claims are not admitted.
 
 ---
 
@@ -161,3 +170,14 @@ EDA compile/simulate/coverage remains an explicit Phase 2 `EDAValidator` plugin.
 - [x] **Deterministic SimStub**: 模擬 VCS/Verilator pass/fail。
 - [x] **Negative Tests & Verification**: 驗證越界存取、缺少證據時能正確判定 FAIL。
 - [x] **CI Pipeline**: 具備自動化測試工作流程。
+
+---
+
+## 🎯 7. Current Next Steps
+
+1. **Keep software feature changes frozen**: do not add unrelated framework, EDA, SFT/DPO, coverage, or dashboard work.
+2. **Resolve CI governance checkout**: restore an admissible GitHub Actions checkout path for the private governance submodule before treating full CI as qualification evidence.
+3. **Spec QA admission**: acquire and bind official USB 2.0, USB 3.2 Rev. 1.1, and SuperSpeed Hub LVS Rev. 1.15 sources; then add a corpus binding receipt to the QA evaluation and qualification chain.
+4. **Coding Agent admission**: implement the profile-aware live runner and required CI admission for `AGENT-CODE-001` through `AGENT-CODE-005`.
+5. **Hardware identity**: verify dual GV100, 32GB memory, and NVLink with `nvidia-smi` and `nvidia-smi topo -m`; this is bring-up evidence only.
+6. **Final qualification**: require real model, endpoint, corpus, coding, hardware, and human-review evidence before changing `NO_GO`.

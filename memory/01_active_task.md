@@ -1,23 +1,22 @@
 # Active Task
 
-<!-- governance:reviewer_verified -->
-
-> **最後更新**: 2026-08-21
+> **最後更新**: 2026-08-24
 > **Owner**: Gavin0099
-> **狀態**: Active (Phase 1 software harness CLOSED; hardware bring-up pending; keep NO_GO)
+> **狀態**: Active (trust foundations merged; qualification paths incomplete; keep NO_GO)
 
-## 🔒 Current Truth (2026-08-21)
-- PR #6 runtime attestation, PR #7 Gate 4 execution contracts, PR #8 Gate 4 trust-root/durability repair, and PR #9 v1 scope/canonical coding benchmark are merged into `main` at `4546f8a` in order. No live hardware qualification is claimed.
-- Gate 4 software trust chain is complete: independent model provenance, harness-owned runtime execution, context-aware timeout evidence, raw profile re-evaluation, expected candidate identity, selected-pair NVLink evidence, schema consistency, and registry durability are implemented and CI-validated.
+## 🔒 Current Truth (2026-08-24)
+- `main` is `a6f9962d1357c98f9aad8392d2763fcd7146f6d1`; PR #13, #14, and #15 were merged sequentially.
+- PR #13 required CI passed. PR #14 and #15 were merged through explicit administrator bypass after GitHub checkout failed on the private `additional/ai-governance-framework` submodule; their full CI steps did not execute and are not claimed as PASS.
+- Runtime model/process binding, receipt-backed memory provenance, and per-source corpus binding foundations are present. These are software trust foundations, not live qualification results.
 - This repair replaces caller-supplied approval values with a committed, clean Git-tracked registry and binds receipt approval ID, registry bytes hash, registry Git blob OID, and last registry-change commit. Unrelated commits do not invalidate an unchanged registry; registry changes still invalidate receipts. The production registry remains empty until a real external checksum is reviewed and committed; no model approval is fabricated here.
-- PR #8 and PR #9 are merged; main branch protection is restored to one required approval.
-- Phase 1 software validation is complete: PR #8/PR #9 CI passed; Gate 4 durability and v1 validator suites passed; canonical lightweight coding cases are present.
+- PR #8 and PR #9 remain merged; PR #13, #14, and #15 now extend main with runtime trust, memory receipt, and corpus binding foundations.
+- Phase 1 software foundations are merged, but capability qualification is incomplete: PR #13 CI passed, while PR #14/#15 GitHub full CI stopped at private submodule checkout and did not execute their test steps.
 - v1 critical path is intentionally limited to Local Model/Runtime, Spec QA/RAG, Local Coding Agent, Governance/Evidence, and GV100 Hardware Profiling. EDA compile/simulate/coverage remains a retained Phase 2 plugin.
 - Benchmark contracts distinguish `lightweight` and `eda` validator profiles; the canonical v1 coding benchmark universe is `AGENT-CODE-001` through `AGENT-CODE-005`.
 - Canonical coding cases are now real Python fixture tasks: bug fix, refactor, test coverage, configuration change, and bounded multi-file change. Cases `001` and `004` intentionally have red untouched baselines and become acceptance oracles after the agent change.
 - `validator_profile` is a top-level schema property, required for `AGENT-*` cases; invalid explicit values fail closed instead of silently falling back. Legacy UVM/live-universe aggregators remain UVM-only.
-- Phase 1 software closeout status: `CLOSED` / `PHASE_1_SOFTWARE_READY_FOR_HARDWARE_BRINGUP`.
-- Gate 4 software readiness: `READY_FOR_BRINGUP`.
+- Phase 1 software status: `FOUNDATIONS_MERGED` / qualification paths incomplete.
+- Gate 4 status: bounded hardware identity bring-up may start; formal model/runtime qualification remains pending.
 - Hardware qualification: `NOT_READY` because real Qwen inference and physical GV100 telemetry have not run.
 - Qualification decision: `NO_GO` until live model, hardware, Spec QA, Coding Agent, Governance/Evidence, and human-review evidence exist.
 - Software evidence is not hardware qualification evidence. Do not claim live llama.cpp/vLLM execution, GPU/NVLink qualification, or `GO`.
@@ -27,11 +26,11 @@
 
 ---
 
-## 🏗️ Completed Phases & Capabilities
+## 🧩 Implemented Foundations (not qualification evidence)
 
-### ✅ Phase 1: Deterministic Evaluation & Gates 0–4
+### 🟡 Phase 1: Deterministic Evaluation & Gates 0–4 foundations
 - **Schema & Scoring**: Implemented `case_schema.json`, `result_schema.json`, and comprehensive scoring rubrics (`benchmarks/scoring.md`).
-- **Gate 1 (Governed Knowledge Layer vs Baseline RAG)**: `spec-reference-kit` achieves 100% Recall@1 on approved verification specs while rejecting unapproved drafts, compared to 33.3% failure in baseline vector RAG.
+- **Gate 1 deterministic baseline**: `spec-reference-kit` and baseline RAG arms are implemented for controlled fixtures; this is not full POC-1 corpus or live Spec QA qualification evidence.
 - **Gate 2 (Multi-Turn Self-Healing Harness)**: `MultiTurnHealingAgentRunner` autonomously parses compiler errors, timing mismatches, and applies patches in iterative multi-turn loops.
 - **Gate 3 (Model A/B Evaluation Suite)**: `OpenAICompatibleLLMRunner` enables headless A/B evaluation between commercial and open-source models with offline fallback.
 - **Gate 4 (Dual GV100 NVLink Capacity Budgeting)**: Calculated memory budgets, AWQ 4-bit tensor parallelism (`TP=2`), and context scaling up to 128K tokens on 2× Quadro/Tesla GV100 32GB cards (Analytical Estimate; Physical Bare-Metal Qualification Pending).
@@ -78,7 +77,7 @@
   - `validators/zero_trust_evidence_validator.py` (enforcing evidence packet integrity)
 - Installed `.git/hooks/pre-commit` and `.git/hooks/pre-push` runtime hooks.
 - Configured GitHub Actions CI/CD workflows (`.github/workflows/ci.yml`, `.github/workflows/governance-drift.yml`).
-### ✅ Phase 4: GV100H Local AI Agent POC & M0.5 Admission Pipeline (2026-08-18)
+### 🟡 Phase 4: GV100H Local AI Agent POC foundations (qualification pending)
 - **Dynamic Task Contracts & Canonical Guardrails (`gv100h/governance/`)**:
   - `contract_router.py` dynamically resolves Development Governance Contracts (`GV100H-M0.5`) and Benchmark Execution Contracts.
   - Hardened `guardrails.py` with canonical path resolution and symlink traversal defenses.
@@ -100,8 +99,8 @@
 ---
 
 ## 🎯 Next Steps & Future Roadmap
-1. **Software freeze**: do not add new framework features, EDA integrations, SFT/DPO, coverage, or dashboard work for Phase 1.
-2. **Hardware identity**: verify dual GV100, 32GB memory, and NVLink with `nvidia-smi` and `nvidia-smi topo -m`.
-3. **Runtime/model trust root**: build and hash `llama-server`; obtain the exact Qwen GGUF; populate the reviewed approval registry; generate manifest and verification receipt.
-4. **First live cell**: run single-GV100 Q8 KV, 32K, MTP OFF smoke and stability profiling before MTP n=2 or longer contexts.
-5. **Evidence campaign**: run 32K OFF, 32K MTP n=2, 64K, 128K; then live Spec QA and the five Coding Agent tasks before qualification review.
+1. **Keep software feature changes frozen**: do not add unrelated framework features or benchmark surfaces.
+2. **Resolve the private governance submodule checkout** before using GitHub full CI as qualification evidence.
+3. **Build the Spec QA admission chain**: acquire official raw sources, produce the corpus binding receipt, and bind it to QA evaluation results.
+4. **Complete profile-aware Coding Agent admission** for the canonical lightweight cases.
+5. **Run bounded hardware bring-up** only after runtime/model trust-root evidence is available; keep formal qualification `NO_GO` until all required evidence exists.
