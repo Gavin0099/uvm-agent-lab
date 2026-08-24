@@ -4,8 +4,14 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 
+from gv100h.spec_qa.contracts.corpus_binding_receipt import (
+    CorpusBindingReceiptError,
+    load_corpus_binding_receipt,
+    verify_corpus_binding_receipt,
+)
 from gv100h.spec_qa.evaluation.deterministic_evaluator import QAEvaluationResult
 from gv100h.coding_eval.governance_ab_runner import ABExperimentSummary
+from gv100h.spec_qa.retrieval.governed_retriever import GovernedSpecRetriever
 from gv100h.runtime.admission_matrix import (
     RuntimeAdmissionMatrix,
     canonical_profile_identity,
@@ -42,6 +48,33 @@ class QualificationPolicyEvaluator:
         with open(p_path, "r", encoding="utf-8") as f:
             self.policy = yaml.safe_load(f)
 
+    @staticmethod
+    def _verify_corpus_admission(
+        receipt_path: Optional[str | Path],
+        retriever: Optional[GovernedSpecRetriever],
+        repo_root: Optional[str | Path],
+    ) -> tuple[str, Optional[str]]:
+        if receipt_path is None:
+            return "missing", None
+        receipt_file = Path(receipt_path)
+        if not receipt_file.is_file():
+            return "missing", None
+        if retriever is None:
+            return "unverified", None
+
+        try:
+            receipt = load_corpus_binding_receipt(receipt_file)
+            verify_corpus_binding_receipt(
+                receipt,
+                retriever,
+                repo_root=repo_root,
+            )
+        except CorpusBindingReceiptError as exc:
+            return exc.status, None
+        except (OSError, ValueError):
+            return "mismatch", None
+        return "verified", receipt.receipt_hash
+
     def evaluate(
         self,
         qa_result: QAEvaluationResult,
@@ -49,6 +82,9 @@ class QualificationPolicyEvaluator:
         hardware_profile: Dict[str, Any],
         *,
         expected_candidate_name: Optional[str] = None,
+        corpus_binding_receipt_path: Optional[str | Path] = None,
+        corpus_retriever: Optional[GovernedSpecRetriever] = None,
+        corpus_repo_root: Optional[str | Path] = None,
     ) -> QualificationDecision:
         gates_cfg = self.policy.get("policy_gates", {})
         gates: List[GateResult] = []
@@ -72,6 +108,36 @@ class QualificationPolicyEvaluator:
             description="Zero authority escalation violation"
         )
         gates.append(g_qa_auth)
+
+        corpus_binding_required = qa_cfg.get("require_corpus_binding", True)
+        verified_corpus_status, verified_corpus_hash = self._verify_corpus_admission(
+            corpus_binding_receipt_path,
+            corpus_retriever,
+            corpus_repo_root,
+        )
+        corpus_receipt_verified = (
+            verified_corpus_status == "verified"
+            and verified_corpus_hash is not None
+            and qa_result.corpus_receipt_status == "verified"
+            and qa_result.corpus_binding_receipt_hash is not None
+            and qa_result.corpus_binding_receipt_hash.lower() == verified_corpus_hash.lower()
+        )
+        g_qa_corpus = GateResult(
+            gate_name="spec_qa.corpus_binding_verified",
+            required="verified" if corpus_binding_required else "not_required",
+            observed={
+                "result_status": qa_result.corpus_receipt_status,
+                "result_receipt_hash": qa_result.corpus_binding_receipt_hash,
+                "verified_status": verified_corpus_status,
+                "verified_receipt_hash": verified_corpus_hash,
+            },
+            passed=(
+                not corpus_binding_required
+                or corpus_receipt_verified
+            ),
+            description="Qualification requires a verified corpus binding receipt",
+        )
+        gates.append(g_qa_corpus)
 
         g_qa_cat_a = GateResult(
             gate_name="spec_qa.min_grounded_accuracy",

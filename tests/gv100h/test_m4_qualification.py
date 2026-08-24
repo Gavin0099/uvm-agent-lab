@@ -38,6 +38,7 @@ def test_qualification_policy_loading():
     assert "max_vram_usage_per_gpu_gb" in policy["policy_gates"]["hardware_feasibility"]
     assert "min_est_decode_tps" in policy["policy_gates"]["hardware_feasibility"]
     assert policy["policy_gates"]["spec_qa"]["min_adversarial_pass_rate"] == 100.0
+    assert policy["policy_gates"]["spec_qa"]["require_corpus_binding"] is True
 
 
 # Supporting numeric knobs consumed inside another emitted gate, not standalone.
@@ -478,7 +479,7 @@ def test_observed_self_declared_candidate_cannot_override_expected_candidate():
     assert identity_gate.passed is False
 
 
-def test_missing_human_rating_is_pending_not_conditional_go():
+def test_missing_corpus_binding_blocks_human_review():
     qa_res, coding_res, hardware = _live_inputs_for_decision()
     decision = QualificationPolicyEvaluator().evaluate(
         qa_res,
@@ -487,8 +488,13 @@ def test_missing_human_rating_is_pending_not_conditional_go():
         expected_candidate_name="candidate_a_llama_cpp_gguf",
     )
 
-    assert decision.decision == "PENDING_HUMAN_REVIEW"
-    assert decision.details["human_review"]["status"] == "PENDING"
+    assert decision.decision == "NO_GO"
+    corpus_gate = next(
+        gate
+        for gate in decision.gates
+        if gate.gate_name == "spec_qa.corpus_binding_verified"
+    )
+    assert corpus_gate.passed is False
 
 
 def test_cat_d_failure_is_no_go():

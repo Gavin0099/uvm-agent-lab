@@ -194,6 +194,24 @@ The existing retrieval target remains `Recall@1 >= 95%` and
 fabricated citations, zero unsupported claims on negative controls, and 100%
 valid citations for accepted answer cases before a P0 pass can be claimed.
 
+### 7.1 Corpus Binding Receipt Admission
+
+QA evaluation results are not admissible for qualification unless they carry a
+verified `CorpusBindingReceipt`. The receipt must bind the corpus lock bytes
+and Git identity, every required Phase 1 source ID and observed hash, the
+runtime binding records, the physically verified state, and the governed
+reference commit/content hash. A receipt hash is recorded for the exact
+canonical receipt payload, excluding the self-referential `receipt_hash` field.
+
+The evaluator propagates `corpus_receipt_status` and
+`corpus_binding_receipt_hash` into `QAEvaluationResult`. The qualification
+policy consumes `spec_qa.corpus_binding_verified` and re-verifies the on-disk
+receipt against the bound retriever at decision time; the result fields alone
+are not proof. `missing`, `mismatch`, and `unverified` statuses are admission
+failures and force `NO_GO`. A verified receipt proves only that the current
+lock and bound sources match the receipt at verification time; it does not
+prove document correctness, model quality, or live qualification by itself.
+
 P1 admission signals are cross-document chain retrieval and chain explanation
 accuracy. They are reported as their own score and target, rather than being
 folded into single-spec retrieval accuracy.

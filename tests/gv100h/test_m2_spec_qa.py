@@ -13,6 +13,14 @@ if str(PROJECT_ROOT) not in sys.path:
 from gv100h.spec_qa.retrieval.governed_retriever import GovernedSpecRetriever
 from gv100h.spec_qa.api.qa_service import GovernedQAService
 from gv100h.spec_qa.evaluation.deterministic_evaluator import DeterministicSpecQAEvaluator
+from gv100h.coding_eval.governance_ab_runner import ABExperimentSummary
+from gv100h.qualification.evaluator import QualificationPolicyEvaluator
+from gv100h.spec_qa.contracts.corpus_binding_receipt import (
+    CorpusBindingReceiptError,
+    build_corpus_binding_receipt,
+    load_corpus_binding_receipt,
+    verify_corpus_binding_receipt,
+)
 
 
 @pytest.mark.unit
@@ -97,6 +105,218 @@ def _create_phase1_bound_sources(tmp_path, lock):
         lock["sources"][source_id]["source_locator"] = str(source_path)
         source_paths[source_id] = source_path
     return lock, source_paths
+
+
+def _create_committed_lock_repo(tmp_path, lock):
+    repo_path = tmp_path / "consumer"
+    lock_path = repo_path / "gv100h" / "spec_qa" / "contracts" / "corpus.lock.yaml"
+    lock_path.parent.mkdir(parents=True)
+    lock_path.write_text(yaml.safe_dump(lock, sort_keys=False), encoding="utf-8")
+    subprocess.run(["git", "init", "--quiet", str(repo_path)], check=True)
+    subprocess.run(["git", "-C", str(repo_path), "config", "user.name", "Test"], check=True)
+    subprocess.run(["git", "-C", str(repo_path), "config", "user.email", "test@example.invalid"], check=True)
+    subprocess.run(["git", "-C", str(repo_path), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(repo_path), "commit", "--quiet", "-m", "bind corpus lock"], check=True)
+    return repo_path, lock_path
+
+
+@pytest.mark.contract
+def test_corpus_binding_receipt_verifies_all_required_sources(tmp_path):
+    lock, source_paths = _create_phase1_bound_sources(
+        tmp_path,
+        copy.deepcopy(GovernedSpecRetriever().corpus_lock),
+    )
+    consumer_root, lock_path = _create_committed_lock_repo(tmp_path, lock)
+    retriever = GovernedSpecRetriever(
+        source_paths=source_paths,
+        corpus_lock_path=str(lock_path),
+        require_physical_binding=True,
+    )
+
+    receipt = build_corpus_binding_receipt(retriever, repo_root=consumer_root)
+    receipt_path = tmp_path / "corpus-binding-receipt.json"
+    receipt_path.write_text(receipt.model_dump_json(indent=2), encoding="utf-8")
+    loaded = load_corpus_binding_receipt(receipt_path)
+    verified = verify_corpus_binding_receipt(
+        loaded,
+        retriever,
+        repo_root=consumer_root,
+    )
+
+    assert loaded.receipt_hash
+    assert loaded.required_source_ids == list(retriever.REQUIRED_PHASE1_SOURCES)
+    assert loaded.physical_binding_verified is True
+    expected_hash = hashlib.sha256(source_paths["usb32"].read_bytes()).hexdigest()
+    assert loaded.observed_source_hashes["usb32"] == expected_hash
+    assert verified["receipt_hash"] == loaded.receipt_hash
+
+
+@pytest.mark.contract
+def test_corpus_binding_receipt_cannot_be_built_from_blocked_retriever():
+    with pytest.raises(CorpusBindingReceiptError, match="unverified"):
+        build_corpus_binding_receipt(GovernedSpecRetriever())
+
+
+@pytest.mark.contract
+def test_corpus_binding_receipt_rejects_tampered_digest(tmp_path):
+    lock, source_paths = _create_phase1_bound_sources(
+        tmp_path,
+        copy.deepcopy(GovernedSpecRetriever().corpus_lock),
+    )
+    consumer_root, lock_path = _create_committed_lock_repo(tmp_path, lock)
+    retriever = GovernedSpecRetriever(
+        source_paths=source_paths,
+        corpus_lock_path=str(lock_path),
+        require_physical_binding=True,
+    )
+    receipt = build_corpus_binding_receipt(retriever, repo_root=consumer_root)
+    tampered = receipt.model_copy(update={"receipt_hash": "0" * 64})
+
+    with pytest.raises(ValueError, match="receipt hash does not match"):
+        verify_corpus_binding_receipt(
+            tampered,
+            retriever,
+            repo_root=consumer_root,
+        )
+
+
+@pytest.mark.contract
+def test_qa_evaluator_propagates_corpus_receipt_and_dataset_hash(tmp_path):
+    lock, source_paths = _create_phase1_bound_sources(
+        tmp_path,
+        copy.deepcopy(GovernedSpecRetriever().corpus_lock),
+    )
+    consumer_root, lock_path = _create_committed_lock_repo(tmp_path, lock)
+    retriever = GovernedSpecRetriever(
+        source_paths=source_paths,
+        corpus_lock_path=str(lock_path),
+        require_physical_binding=True,
+    )
+    receipt = build_corpus_binding_receipt(retriever, repo_root=consumer_root)
+    receipt_path = tmp_path / "corpus-binding-receipt.json"
+    receipt_path.write_text(receipt.model_dump_json(indent=2), encoding="utf-8")
+
+    evaluator = DeterministicSpecQAEvaluator(
+        corpus_binding_receipt_path=str(receipt_path),
+        retriever=retriever,
+    )
+    result = evaluator.run_benchmark(lambda _query, _scope: ("", []))
+
+    assert result.corpus_receipt_status == "verified"
+    assert result.corpus_binding_receipt_hash == receipt.receipt_hash
+    assert result.dataset_hash == hashlib.sha256(
+        evaluator.dataset_file.read_bytes()
+    ).hexdigest()
+
+
+@pytest.mark.contract
+def test_policy_revalidates_corpus_receipt_after_qa_evaluation(tmp_path):
+    lock, source_paths = _create_phase1_bound_sources(
+        tmp_path,
+        copy.deepcopy(GovernedSpecRetriever().corpus_lock),
+    )
+    consumer_root, lock_path = _create_committed_lock_repo(tmp_path, lock)
+    retriever = GovernedSpecRetriever(
+        source_paths=source_paths,
+        corpus_lock_path=str(lock_path),
+        require_physical_binding=True,
+    )
+    receipt = build_corpus_binding_receipt(retriever, repo_root=consumer_root)
+    receipt_path = tmp_path / "corpus-binding-receipt.json"
+    receipt_path.write_text(receipt.model_dump_json(indent=2), encoding="utf-8")
+    qa_result = DeterministicSpecQAEvaluator(
+        corpus_binding_receipt_path=str(receipt_path),
+        retriever=retriever,
+    ).run_benchmark(lambda _query, _scope: ("", []))
+    coding_summary = ABExperimentSummary(
+        total_runs_per_arm=30,
+        is_synthetic_simulation=True,
+        evidence_class="synthetic_offline_scaffold",
+        admissible_for_model_qualification=False,
+        arm_a_prompt_only={},
+        arm_b_governed_sidecar={},
+        governance_benefit={},
+    )
+    hardware_profile = {
+        "total_requests": 100,
+        "corruption_count": 0,
+        "hardware_observed": False,
+    }
+
+    def evaluate_policy():
+        return QualificationPolicyEvaluator().evaluate(
+            qa_result,
+            coding_summary,
+            hardware_profile,
+            corpus_binding_receipt_path=receipt_path,
+            corpus_retriever=retriever,
+            corpus_repo_root=consumer_root,
+        )
+
+    decision = evaluate_policy()
+    corpus_gate = next(
+        gate
+        for gate in decision.gates
+        if gate.gate_name == "spec_qa.corpus_binding_verified"
+    )
+    assert qa_result.corpus_receipt_status == "verified"
+    assert corpus_gate.passed is True
+
+    receipt_path.write_text(
+        receipt.model_copy(update={"receipt_hash": "0" * 64}).model_dump_json(
+            indent=2
+        ),
+        encoding="utf-8",
+    )
+    decision = evaluate_policy()
+    corpus_gate = next(
+        gate
+        for gate in decision.gates
+        if gate.gate_name == "spec_qa.corpus_binding_verified"
+    )
+    assert corpus_gate.passed is False
+
+
+@pytest.mark.contract
+def test_qa_evaluator_marks_missing_receipt(tmp_path):
+    evaluator = DeterministicSpecQAEvaluator(
+        corpus_binding_receipt_path=str(tmp_path / "missing-receipt.json")
+    )
+    result = evaluator.run_benchmark(lambda _query, _scope: ("", []))
+
+    assert result.corpus_receipt_status == "missing"
+    assert result.corpus_binding_receipt_hash is None
+
+
+@pytest.mark.contract
+def test_qa_evaluator_marks_tampered_receipt_as_mismatch(tmp_path):
+    lock, source_paths = _create_phase1_bound_sources(
+        tmp_path,
+        copy.deepcopy(GovernedSpecRetriever().corpus_lock),
+    )
+    consumer_root, lock_path = _create_committed_lock_repo(tmp_path, lock)
+    retriever = GovernedSpecRetriever(
+        source_paths=source_paths,
+        corpus_lock_path=str(lock_path),
+        require_physical_binding=True,
+    )
+    receipt = build_corpus_binding_receipt(retriever, repo_root=consumer_root)
+    tampered_path = tmp_path / "tampered-corpus-binding-receipt.json"
+    tampered_path.write_text(
+        receipt.model_copy(update={"receipt_hash": "0" * 64}).model_dump_json(
+            indent=2
+        ),
+        encoding="utf-8",
+    )
+
+    evaluator = DeterministicSpecQAEvaluator(
+        corpus_binding_receipt_path=str(tampered_path),
+        retriever=retriever,
+    )
+    result = evaluator.run_benchmark(lambda _query, _scope: ("", []))
+
+    assert result.corpus_receipt_status == "mismatch"
+    assert result.corpus_binding_receipt_hash is None
 
 
 @pytest.mark.contract
