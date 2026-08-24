@@ -1,0 +1,25 @@
+{
+  "receipt_schema": "spec_qa_raw_corpus_license_authorization.v0.1",
+  "status": "operator_authorized_internal_use_staging",
+  "recorded_at": "2026-08-24T06:32:10.4523917Z",
+  "publisher": "USB Implementers Forum",
+  "source_scope": [
+    "USB 2.0 Specification Rev 2.0",
+    "USB 3.2 Specification Rev 1.1",
+    "SuperSpeed Hub LVS Test Specification Rev 1.15"
+  ],
+  "authorization_basis": "The workspace operator explicitly authorized private external staging and corpus lock binding for internal evaluation in this session.",
+  "storage_policy": {
+    "root_locator": "env://USB_SPEC_QA_RAW_ROOT",
+    "raw_artifacts_in_public_repository": false,
+    "machine_local_absolute_paths_in_public_repository": false,
+    "redistribution": false,
+    "external_commercial_use": false
+  },
+  "claim_boundary": [
+    "This is an operator authorization record, not legal advice or a substitute for an executed USB-IF license agreement.",
+    "The repository does not claim redistribution rights or external commercial-use rights.",
+    "Human owner remains responsible for confirming that the intended internal use complies with applicable USB-IF terms.",
+    "This record does not by itself prove corpus correctness, model quality, or Spec QA qualification."
+  ]
+}

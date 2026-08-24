@@ -102,7 +102,9 @@ def _create_phase1_bound_sources(tmp_path, lock):
         source_path.write_bytes(f"{source_id} bound fixture\n".encode("utf-8"))
         source_hash = hashlib.sha256(source_path.read_bytes()).hexdigest()
         lock["sources"][source_id]["content_sha256"] = source_hash
-        lock["sources"][source_id]["source_locator"] = str(source_path)
+        lock["sources"][source_id]["source_locator"] = (
+            f"env://USB_SPEC_QA_RAW_ROOT/{source_id}.pdf"
+        )
         source_paths[source_id] = source_path
     return lock, source_paths
 
