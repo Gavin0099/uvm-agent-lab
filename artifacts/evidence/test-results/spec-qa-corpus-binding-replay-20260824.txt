@@ -1,0 +1,1 @@
+{"corpus_gate": true, "decision": "NO_GO \u2014 synthetic/offline scaffold only", "qa_status": "verified", "replay": "PASS"}

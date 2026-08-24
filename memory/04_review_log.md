@@ -6,11 +6,13 @@
 
 ## 🔎 Current Truth (2026-08-24)
 
-- `main` is `a6f9962d1357c98f9aad8392d2763fcd7146f6d1`; PR #13, #14, and #15 were merged sequentially.
+- PR #13 through PR #19 were merged sequentially; this corpus binding slice is based on main at `1ce9006cf7fb37a8c3efe339e86df781adcff11c`.
 - PR #13's required CI passed. PR #14 and #15 reached combined heads and passed their local focused validations, but GitHub full CI stopped during checkout of the private `additional/ai-governance-framework` submodule. Their post-merge full CI steps did not execute and are not claimed as PASS.
+- PR #17, #18, and #19 passed full GitHub verification after the governance framework became publicly checkoutable. Their merge commits are `da78dc7` (PR #17), `fcd7366` (PR #18), and `1ce9006` (PR #19). Post-PR19 main run `32697971617` passed with all configured steps executed.
 - The merge commits are `083c637` (PR #13), `4552b727` (PR #14), and `a6f9962` (PR #15). The #14 and #15 merges used explicit administrator bypass because the governance submodule checkout was unavailable to GitHub Actions.
 - `main` branch protection is restored with `enforce_admins=true` and one required approving review. The administrator bypass is not evidence of an independent approving review.
-- Current technical state: runtime model/process binding, receipt-backed memory provenance, Layer A identity binding, and per-source Layer B physical-binding semantics are implemented. Official raw USB sources, live Spec QA admission, profile-aware Coding Agent qualification, and real GV100/model evidence remain pending.
+- Current technical state: runtime model/process binding, receipt-backed memory provenance, Layer A identity binding, per-source Layer B physical-binding semantics, and decision-time CorpusBindingReceipt revalidation are implemented. Official raw USB 2.0/USB 3.2/LVS artifacts are hash-verified in private staging and bound by lock commit `34d503f`; the receipt hash is `5e3c47b34e2b55dbab100ae571435440c4043c55b2fb89c4a81e204624ab2a48`. Complete POC-1 QA acceptance, profile-aware Coding Agent qualification, and real GV100/model evidence remain pending.
+- The private binding keeps raw bytes outside the public repository and records operator internal-use staging authorization separately; it does not claim USB-IF redistribution rights or complete Spec QA qualification.
 - Final Qualification remains `NO_GO`. Hardware identity bring-up can be bounded and exploratory; formal qualification and internal-pilot claims remain inadmissible.
 
 ## 📝 Milestone History
