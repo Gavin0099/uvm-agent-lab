@@ -1,0 +1,48 @@
+spec_qa_corpus_binding_receipt.v1
+verified_at=2026-08-24T06:42:37Z
+status=verified
+corpus_id=usb-hub-poc1-phase1
+corpus_lock_path=gv100h/spec_qa/contracts/corpus.lock.yaml
+corpus_lock_last_change_commit=34d503f7f7961f89483c6941b87164e3ac5e87e9
+corpus_lock_blob_oid=97c1dc714f5fc72ddeb82bc5fb7538dce5b8e8e8
+corpus_lock_hash=f51cc94a9cb478071122a3682cd1386983aa84a08b8304d3bfe7b77375f90847
+receipt_hash=5e3c47b34e2b55dbab100ae571435440c4043c55b2fb89c4a81e204624ab2a48
+physical_binding_verified=true
+runtime_binding_status=verified
+qualification_blocked=false
+
+required_source_ids
+- hub_reference
+- usb20_fw
+- usb20_se
+- usb32
+- superspeed_hub_lvs
+
+portable_source_locators
+- hub_reference=repo://Gavin0099/usb-if-hub-spec-reference@808f23c24bd8651da9cdcd63ea8669126917a379
+- usb20_fw=env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf
+- usb20_se=env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf
+- usb32=env://USB_SPEC_QA_RAW_ROOT/usb32/USB 3.2 Revision 1.1.pdf
+- superspeed_hub_lvs=env://USB_SPEC_QA_RAW_ROOT/superspeed_hub_lvs/SSHUB_LVS_Specification_2019_11_21.pdf
+
+observed_source_hashes
+- hub_reference=c774c4c31b088348a4f2deaae2e0d8448f083a1a9793d91c59fc719de3536083
+- usb20_fw=d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61
+- usb20_se=d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61
+- usb32=26e025a56ce0352f4f91fcaaca67b622d8e9e030ca429804bf7da98f52e674fd
+- superspeed_hub_lvs=f6c647c1acdcaf861555bcef481a104cf72958b787a2db6baab3de0a284440fb
+
+replay_validation=PASS
+- real pinned governed reference checkout verified
+- private raw staging files verified against lock hashes
+- CorpusBindingReceipt hash verification passed
+- QAEvaluationResult corpus_receipt_status=verified
+- QualificationPolicyEvaluator spec_qa.corpus_binding_verified=True
+- final decision remains NO_GO — synthetic/offline scaffold only
+- receipt contains no machine-local absolute source locators
+
+claim_boundary
+- private external staging was used; raw specification bytes are not in the public repository
+- USB-IF authorization is recorded separately as an operator internal-use staging authorization
+- this receipt proves current lock/source identity at verification time only
+- this receipt does not prove document correctness, model quality, live inference, hardware qualification, or complete POC-1 qualification
