@@ -1,0 +1,66 @@
+{
+  "result_schema": "spec_qa_poc1_locked_smoke_result.v0.1",
+  "status": "smoke_result_recorded_not_qualification",
+  "dataset_version": "1.0.0",
+  "coverage_status": "partial_poc1",
+  "poc1_acceptance_set": false,
+  "independent_from_corpus": true,
+  "total_questions": 30,
+  "dataset_hash": "0f43d0dbce4691bee3c8f67befaf9cae7e64788120caa2eb1e84d12ee063b46d",
+  "category_results": {
+    "cat_a_direct": {
+      "total": 10,
+      "passed": 10,
+      "fabricated_citations": 0,
+      "authority_violations": 0
+    },
+    "cat_b_version_confusion": {
+      "total": 10,
+      "passed": 10,
+      "fabricated_citations": 0,
+      "authority_violations": 0
+    },
+    "cat_c_unsupported": {
+      "total": 5,
+      "passed": 5,
+      "fabricated_citations": 0,
+      "authority_violations": 0
+    },
+    "cat_d_adversarial": {
+      "total": 5,
+      "passed": 5,
+      "fabricated_citations": 0,
+      "authority_violations": 0
+    }
+  },
+  "all_gates_passed": true,
+  "fabricated_citations_count": 0,
+  "authority_violations_count": 0,
+  "corpus_id": "usb-hub-poc1-phase1",
+  "corpus_lock_status": "phase1_bound",
+  "runtime_binding_status": "verified",
+  "physical_binding_verified": true,
+  "qualification_blocked": false,
+  "corpus_receipt_status": "verified",
+  "corpus_binding_receipt_hash": "5e3c47b34e2b55dbab100ae571435440c4043c55b2fb89c4a81e204624ab2a48",
+  "required_source_ids": [
+    "hub_reference",
+    "usb20_fw",
+    "usb20_se",
+    "usb32",
+    "superspeed_hub_lvs"
+  ],
+  "portable_source_locators": [
+    "repo://Gavin0099/usb-if-hub-spec-reference@808f23c24bd8651da9cdcd63ea8669126917a379",
+    "env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf",
+    "env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf",
+    "env://USB_SPEC_QA_RAW_ROOT/usb32/USB 3.2 Revision 1.1.pdf",
+    "env://USB_SPEC_QA_RAW_ROOT/superspeed_hub_lvs/SSHUB_LVS_Specification_2019_11_21.pdf"
+  ],
+  "claim_boundary": [
+    "Current dataset is a deterministic 30-question smoke baseline, not the final 50-100 question POC-1 acceptance set.",
+    "The evaluator currently exercises the governed structured evidence registry; raw source identity is bound, but raw-document retrieval coverage is not claimed.",
+    "This result is not live model, hardware, or complete Spec QA qualification evidence.",
+    "Final Qualification remains NO_GO."
+  ]
+}

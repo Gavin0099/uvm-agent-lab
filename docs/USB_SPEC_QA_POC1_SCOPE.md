@@ -42,11 +42,14 @@ authority roles, revision/commit fields, scope binding fields, USB4 exclusion,
 and evaluation-only boundary. Pending markers are reported as a qualification
 block rather than silently treated as a complete binding.
 
-The current binding state is intentionally partial: Layer A's governed
-reference is locked to commit `808f23c24bd8651da9cdcd63ea8669126917a379` and its
-tracked-tree content hash, while the official raw USB 2.0, USB 3.2, and LVS
-sources remain pending acquisition. Therefore a physical Layer A binding can
-pass while the overall Phase 1 corpus remains `qualification_blocked`.
+The current binding state is source-identity complete but evaluation-incomplete:
+Layer A's governed reference is locked to commit
+`808f23c24bd8651da9cdcd63ea8669126917a379` and its tracked-tree content hash,
+and the official raw USB 2.0, USB 3.2, and LVS artifacts are hash-verified in
+operator-controlled private staging. The lock is `phase1_bound`, while the
+final 50-100 question acceptance set and raw-document retrieval coverage remain
+incomplete. Therefore physical corpus binding can pass without implying
+complete POC-1 QA qualification.
 
 Lock metadata and runtime observation are separate states. A retriever without
 `knowledge_repo_path` may use the embedded smoke baseline, but its

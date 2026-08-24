@@ -6,10 +6,11 @@
 
 ## Current Qualification State (2026-08-24)
 
-- PR #13 through PR #19 are merged sequentially; this binding slice is based on main at `1ce9006`.
-- Runtime model binding, memory receipt provenance, per-source corpus binding foundations, and the Spec QA admission gate are merged.
+- PR #13 through PR #20 are merged sequentially; this evaluation slice is based on main at `a71a9c6`.
+- Runtime model binding, memory receipt provenance, per-source corpus binding foundations, Spec QA receipt admission, and the locked corpus smoke evaluation are merged.
 - Official raw USB 2.0 Rev 2.0, USB 3.2 Rev 1.1, and SuperSpeed Hub LVS Rev 1.15 artifacts are physically bound in operator-controlled private staging; raw bytes are not committed to this public repository.
 - `additional/ai-governance-framework` is publicly checkoutable, and the post-PR17 full GitHub workflow executes checkout, pytest, benchmark, validators, and governance checks successfully.
+- The locked POC-1 smoke evaluation ran the independent 30-question deterministic baseline with the bound corpus receipt: all four categories passed with zero fabricated citations and zero authority violations. This is not the final 50-100 question acceptance set and does not claim raw-document retrieval coverage.
 - Final Qualification is `NO_GO`; mock, deterministic, and local focused results are not live model, hardware, or internal-pilot qualification evidence.
 
 ---
