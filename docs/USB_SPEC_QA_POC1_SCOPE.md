@@ -182,6 +182,23 @@ governed table rows, or model answers produced against the same corpus. Golden
 questions may refer to corpus evidence IDs as expected answers, but the
 benchmark itself is never eligible retrieval evidence.
 
+The final-set shape is enforced by
+`gv100h/spec_qa/contracts/poc1_acceptance_contract.py`. Its loader requires a
+50-100 question manifest, minimum coverage for L1-L4, the exact five Phase 1
+source families, complete citation-field requirements, independent-review
+markers plus a durable review receipt path, receipt hash, reviewer ID, and
+review timestamp. It rejects duplicate IDs, unlisted sources, answer questions
+without supporting sources, abstention questions with accepted sources,
+conflict questions without competing sources, layer/category or priority
+mismatches, incomplete layer/source coverage, and USB4 controls outside L4
+`uncertainty_conflict` with `USB4_SPEC` scope. Answer questions require at
+least one accepted source, abstention questions require none, and conflict
+questions require at least two competing sources. The loader does not verify
+the review receipt bytes or generate questions; those remain separate
+authoring and admission responsibilities. The current 30-question file
+remains a smoke baseline and is intentionally rejected by this final-set
+loader.
+
 ## 7. Gate 1 Admission Signals
 
 P0 admission signals are:
