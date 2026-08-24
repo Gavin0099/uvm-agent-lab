@@ -1,7 +1,9 @@
 import json
 import hashlib
+import re
+import subprocess
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Mapping, Optional
 from pydantic import BaseModel
 import yaml
 
@@ -29,6 +31,7 @@ class GovernedSpecRetriever:
     REQUIRED_PHASE1_SOURCES = ("hub_reference", "usb20_fw", "usb20_se", "usb32", "superspeed_hub_lvs")
     VALID_CORPUS_STATUSES = ("manifest_only_pending_binding", "phase1_bound", "fully_bound")
     VALID_BINDING_STATUSES = ("pending", "smoke_baseline_only", "bound", "verified", "locked")
+    VALID_RUNTIME_BINDING_STATUSES = ("unverified", "verified", "failed")
     VALID_AUTHORITY_ROLES = ("canonical_structured_reference", "normative_official")
     REQUIRED_PENDING_BLOCKS = ("full_phase1_qualification",)
     REQUIRED_BINDING_REQUIREMENTS = (
@@ -38,6 +41,7 @@ class GovernedSpecRetriever:
     )
     SCOPE_BINDING_FIELDS = ("included_chapters", "included_scope", "canonical_entrypoint")
     PENDING_MARKERS = ("PENDING_ACQUISITION", "NOT_BOUND")
+    CONTENT_HASH_ALGORITHM = "sha256_tracked_relative_posix_path_content_bytes_v3"
 
     # Governed Knowledge Base Table Entries (Embedded Verified Baseline)
     EVIDENCE_REGISTRY: List[GovernedEvidence] = [
@@ -92,6 +96,8 @@ class GovernedSpecRetriever:
         self,
         knowledge_repo_path: Optional[str] = None,
         corpus_lock_path: Optional[str] = None,
+        require_physical_binding: bool = False,
+        source_paths: Optional[Mapping[str, str | Path]] = None,
     ):
         self.corpus_lock_path = (
             Path(corpus_lock_path).resolve()
@@ -100,8 +106,21 @@ class GovernedSpecRetriever:
         )
         self.corpus_lock = self._load_corpus_lock(self.corpus_lock_path)
         self.corpus_lock_validation = self.validate_corpus_lock(self.corpus_lock)
-        self.qualification_blocked = self.corpus_lock_validation["qualification_blocked"]
-        self.qualification_block_reasons = self.corpus_lock_validation["block_reasons"]
+        self.require_physical_binding = require_physical_binding
+        self.lock_binding_status = self.corpus_lock["status"]
+        self.runtime_binding_status = "unverified"
+        self.physical_binding_verified = False
+        self.qualification_blocked = False
+        self.qualification_block_reasons = ()
+        self.runtime_bindings = {
+            source_id: {
+                "status": "unverified",
+                "observed_path": None,
+                "observed_sha256": None,
+                "observed_commit": None,
+            }
+            for source_id in self.REQUIRED_PHASE1_SOURCES
+        }
         governed_source = self.corpus_lock["sources"]["hub_reference"]
         self.knowledge_repo = governed_source["repo"]
         self.knowledge_repo_commit = governed_source["commit"]
@@ -111,8 +130,99 @@ class GovernedSpecRetriever:
         self.bound_repo_head_commit = None
         self.bound_repo_files_hash = None
 
-        if knowledge_repo_path and Path(knowledge_repo_path).exists():
-            self.verify_and_bind_knowledge_repo(knowledge_repo_path)
+        requested_paths = dict(source_paths or {})
+        if knowledge_repo_path:
+            if "hub_reference" in requested_paths and Path(requested_paths["hub_reference"]).resolve() != Path(knowledge_repo_path).resolve():
+                raise ValueError("knowledge_repo_path conflicts with source_paths.hub_reference")
+            requested_paths["hub_reference"] = knowledge_repo_path
+        unknown_sources = set(requested_paths) - set(self.REQUIRED_PHASE1_SOURCES)
+        if unknown_sources:
+            raise ValueError(
+                "source_paths contains unknown Phase 1 source IDs: "
+                + ", ".join(sorted(unknown_sources))
+            )
+
+        try:
+            for source_id, source_path in requested_paths.items():
+                self._verify_physical_source(source_id, source_path)
+        except Exception:
+            self.runtime_binding_status = "failed"
+            self._refresh_qualification_state()
+            raise
+
+        missing_sources = [
+            source_id
+            for source_id in self.REQUIRED_PHASE1_SOURCES
+            if source_id not in requested_paths
+        ]
+        if require_physical_binding and missing_sources:
+            self.runtime_binding_status = "failed"
+            self._refresh_qualification_state()
+            raise ValueError(
+                "physical corpus binding requires paths for: "
+                + ", ".join(missing_sources)
+            )
+
+        self._refresh_qualification_state()
+
+    def _refresh_qualification_state(self) -> None:
+        block_reasons = list(self.corpus_lock_validation["block_reasons"])
+        unverified_sources = [
+            source_id
+            for source_id, binding in self.runtime_bindings.items()
+            if binding["status"] != "verified"
+        ]
+        self.physical_binding_verified = not unverified_sources
+        if unverified_sources:
+            block_reasons.extend(
+                f"runtime source {source_id} physical binding is {self.runtime_bindings[source_id]['status']}"
+                for source_id in unverified_sources
+            )
+            self.runtime_binding_status = (
+                "failed"
+                if any(self.runtime_bindings[source_id]["status"] == "failed" for source_id in unverified_sources)
+                else "unverified"
+            )
+        else:
+            self.runtime_binding_status = "verified"
+        self.qualification_block_reasons = tuple(dict.fromkeys(block_reasons))
+        self.qualification_blocked = bool(self.qualification_block_reasons)
+
+    def _verify_physical_source(self, source_id: str, source_path: str | Path) -> None:
+        try:
+            if source_id == "hub_reference":
+                if not Path(source_path).resolve().exists():
+                    raise FileNotFoundError(
+                        f"governed reference path does not exist: {source_path}"
+                    )
+                self.verify_and_bind_knowledge_repo(source_path)
+            else:
+                self._verify_document_source(source_id, source_path)
+        except Exception:
+            self.runtime_bindings[source_id]["status"] = "failed"
+            raise
+
+    def _verify_document_source(self, source_id: str, source_path: str | Path) -> None:
+        path = Path(source_path).resolve()
+        if not path.is_file():
+            raise FileNotFoundError(f"physical source file does not exist: {path}")
+
+        expected_hash = self.corpus_lock["sources"][source_id]["content_sha256"]
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", str(expected_hash)):
+            raise ValueError(f"source {source_id} content hash is not bound")
+        observed_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+        if observed_hash.lower() != str(expected_hash).lower():
+            raise ValueError(
+                f"source {source_id} content hash does not match corpus lock: "
+                f"{observed_hash} != {expected_hash}"
+            )
+
+        self.runtime_bindings[source_id] = {
+            "status": "verified",
+            "observed_path": str(path),
+            "observed_sha256": observed_hash,
+            "observed_commit": None,
+        }
 
     @classmethod
     def validate_corpus_lock(cls, lock: Dict[str, Any]) -> Dict[str, Any]:
@@ -155,6 +265,8 @@ class GovernedSpecRetriever:
         pending_blocks = binding_requirements.get("pending_markers_block")
         if not isinstance(pending_blocks, list) or not set(cls.REQUIRED_PENDING_BLOCKS).issubset(pending_blocks):
             raise ValueError("binding_requirements.pending_markers_block is incomplete")
+        if binding_requirements.get("content_hash_algorithm") != cls.CONTENT_HASH_ALGORITHM:
+            raise ValueError("binding_requirements.content_hash_algorithm is invalid")
 
         block_reasons = []
         for source_id in cls.REQUIRED_PHASE1_SOURCES:
@@ -171,6 +283,11 @@ class GovernedSpecRetriever:
                 raise ValueError(f"source {source_id} requires immutable commit or revision")
             if not source.get("content_sha256"):
                 raise ValueError(f"source {source_id} requires content_sha256")
+            if source_id == "hub_reference" and source.get("binding_status") in ("bound", "verified", "locked"):
+                if not re.fullmatch(r"[0-9a-fA-F]{64}", str(source["content_sha256"])):
+                    raise ValueError("bound hub_reference requires a SHA-256 content hash")
+                if source.get("content_hash_algorithm") != cls.CONTENT_HASH_ALGORITHM:
+                    raise ValueError("hub_reference content hash algorithm does not match binding contract")
             if not any(source.get(field) for field in declared_scope_fields):
                 raise ValueError(f"source {source_id} requires one of {', '.join(declared_scope_fields)}")
 
@@ -236,22 +353,79 @@ class GovernedSpecRetriever:
 
     def verify_and_bind_knowledge_repo(self, repo_path: str) -> bool:
         """
-        Computes SHA-256 manifest hash of physical knowledge repository files.
+        Verifies the physical governed reference against the corpus lock.
         """
-        r_path = Path(repo_path)
+        r_path = Path(repo_path).resolve()
         if not r_path.exists():
             return False
 
-        hasher = hashlib.sha256()
-        file_count = 0
-        for f in sorted(list(r_path.rglob("*.md")) + list(r_path.rglob("*.yaml")) + list(r_path.rglob("*.json"))):
-            if ".git" not in f.parts:
-                hasher.update(f.read_bytes())
-                file_count += 1
+        head_result = subprocess.run(
+            ["git", "-C", str(r_path), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        if head_result.returncode != 0 or not head_result.stdout.strip():
+            raise ValueError("governed reference path is not a Git checkout")
+        actual_commit = head_result.stdout.strip()
+        expected_source = self.corpus_lock["sources"]["hub_reference"]
+        if actual_commit != expected_source["commit"]:
+            raise ValueError(
+                "governed reference commit does not match corpus lock: "
+                f"{actual_commit} != {expected_source['commit']}"
+            )
 
-        self.bound_repo_files_hash = hasher.hexdigest()
+        entrypoint = expected_source.get("canonical_entrypoint")
+        if entrypoint and not (r_path / entrypoint).is_file():
+            raise ValueError(f"governed reference canonical entrypoint is missing: {entrypoint}")
+
+        content_hash, file_count = self._compute_knowledge_repo_content_hash(r_path)
+        expected_hash = expected_source["content_sha256"]
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", str(expected_hash)):
+            raise ValueError("corpus lock content hash is not bound")
+        if content_hash.lower() != str(expected_hash).lower():
+            raise ValueError(
+                "governed reference content hash does not match corpus lock: "
+                f"{content_hash} != {expected_hash}"
+            )
+
+        self.bound_repo_head_commit = actual_commit
+        self.bound_repo_files_hash = content_hash
+        self.runtime_bindings["hub_reference"] = {
+            "status": "verified",
+            "observed_path": str(r_path),
+            "observed_sha256": content_hash,
+            "observed_commit": actual_commit,
+        }
+        self.runtime_binding_status = "verified"
+        self.physical_binding_verified = True
         self.binding_mode = f"live_repo_bound ({file_count} files verified)"
+        self._refresh_qualification_state()
         return True
+
+    @staticmethod
+    def _compute_knowledge_repo_content_hash(repo_path: Path) -> tuple[str, int]:
+        result = subprocess.run(
+            ["git", "-C", str(repo_path), "ls-files", "-z"],
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise ValueError("governed reference tracked file list is unavailable")
+
+        tracked_paths = sorted(
+            path.decode("utf-8")
+            for path in result.stdout.split(b"\0")
+            if path and Path(path.decode("utf-8")).suffix.lower() in {".md", ".yaml", ".json"}
+        )
+        hasher = hashlib.sha256()
+        for relative_path in tracked_paths:
+            hasher.update(relative_path.encode("utf-8"))
+            hasher.update(b"\0")
+            hasher.update((repo_path / relative_path).read_bytes())
+        return hasher.hexdigest(), len(tracked_paths)
 
     def query(self, query_text: str, target_scope: Optional[str] = None) -> List[GovernedEvidence]:
         q_lower = query_text.lower()

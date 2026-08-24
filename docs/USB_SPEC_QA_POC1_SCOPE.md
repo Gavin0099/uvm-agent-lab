@@ -42,6 +42,28 @@ authority roles, revision/commit fields, scope binding fields, USB4 exclusion,
 and evaluation-only boundary. Pending markers are reported as a qualification
 block rather than silently treated as a complete binding.
 
+The current binding state is intentionally partial: Layer A's governed
+reference is locked to commit `808f23c24bd8651da9cdcd63ea8669126917a379` and its
+tracked-tree content hash, while the official raw USB 2.0, USB 3.2, and LVS
+sources remain pending acquisition. Therefore a physical Layer A binding can
+pass while the overall Phase 1 corpus remains `qualification_blocked`.
+
+Lock metadata and runtime observation are separate states. A retriever without
+`knowledge_repo_path` may use the embedded smoke baseline, but its
+`runtime_binding_status` is `unverified` and a qualification claim remains
+blocked. Qualification callers must pass `require_physical_binding=True` and a
+checkout path; missing or failed physical verification fails closed. A
+successful checkout verification sets `runtime_binding_status: verified` and
+`physical_binding_verified: true`.
+
+For a qualification run, `source_paths` supplies one physical path per
+required Phase 1 source: the governed reference path for `hub_reference` and
+exact raw document files for `usb20_fw`, `usb20_se`, `usb32`, and
+`superspeed_hub_lvs`. The runtime binding record keeps each source's status,
+observed path, observed SHA-256, and observed Git commit where applicable.
+Layer A and Layer B use different identity verifiers, but both must be
+`verified` before a fully bound Phase 1 corpus can be admitted.
+
 The first benchmark is intentionally limited to this USB Hub baseline:
 
 | Source role | Authoritative scope | Included in Phase 1 |
