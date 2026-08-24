@@ -11,18 +11,18 @@
 # ── PROVENANCE ────────────────────────────────────────────────────────────────
 schema_version: "1"
 baseline_version: 1.0.0
-source_commit: 2fadd2ca0e928261568c075ebaa559759018763f
-framework_root: D:\uvm-agent-lab\additional\ai-governance-framework
-initialized_at: 2026-08-14T17:21:30Z
+source_commit: 41fc434745c3de718b859d1a0d693da340bd700b
+framework_root: E:\BackUp\Git_EE\uvm-agent-lab-governance-refresh\additional\ai-governance-framework
+initialized_at: 2026-08-24T04:42:59Z
 initialized_by: governance_tools/adopt_governance.py
 
 # ── INTEGRITY ─────────────────────────────────────────────────────────────────
 # sha256.<file>: canonical-LF hash recorded at init/refresh time; "protected" files are hash-verified
 # overridable.<file>: protected = must not change | overridable = repo may extend freely
 sha256.AGENTS.base.md: 438df8bb196625588b0965fcd5ec75e8e36f387afcdcb0964098cce48cca6f5a
-sha256.PLAN.md: 3db344c1d63fa93a7b2b9ff562f7dbad7b212e3bdac07a2af89da53bdea088b8
+sha256.PLAN.md: 0b2bc0f5f3abb9de87aca4f04312fc40087bf729976542ea279cd17e995da830
 sha256.contract.yaml: ac97a2a4d1b1a42dca8f40e399c8e0291d3948f5a6b40500531c76c00ea9a08c
-sha256.AGENTS.md: 816d8b42a11f139c4109b503824219a04dabf0c4f76340619278d40d087a5945
+sha256.AGENTS.md: 91a3c71f7785efdc1778d2642bf284d0c187ba134c1583800509ffc590d7941c
 overridable.AGENTS.base.md: protected
 overridable.PLAN.md: overridable
 overridable.contract.yaml: overridable
@@ -46,9 +46,11 @@ contract_required_fields:
 # plan_section_inventory: ## headings detected in PLAN.md at adoption/refresh time.
 #   Drift checker surfaces these for visibility but never fails on missing inventory items.
 plan_section_inventory:
+  - "## 0. Current Qualification Checkpoint (2026-08-24)"
   - "## 🎯 1. 專案目標與非目標 (Goals & Non-Goals)"
   - "## 🏛️ 2. 系統責任分工 (Separation of Concerns)"
   - "## 📋 3. 任務分類體系 (Task Taxonomy)"
   - "## 🚦 4. Gate 0 ～ Gate 4 階段規劃與 Exit Criteria"
   - "## ⚖️ 5. Evidence Bundle 與 Failure Classification"
   - "## 📦 6. 第一個 Pull Request 範圍 (PR-001)"
+  - "## 🎯 7. Current Next Steps"
