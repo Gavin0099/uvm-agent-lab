@@ -1,3 +1,4 @@
-// Verified UVM generation by test_qwen
-class evaluated_test;
-endclass
+def safe_divide(numerator, denominator):
+	if denominator == 0:
+		return 0
+	return numerator / denominator

@@ -24,7 +24,9 @@ class LightweightValidator:
     profile = "lightweight"
 
     def __init__(self, workspace_root: Union[str, Path], mode: str = "mock"):
-        self._verifier = IndependentVerifier(Path(workspace_root), mode=mode)
+        self._verifier = IndependentVerifier(
+            Path(workspace_root), mode=mode, validator_profile=self.profile
+        )
 
     def verify_task(
         self,
@@ -51,7 +53,9 @@ class EDAValidator:
     profile = "eda"
 
     def __init__(self, workspace_root: Union[str, Path], mode: str = "mock"):
-        self._verifier = IndependentVerifier(Path(workspace_root), mode=mode)
+        self._verifier = IndependentVerifier(
+            Path(workspace_root), mode=mode, validator_profile=self.profile
+        )
 
     def verify_task(
         self,
