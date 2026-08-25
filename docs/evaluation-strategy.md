@@ -121,6 +121,14 @@ eda:         Verilator/Icarus/VCS/UVM simulation/coverage and tool-specific logs
 An unavailable EDA tool can fail an `eda` case, but it must not fail a v1
 `lightweight` case or block the v1 qualification decision.
 
+The CI benchmark signals are intentionally separated. The legacy EDA smoke
+step selects only `UVM-*.yaml` and returns a non-zero exit code when a selected
+case fails. The v1 Coding Agent readiness report selects the canonical
+`AGENT-CODE-001` through `AGENT-CODE-005` cases and reports `READY` or
+`NOT_READY` separately; its default report-only exit code does not imply model,
+hardware, or qualification success. A future blocking v1 gate must opt in with
+`--fail-on-not-ready` after the production path and all five cases are ready.
+
 ### Gate 4: Hardware Profiling Metrics
 - **VRAM Utilization**: Peak memory during 32K, 64K, 128K primary and exploratory 192K/256K context window KV cache.
 - **Time to First Token (TTFT)**: Latency before first tool action.

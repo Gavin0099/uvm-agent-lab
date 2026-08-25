@@ -25,6 +25,10 @@ def load_yaml(file_path: str) -> dict:
         return yaml.safe_load(f)
 
 
+def select_case_paths(cases_dir: str | Path, case_pattern: str = "*.yaml") -> list[Path]:
+    return sorted(Path(cases_dir).glob(case_pattern))
+
+
 def run_benchmark(case_path: str, runner_name: str, fault_mode: str = None) -> dict:
     case_dict = load_yaml(case_path)
     case_id = case_dict["id"]
@@ -155,6 +159,7 @@ def main():
     parser.add_argument("--case", type=str, help="Path to single benchmark case YAML")
     parser.add_argument("--all", action="store_true", help="Run all cases in benchmarks/cases/")
     parser.add_argument("--cases-dir", type=str, default="benchmarks/cases", help="Directory containing case YAMLs")
+    parser.add_argument("--case-pattern", default="*.yaml", help="Glob selecting cases for --all")
     parser.add_argument("--runner", type=str, default="mock", choices=["mock", "multi_turn", "llm"], help="Runner to evaluate")
     parser.add_argument("--fault-mode", type=str, default=None, help="Inject governance fault for testing")
     parser.add_argument("--output", type=str, help="Output JSON path for single case run")
@@ -165,11 +170,15 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if args.all:
-        cases = sorted(list(Path(args.cases_dir).glob("*.yaml")))
+        cases = select_case_paths(args.cases_dir, args.case_pattern)
         if not cases:
-            print(f"No YAML cases found in {args.cases_dir}")
+            print(f"No YAML cases found in {args.cases_dir} matching {args.case_pattern!r}")
             sys.exit(1)
-        print(f"Running {len(cases)} benchmark cases with runner '{args.runner}'...")
+        print(
+            f"Running {len(cases)} benchmark cases matching {args.case_pattern!r} "
+            f"with runner '{args.runner}'..."
+        )
+        failed_cases = []
         for c in cases:
             res = run_benchmark(str(c), runner_name=args.runner, fault_mode=args.fault_mode)
             out_file = out_dir / f"{res['case_id']}_result.json"
@@ -177,6 +186,14 @@ def main():
                 json.dump(res, f, indent=2)
             status_symbol = "✅" if res["metrics"]["task_success"] else "❌"
             print(f"  {status_symbol} {res['case_id']} - Score: {res['metrics']['total_score']}/100 - Governance: {res['governance_status']['passed']}")
+            if not res["metrics"]["task_success"]:
+                failed_cases.append(res["case_id"])
+        if failed_cases:
+            print(
+                "Selected benchmark cases failed: "
+                + ", ".join(failed_cases)
+            )
+            sys.exit(1)
     elif args.case:
         res = run_benchmark(args.case, runner_name=args.runner, fault_mode=args.fault_mode)
         if args.output:
