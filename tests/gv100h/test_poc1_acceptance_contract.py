@@ -227,6 +227,10 @@ def test_valid_acceptance_set_contract_loads(tmp_path: Path):
         ("missing_gold_evidence", "requires gold accepted evidence"),
         ("empty_gold_evidence", "gold evidence IDs must be non-empty"),
         ("missing_required_claim", "requires gold claims, facts, and section anchors"),
+        ("blank_gold_fact", "gold facts must be non-empty"),
+        ("blank_section_anchor", "gold section anchors must be non-empty"),
+        ("conflict_optional_claims", "requires two gold claims and section anchors"),
+        ("abstain_optional_claim", "requires boundary evidence and a boundary claim"),
         ("conflict_gold_single", "at least two gold competing evidence IDs"),
         ("abstain_normative_citation", "must not require normative citation fields"),
         ("missing_boundary_evidence", "requires boundary evidence"),
@@ -265,6 +269,15 @@ def test_acceptance_set_rejects_contract_violations(
         manifest["questions"][0]["required_citation_fields"]["section"] = False
     elif mutation == "missing_gold_evidence":
         manifest["questions"][0]["gold"]["accepted_evidence_ids"] = []
+    elif mutation == "blank_gold_fact":
+        manifest["questions"][0]["gold"]["required_facts"] = [" "]
+    elif mutation == "blank_section_anchor":
+        manifest["questions"][0]["gold"]["section_anchors"] = ["\t"]
+    elif mutation == "conflict_optional_claims":
+        for claim in manifest["questions"][48]["gold"]["required_claims"]:
+            claim["required"] = False
+    elif mutation == "abstain_optional_claim":
+        manifest["questions"][49]["gold"]["required_claims"][0]["required"] = False
     elif mutation == "empty_gold_evidence":
         manifest["questions"][0]["gold"]["accepted_evidence_ids"] = [""]
     elif mutation == "missing_required_claim":

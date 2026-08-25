@@ -230,6 +230,18 @@ class POC1AcceptanceSet(BaseModel):
                 raise AcceptanceContractError(
                     f"question {question.question_id} gold claim IDs must be unique"
                 )
+            if any(not fact.strip() for fact in gold.required_facts):
+                raise AcceptanceContractError(
+                    f"question {question.question_id} gold facts must be non-empty"
+                )
+            if any(not anchor.strip() for anchor in gold.section_anchors):
+                raise AcceptanceContractError(
+                    f"question {question.question_id} gold section anchors must be non-empty"
+                )
+            if any(not claim.assertion.strip() for claim in gold.required_claims):
+                raise AcceptanceContractError(
+                    f"question {question.question_id} gold claim assertions must be non-empty"
+                )
             weight_total = sum(
                 (
                     question.grading.factual_correctness,
@@ -291,7 +303,11 @@ class POC1AcceptanceSet(BaseModel):
                     raise AcceptanceContractError(
                         f"conflict question {question.question_id} requires at least two gold competing evidence IDs"
                     )
-                if len(gold.required_claims) < 2 or len(gold.section_anchors) < 2:
+                if (
+                    len(gold.required_claims) < 2
+                    or sum(1 for claim in gold.required_claims if claim.required) < 2
+                    or len(gold.section_anchors) < 2
+                ):
                     raise AcceptanceContractError(
                         f"conflict question {question.question_id} requires two gold claims and section anchors"
                     )
@@ -314,7 +330,11 @@ class POC1AcceptanceSet(BaseModel):
                     raise AcceptanceContractError(
                         f"abstain question {question.question_id} must not use answer or competing evidence"
                     )
-                if not gold.boundary_evidence_ids or not gold.required_claims:
+                if (
+                    not gold.boundary_evidence_ids
+                    or not gold.required_claims
+                    or not any(claim.required for claim in gold.required_claims)
+                ):
                     raise AcceptanceContractError(
                         f"abstain question {question.question_id} requires boundary evidence and a boundary claim"
                     )
