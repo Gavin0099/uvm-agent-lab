@@ -24,6 +24,94 @@ def _question(index: int, layer: str, category: str) -> dict:
         if index == 49
         else ["usb32"]
     )
+    if expected_status == "answer":
+        gold = {
+            "accepted_evidence_ids": [f"EVIDENCE-{index}-A"],
+            "competing_evidence_ids": [],
+            "boundary_evidence_ids": [],
+            "required_claims": [
+                {
+                    "claim_id": f"CLAIM-{index}-A",
+                    "assertion": f"Required answer fact {index}",
+                }
+            ],
+            "section_anchors": [f"section-{index}"],
+            "required_facts": [f"fact-{index}"],
+            "forbidden_claims": [f"unsupported-{index}"],
+            "acceptable_variants": [f"variant-{index}"],
+            "boundary_code": None,
+        }
+        citation = {
+            "document": True,
+            "revision": True,
+            "section": True,
+            "page_or_anchor": True,
+            "excerpt_or_evidence_id": True,
+            "scope": True,
+            "boundary_code": False,
+            "mode": "normative_source",
+        }
+    elif expected_status == "conflict":
+        gold = {
+            "accepted_evidence_ids": [],
+            "competing_evidence_ids": [
+                f"EVIDENCE-{index}-A",
+                f"EVIDENCE-{index}-B",
+            ],
+            "boundary_evidence_ids": [],
+            "required_claims": [
+                {
+                    "claim_id": f"CLAIM-{index}-A",
+                    "assertion": f"Competing claim A for {index}",
+                },
+                {
+                    "claim_id": f"CLAIM-{index}-B",
+                    "assertion": f"Competing claim B for {index}",
+                },
+            ],
+            "section_anchors": [f"section-{index}-a", f"section-{index}-b"],
+            "required_facts": [f"fact-{index}-a", f"fact-{index}-b"],
+            "forbidden_claims": [f"unresolved-{index}"],
+            "acceptable_variants": [],
+            "boundary_code": "UNRESOLVED_CONFLICT",
+        }
+        citation = {
+            "document": True,
+            "revision": True,
+            "section": True,
+            "page_or_anchor": True,
+            "excerpt_or_evidence_id": True,
+            "scope": True,
+            "boundary_code": True,
+            "mode": "competing_sources",
+        }
+    else:
+        gold = {
+            "accepted_evidence_ids": [],
+            "competing_evidence_ids": [],
+            "boundary_evidence_ids": [f"BOUNDARY-{index}"],
+            "required_claims": [
+                {
+                    "claim_id": f"CLAIM-{index}-BOUNDARY",
+                    "assertion": f"Return the declared boundary for {index}",
+                }
+            ],
+            "section_anchors": [],
+            "required_facts": [],
+            "forbidden_claims": [f"unsupported-{index}"],
+            "acceptable_variants": [],
+            "boundary_code": "OUT_OF_SCOPE" if index == 50 else "MISSING_EVIDENCE",
+        }
+        citation = {
+            "document": False,
+            "revision": False,
+            "section": False,
+            "page_or_anchor": False,
+            "excerpt_or_evidence_id": True,
+            "scope": True,
+            "boundary_code": True,
+            "mode": "boundary_evidence",
+        }
     return {
         "question_id": f"QA-{index:03d}",
         "layer": layer,
@@ -33,12 +121,14 @@ def _question(index: int, layer: str, category: str) -> dict:
         "expected_status": expected_status,
         "expected_scope": "USB4_SPEC" if index == 50 else "USB_HUB_COMMON",
         "accepted_source_ids": accepted_source_ids,
-        "required_citation_fields": {
-            "document": True,
-            "revision": True,
-            "section": True,
-            "page_or_anchor": True,
-            "excerpt_or_evidence_id": True,
+        "required_citation_fields": citation,
+        "gold": gold,
+        "grading": {
+            "factual_correctness": 0.40,
+            "citation_correctness": 0.25,
+            "source_authority": 0.15,
+            "scope_control": 0.10,
+            "uncertainty_behavior": 0.10,
         },
         "independently_reviewed": True,
         "usb4_negative_control": index == 50,
@@ -59,7 +149,7 @@ def _valid_manifest() -> dict:
         questions.append(_question(index, layer, category))
     return {
         "schema_name": "poc1_spec_qa_acceptance_set",
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "corpus_lock": "gv100h/spec_qa/contracts/corpus.lock.yaml",
         "corpus_receipt_path": "artifacts/evidence/test-results/corpus.json",
         "corpus_receipt_hash": "a" * 64,
@@ -96,7 +186,7 @@ def test_smoke_dataset_is_not_admitted_as_final_acceptance_set(tmp_path: Path):
     smoke.update(
         {
             "schema_name": "poc1_spec_qa_acceptance_set",
-            "schema_version": "1.0",
+            "schema_version": "1.1",
             "corpus_receipt_path": "artifacts/evidence/test-results/corpus.json",
             "corpus_receipt_hash": "a" * 64,
             "benchmark_role": "poc1_acceptance_set",
@@ -106,7 +196,7 @@ def test_smoke_dataset_is_not_admitted_as_final_acceptance_set(tmp_path: Path):
         }
     )
 
-    with pytest.raises(AcceptanceContractError, match="50|layer L3"):
+    with pytest.raises(AcceptanceContractError, match="gold|50|layer L3"):
         load_poc1_acceptance_set(_write_manifest(tmp_path, smoke))
 
 
@@ -133,7 +223,20 @@ def test_valid_acceptance_set_contract_loads(tmp_path: Path):
         ("usb4_answer", "must abstain"),
         ("abstain_with_source", "abstain question"),
         ("usb4_layer_mismatch", "must be an L4 uncertainty_conflict question"),
-        ("missing_citation_field", "must require all citation fields"),
+        ("missing_citation_field", "must require normative source citation fields"),
+        ("missing_gold_evidence", "requires gold accepted evidence"),
+        ("empty_gold_evidence", "gold evidence IDs must be non-empty"),
+        ("missing_required_claim", "requires gold claims, facts, and section anchors"),
+        ("blank_gold_fact", "gold facts must be non-empty"),
+        ("blank_section_anchor", "gold section anchors must be non-empty"),
+        ("conflict_optional_claims", "requires two gold claims and section anchors"),
+        ("abstain_optional_claim", "requires boundary evidence and a boundary claim"),
+        ("conflict_gold_single", "at least two gold competing evidence IDs"),
+        ("abstain_normative_citation", "must not require normative citation fields"),
+        ("missing_boundary_evidence", "requires boundary evidence"),
+        ("answer_boundary_citation", "must require normative source citation fields"),
+        ("conflict_missing_scope", "requires competing-source citation fields"),
+        ("grading_drift", "grading weights must sum to 1.0"),
         ("answer_without_source", "requires an accepted source"),
         ("category_mismatch", "category does not match"),
         ("priority_mismatch", "priority must be P0"),
@@ -164,6 +267,35 @@ def test_acceptance_set_rejects_contract_violations(
                 question["usb4_negative_control"] = False
     elif mutation == "missing_citation_field":
         manifest["questions"][0]["required_citation_fields"]["section"] = False
+    elif mutation == "missing_gold_evidence":
+        manifest["questions"][0]["gold"]["accepted_evidence_ids"] = []
+    elif mutation == "blank_gold_fact":
+        manifest["questions"][0]["gold"]["required_facts"] = [" "]
+    elif mutation == "blank_section_anchor":
+        manifest["questions"][0]["gold"]["section_anchors"] = ["\t"]
+    elif mutation == "conflict_optional_claims":
+        for claim in manifest["questions"][48]["gold"]["required_claims"]:
+            claim["required"] = False
+    elif mutation == "abstain_optional_claim":
+        manifest["questions"][49]["gold"]["required_claims"][0]["required"] = False
+    elif mutation == "empty_gold_evidence":
+        manifest["questions"][0]["gold"]["accepted_evidence_ids"] = [""]
+    elif mutation == "missing_required_claim":
+        manifest["questions"][0]["gold"]["required_claims"][0]["required"] = False
+    elif mutation == "conflict_gold_single":
+        manifest["questions"][48]["gold"]["competing_evidence_ids"] = [
+            "EVIDENCE-49-A"
+        ]
+    elif mutation == "abstain_normative_citation":
+        manifest["questions"][49]["required_citation_fields"]["document"] = True
+    elif mutation == "missing_boundary_evidence":
+        manifest["questions"][49]["gold"]["boundary_evidence_ids"] = []
+    elif mutation == "answer_boundary_citation":
+        manifest["questions"][0]["required_citation_fields"]["boundary_code"] = True
+    elif mutation == "conflict_missing_scope":
+        manifest["questions"][48]["required_citation_fields"]["scope"] = False
+    elif mutation == "grading_drift":
+        manifest["questions"][0]["grading"]["factual_correctness"] = 0.50
     elif mutation == "answer_without_source":
         manifest["questions"][0]["accepted_source_ids"] = []
     elif mutation == "category_mismatch":
