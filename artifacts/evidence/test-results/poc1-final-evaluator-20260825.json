@@ -1,0 +1,17 @@
+{
+  "receipt_schema": "test_evidence_receipt.v0.1",
+  "status": "report_only",
+  "command": "pytest -q tests/gv100h/test_poc1_final_evaluator.py tests/gv100h/test_poc1_acceptance_contract.py tests/gv100h/test_qualification_policy_evaluator.py tests/gv100h/test_m4_qualification.py",
+  "exit_code": 0,
+  "started_at": "2026-08-25T03:04:35Z",
+  "finished_at": "2026-08-25T03:04:37Z",
+  "runner": "pytest",
+  "linked_commit": "e369e095c0c1e066a327f603a458d694b5b6bbf8",
+  "output_artifacts": [
+    "artifacts/evidence/test-results/poc1-final-evaluator-20260825.txt"
+  ],
+  "cannot_claim": [
+    "semantic correctness of the tested behavior",
+    "receipt authenticity: every field is fabricatable by a direct writer"
+  ]
+}
