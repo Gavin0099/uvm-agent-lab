@@ -206,11 +206,21 @@ def test_valid_acceptance_set_contract_loads(tmp_path: Path):
         ["hub_reference", "usb20_fw", "usb20_se", "usb32", "superspeed_hub_lvs"]
     ):
         payload["questions"][index]["accepted_source_ids"] = [source_id]
+    payload["questions"][26]["accepted_source_ids"] = ["usb20_fw", "usb32"]
+    payload["questions"][26]["gold"]["accepted_evidence_ids"] = [
+        "usb20_fw:EVIDENCE-27-A",
+        "usb32:EVIDENCE-27-B",
+    ]
+    payload["questions"][26]["gold"]["section_anchors"] = [
+        "usb20_fw:11.5.1.2",
+        "usb32:10.3.1.11",
+    ]
     manifest = load_poc1_acceptance_set(_write_manifest(tmp_path, payload))
 
     assert manifest.total_questions == 50
     assert manifest.benchmark_role == "poc1_acceptance_set"
     assert sum(item.usb4_negative_control for item in manifest.questions) == 1
+    assert manifest.questions[26].accepted_source_ids == ["usb20_fw", "usb32"]
 
 
 @pytest.mark.parametrize(
@@ -225,6 +235,10 @@ def test_valid_acceptance_set_contract_loads(tmp_path: Path):
         ("usb4_layer_mismatch", "must be an L4 uncertainty_conflict question"),
         ("missing_citation_field", "must require normative source citation fields"),
         ("missing_gold_evidence", "requires gold accepted evidence"),
+        (
+            "answer_missing_source_evidence",
+            "accepted_source_id to have gold accepted evidence",
+        ),
         ("empty_gold_evidence", "gold evidence IDs must be non-empty"),
         ("missing_required_claim", "requires gold claims, facts, and section anchors"),
         ("blank_gold_fact", "gold facts must be non-empty"),
@@ -269,6 +283,10 @@ def test_acceptance_set_rejects_contract_violations(
         manifest["questions"][0]["required_citation_fields"]["section"] = False
     elif mutation == "missing_gold_evidence":
         manifest["questions"][0]["gold"]["accepted_evidence_ids"] = []
+    elif mutation == "answer_missing_source_evidence":
+        manifest["questions"][0]["accepted_source_ids"] = ["usb20_fw", "usb32"]
+        manifest["questions"][0]["gold"]["accepted_evidence_ids"] = ["EVIDENCE-1-A"]
+        manifest["questions"][0]["gold"]["section_anchors"] = ["section-1"]
     elif mutation == "blank_gold_fact":
         manifest["questions"][0]["gold"]["required_facts"] = [" "]
     elif mutation == "blank_section_anchor":

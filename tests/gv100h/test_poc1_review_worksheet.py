@@ -178,6 +178,8 @@ def test_worksheet_binds_draft_lock_and_contract_enums(tmp_path: Path):
     abstain_block = text.split("## DRAFT-L4-043", 1)[1].split("## DRAFT-L4-044", 1)[0]
     l4_039_block = text.split("## DRAFT-L4-039", 1)[1].split("## DRAFT-L4-040", 1)[0]
     l4_041_block = text.split("## DRAFT-L4-041", 1)[1].split("## DRAFT-L4-042", 1)[0]
+    l3_037_block = text.split("## DRAFT-L3-037", 1)[1].split("## DRAFT-L3-038", 1)[0]
+    l1_001_block = text.split("## DRAFT-L1-001", 1)[1].split("## DRAFT-L1-002", 1)[0]
     assert "可以從指定規格中找到答案" in answer_block
     assert "可以從指定規格中找到答案" not in abstain_block
     assert "指定的規格文件與版本正確" not in abstain_block
@@ -185,6 +187,14 @@ def test_worksheet_binds_draft_lock_and_contract_enums(tmp_path: Path):
     assert "這題確實應該直接回答，而不是回報衝突或拒絕回答" in l4_039_block
     assert "兩邊互相競爭的證據都確實存在於指定規格" not in l4_039_block
     assert "這兩段是否構成衝突？請分別指出兩段證據描述的對象、" in l4_039_block
+    assert "來源 A（`usb20_fw`）" in l4_039_block
+    assert "來源 B（`usb32`）" in l4_039_block
+    assert "兩者是否同一對象" in l4_039_block
+    assert "兩者關係（mapping / conflict / independent scope）" in l4_039_block
+    assert "來源 C（`superspeed_hub_lvs`）" in l3_037_block
+    assert "三者是否同一對象" in l3_037_block
+    assert "來源 A" not in l1_001_block
+    assert "規格章節" in l1_001_block
     assert "AUTHORITY_MISMATCH" not in l4_041_block
     assert "目前指定的 Phase 1 規格裡，沒有足夠、可接受的證據能回答這題" not in answer_block
     assert "Contact Capacitance" in text
@@ -302,11 +312,19 @@ def test_html_worksheet_has_fifty_cards_and_lock_hashes(tmp_path: Path):
     l1_card = text.split("id='DRAFT-L1-001'", 1)[1].split("id='DRAFT-L1-002'", 1)[0]
     l4_039 = text.split("id='DRAFT-L4-039'", 1)[1].split("id='DRAFT-L4-040'", 1)[0]
     l4_043 = text.split("id='DRAFT-L4-043'", 1)[1].split("id='DRAFT-L4-044'", 1)[0]
+    l3_037 = text.split("id='DRAFT-L3-037'", 1)[1].split("id='DRAFT-L3-038'", 1)[0]
     assert "可以從指定規格中找到答案" in l1_card
     assert "可以從指定規格中找到答案" in l4_039
     assert "可以從指定規格中找到答案" not in l4_043
     assert "指定的規格文件與版本正確" not in l4_043
     assert "兩邊談的是同一對象、同一狀態、同一版本脈絡，不是只是範圍不同" not in l4_039
+    assert "來源 A（`usb20_fw`）" in l4_039
+    assert "來源 B（`usb32`）" in l4_039
+    assert "兩者是否同一對象" in l4_039
+    assert "來源 C（`superspeed_hub_lvs`）" in l3_037
+    assert "三者是否同一對象" in l3_037
+    assert "來源 A" not in l1_card
+    assert "規格章節" in l1_card
     assert "這題確實應該直接回答，而不是回報衝突或拒絕回答" in l4_039
     assert "不應為了硬答而去引用指定規格以外的來源" in l4_043
     assert "USB Power Delivery" in text

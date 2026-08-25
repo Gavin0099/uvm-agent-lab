@@ -40,6 +40,19 @@ CONFLICT_BOUNDARY_CODES = frozenset(
 )
 
 
+def _bound_source_ids(values: list[str]) -> set[str]:
+    bound: set[str] = set()
+    for raw in values:
+        text = str(raw).strip()
+        if ":" not in text:
+            continue
+        source_id, _rest = text.split(":", 1)
+        source_id = source_id.strip()
+        if source_id:
+            bound.add(source_id)
+    return bound
+
+
 class CitationRequirements(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -297,6 +310,20 @@ class POC1AcceptanceSet(BaseModel):
                     raise AcceptanceContractError(
                         f"answer question {question.question_id} must not declare a boundary code"
                     )
+                if len(question.accepted_source_ids) >= 2:
+                    bound_evidence = _bound_source_ids(gold.accepted_evidence_ids)
+                    bound_anchors = _bound_source_ids(gold.section_anchors)
+                    missing_sources = [
+                        source_id
+                        for source_id in question.accepted_source_ids
+                        if source_id not in bound_evidence or source_id not in bound_anchors
+                    ]
+                    if missing_sources:
+                        raise AcceptanceContractError(
+                            f"answer question {question.question_id} requires each "
+                            "accepted_source_id to have gold accepted evidence and "
+                            "section anchors"
+                        )
                 if citation.mode != "normative_source" or not citation.scope or citation.boundary_code or not all(
                     getattr(citation, field_name) is True for field_name in normative_fields
                 ):

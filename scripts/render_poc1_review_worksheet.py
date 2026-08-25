@@ -307,7 +307,9 @@ QUESTION_ZH = {
 STATUS_GOLD_RULES = {
     "answer": (
         "accepted evidence + 至少 1 條 required claim + required facts + "
-        "section anchors；不可有 competing/boundary evidence 或 boundary_code"
+        "section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence "
+        "與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；"
+        "不可有 competing/boundary evidence 或 boundary_code"
     ),
     "conflict": (
         "至少 2 個 competing evidence + 至少 2 條 required claims + "
@@ -473,10 +475,53 @@ def reviewer_checks(status: str) -> tuple[str, ...]:
     return status_items + REVIEWER_CHECKS_COMMON
 
 
+def _source_slot_label(index: int) -> str:
+    labels = ("來源 A", "來源 B", "來源 C", "來源 D", "來源 E")
+    if 0 <= index < len(labels):
+        return labels[index]
+    return f"來源 {index + 1}"
+
+
 def reviewer_fields(
-    status: str, *, conflict_list: str, boundary_list: str
+    status: str,
+    *,
+    conflict_list: str,
+    boundary_list: str,
+    accepted_source_ids: list[str] | tuple[str, ...] = (),
 ) -> list[str]:
     if status == "answer":
+        source_ids = [
+            str(item).strip() for item in accepted_source_ids if str(item).strip()
+        ]
+        if len(source_ids) >= 2:
+            fields: list[str] = []
+            for index, source_id in enumerate(source_ids):
+                prefix = f"{_source_slot_label(index)}（`{source_id}`）"
+                fields.extend(
+                    [
+                        f"{prefix} 文件",
+                        f"{prefix} 章節",
+                        f"{prefix} 頁碼",
+                        f"{prefix} 支持答案的規格原文",
+                        f"{prefix} 這份證據支持的主張",
+                    ]
+                )
+            if len(source_ids) == 2:
+                relation = "兩者"
+            elif len(source_ids) == 3:
+                relation = "三者"
+            else:
+                relation = "各來源"
+            fields.extend(
+                [
+                    f"{relation}是否同一對象",
+                    f"{relation}是否同一適用範圍",
+                    f"{relation}權威角色是否相同",
+                    f"{relation}關係（mapping / conflict / independent scope）",
+                    "根據這份證據，哪些結論不能下",
+                ]
+            )
+            return fields
         return [
             "規格章節",
             "頁碼",
@@ -624,7 +669,10 @@ def render_worksheet(
         add("### 請填")
         add("")
         for field in reviewer_fields(
-            status, conflict_list=conflict_list, boundary_list=boundary_list
+            status,
+            conflict_list=conflict_list,
+            boundary_list=boundary_list,
+            accepted_source_ids=source_ids,
         ):
             add(f"- {field}：")
         add(f"- {verdict_line()}")
@@ -719,7 +767,10 @@ def render_html_worksheet(
             source_html.append("<li>無。這題不該引用目前指定的 Phase 1 正式來源</li>")
         source_html.append("</ul>")
         fields = reviewer_fields(
-            status, conflict_list=conflict_list, boundary_list=boundary_list
+            status,
+            conflict_list=conflict_list,
+            boundary_list=boundary_list,
+            accepted_source_ids=source_ids,
         )
         field_html = "".join(
             "<label>"
