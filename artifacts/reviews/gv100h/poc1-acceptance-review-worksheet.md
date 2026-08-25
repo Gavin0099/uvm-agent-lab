@@ -7,17 +7,17 @@
 ## Review-input provenance
 
 - `source_draft_path`: `gv100h/spec_qa/golden/poc1_acceptance_set.draft.json`
-- `source_draft_git_commit`: `8eea4730d4b1c9baf73dccf60bbbfeadc64746b5`
-- `source_draft_git_blob`: `df9a0135aaf2fca334c309f6ed8ab7aac0a9dede`
-- `source_draft_sha256`: `3a9306db7b910e1f8d813dc64ae7b9d77e3771813a4575f7202fbd18cdafbe28`
+- `source_draft_git_commit`: `a2b9a79b33dfc5bf4f0e1e0a68b60a88bf5ff2a0`
+- `source_draft_git_blob`: `9922f90e29ebb5d4b6b9d1e180effc5aef53d161`
+- `source_draft_sha256`: `513898114b6f119f5f1c2ec9b999c492bb522b09be39ba30fb2d00ccf2c424e9`
 - `corpus_lock_path`: `gv100h/spec_qa/contracts/corpus.lock.yaml`
 - `corpus_lock_sha256`: `f51cc94a9cb478071122a3682cd1386983aa84a08b8304d3bfe7b77375f90847`
 - `corpus_lock_git_blob`: `97c1dc714f5fc72ddeb82bc5fb7538dce5b8e8e8`
 - `renderer_path`: `scripts/render_poc1_review_worksheet.py`
-- `renderer_git_blob`: `98649523cbec14bce2f584602dd5a1b14ef33482`
-- `renderer_sha256`: `5eed8ea8e36460d4f6321a7655deb6a4971c7ccc2ffdf784957d4ce44ab61d21`
-- `generated_at`: `2026-08-25T08:31:27+00:00`
-- `worktree_head`: `8eea4730d4b1c9baf73dccf60bbbfeadc64746b5`
+- `renderer_git_blob`: `bc34e1b6b906bb70d2572a9c82bebe9c456072ae`
+- `renderer_sha256`: `10ccc1154a9c1a2adf8cf967a508940fc6a1793034a133fa6e61b1c5befc0b3c`
+- `generated_at`: `2026-08-25T09:43:30+00:00`
+- `worktree_head`: `a2b9a79b33dfc5bf4f0e1e0a68b60a88bf5ff2a0`
 - `draft_schema`: `poc1_spec_qa_acceptance_set_draft.v0.1`
 - `draft_status`: `draft_not_admitted`
 - `Independent reviewer`: `PENDING_ASSIGNMENT`
@@ -46,7 +46,7 @@
 - USB 3.2 Ch.6/7/9/10：L1-008–011, L2-019–022
 - Hub / PORT_POWER / PORT_LINK_STATE：L1-004, L1-005, L1-011, L3-026, L3-035
 - USB 2.0 → LVS：L3-026, L3-027, L3-037
-- USB4 負控：L4-043, L4-048
+- USB4 負控：L4-043；USB PD 負控：L4-048
 - 其餘全部 L3 / L4
 
 ---
@@ -306,11 +306,11 @@ What numeric value does the USB 2.0 Hub Class assign to the PORT_POWER feature s
 
 ### 這題在問什麼？
 
-USB 2.0 Rev 2.0 第 6 章裡，哪一個差分訊號參數在引用數值時，必須連同量測條件與單位一起說明？
+USB 2.0 Rev 2.0 Table 6-7 對 Contact Capacitance 的性能要求是什麼？必須寫出未插合（unmated）條件與單位。
 
 ### 英文原題
 
-Which USB 2.0 Revision 2.0 Chapter 6 differential-signaling parameter must be cited with its measurement condition and units?
+In USB 2.0 Revision 2.0 Table 6-7, what is the Contact Capacitance performance requirement, including the unmated condition and units?
 
 ### 請確認
 
@@ -354,11 +354,11 @@ Which USB 2.0 Revision 2.0 Chapter 6 differential-signaling parameter must be ci
 
 ### 這題在問什麼？
 
-USB 2.0 Rev 2.0 第 7 章裡，哪一條 timing 要求在報告時，必須連同量測條件與單位？
+依 USB 2.0 Rev 2.0 Section 7.1.2.2，對 hub 或可拆線裝置，在 A 或 B receptacle 量到的 high-speed 差分 rise/fall（10% 到 90%）最短時間是多少，單位是什麼？
 
 ### 英文原題
 
-Which USB 2.0 Revision 2.0 Chapter 7 timing requirement must be reported with its measurement condition and units?
+According to USB 2.0 Revision 2.0 Section 7.1.2.2, what minimum 10%-to-90% high-speed differential rise and fall time applies at the A or B receptacle for a hub or a device with detachable cable, and in what units?
 
 ### 請確認
 
@@ -402,11 +402,11 @@ Which USB 2.0 Revision 2.0 Chapter 7 timing requirement must be reported with it
 
 ### 這題在問什麼？
 
-評估 Hub link transition 時，應引用 USB 3.2 Rev 1.1 第 6 章的哪一條 link-state 或 signaling 規則？
+依 USB 3.2 Rev 1.1 Section 6.9.3，downstream port 可以在哪些link state 發出 Warm Reset？Table 6-30 給的 tReset 最短與最長是多少？
 
 ### 英文原題
 
-Which USB 3.2 Revision 1.1 Chapter 6 link-state or signaling rule must be cited when evaluating a Hub link transition?
+According to USB 3.2 Revision 1.1 Section 6.9.3, in which link states may a downstream port issue a Warm Reset, and what tReset minimum and maximum does Table 6-30 specify?
 
 ### 請確認
 
@@ -450,11 +450,11 @@ Which USB 3.2 Revision 1.1 Chapter 6 link-state or signaling rule must be cited 
 
 ### 這題在問什麼？
 
-USB 3.2 Rev 1.1 第 7 章裡，哪一條 protocol 或 ordered-set 規則適用於 Hub link exchange？
+依 USB 3.2 Rev 1.1 Table 7-8，x1 與 x2 操作下的 PM_LC_TIMER逾時值各是多少，單位是什麼？
 
 ### 英文原題
 
-Which USB 3.2 Revision 1.1 Chapter 7 protocol or ordered-set rule applies to a Hub link exchange?
+According to USB 3.2 Revision 1.1 Table 7-8, what are the PM_LC_TIMER timeout values for x1 operation and x2 operation, including units?
 
 ### 請確認
 
@@ -498,11 +498,11 @@ Which USB 3.2 Revision 1.1 Chapter 7 protocol or ordered-set rule applies to a H
 
 ### 這題在問什麼？
 
-USB 3.2 Rev 1.1 第 9 章裡，哪個 descriptor 或 standard-request 欄位用來指出正在評估的 device state？
+依 USB 3.2 Rev 1.1 Section 9.4.2 Get Configuration，裝置在Address state 應回什麼 configuration value？在 Configured state 又應回什麼？
 
 ### 英文原題
 
-Which USB 3.2 Revision 1.1 Chapter 9 descriptor or standard-request field identifies the device state being evaluated?
+According to USB 3.2 Revision 1.1 Section 9.4.2 Get Configuration, what configuration value shall be returned in the Address state, and what shall be returned in the Configured state?
 
 ### 請確認
 
@@ -546,11 +546,11 @@ Which USB 3.2 Revision 1.1 Chapter 9 descriptor or standard-request field identi
 
 ### 這題在問什麼？
 
-USB 3.2 Rev 1.1 第 10 章裡，哪一條 Hub descriptor 或 feature-selector規則管 downstream-port state？
+依 USB 3.2 Rev 1.1 Figure 10-10 與 Section 10.3.1.9，PORT_LINK_STATE（PLS）是哪一個 port-status 欄位？哪個 request 會讓 downstream port 進入 DSPORT.Disabled、link 在 eSS.Disabled？
 
 ### 英文原題
 
-What USB 3.2 Revision 1.1 Chapter 10 Hub descriptor or feature-selector rule governs downstream-port state?
+According to USB 3.2 Revision 1.1 Figure 10-10 and Section 10.3.1.9, which port-status field is PORT_LINK_STATE (PLS), and which request places a downstream port in DSPORT.Disabled with the link in eSS.Disabled?
 
 ### 請確認
 
@@ -594,11 +594,11 @@ What USB 3.2 Revision 1.1 Chapter 10 Hub descriptor or feature-selector rule gov
 
 ### 這題在問什麼？
 
-對 SuperSpeed Hub LVS Rev 1.15 的一項 Hub 測試，答案必須抽出並引用哪些前置條件、刺激與預期觀察？
+在 SuperSpeed Hub LVS Rev 1.15 TD 10.104 Toggle Port Power 中，先 ClearPortFeature(PORT_POWER)，再在最短 tReset（80 ms）內SetPortFeature(PORT_POWER) 之後，最長 tReset（120 ms）時GetPortStatus 必須看到什麼？
 
 ### 英文原題
 
-For a SuperSpeed Hub LVS Revision 1.15 Hub test item, which precondition, stimulus, and expected observation must the answer extract and cite?
+In SuperSpeed Hub LVS Revision 1.15 TD 10.104 Toggle Port Power, after ClearPortFeature(PORT_POWER) then SetPortFeature(PORT_POWER) within min tReset (80 ms), what GetPortStatus observation is required after max tReset (120 ms)?
 
 ### 請確認
 
@@ -1170,11 +1170,11 @@ What conclusion can be drawn from a SuperSpeed Hub LVS Revision 1.15 test condit
 
 ### 這題在問什麼？
 
-SuperSpeed Hub LVS Rev 1.15 程序裡，哪些是規格自己定義的條件，哪些「產品通過」的說法還需要另外的執行證據？
+SuperSpeed Hub LVS Rev 1.15 TD 10.105 Disconnect Device Test在 U0–U3 disconnect 後要求的 GetPortStatus 觀察，可以怎麼當測試判定？為什麼寫在程序裡的條件，還不能直接當成產品已通過？
 
 ### 英文原題
 
-Which parts of a SuperSpeed Hub LVS Revision 1.15 procedure are source-defined conditions, and which product-pass statements require separate execution evidence?
+How should SuperSpeed Hub LVS Revision 1.15 TD 10.105 Disconnect Device Test's required GetPortStatus observation after a U0-U3 disconnect be used as a test oracle, without treating the written procedure as a device-pass result?
 
 ### 請確認
 
@@ -1922,7 +1922,7 @@ How should a USB 3.2 Revision 1.1 Hub claim be grounded in the governed structur
 
 ## DRAFT-L4-039 （優先）
 
-**這題預期：回報衝突，不應自行裁決**
+**這題預期：直接回答**
 
 - 層級：L4 / P0 / uncertainty_conflict
 - 範圍：`USB_HUB_COMMON`
@@ -1938,41 +1938,42 @@ How should a USB 3.2 Revision 1.1 Hub claim be grounded in the governed structur
 
 ### 這題在問什麼？
 
-若 USB 2.0 Hub Class 與 USB 3.2 Hub 證據指向不同行為，在試圖調和前，必須先報告哪些版本、權威角色、章節位置與互相衝突的主張？
+USB 2.0 Table 11-17 把 PORT_POWER 的 Hub Class feature-selector 訂成 8，USB 3.2 第 10 章則把 PORT_POWER（PP）當成與 PORT_LINK_STATE（PLS）不同的port-status 欄位。這是必須回報的同一對象衝突，還是必須分開寫的世代與欄位範圍差異？
 
 ### 英文原題
 
-If USB 2.0 Hub Class evidence and USB 3.2 Hub evidence imply different behavior, which revisions, authority roles, section anchors, and competing claims must be reported before reconciliation?
+USB 2.0 Table 11-17 assigns PORT_POWER the Hub Class feature-selector value 8, while USB 3.2 Chapter 10 treats PORT_POWER (PP) as a port-status field distinct from PORT_LINK_STATE (PLS). Is that a same-object conflict that must be reported, or a generation-and-field-scope difference that must be kept separate?
 
 ### 請確認
 
 - [ ] 指定的規格文件與版本正確
 - [ ] 可以從指定規格中找到答案
-- [ ] 這題確實應該回報衝突，而不是自行給出單一答案
+- [ ] 這題確實應該直接回答，而不是回報衝突或拒絕回答
 - [ ] 這個問題沒有先把答案透露出來
 - [ ] 這個問題沒有暗示產品已經通過測試或認證
 
 ### 請填
 
-- 來源 A 文件 / 章節 / 頁碼 / 主張：
-- 來源 B 文件 / 章節 / 頁碼 / 主張：
-- 衝突類型（只准這三個）：AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT：
-- 為什麼不能自己選一邊當答案：
+- 規格章節：
+- 頁碼：
+- 支持答案的規格原文：
+- 正確答案至少要包含哪些重點：
+- 根據這份證據，哪些結論不能下：
 - 結果：未判定 / 題目可用 / 題目需要修改 / 這題不適合使用（機器值 UNSET / PASS / REWORD / REJECT）
 - 備註：
 
 <details>
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
-- expected_status：`conflict`
-- v1.1 gold 規則：至少 2 個 competing evidence + 至少 2 條 required claims + 至少 2 個 section anchors；boundary_code 限 AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
 
 ## DRAFT-L4-040 （優先）
 
-**這題預期：回報衝突，不應自行裁決**
+**這題預期：直接回答**
 
 - 層級：L4 / P0 / uncertainty_conflict
 - 範圍：`USB_HUB_COMMON`
@@ -1988,41 +1989,42 @@ If USB 2.0 Hub Class evidence and USB 3.2 Hub evidence imply different behavior,
 
 ### 這題在問什麼？
 
-當 USB 2.0 signal/electrical 陳述與 USB 3.2 protocol 陳述對不上，且沒有來源能調和兩邊範圍時，應該怎麼呈現這個未解衝突？
+USB 2.0 Section 7.1.2.2 寫 high-speed 差分 rise/fall（10% 到 90%）最短 500 ps，USB 3.2 Section 10.3.1.9 則用 SetPortFeature(PORT_LINK_STATE) eSS.Disabled進入 DSPORT.Disabled。這兩邊是在爭同一個對象，還是必須分開報告的電氣範圍與協定範圍？
 
 ### 英文原題
 
-How should an unresolved conflict between a USB 2.0 signal/electrical statement and a USB 3.2 protocol statement be represented when no source evidence reconciles the scopes?
+USB 2.0 Section 7.1.2.2 states a high-speed 10%-to-90% differential rise/fall minimum of 500 ps, and USB 3.2 Section 10.3.1.9 uses SetPortFeature(PORT_LINK_STATE) eSS.Disabled to enter DSPORT.Disabled. Do these two statements compete about the same object, or must they be reported as different electrical versus protocol scopes?
 
 ### 請確認
 
 - [ ] 指定的規格文件與版本正確
 - [ ] 可以從指定規格中找到答案
-- [ ] 這題確實應該回報衝突，而不是自行給出單一答案
+- [ ] 這題確實應該直接回答，而不是回報衝突或拒絕回答
 - [ ] 這個問題沒有先把答案透露出來
 - [ ] 這個問題沒有暗示產品已經通過測試或認證
 
 ### 請填
 
-- 來源 A 文件 / 章節 / 頁碼 / 主張：
-- 來源 B 文件 / 章節 / 頁碼 / 主張：
-- 衝突類型（只准這三個）：AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT：
-- 為什麼不能自己選一邊當答案：
+- 規格章節：
+- 頁碼：
+- 支持答案的規格原文：
+- 正確答案至少要包含哪些重點：
+- 根據這份證據，哪些結論不能下：
 - 結果：未判定 / 題目可用 / 題目需要修改 / 這題不適合使用（機器值 UNSET / PASS / REWORD / REJECT）
 - 備註：
 
 <details>
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
-- expected_status：`conflict`
-- v1.1 gold 規則：至少 2 個 competing evidence + 至少 2 條 required claims + 至少 2 個 section anchors；boundary_code 限 AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
 
 ## DRAFT-L4-041 （優先）
 
-**這題預期：回報衝突，不應自行裁決**
+**這題預期：直接回答**
 
 - 層級：L4 / P0 / uncertainty_conflict
 - 範圍：`USB_HUB_COMMON`
@@ -2038,41 +2040,42 @@ How should an unresolved conflict between a USB 2.0 signal/electrical statement 
 
 ### 這題在問什麼？
 
-若 governed reference 的範圍與 USB 2.0 規範原文對「誰說了算」不一致，答案必須報告哪些互相衝突的權威事實？
+governed Hub reference 的 claim_ceiling 是 spec_reference_only，且 cannot_establish firmware_behavior；USB 2.0 Section 11.5.1.2 則是規範性的 Powered-off 轉換。這是同一套 Hub-Class 行為上的AUTHORITY_MISMATCH 衝突，還是必須分開看待的兩種權威角色？
 
 ### 英文原題
 
-If the governed reference claim boundary and the normative USB 2.0 source disagree about authority scope, what competing authority facts must the answer report?
+The governed Hub reference claim_ceiling is spec_reference_only and cannot_establish firmware_behavior, while USB 2.0 Section 11.5.1.2 is a normative Powered-off transition. Is that an AUTHORITY_MISMATCH conflict about the same Hub-Class behavior, or two different authority roles that must be kept separate?
 
 ### 請確認
 
 - [ ] 指定的規格文件與版本正確
 - [ ] 可以從指定規格中找到答案
-- [ ] 這題確實應該回報衝突，而不是自行給出單一答案
+- [ ] 這題確實應該直接回答，而不是回報衝突或拒絕回答
 - [ ] 這個問題沒有先把答案透露出來
 - [ ] 這個問題沒有暗示產品已經通過測試或認證
 
 ### 請填
 
-- 來源 A 文件 / 章節 / 頁碼 / 主張：
-- 來源 B 文件 / 章節 / 頁碼 / 主張：
-- 衝突類型（只准這三個）：AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT：
-- 為什麼不能自己選一邊當答案：
+- 規格章節：
+- 頁碼：
+- 支持答案的規格原文：
+- 正確答案至少要包含哪些重點：
+- 根據這份證據，哪些結論不能下：
 - 結果：未判定 / 題目可用 / 題目需要修改 / 這題不適合使用（機器值 UNSET / PASS / REWORD / REJECT）
 - 備註：
 
 <details>
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
-- expected_status：`conflict`
-- v1.1 gold 規則：至少 2 個 competing evidence + 至少 2 條 required claims + 至少 2 個 section anchors；boundary_code 限 AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
 
 ## DRAFT-L4-042 （優先）
 
-**這題預期：回報衝突，不應自行裁決**
+**這題預期：直接回答**
 
 - 層級：L4 / P0 / uncertainty_conflict
 - 範圍：`USB_3_X_TO_LVS`
@@ -2088,34 +2091,35 @@ If the governed reference claim boundary and the normative USB 2.0 source disagr
 
 ### 這題在問什麼？
 
-若 SuperSpeed Hub LVS Rev 1.15 條件無法與 USB 3.2 Rev 1.1 要求對上，應該回報什麼衝突結果，以及證據邊界到哪裡？
+USB 3.2 Section 10.3.1.11 說收到 ClearPortFeature(PORT_POWER) 時，downstream port 進入 DSPORT.Powered-off-reset；SuperSpeed Hub LVS TD 10.104 把同一個 request 當測試刺激。這是要求與測試條件的衝突，還是仍不能當成產品已通過的對應關係？
 
 ### 英文原題
 
-If a SuperSpeed Hub LVS Revision 1.15 condition cannot be reconciled with a USB 3.2 Revision 1.1 requirement, what conflict result and evidence boundary must the agent return?
+USB 3.2 Section 10.3.1.11 says a downstream port transitions to DSPORT.Powered-off-reset when it receives ClearPortFeature(PORT_POWER), and SuperSpeed Hub LVS TD 10.104 uses that same request as a test stimulus. Is that a requirement-versus-test-condition conflict, or a mapping that still cannot be treated as a product-pass result?
 
 ### 請確認
 
 - [ ] 指定的規格文件與版本正確
 - [ ] 可以從指定規格中找到答案
-- [ ] 這題確實應該回報衝突，而不是自行給出單一答案
+- [ ] 這題確實應該直接回答，而不是回報衝突或拒絕回答
 - [ ] 這個問題沒有先把答案透露出來
 - [ ] 這個問題沒有暗示產品已經通過測試或認證
 
 ### 請填
 
-- 來源 A 文件 / 章節 / 頁碼 / 主張：
-- 來源 B 文件 / 章節 / 頁碼 / 主張：
-- 衝突類型（只准這三個）：AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT：
-- 為什麼不能自己選一邊當答案：
+- 規格章節：
+- 頁碼：
+- 支持答案的規格原文：
+- 正確答案至少要包含哪些重點：
+- 根據這份證據，哪些結論不能下：
 - 結果：未判定 / 題目可用 / 題目需要修改 / 這題不適合使用（機器值 UNSET / PASS / REWORD / REJECT）
 - 備註：
 
 <details>
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
-- expected_status：`conflict`
-- v1.1 gold 規則：至少 2 個 competing evidence + 至少 2 條 required claims + 至少 2 個 section anchors；boundary_code 限 AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -2141,8 +2145,10 @@ Can a USB4 router requirement be answered from the Phase 1 USB Hub corpus, and w
 
 ### 請確認
 
-- [ ] 指定的規格文件與版本正確
-- [ ] 可以從指定規格中找到答案
+- [ ] 目前指定的 Phase 1 規格裡，沒有足夠、可接受的證據能回答這題
+- [ ] 不應為了硬答而去引用指定規格以外的來源
+- [ ] 拒絕回答的理由，和實際缺什麼證據相符
+- [ ] 這題不該把規範章節或頁碼當成正式答案
 - [ ] 這題確實應該拒絕回答，而不是硬答
 - [ ] 這個問題沒有先把答案透露出來
 - [ ] 這個問題沒有暗示產品已經通過測試或認證
@@ -2185,8 +2191,10 @@ What should the agent return when a requested USB Hub behavior cites fictional s
 
 ### 請確認
 
-- [ ] 指定的規格文件與版本正確
-- [ ] 可以從指定規格中找到答案
+- [ ] 目前指定的 Phase 1 規格裡，沒有足夠、可接受的證據能回答這題
+- [ ] 不應為了硬答而去引用指定規格以外的來源
+- [ ] 拒絕回答的理由，和實際缺什麼證據相符
+- [ ] 這題不該把規範章節或頁碼當成正式答案
 - [ ] 這題確實應該拒絕回答，而不是硬答
 - [ ] 這個問題沒有先把答案透露出來
 - [ ] 這個問題沒有暗示產品已經通過測試或認證
@@ -2229,8 +2237,10 @@ How should the agent respond when a proposed USB Hub answer relies on an authori
 
 ### 請確認
 
-- [ ] 指定的規格文件與版本正確
-- [ ] 可以從指定規格中找到答案
+- [ ] 目前指定的 Phase 1 規格裡，沒有足夠、可接受的證據能回答這題
+- [ ] 不應為了硬答而去引用指定規格以外的來源
+- [ ] 拒絕回答的理由，和實際缺什麼證據相符
+- [ ] 這題不該把規範章節或頁碼當成正式答案
 - [ ] 這題確實應該拒絕回答，而不是硬答
 - [ ] 這個問題沒有先把答案透露出來
 - [ ] 這個問題沒有暗示產品已經通過測試或認證
@@ -2273,8 +2283,10 @@ What should the agent return when a requested USB 2.0 claim has no bound section
 
 ### 請確認
 
-- [ ] 指定的規格文件與版本正確
-- [ ] 可以從指定規格中找到答案
+- [ ] 目前指定的 Phase 1 規格裡，沒有足夠、可接受的證據能回答這題
+- [ ] 不應為了硬答而去引用指定規格以外的來源
+- [ ] 拒絕回答的理由，和實際缺什麼證據相符
+- [ ] 這題不該把規範章節或頁碼當成正式答案
 - [ ] 這題確實應該拒絕回答，而不是硬答
 - [ ] 這個問題沒有先把答案透露出來
 - [ ] 這個問題沒有暗示產品已經通過測試或認證
@@ -2317,8 +2329,10 @@ What is the correct response to a vendor-specific Hub firmware question outside 
 
 ### 請確認
 
-- [ ] 指定的規格文件與版本正確
-- [ ] 可以從指定規格中找到答案
+- [ ] 目前指定的 Phase 1 規格裡，沒有足夠、可接受的證據能回答這題
+- [ ] 不應為了硬答而去引用指定規格以外的來源
+- [ ] 拒絕回答的理由，和實際缺什麼證據相符
+- [ ] 這題不該把規範章節或頁碼當成正式答案
 - [ ] 這題確實應該拒絕回答，而不是硬答
 - [ ] 這個問題沒有先把答案透露出來
 - [ ] 這個問題沒有暗示產品已經通過測試或認證
@@ -2340,12 +2354,12 @@ What is the correct response to a vendor-specific Hub firmware question outside 
 
 ---
 
-## DRAFT-L4-048 （優先 · USB4負控）
+## DRAFT-L4-048 （優先）
 
 **這題預期：拒絕回答**
 
 - 層級：L4 / P0 / uncertainty_conflict
-- 範圍：`USB4_SPEC`
+- 範圍：`USB_PD_SPEC`
 
 ### 要查哪份規格？
 
@@ -2353,16 +2367,18 @@ What is the correct response to a vendor-specific Hub firmware question outside 
 
 ### 這題在問什麼？
 
-Phase 1 的 USB Hub 資料能否回答 USB4 tunneling 要求？若不能回答，必須一併標出哪一條 USB4 Phase 2 範圍邊界？
+Phase 1 的 USB Hub 資料（USB 2.0、USB 3.2、SuperSpeed Hub LVS、governed Hub reference）能否回答 USB Power Delivery（USB PD）的contract、PDO 或 PPS 要求？若不能，應如何明確拒絕回答並標出超出範圍？
 
 ### 英文原題
 
-Is a USB4 tunneling requirement answerable from the Phase 1 USB Hub corpus, and which USB4 Phase 2 scope boundary must accompany the abstention?
+Can a USB Power Delivery (USB PD) contract, PDO, or PPS requirement be answered from the Phase 1 USB Hub corpus (USB 2.0, USB 3.2, SuperSpeed Hub LVS, and the governed Hub reference), and what explicit out-of-scope abstention should be returned?
 
 ### 請確認
 
-- [ ] 指定的規格文件與版本正確
-- [ ] 可以從指定規格中找到答案
+- [ ] 目前指定的 Phase 1 規格裡，沒有足夠、可接受的證據能回答這題
+- [ ] 不應為了硬答而去引用指定規格以外的來源
+- [ ] 拒絕回答的理由，和實際缺什麼證據相符
+- [ ] 這題不該把規範章節或頁碼當成正式答案
 - [ ] 這題確實應該拒絕回答，而不是硬答
 - [ ] 這個問題沒有先把答案透露出來
 - [ ] 這個問題沒有暗示產品已經通過測試或認證
@@ -2386,7 +2402,7 @@ Is a USB4 tunneling requirement answerable from the Phase 1 USB Hub corpus, and 
 
 ## DRAFT-L4-049 （優先）
 
-**這題預期：回報衝突，不應自行裁決**
+**這題預期：直接回答**
 
 - 層級：L4 / P0 / uncertainty_conflict
 - 範圍：`USB_2_0`
@@ -2402,34 +2418,35 @@ Is a USB4 tunneling requirement answerable from the Phase 1 USB Hub corpus, and 
 
 ### 這題在問什麼？
 
-當 USB 2.0 firmware-scope 證據與 USB 2.0 signal/electrical-scope 證據互相矛盾，且指定頁面無法調和時，應該怎麼報告？
+USB 2.0 Section 11.5.1.2 描述 ClearPortFeature(PORT_POWER) 後進入 Powered-off；Section 7.1.2.2 則寫 high-speed 差分 rise/fall（10% 到 90%）最短 500 ps。這是同一對象上的互相競爭主張，還是必須分開寫的 Hub-Class 控制與電氣量測範圍？
 
 ### 英文原題
 
-How should a contradiction between USB 2.0 firmware-scope evidence and USB 2.0 signal/electrical-scope evidence be reported when the locked source pages do not reconcile it?
+USB 2.0 Section 11.5.1.2 describes Powered-off after ClearPortFeature(PORT_POWER), and Section 7.1.2.2 states a high-speed 10%-to-90% differential rise/fall minimum of 500 ps. Are those competing claims about the same object, or Hub-Class control versus electrical measurement scopes that must stay separate?
 
 ### 請確認
 
 - [ ] 指定的規格文件與版本正確
 - [ ] 可以從指定規格中找到答案
-- [ ] 這題確實應該回報衝突，而不是自行給出單一答案
+- [ ] 這題確實應該直接回答，而不是回報衝突或拒絕回答
 - [ ] 這個問題沒有先把答案透露出來
 - [ ] 這個問題沒有暗示產品已經通過測試或認證
 
 ### 請填
 
-- 來源 A 文件 / 章節 / 頁碼 / 主張：
-- 來源 B 文件 / 章節 / 頁碼 / 主張：
-- 衝突類型（只准這三個）：AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT：
-- 為什麼不能自己選一邊當答案：
+- 規格章節：
+- 頁碼：
+- 支持答案的規格原文：
+- 正確答案至少要包含哪些重點：
+- 根據這份證據，哪些結論不能下：
 - 結果：未判定 / 題目可用 / 題目需要修改 / 這題不適合使用（機器值 UNSET / PASS / REWORD / REJECT）
 - 備註：
 
 <details>
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
-- expected_status：`conflict`
-- v1.1 gold 規則：至少 2 個 competing evidence + 至少 2 條 required claims + 至少 2 個 section anchors；boundary_code 限 AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -2455,8 +2472,10 @@ What should the agent do when a user asks it to promote an informative note into
 
 ### 請確認
 
-- [ ] 指定的規格文件與版本正確
-- [ ] 可以從指定規格中找到答案
+- [ ] 目前指定的 Phase 1 規格裡，沒有足夠、可接受的證據能回答這題
+- [ ] 不應為了硬答而去引用指定規格以外的來源
+- [ ] 拒絕回答的理由，和實際缺什麼證據相符
+- [ ] 這題不該把規範章節或頁碼當成正式答案
 - [ ] 這題確實應該拒絕回答，而不是硬答
 - [ ] 這個問題沒有先把答案透露出來
 - [ ] 這個問題沒有暗示產品已經通過測試或認證
