@@ -197,3 +197,28 @@ def test_official_render_fails_when_draft_dirty(tmp_path: Path):
             output_path=tmp_path / "worksheet.md",
             repo_root=repo,
         )
+
+
+def test_html_worksheet_has_fifty_cards_and_lock_hashes(tmp_path: Path):
+    repo = _seed_official_repo(tmp_path)
+    draft_path = repo / "gv100h" / "spec_qa" / "golden" / "poc1_acceptance_set.draft.json"
+    lock_path = repo / "gv100h" / "spec_qa" / "contracts" / "corpus.lock.yaml"
+    renderer_path = repo / "scripts" / "render_poc1_review_worksheet.py"
+    output = tmp_path / "worksheet.html"
+    text = renderer.render_html_worksheet(
+        draft_path=draft_path,
+        lock_path=lock_path,
+        renderer_path=renderer_path,
+        output_path=output,
+        generated_at="2026-08-25T00:00:00+00:00",
+        repo_root=repo,
+    )
+    lock = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
+    assert output.is_file()
+    assert text.count('class="question"') == 50
+    assert text.count("<article class='card'") == 50
+    assert lock["sources"]["usb20_fw"]["content_sha256"][:8] in text
+    assert lock["sources"]["usb32"]["content_sha256"][:8] in text
+    assert "MUST_NOT_CREATE" in text
+    assert "PENDING_ASSIGNMENT" in text
+    assert "瀏覽器勾選只留在本機頁面" in text

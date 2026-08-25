@@ -7,6 +7,7 @@ invent gold, or create a review receipt.
 from __future__ import annotations
 
 import hashlib
+import html
 import json
 import subprocess
 import sys
@@ -29,6 +30,9 @@ DRAFT_PATH = ROOT / "gv100h" / "spec_qa" / "golden" / "poc1_acceptance_set.draft
 LOCK_PATH = ROOT / "gv100h" / "spec_qa" / "contracts" / "corpus.lock.yaml"
 OUT_PATH = (
     ROOT / "artifacts" / "reviews" / "gv100h" / "poc1-acceptance-review-worksheet.md"
+)
+HTML_OUT_PATH = (
+    ROOT / "artifacts" / "reviews" / "gv100h" / "poc1-acceptance-review-worksheet.html"
 )
 
 PRIORITY_IDS = {
@@ -366,10 +370,285 @@ def render_worksheet(
     return text
 
 
+def _h(value: Any) -> str:
+    return html.escape(str(value), quote=True)
+
+
+def render_html_worksheet(
+    *,
+    draft_path: Path = DRAFT_PATH,
+    lock_path: Path = LOCK_PATH,
+    renderer_path: Path | None = None,
+    output_path: Path | None = None,
+    generated_at: str | None = None,
+    repo_root: Path = ROOT,
+) -> str:
+    renderer = renderer_path or Path(__file__).resolve()
+    if not draft_path.is_file():
+        raise WorksheetRenderError(f"draft does not exist: {draft_path}")
+    if not lock_path.is_file():
+        raise WorksheetRenderError(f"corpus lock does not exist: {lock_path}")
+
+    stamp = generated_at or datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    provenance = collect_provenance(
+        draft_path=draft_path,
+        lock_path=lock_path,
+        renderer_path=renderer,
+        generated_at=stamp,
+        repo_root=repo_root,
+    )
+    draft = json.loads(draft_path.read_text(encoding="utf-8"))
+    lock = load_corpus_lock(lock_path)
+    sources = required_sources_from_lock(lock)
+    boundary_list = " / ".join(BOUNDARY_CODES)
+    conflict_list = " / ".join(sorted(CONFLICT_BOUNDARY_CODES))
+    questions = draft["questions"]
+
+    nav_items: list[str] = []
+    cards: list[str] = []
+    for question in questions:
+        qid = question["question_id"]
+        status = question["expected_status"]
+        extra = []
+        if qid in PRIORITY_IDS or question["layer"] in {"L3", "L4"}:
+            extra.append("優先")
+        if question.get("usb4_negative_control"):
+            extra.append("USB4負控")
+        source_ids = question.get("accepted_source_ids") or []
+        nav_items.append(
+            f'<a href="#{_h(qid)}" class="nav-{_h(status)}">{_h(qid)}</a>'
+        )
+        source_html = ["<ul class='sources'>"]
+        if source_ids:
+            for source_id in source_ids:
+                _, label, locator, _digest = source_row(source_id, sources[source_id])
+                digest = str(sources[source_id].get("content_sha256") or "NOT_DECLARED")
+                source_html.append(
+                    "<li>"
+                    f"<code>{_h(source_id)}</code> = {_h(label)}<br>"
+                    f"locator：<code>{_h(locator)}</code><br>"
+                    f"content_sha256：<code>{_h(digest)}</code>"
+                    "</li>"
+                )
+        else:
+            source_html.append("<li>無（棄權題不該引用 Phase 1 正式來源）</li>")
+        source_html.append("</ul>")
+        if status == "answer":
+            fields = [
+                "文件 / revision",
+                "section",
+                "page 或穩定錨點",
+                "原文摘錄（短）",
+                "必答事實（1–3 條）",
+                "禁止宣稱",
+            ]
+        elif status == "conflict":
+            fields = [
+                "來源 A 文件 / section / page / 主張",
+                "來源 B 文件 / section / page / 主張",
+                f"衝突類型（只准這三個）：{conflict_list}",
+                "為何不能硬解",
+            ]
+        else:
+            fields = [
+                f"棄權理由碼（只准這六個）：{boundary_list}",
+                "為何 Phase 1 corpus 不能答",
+                "不可把 section/page 當成正式答案",
+            ]
+        field_html = "".join(
+            "<label>"
+            f"<span>{_h(field)}</span>"
+            "<textarea rows='2'></textarea>"
+            "</label>"
+            for field in fields
+        )
+        cards.append(
+            "<article class='card' id='"
+            + _h(qid)
+            + "' data-status='"
+            + _h(status)
+            + "' data-layer='"
+            + _h(question["layer"])
+            + "'>"
+            "<header>"
+            f"<h2>{_h(qid)}</h2>"
+            + "".join(f"<span class='tag'>{_h(item)}</span>" for item in extra)
+            + f"<span class='status status-{_h(status)}'>{_h(STATUS_ZH[status])} ({_h(status)})</span>"
+            "</header>"
+            "<dl>"
+            f"<div><dt>層級</dt><dd>{_h(question['layer'])} / {_h(question['priority'])} / {_h(question['category'])}</dd></div>"
+            f"<div><dt>範圍</dt><dd><code>{_h(question['expected_scope'])}</code></dd></div>"
+            f"<div><dt>v1.1 gold 規則</dt><dd>{_h(STATUS_GOLD_RULES[status])}</dd></div>"
+            "</dl>"
+            "<h3>應對規格</h3>"
+            + "".join(source_html)
+            + "<h3>題目</h3>"
+            f"<p class=\"question\">{_h(question['question'])}</p>"
+            "<h3>審查人勾選</h3>"
+            "<div class='checks'>"
+            "<label><input type='checkbox'> 題幹能對到鎖定原文（不是憑印象）</label>"
+            "<label><input type='checkbox'> 來源身分 / revision 正確</label>"
+            "<label><input type='checkbox'> expected_status 正確（回答 / 衝突 / 棄權）</label>"
+            "<label><input type='checkbox'> 題幹沒有暗示不該有的答案或認證結論</label>"
+            "</div>"
+            f"<h3>請填（{_h(status)}）</h3>"
+            f"<form>{field_html}"
+            "<label><span>判定</span>"
+            "<select><option>未判定</option><option>PASS</option>"
+            "<option>REWORD</option><option>REJECT</option></select></label>"
+            "<label><span>備註</span><textarea rows='3'></textarea></label>"
+            "</form>"
+            "</article>"
+        )
+
+    source_rows = []
+    for source_id in sorted(REQUIRED_POC1_SOURCE_IDS):
+        row = source_row(source_id, sources[source_id])
+        source_rows.append(
+            "<tr>"
+            f"<td><code>{_h(row[0])}</code></td>"
+            f"<td>{_h(row[1])}</td>"
+            f"<td><code>{_h(row[2])}</code></td>"
+            f"<td><code>{_h(row[3])}</code></td>"
+            "</tr>"
+        )
+    provenance_rows = "".join(
+        f"<tr><th><code>{_h(key)}</code></th><td><code>{_h(value)}</code></td></tr>"
+        for key, value in provenance.items()
+    )
+    extra_rows = (
+        ("draft_schema", draft.get("draft_schema")),
+        ("draft_status", draft.get("status")),
+        ("Independent reviewer", "PENDING_ASSIGNMENT"),
+        ("USB_SPEC_QA_RAW_ROOT", "NOT_CONFIGURED"),
+    )
+    provenance_rows += "".join(
+        f"<tr><th><code>{_h(key)}</code></th><td><code>{_h(value)}</code></td></tr>"
+        for key, value in extra_rows
+    )
+
+    page = f"""<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POC-1 Gold Oracle 人審工作單</title>
+<style>
+:root {{
+  --bg: #f4f1ea;
+  --ink: #1f2430;
+  --muted: #5c6573;
+  --card: #fffdf8;
+  --line: #d8d0c4;
+  --answer: #1f6b4a;
+  --conflict: #9a4a12;
+  --abstain: #5b4b8a;
+}}
+* {{ box-sizing: border-box; }}
+body {{
+  margin: 0;
+  color: var(--ink);
+  background: var(--bg);
+  font: 16px/1.55 "Iwanami", "Source Han Serif TC", "Noto Serif TC", "PMingLiU", serif;
+}}
+.wrap {{ display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }}
+nav {{
+  position: sticky; top: 0; height: 100vh; overflow: auto;
+  padding: 1rem 0.8rem; background: #ece6db; border-right: 1px solid var(--line);
+}}
+nav a {{ display: block; color: inherit; text-decoration: none; padding: 0.18rem 0.4rem; font-size: 0.86rem; }}
+nav a.nav-answer {{ border-left: 3px solid var(--answer); }}
+nav a.nav-conflict {{ border-left: 3px solid var(--conflict); }}
+nav a.nav-abstain {{ border-left: 3px solid var(--abstain); }}
+main {{ padding: 1.4rem 1.6rem 4rem; max-width: 980px; }}
+.banner, .card, table {{
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+}}
+.banner {{ padding: 1rem 1.1rem; margin-bottom: 1rem; }}
+.banner p {{ margin: 0.3rem 0; color: var(--muted); }}
+h1, h2, h3 {{ font-family: "Iwanami", "Source Han Sans TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif; }}
+h1 {{ margin-top: 0; font-size: 1.7rem; }}
+table {{ width: 100%; border-collapse: collapse; margin: 0.8rem 0 1.2rem; font-size: 0.92rem; }}
+th, td {{ border-bottom: 1px solid var(--line); padding: 0.4rem 0.5rem; text-align: left; vertical-align: top; }}
+.card {{ padding: 1rem 1.1rem; margin: 1.1rem 0; }}
+.card header {{ display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }}
+.card h2 {{ margin: 0 0.4rem 0 0; }}
+.tag, .status {{
+  font-family: "Source Han Sans TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  font-size: 0.78rem; padding: 0.15rem 0.45rem; border-radius: 999px; border: 1px solid var(--line);
+}}
+.status-answer {{ color: var(--answer); border-color: var(--answer); }}
+.status-conflict {{ color: var(--conflict); border-color: var(--conflict); }}
+.status-abstain {{ color: var(--abstain); border-color: var(--abstain); }}
+.question {{ font-size: 1.12rem; }}
+.checks, form {{ display: grid; gap: 0.45rem; }}
+label {{ display: grid; gap: 0.2rem; }}
+textarea, select {{ width: 100%; font: inherit; padding: 0.4rem; }}
+code {{ font-family: Consolas, "Sarasa Mono TC", monospace; font-size: 0.86em; }}
+@media print {{
+  nav {{ display: none; }}
+  .wrap {{ display: block; }}
+  .card {{ break-inside: avoid; }}
+}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+<strong>50 題目錄</strong>
+{"".join(nav_items)}
+</nav>
+<main>
+<section class="banner">
+<h1>POC-1 Gold Oracle 人審工作單</h1>
+<p>這是給人看的 review input 投影，不是正式 acceptance set，也不是 review receipt。</p>
+<p>Reviewer 簽這份工作單不夠；最後仍須確認真正會被 admission 的 v1.1 JSON。</p>
+<p>禁止：把 gold 寫進正式 JSON、建立 poc1_acceptance_set.json、建立 approved receipt、宣稱 GO。</p>
+<p>瀏覽器勾選只留在本機頁面，不會寫回倉庫。</p>
+</section>
+<h2>Review-input provenance</h2>
+<table>{provenance_rows}</table>
+<h2>鎖定來源對照</h2>
+<table>
+<tr><th>source_id</th><th>lock identity / scope</th><th>source_locator</th><th>SHA-256 前 8</th></tr>
+{"".join(source_rows)}
+</table>
+<h2>優先先審</h2>
+<ul>
+<li>USB 2.0 Ch.6：L1-006, L2-017</li>
+<li>USB 3.2 Ch.6/7/9/10：L1-008–011, L2-019–022</li>
+<li>Hub / PORT_POWER / PORT_LINK_STATE：L1-004, L1-005, L1-011, L3-026, L3-035</li>
+<li>USB 2.0 → LVS：L3-026, L3-027, L3-037</li>
+<li>USB4 負控：L4-043, L4-048</li>
+<li>其餘全部 L3 / L4</li>
+</ul>
+{"".join(cards)}
+<section class="card">
+<h2>封面紀錄（全部審完才填）</h2>
+<p>審查人：PENDING_ASSIGNMENT</p>
+<p>USB_SPEC_QA_RAW_ROOT：NOT_CONFIGURED</p>
+<p>通過題數：0 / 50</p>
+<p>正式 receipt：MUST_NOT_CREATE</p>
+<p>最終仍須確認：poc1_acceptance_set.json v1.1 manifest diff</p>
+</section>
+</main>
+</div>
+</body>
+</html>
+"""
+    target = output_path or HTML_OUT_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(page, encoding="utf-8")
+    return page
+
+
 def main() -> None:
     text = render_worksheet()
+    html_text = render_html_worksheet()
     print(OUT_PATH)
+    print(HTML_OUT_PATH)
     print(f"cards={text.count('### 題目')}")
+    print(f"html_cards={html_text.count('class=\"question\"')}")
 
 
 if __name__ == "__main__":
