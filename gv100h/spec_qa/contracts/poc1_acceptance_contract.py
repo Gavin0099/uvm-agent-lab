@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import hashlib
 from pathlib import Path
-from typing import Any, Dict, Literal
+from typing import Any, Dict, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -30,6 +30,14 @@ BoundaryCode = Literal[
     "VERSION_CONFLICT",
     "UNRESOLVED_CONFLICT",
 ]
+BOUNDARY_CODES = get_args(BoundaryCode)
+CONFLICT_BOUNDARY_CODES = frozenset(
+    {
+        "AUTHORITY_MISMATCH",
+        "VERSION_CONFLICT",
+        "UNRESOLVED_CONFLICT",
+    }
+)
 
 
 class CitationRequirements(BaseModel):
@@ -312,11 +320,7 @@ class POC1AcceptanceSet(BaseModel):
                     raise AcceptanceContractError(
                         f"conflict question {question.question_id} requires two gold claims and section anchors"
                     )
-                if gold.boundary_code not in {
-                    "AUTHORITY_MISMATCH",
-                    "VERSION_CONFLICT",
-                    "UNRESOLVED_CONFLICT",
-                }:
+                if gold.boundary_code not in CONFLICT_BOUNDARY_CODES:
                     raise AcceptanceContractError(
                         f"conflict question {question.question_id} requires a conflict boundary code"
                     )
