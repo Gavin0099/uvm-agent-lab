@@ -7,15 +7,17 @@
 ## Review-input provenance
 
 - `source_draft_path`: `gv100h/spec_qa/golden/poc1_acceptance_set.draft.json`
-- `source_draft_git_commit`: `1ff846b839798c5cf0422a35b653279639b6d4d8`
+- `source_draft_git_commit`: `b23ef603dd577f32aa722f477cd97245c6274005`
+- `source_draft_git_blob`: `df9a0135aaf2fca334c309f6ed8ab7aac0a9dede`
 - `source_draft_sha256`: `3a9306db7b910e1f8d813dc64ae7b9d77e3771813a4575f7202fbd18cdafbe28`
 - `corpus_lock_path`: `gv100h/spec_qa/contracts/corpus.lock.yaml`
 - `corpus_lock_sha256`: `f51cc94a9cb478071122a3682cd1386983aa84a08b8304d3bfe7b77375f90847`
 - `corpus_lock_git_blob`: `97c1dc714f5fc72ddeb82bc5fb7538dce5b8e8e8`
 - `renderer_path`: `scripts/render_poc1_review_worksheet.py`
-- `renderer_sha256`: `2a31bb223bad1bb6fb005381196101187917863e53c10c9213117e691e2212e9`
-- `generated_at`: `2026-08-25T06:57:02+00:00`
-- `worktree_head`: `a60826b9031e4a55544771a2f4431c3a227673c7`
+- `renderer_git_blob`: `7413b8181b6a1185c0408939eee2ef38b2017136`
+- `renderer_sha256`: `39b6f017aee338a4f7f025438c23d067fe5daeb2a760582a90bd139412a7b4bb`
+- `generated_at`: `2026-08-25T07:20:07+00:00`
+- `worktree_head`: `b23ef603dd577f32aa722f477cd97245c6274005`
 - `draft_schema`: `poc1_spec_qa_acceptance_set_draft.v0.1`
 - `draft_status`: `draft_not_admitted`
 - `Independent reviewer`: `PENDING_ASSIGNMENT`
