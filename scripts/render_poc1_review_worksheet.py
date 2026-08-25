@@ -61,15 +61,27 @@ STATUS_ZH = {
     "abstain": "拒絕回答",
 }
 REVIEWER_CHECKS_COMMON = (
-    "指定的規格文件與版本正確",
-    "可以從指定規格中找到答案",
     "這個問題沒有先把答案透露出來",
     "這個問題沒有暗示產品已經通過測試或認證",
 )
-STATUS_CHECK = {
-    "answer": "這題確實應該直接回答，而不是回報衝突或拒絕回答",
-    "conflict": "這題確實應該回報衝突，而不是自行給出單一答案",
-    "abstain": "這題確實應該拒絕回答，而不是硬答",
+STATUS_CHECKS = {
+    "answer": (
+        "指定的規格文件與版本正確",
+        "可以從指定規格中找到答案",
+        "這題確實應該直接回答，而不是回報衝突或拒絕回答",
+    ),
+    "conflict": (
+        "兩邊互相競爭的證據都確實存在於指定規格",
+        "兩邊談的是同一對象、同一狀態、同一版本脈絡，不是只是範圍不同",
+        "兩邊主張無法同時成立，所以這題應該回報衝突，而不是自行給出單一答案",
+    ),
+    "abstain": (
+        "目前指定的 Phase 1 規格裡，沒有足夠、可接受的證據能回答這題",
+        "不應為了硬答而去引用指定規格以外的來源",
+        "拒絕回答的理由，和實際缺什麼證據相符",
+        "這題不該把規範章節或頁碼當成正式答案",
+        "這題確實應該拒絕回答，而不是硬答",
+    ),
 }
 VERDICT_LABELS = (
     ("UNSET", "未判定"),
@@ -98,32 +110,36 @@ QUESTION_ZH = {
         "穩定引用應指向哪一節？"
     ),
     "DRAFT-L1-006": (
-        "USB 2.0 Rev 2.0 第 6 章裡，哪一個差分訊號參數在引用數值時，"
-        "必須連同量測條件與單位一起說明？"
+        "USB 2.0 Rev 2.0 Table 6-7 對 Contact Capacitance 的性能要求是什麼？"
+        "必須寫出未插合（unmated）條件與單位。"
     ),
     "DRAFT-L1-007": (
-        "USB 2.0 Rev 2.0 第 7 章裡，哪一條 timing 要求在報告時，"
-        "必須連同量測條件與單位？"
+        "依 USB 2.0 Rev 2.0 Section 7.1.2.2，對 hub 或可拆線裝置，"
+        "在 A 或 B receptacle 量到的 high-speed 差分 rise/fall（10% 到 90%）"
+        "最短時間是多少，單位是什麼？"
     ),
     "DRAFT-L1-008": (
-        "評估 Hub link transition 時，應引用 USB 3.2 Rev 1.1 第 6 章的"
-        "哪一條 link-state 或 signaling 規則？"
+        "依 USB 3.2 Rev 1.1 Section 6.9.3，downstream port 可以在哪些"
+        "link state 發出 Warm Reset？Table 6-30 給的 tReset 最短與最長是多少？"
     ),
     "DRAFT-L1-009": (
-        "USB 3.2 Rev 1.1 第 7 章裡，哪一條 protocol 或 ordered-set 規則"
-        "適用於 Hub link exchange？"
+        "依 USB 3.2 Rev 1.1 Table 7-8，x1 與 x2 操作下的 PM_LC_TIMER"
+        "逾時值各是多少，單位是什麼？"
     ),
     "DRAFT-L1-010": (
-        "USB 3.2 Rev 1.1 第 9 章裡，哪個 descriptor 或 standard-request 欄位"
-        "用來指出正在評估的 device state？"
+        "依 USB 3.2 Rev 1.1 Section 9.4.2 Get Configuration，裝置在"
+        "Address state 應回什麼 configuration value？在 Configured state 又應回什麼？"
     ),
     "DRAFT-L1-011": (
-        "USB 3.2 Rev 1.1 第 10 章裡，哪一條 Hub descriptor 或 feature-selector"
-        "規則管 downstream-port state？"
+        "依 USB 3.2 Rev 1.1 Figure 10-10 與 Section 10.3.1.9，"
+        "PORT_LINK_STATE（PLS）是哪一個 port-status 欄位？"
+        "哪個 request 會讓 downstream port 進入 DSPORT.Disabled、link 在 eSS.Disabled？"
     ),
     "DRAFT-L1-012": (
-        "對 SuperSpeed Hub LVS Rev 1.15 的一項 Hub 測試，答案必須抽出並引用"
-        "哪些前置條件、刺激與預期觀察？"
+        "在 SuperSpeed Hub LVS Rev 1.15 TD 10.104 Toggle Port Power 中，"
+        "先 ClearPortFeature(PORT_POWER)，再在最短 tReset（80 ms）內"
+        "SetPortFeature(PORT_POWER) 之後，最長 tReset（120 ms）時"
+        "GetPortStatus 必須看到什麼？"
     ),
     "DRAFT-L1-013": (
         "這份 governed structured Hub reference 授權哪些結論，又有哪些"
@@ -169,8 +185,9 @@ QUESTION_ZH = {
         "要宣稱裝置通過，還需要什麼實際執行證據？"
     ),
     "DRAFT-L2-024": (
-        "SuperSpeed Hub LVS Rev 1.15 程序裡，哪些是規格自己定義的條件，"
-        "哪些「產品通過」的說法還需要另外的執行證據？"
+        "SuperSpeed Hub LVS Rev 1.15 TD 10.105 Disconnect Device Test"
+        "在 U0–U3 disconnect 後要求的 GetPortStatus 觀察，可以怎麼當測試判定？"
+        "為什麼寫在程序裡的條件，還不能直接當成產品已通過？"
     ),
     "DRAFT-L2-025": (
         "工程師可以怎麼把這份 governed structured Hub reference 當索引用，"
@@ -230,20 +247,28 @@ QUESTION_ZH = {
         " 支撐 USB 3.2 Rev 1.1 的 Hub 結論，同時不要把其中任何一份說成產品已通過？"
     ),
     "DRAFT-L4-039": (
-        "若 USB 2.0 Hub Class 與 USB 3.2 Hub 證據指向不同行為，在試圖調和前，"
-        "必須先報告哪些版本、權威角色、章節位置與互相衝突的主張？"
+        "USB 2.0 Table 11-17 把 PORT_POWER 的 Hub Class feature-selector 訂成 8，"
+        "USB 3.2 第 10 章則把 PORT_POWER（PP）當成與 PORT_LINK_STATE（PLS）不同的"
+        "port-status 欄位。這是必須回報的同一對象衝突，還是必須分開寫的"
+        "世代與欄位範圍差異？"
     ),
     "DRAFT-L4-040": (
-        "當 USB 2.0 signal/electrical 陳述與 USB 3.2 protocol 陳述對不上，"
-        "且沒有來源能調和兩邊範圍時，應該怎麼呈現這個未解衝突？"
+        "USB 2.0 Section 7.1.2.2 寫 high-speed 差分 rise/fall（10% 到 90%）最短 500 ps，"
+        "USB 3.2 Section 10.3.1.9 則用 SetPortFeature(PORT_LINK_STATE) eSS.Disabled"
+        "進入 DSPORT.Disabled。這兩邊是在爭同一個對象，還是必須分開報告的"
+        "電氣範圍與協定範圍？"
     ),
     "DRAFT-L4-041": (
-        "若 governed reference 的範圍與 USB 2.0 規範原文對「誰說了算」不一致，"
-        "答案必須報告哪些互相衝突的權威事實？"
+        "governed Hub reference 的 claim_ceiling 是 spec_reference_only，"
+        "且 cannot_establish firmware_behavior；USB 2.0 Section 11.5.1.2 則是"
+        "規範性的 Powered-off 轉換。這是同一套 Hub-Class 行為上的"
+        "AUTHORITY_MISMATCH 衝突，還是必須分開看待的兩種權威角色？"
     ),
     "DRAFT-L4-042": (
-        "若 SuperSpeed Hub LVS Rev 1.15 條件無法與 USB 3.2 Rev 1.1 要求對上，"
-        "應該回報什麼衝突結果，以及證據邊界到哪裡？"
+        "USB 3.2 Section 10.3.1.11 說收到 ClearPortFeature(PORT_POWER) 時，"
+        "downstream port 進入 DSPORT.Powered-off-reset；SuperSpeed Hub LVS"
+        " TD 10.104 把同一個 request 當測試刺激。這是要求與測試條件的衝突，"
+        "還是仍不能當成產品已通過的對應關係？"
     ),
     "DRAFT-L4-043": (
         "Phase 1 的 USB Hub 資料是否足以回答 USB4 Router 規範問題？"
@@ -265,12 +290,15 @@ QUESTION_ZH = {
         "正確回應是什麼？"
     ),
     "DRAFT-L4-048": (
-        "Phase 1 的 USB Hub 資料能否回答 USB4 tunneling 要求？"
-        "若不能回答，必須一併標出哪一條 USB4 Phase 2 範圍邊界？"
+        "Phase 1 的 USB Hub 資料（USB 2.0、USB 3.2、SuperSpeed Hub LVS、"
+        "governed Hub reference）能否回答 USB Power Delivery（USB PD）的"
+        "contract、PDO 或 PPS 要求？若不能，應如何明確拒絕回答並標出超出範圍？"
     ),
     "DRAFT-L4-049": (
-        "當 USB 2.0 firmware-scope 證據與 USB 2.0 signal/electrical-scope"
-        " 證據互相矛盾，且指定頁面無法調和時，應該怎麼報告？"
+        "USB 2.0 Section 11.5.1.2 描述 ClearPortFeature(PORT_POWER) 後進入"
+        " Powered-off；Section 7.1.2.2 則寫 high-speed 差分 rise/fall"
+        "（10% 到 90%）最短 500 ps。這是同一對象上的互相競爭主張，"
+        "還是必須分開寫的 Hub-Class 控制與電氣量測範圍？"
     ),
     "DRAFT-L4-050": (
         "當使用者要求把 informative note 提升成規範性 USB Hub 要求，"
@@ -439,13 +467,11 @@ def question_plain_zh(question: Mapping[str, Any]) -> str:
 
 
 def reviewer_checks(status: str) -> tuple[str, ...]:
-    return (
-        REVIEWER_CHECKS_COMMON[0],
-        REVIEWER_CHECKS_COMMON[1],
-        STATUS_CHECK[status],
-        REVIEWER_CHECKS_COMMON[2],
-        REVIEWER_CHECKS_COMMON[3],
-    )
+    try:
+        status_items = STATUS_CHECKS[status]
+    except KeyError as exc:
+        raise WorksheetRenderError(f"unknown expected_status: {status}") from exc
+    return status_items + REVIEWER_CHECKS_COMMON
 
 
 def reviewer_fields(
@@ -549,7 +575,7 @@ def render_worksheet(
     add("- USB 3.2 Ch.6/7/9/10：L1-008–011, L2-019–022")
     add("- Hub / PORT_POWER / PORT_LINK_STATE：L1-004, L1-005, L1-011, L3-026, L3-035")
     add("- USB 2.0 → LVS：L3-026, L3-027, L3-037")
-    add("- USB4 負控：L4-043, L4-048")
+    add("- USB4 負控：L4-043；USB PD 負控：L4-048")
     add("- 其餘全部 L3 / L4")
     add("")
 
@@ -874,7 +900,7 @@ code {{ font-family: Consolas, "Sarasa Mono TC", monospace; font-size: 0.86em; }
 <li>USB 3.2 Ch.6/7/9/10：L1-008–011, L2-019–022</li>
 <li>Hub / PORT_POWER / PORT_LINK_STATE：L1-004, L1-005, L1-011, L3-026, L3-035</li>
 <li>USB 2.0 → LVS：L3-026, L3-027, L3-037</li>
-<li>USB4 負控：L4-043, L4-048</li>
+<li>USB4 負控：L4-043；USB PD 負控：L4-048</li>
 <li>其餘全部 L3 / L4</li>
 </ul>
 {"".join(cards)}

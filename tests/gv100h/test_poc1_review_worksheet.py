@@ -139,7 +139,17 @@ def test_worksheet_binds_draft_lock_and_contract_enums(tmp_path: Path):
     assert hub_commit in text
     assert lock["sources"]["usb20_fw"]["source_locator"] in text
     assert "拒絕回答的理由碼（只准這六個）：" + " / ".join(BOUNDARY_CODES) in text
-    assert "衝突類型（只准這三個）：" + " / ".join(sorted(CONFLICT_BOUNDARY_CODES)) in text
+    assert renderer.STATUS_CHECKS["conflict"][0] == (
+        "兩邊互相競爭的證據都確實存在於指定規格"
+    )
+    assert "衝突類型（只准這三個）：" + " / ".join(
+        sorted(CONFLICT_BOUNDARY_CODES)
+    ) == renderer.reviewer_fields(
+        "conflict",
+        conflict_list=" / ".join(sorted(CONFLICT_BOUNDARY_CODES)),
+        boundary_list=" / ".join(BOUNDARY_CODES),
+    )[2]
+    assert "衝突類型（只准這三個）：" not in text
     assert "不是正式 acceptance set，也不是 review receipt" in text
     assert "MUST_NOT_CREATE" in text
     assert "這題預期：直接回答" in text
@@ -159,6 +169,28 @@ def test_worksheet_binds_draft_lock_and_contract_enums(tmp_path: Path):
     assert "這題不適合使用" in text
     assert "題幹" not in text
     assert "棄權理由碼" not in text
+    assert "兩邊互相競爭的證據都確實存在於指定規格" not in text
+    assert "兩邊談的是同一對象、同一狀態、同一版本脈絡，不是只是範圍不同" not in text
+    assert "目前指定的 Phase 1 規格裡，沒有足夠、可接受的證據能回答這題" in text
+    assert "不應為了硬答而去引用指定規格以外的來源" in text
+    assert "這題不該把規範章節或頁碼當成正式答案" in text
+    answer_block = text.split("## DRAFT-L4-043", 1)[0]
+    abstain_block = text.split("## DRAFT-L4-043", 1)[1].split("## DRAFT-L4-044", 1)[0]
+    l4_039_block = text.split("## DRAFT-L4-039", 1)[1].split("## DRAFT-L4-040", 1)[0]
+    l4_041_block = text.split("## DRAFT-L4-041", 1)[1].split("## DRAFT-L4-042", 1)[0]
+    assert "可以從指定規格中找到答案" in answer_block
+    assert "可以從指定規格中找到答案" not in abstain_block
+    assert "指定的規格文件與版本正確" not in abstain_block
+    assert "可以從指定規格中找到答案" in l4_039_block
+    assert "這題確實應該直接回答，而不是回報衝突或拒絕回答" in l4_039_block
+    assert "兩邊互相競爭的證據都確實存在於指定規格" not in l4_039_block
+    assert "這是必須回報的同一對象衝突，還是必須分開寫的" in l4_039_block
+    assert "AUTHORITY_MISMATCH 衝突，還是必須分開看待的兩種權威角色" in l4_041_block
+    assert "目前指定的 Phase 1 規格裡，沒有足夠、可接受的證據能回答這題" not in answer_block
+    assert "Contact Capacitance" in text
+    assert "TD 10.104 Toggle Port Power" in text
+    assert "USB Power Delivery" in text
+    assert "imply different behavior" not in text
 
 
 def test_source_table_follows_lock_bytes_not_hardcoded_hashes():
@@ -261,9 +293,23 @@ def test_html_worksheet_has_fifty_cards_and_lock_hashes(tmp_path: Path):
     assert "題幹" not in text
     assert "棄權理由碼" not in text
     assert (
-        "USB 2.0 Rev 2.0 第 6 章裡，哪一個差分訊號參數在引用數值時，"
-        "必須連同量測條件與單位一起說明？"
+        "USB 2.0 Rev 2.0 Table 6-7 對 Contact Capacitance 的性能要求是什麼？"
+        "必須寫出未插合（unmated）條件與單位。"
     ) in text
+    assert "兩邊互相競爭的證據都確實存在於指定規格" not in text
+    assert "目前指定的 Phase 1 規格裡，沒有足夠、可接受的證據能回答這題" in text
+    l1_card = text.split("id='DRAFT-L1-001'", 1)[1].split("id='DRAFT-L1-002'", 1)[0]
+    l4_039 = text.split("id='DRAFT-L4-039'", 1)[1].split("id='DRAFT-L4-040'", 1)[0]
+    l4_043 = text.split("id='DRAFT-L4-043'", 1)[1].split("id='DRAFT-L4-044'", 1)[0]
+    assert "可以從指定規格中找到答案" in l1_card
+    assert "可以從指定規格中找到答案" in l4_039
+    assert "可以從指定規格中找到答案" not in l4_043
+    assert "指定的規格文件與版本正確" not in l4_043
+    assert "兩邊談的是同一對象、同一狀態、同一版本脈絡，不是只是範圍不同" not in l4_039
+    assert "這題確實應該直接回答，而不是回報衝突或拒絕回答" in l4_039
+    assert "不應為了硬答而去引用指定規格以外的來源" in l4_043
+    assert "USB Power Delivery" in text
+    assert "TD 10.104 Toggle Port Power" in text
 
 
 def test_missing_chinese_restatement_fails_closed():
