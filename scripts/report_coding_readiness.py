@@ -5,11 +5,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from gv100h.coding_eval.single_pair_runner import run_single_ab_pair
 

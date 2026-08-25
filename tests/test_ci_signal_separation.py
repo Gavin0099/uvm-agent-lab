@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,19 @@ def test_case_pattern_selects_only_legacy_eda_cases():
         f"UVM-{index:03d}" for index in range(1, 11)
     ]
     assert all(path.stem.startswith("UVM-") for path in selected)
+
+
+def test_readiness_cli_can_start_from_repository_root():
+    result = subprocess.run(
+        [sys.executable, "scripts/report_coding_readiness.py", "--help"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "--fail-on-not-ready" in result.stdout
 
 
 def test_all_case_cli_returns_nonzero_for_selected_failure(tmp_path: Path, monkeypatch):
