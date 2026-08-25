@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -36,27 +38,99 @@ def _load_renderer():
 renderer = _load_renderer()
 
 
+def _git(*arguments: str, cwd: Path) -> str:
+    result = subprocess.run(
+        ["git", *arguments],
+        cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout.strip()
+
+
+def _seed_official_repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "official-repo"
+    draft_rel = Path("gv100h") / "spec_qa" / "golden" / "poc1_acceptance_set.draft.json"
+    lock_rel = Path("gv100h") / "spec_qa" / "contracts" / "corpus.lock.yaml"
+    renderer_rel = Path("scripts") / "render_poc1_review_worksheet.py"
+    (repo / draft_rel.parent).mkdir(parents=True)
+    (repo / lock_rel.parent).mkdir(parents=True)
+    (repo / renderer_rel.parent).mkdir(parents=True)
+    shutil.copy(DRAFT_PATH, repo / draft_rel)
+    shutil.copy(LOCK_PATH, repo / lock_rel)
+    shutil.copy(RENDERER_PATH, repo / renderer_rel)
+    _git("init", cwd=repo)
+    _git("add", str(draft_rel), str(lock_rel), str(renderer_rel), cwd=repo)
+    _git(
+        "-c",
+        "user.name=worksheet-test",
+        "-c",
+        "user.email=worksheet-test@example.invalid",
+        "commit",
+        "-m",
+        "seed official review inputs",
+        cwd=repo,
+    )
+    return repo
+
+
 def test_worksheet_binds_draft_lock_and_contract_enums(tmp_path: Path):
+    repo = _seed_official_repo(tmp_path)
+    draft_path = repo / "gv100h" / "spec_qa" / "golden" / "poc1_acceptance_set.draft.json"
+    lock_path = repo / "gv100h" / "spec_qa" / "contracts" / "corpus.lock.yaml"
+    renderer_path = repo / "scripts" / "render_poc1_review_worksheet.py"
     output = tmp_path / "worksheet.md"
     text = renderer.render_worksheet(
+        draft_path=draft_path,
+        lock_path=lock_path,
+        renderer_path=renderer_path,
         output_path=output,
         generated_at="2026-08-25T00:00:00+00:00",
+        repo_root=repo,
     )
-    lock = yaml.safe_load(LOCK_PATH.read_text(encoding="utf-8"))
+    lock = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
     usb20_hash = lock["sources"]["usb20_fw"]["content_sha256"]
     usb32_hash = lock["sources"]["usb32"]["content_sha256"]
     lvs_hash = lock["sources"]["superspeed_hub_lvs"]["content_sha256"]
     hub_commit = lock["sources"]["hub_reference"]["commit"]
+    lock_blob = _git(
+        "rev-parse",
+        "HEAD:gv100h/spec_qa/contracts/corpus.lock.yaml",
+        cwd=repo,
+    )
+    draft_blob = _git(
+        "rev-parse",
+        "HEAD:gv100h/spec_qa/golden/poc1_acceptance_set.draft.json",
+        cwd=repo,
+    )
+    renderer_blob = _git(
+        "rev-parse",
+        "HEAD:scripts/render_poc1_review_worksheet.py",
+        cwd=repo,
+    )
+    head = _git("rev-parse", "HEAD", cwd=repo)
 
     assert output.is_file()
     assert text.count("### 題目") == 50
     assert "`source_draft_path`:" in text
-    assert "`source_draft_git_commit`:" in text
-    assert f"`source_draft_sha256`: `{hashlib.sha256(DRAFT_PATH.read_bytes()).hexdigest()}`" in text
-    assert f"`corpus_lock_sha256`: `{hashlib.sha256(LOCK_PATH.read_bytes()).hexdigest()}`" in text
-    assert "`corpus_lock_git_blob`:" in text
+    assert f"`source_draft_git_commit`: `{head}`" in text
+    assert f"`source_draft_git_blob`: `{draft_blob}`" in text
+    assert (
+        f"`source_draft_sha256`: `{hashlib.sha256(draft_path.read_bytes()).hexdigest()}`"
+        in text
+    )
+    assert (
+        f"`corpus_lock_sha256`: `{hashlib.sha256(lock_path.read_bytes()).hexdigest()}`"
+        in text
+    )
+    assert f"`corpus_lock_git_blob`: `{lock_blob}`" in text
     assert "`renderer_path`:" in text
-    assert f"`renderer_sha256`: `{hashlib.sha256(RENDERER_PATH.read_bytes()).hexdigest()}`" in text
+    assert f"`renderer_git_blob`: `{renderer_blob}`" in text
+    assert (
+        f"`renderer_sha256`: `{hashlib.sha256(renderer_path.read_bytes()).hexdigest()}`"
+        in text
+    )
     assert "`generated_at`: `2026-08-25T00:00:00+00:00`" in text
     assert usb20_hash[:8] in text
     assert usb32_hash[:8] in text
@@ -70,35 +144,56 @@ def test_worksheet_binds_draft_lock_and_contract_enums(tmp_path: Path):
     assert "MUST_NOT_CREATE" in text
 
 
-def test_worksheet_follows_lock_bytes_not_hardcoded_hashes(tmp_path: Path):
+def test_source_table_follows_lock_bytes_not_hardcoded_hashes():
     lock = yaml.safe_load(LOCK_PATH.read_text(encoding="utf-8"))
     old_hash = lock["sources"]["usb32"]["content_sha256"]
     new_hash = "aa" * 32
     lock["sources"]["usb32"]["content_sha256"] = new_hash
-    tampered_lock = tmp_path / "corpus.lock.yaml"
-    tampered_lock.write_text(
-        yaml.safe_dump(lock, sort_keys=False, allow_unicode=True),
-        encoding="utf-8",
-    )
-    text = renderer.render_worksheet(
-        lock_path=tampered_lock,
-        output_path=tmp_path / "worksheet.md",
-        generated_at="2026-08-25T00:00:00+00:00",
-    )
-    assert new_hash[:8] in text
-    assert old_hash[:8] not in text
+    row = renderer.source_row("usb32", lock["sources"]["usb32"])
+    assert row[3] == new_hash[:8]
+    assert old_hash[:8] not in row[3]
 
 
-def test_worksheet_fails_closed_when_required_source_missing(tmp_path: Path):
+def test_required_sources_fail_when_usb32_missing():
     lock = yaml.safe_load(LOCK_PATH.read_text(encoding="utf-8"))
     del lock["sources"]["usb32"]
-    broken_lock = tmp_path / "corpus.lock.yaml"
-    broken_lock.write_text(
-        yaml.safe_dump(lock, sort_keys=False, allow_unicode=True),
+    with pytest.raises(renderer.WorksheetRenderError, match="usb32"):
+        renderer.required_sources_from_lock(lock)
+
+
+def test_official_render_fails_when_lock_dirty(tmp_path: Path):
+    repo = _seed_official_repo(tmp_path)
+    lock_path = repo / "gv100h" / "spec_qa" / "contracts" / "corpus.lock.yaml"
+    lock_path.write_text(
+        lock_path.read_text(encoding="utf-8") + "\n# dirty\n",
         encoding="utf-8",
     )
-    with pytest.raises(renderer.WorksheetRenderError, match="usb32"):
+    with pytest.raises(renderer.WorksheetRenderError, match="corpus.lock.yaml is dirty"):
         renderer.render_worksheet(
-            lock_path=broken_lock,
+            draft_path=repo
+            / "gv100h"
+            / "spec_qa"
+            / "golden"
+            / "poc1_acceptance_set.draft.json",
+            lock_path=lock_path,
+            renderer_path=repo / "scripts" / "render_poc1_review_worksheet.py",
             output_path=tmp_path / "worksheet.md",
+            repo_root=repo,
+        )
+
+
+def test_official_render_fails_when_draft_dirty(tmp_path: Path):
+    repo = _seed_official_repo(tmp_path)
+    draft_path = repo / "gv100h" / "spec_qa" / "golden" / "poc1_acceptance_set.draft.json"
+    draft_path.write_text(draft_path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    with pytest.raises(
+        renderer.WorksheetRenderError,
+        match="poc1_acceptance_set.draft.json is dirty",
+    ):
+        renderer.render_worksheet(
+            draft_path=draft_path,
+            lock_path=repo / "gv100h" / "spec_qa" / "contracts" / "corpus.lock.yaml",
+            renderer_path=repo / "scripts" / "render_poc1_review_worksheet.py",
+            output_path=tmp_path / "worksheet.md",
+            repo_root=repo,
         )

@@ -98,8 +98,29 @@ def _repo_relative(path: Path, repo_root: Path = ROOT) -> str:
     resolved = path.resolve()
     try:
         return resolved.relative_to(repo_root.resolve()).as_posix()
-    except ValueError:
-        return resolved.as_posix()
+    except ValueError as exc:
+        raise WorksheetRenderError(
+            f"{resolved.as_posix()} is outside the repository"
+        ) from exc
+
+
+def _require_tracked_and_clean(path: Path, repo_root: Path) -> str:
+    rel = _repo_relative(path, repo_root)
+    listed = _git("ls-files", "--error-unmatch", "--", rel, cwd=repo_root)
+    if listed is None:
+        raise WorksheetRenderError(f"{rel} is not tracked")
+    status = _git("status", "--porcelain", "--", rel, cwd=repo_root)
+    # Clean tracked files yield empty porcelain output, which _git maps to None.
+    if status:
+        raise WorksheetRenderError(f"{rel} is dirty")
+    return rel
+
+
+def _head_blob(rel: str, repo_root: Path) -> str:
+    blob = _git("rev-parse", f"HEAD:{rel}", cwd=repo_root)
+    if blob is None:
+        raise WorksheetRenderError(f"HEAD:{rel} is not retrievable")
+    return blob
 
 
 def collect_provenance(
@@ -110,28 +131,25 @@ def collect_provenance(
     generated_at: str,
     repo_root: Path = ROOT,
 ) -> dict[str, str]:
-    draft_rel = _repo_relative(draft_path, repo_root)
-    draft_commit = _git(
-        "log",
-        "-1",
-        "--format=%H",
-        "--",
-        draft_rel,
-        cwd=repo_root,
-    )
-    lock_blob = _git("hash-object", "--", str(lock_path), cwd=repo_root)
+    draft_rel = _require_tracked_and_clean(draft_path, repo_root)
+    lock_rel = _require_tracked_and_clean(lock_path, repo_root)
+    renderer_rel = _require_tracked_and_clean(renderer_path, repo_root)
     head = _git("rev-parse", "HEAD", cwd=repo_root)
+    if head is None:
+        raise WorksheetRenderError("HEAD is not retrievable")
     return {
         "source_draft_path": draft_rel,
-        "source_draft_git_commit": draft_commit or "NOT_IN_GIT",
+        "source_draft_git_commit": head,
+        "source_draft_git_blob": _head_blob(draft_rel, repo_root),
         "source_draft_sha256": sha256_file(draft_path),
-        "corpus_lock_path": _repo_relative(lock_path, repo_root),
+        "corpus_lock_path": lock_rel,
         "corpus_lock_sha256": sha256_file(lock_path),
-        "corpus_lock_git_blob": lock_blob or "NOT_IN_GIT",
-        "renderer_path": _repo_relative(renderer_path, repo_root),
+        "corpus_lock_git_blob": _head_blob(lock_rel, repo_root),
+        "renderer_path": renderer_rel,
+        "renderer_git_blob": _head_blob(renderer_rel, repo_root),
         "renderer_sha256": sha256_file(renderer_path),
         "generated_at": generated_at,
-        "worktree_head": head or "NOT_IN_GIT",
+        "worktree_head": head,
     }
 
 
@@ -143,6 +161,18 @@ def load_corpus_lock(lock_path: Path) -> dict[str, Any]:
     if not isinstance(payload, dict) or not isinstance(payload.get("sources"), dict):
         raise WorksheetRenderError("corpus lock is missing sources")
     return payload
+
+
+def required_sources_from_lock(lock: Mapping[str, Any]) -> dict[str, Any]:
+    sources = lock["sources"]
+    if not isinstance(sources, dict):
+        raise WorksheetRenderError("corpus lock is missing sources")
+    missing = sorted(REQUIRED_POC1_SOURCE_IDS - set(sources))
+    if missing:
+        raise WorksheetRenderError(
+            "corpus lock is missing required POC-1 sources: " + ", ".join(missing)
+        )
+    return sources
 
 
 def _scope_text(source: Mapping[str, Any]) -> str:
@@ -186,6 +216,7 @@ def render_worksheet(
     renderer_path: Path | None = None,
     output_path: Path | None = None,
     generated_at: str | None = None,
+    repo_root: Path = ROOT,
 ) -> str:
     renderer = renderer_path or Path(__file__).resolve()
     if not draft_path.is_file():
@@ -193,21 +224,17 @@ def render_worksheet(
     if not lock_path.is_file():
         raise WorksheetRenderError(f"corpus lock does not exist: {lock_path}")
 
-    draft = json.loads(draft_path.read_text(encoding="utf-8"))
-    lock = load_corpus_lock(lock_path)
-    sources = lock["sources"]
-    missing = sorted(REQUIRED_POC1_SOURCE_IDS - set(sources))
-    if missing:
-        raise WorksheetRenderError(
-            "corpus lock is missing required POC-1 sources: " + ", ".join(missing)
-        )
     stamp = generated_at or datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     provenance = collect_provenance(
         draft_path=draft_path,
         lock_path=lock_path,
         renderer_path=renderer,
         generated_at=stamp,
+        repo_root=repo_root,
     )
+    draft = json.loads(draft_path.read_text(encoding="utf-8"))
+    lock = load_corpus_lock(lock_path)
+    sources = required_sources_from_lock(lock)
     boundary_list = " / ".join(BOUNDARY_CODES)
     conflict_list = " / ".join(sorted(CONFLICT_BOUNDARY_CODES))
 

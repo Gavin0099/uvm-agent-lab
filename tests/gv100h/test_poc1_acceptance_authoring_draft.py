@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import copy
 import json
 import re
 from pathlib import Path
+
+import pytest
+
+from gv100h.spec_qa.contracts.poc1_acceptance_contract import (
+    REQUIRED_POC1_SOURCE_IDS,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -31,6 +38,14 @@ GENERIC_CONTEXT_PATTERN = re.compile(
     r"Chapter N|declared|selected|this query|the declared Chapter",
     re.IGNORECASE,
 )
+
+
+def actual_source_coverage(questions) -> set[str]:
+    return {
+        source_id
+        for question in questions
+        for source_id in question["accepted_source_ids"]
+    }
 
 
 def test_poc1_authoring_draft_is_consistent_and_not_admitted():
@@ -68,6 +83,8 @@ def test_poc1_authoring_draft_is_consistent_and_not_admitted():
         == payload["coverage_status"]["usb4_negative_control_count"]
         == 2
     )
+    assert actual_source_coverage(questions) == set(REQUIRED_SOURCE_IDS)
+    assert actual_source_coverage(questions) == REQUIRED_POC1_SOURCE_IDS
     assert all(
         payload["coverage_status"]["source_question_coverage"][source_id]
         for source_id in REQUIRED_SOURCE_IDS
@@ -129,3 +146,19 @@ def test_poc1_authoring_draft_is_consistent_and_not_admitted():
         )
     )
     assert not ADMITTED_MANIFEST_PATH.exists()
+
+
+def test_authoring_draft_source_coverage_fails_when_hub_reference_absent():
+    payload = json.loads(DRAFT_PATH.read_text(encoding="utf-8"))
+    questions = copy.deepcopy(payload["questions"])
+    for question in questions:
+        question["accepted_source_ids"] = [
+            source_id
+            for source_id in question["accepted_source_ids"]
+            if source_id != "hub_reference"
+        ]
+    assert payload["coverage_status"]["source_question_coverage"]["hub_reference"]
+    actual = actual_source_coverage(questions)
+    assert "hub_reference" not in actual
+    with pytest.raises(AssertionError):
+        assert actual == REQUIRED_POC1_SOURCE_IDS
