@@ -1,0 +1,17 @@
+{
+  "receipt_schema": "test_evidence_receipt.v0.1",
+  "status": "report_only",
+  "command": "pytest -q tests/test_ci_signal_separation.py tests/test_validator_profiles.py tests/test_pipeline.py tests/test_gate2_multiturn.py",
+  "exit_code": 0,
+  "started_at": "2026-08-25T02:38:21Z",
+  "finished_at": "2026-08-25T02:38:24Z",
+  "runner": "pytest",
+  "linked_commit": "7fa7d771054129047ce7b51470aed66bebabb010",
+  "output_artifacts": [
+    "artifacts/evidence/test-results/ci-signal-separation-20260825.txt"
+  ],
+  "cannot_claim": [
+    "semantic correctness of the tested behavior",
+    "receipt authenticity: every field is fabricatable by a direct writer"
+  ]
+}
