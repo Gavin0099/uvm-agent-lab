@@ -156,6 +156,15 @@ grounding checks. An `abstain` or `conflict` result must not cite evidence that
 does not support the stated boundary. Fabricated evidence IDs are a hard
 failure.
 
+The final evaluator consumes only a formal, independently reviewed v1.1
+manifest through `FinalPOC1Evaluator`; the unreviewed authoring draft is not a
+valid input. The agent response must be structured as `status`, `claims`,
+`citations`, `scope`, and an optional `boundary_code`. The evaluator binds its
+retrieval, grounding, citation, conflict, and abstention metrics to the
+canonical acceptance-set hash and emits `admissible_for_model_qualification: false`
+until a separate qualification admission layer verifies the review receipt,
+corpus receipt, and runtime evidence.
+
 ## 6. Golden QA Benchmark
 
 The final POC-1 benchmark is a fixed, versioned set of 50-100 questions. The
