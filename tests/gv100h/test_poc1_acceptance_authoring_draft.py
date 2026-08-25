@@ -76,12 +76,12 @@ def test_poc1_authoring_draft_is_consistent_and_not_admitted():
         layer_counts[layer] >= minimum
         for layer, minimum in payload["required_layers"].items()
     )
-    assert conflict_count == payload["coverage_status"]["conflict_question_count"] == 5
+    assert conflict_count == payload["coverage_status"]["conflict_question_count"] == 0
     assert abstain_count == payload["coverage_status"]["abstain_question_count"] == 7
     assert (
         usb4_control_count
         == payload["coverage_status"]["usb4_negative_control_count"]
-        == 2
+        == 1
     )
     assert actual_source_coverage(questions) == set(REQUIRED_SOURCE_IDS)
     assert actual_source_coverage(questions) == REQUIRED_POC1_SOURCE_IDS

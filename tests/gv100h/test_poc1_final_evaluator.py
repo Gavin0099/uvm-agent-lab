@@ -347,3 +347,127 @@ def test_final_evaluator_rejects_unknown_evidence_and_wrong_status(tmp_path: Pat
     assert wrong_result.passed is False
     assert wrong_result.observed_status == "answer"
     assert wrong_result.grounded is False
+
+
+def _constructed_same_object_conflict_question() -> dict:
+    """Artificial X / not-X pair. Not a USB-spec gold item."""
+    return {
+        "question_id": "FIXTURE-CONFLICT-001",
+        "layer": "L4",
+        "priority": "P0",
+        "category": "uncertainty_conflict",
+        "question": (
+            "Source A states that object PORT_X in state S under revision R "
+            "has property P=true. Source B states that the same object "
+            "PORT_X in the same state S under the same revision R has "
+            "property P=false. What status should be returned?"
+        ),
+        "expected_status": "conflict",
+        "expected_scope": "USB_HUB_COMMON",
+        "accepted_source_ids": ["usb20_fw", "usb32"],
+        "required_citation_fields": {
+            "document": True,
+            "revision": True,
+            "section": True,
+            "page_or_anchor": True,
+            "excerpt_or_evidence_id": True,
+            "scope": True,
+            "boundary_code": True,
+            "mode": "competing_sources",
+        },
+        "gold": {
+            "accepted_evidence_ids": [],
+            "competing_evidence_ids": ["EVIDENCE-X", "EVIDENCE-NOT-X"],
+            "boundary_evidence_ids": [],
+            "required_claims": [
+                {
+                    "claim_id": "CLAIM-X",
+                    "assertion": "Source A asserts P=true for PORT_X in state S at revision R",
+                },
+                {
+                    "claim_id": "CLAIM-NOT-X",
+                    "assertion": "Source B asserts P=false for PORT_X in state S at revision R",
+                },
+            ],
+            "section_anchors": ["source-a-same-object", "source-b-same-object"],
+            "required_facts": [
+                "same object PORT_X",
+                "same state S",
+                "same revision R",
+            ],
+            "forbidden_claims": ["scope difference only"],
+            "acceptable_variants": [],
+            "boundary_code": "UNRESOLVED_CONFLICT",
+        },
+        "grading": {
+            "factual_correctness": 0.40,
+            "citation_correctness": 0.25,
+            "source_authority": 0.15,
+            "scope_control": 0.10,
+            "uncertainty_behavior": 0.10,
+        },
+        "independently_reviewed": True,
+        "usb4_negative_control": False,
+    }
+
+
+def _constructed_conflict_response() -> dict:
+    return {
+        "status": "conflict",
+        "claims": [
+            "Source A asserts P=true for PORT_X in state S at revision R",
+            "Source B asserts P=false for PORT_X in state S at revision R",
+            "same object PORT_X",
+            "same state S",
+            "same revision R",
+        ],
+        "citations": [
+            {
+                "evidence_id": "EVIDENCE-X",
+                "document": "Constructed source A",
+                "revision": "R",
+                "section": "source-a-same-object",
+                "page_or_anchor": "source-a-same-object",
+                "excerpt_or_evidence_id": "EVIDENCE-X",
+                "scope": "USB_HUB_COMMON",
+            },
+            {
+                "evidence_id": "EVIDENCE-NOT-X",
+                "document": "Constructed source B",
+                "revision": "R",
+                "section": "source-b-same-object",
+                "page_or_anchor": "source-b-same-object",
+                "excerpt_or_evidence_id": "EVIDENCE-NOT-X",
+                "scope": "USB_HUB_COMMON",
+            },
+        ],
+        "scope": "USB_HUB_COMMON",
+        "boundary_code": "UNRESOLVED_CONFLICT",
+    }
+
+
+def test_constructed_same_object_conflict_path_is_detected(tmp_path: Path):
+    manifest = _manifest()
+    manifest["questions"][48] = _constructed_same_object_conflict_question()
+    path = tmp_path / "constructed-conflict.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    evaluator = FinalPOC1Evaluator(
+        str(path),
+        evidence_resolver=SyntheticEvidenceResolver(manifest),
+    )
+    question = evaluator.manifest.questions[48]
+
+    passed = evaluator.evaluate_response(question, _constructed_conflict_response())
+    assert passed.passed is True
+    assert passed.expected_status == "conflict"
+    assert passed.observed_status == "conflict"
+    assert passed.boundary_correct is True
+
+    collapsed = _constructed_conflict_response()
+    collapsed["status"] = "answer"
+    collapsed["boundary_code"] = None
+    collapsed["claims"] = ["scope difference only"]
+    collapsed_result = evaluator.evaluate_response(question, collapsed)
+    assert collapsed_result.passed is False
+    assert collapsed_result.observed_status == "answer"
+    assert collapsed_result.forbidden_claim_detected is True

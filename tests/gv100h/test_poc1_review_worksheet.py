@@ -184,12 +184,13 @@ def test_worksheet_binds_draft_lock_and_contract_enums(tmp_path: Path):
     assert "可以從指定規格中找到答案" in l4_039_block
     assert "這題確實應該直接回答，而不是回報衝突或拒絕回答" in l4_039_block
     assert "兩邊互相競爭的證據都確實存在於指定規格" not in l4_039_block
-    assert "這是必須回報的同一對象衝突，還是必須分開寫的" in l4_039_block
-    assert "AUTHORITY_MISMATCH 衝突，還是必須分開看待的兩種權威角色" in l4_041_block
+    assert "這兩段是否構成衝突？請分別指出兩段證據描述的對象、" in l4_039_block
+    assert "AUTHORITY_MISMATCH" not in l4_041_block
     assert "目前指定的 Phase 1 規格裡，沒有足夠、可接受的證據能回答這題" not in answer_block
     assert "Contact Capacitance" in text
     assert "TD 10.104 Toggle Port Power" in text
-    assert "USB Power Delivery" in text
+    assert "Programmable Power Supply" in text
+    assert "generation-and-field-scope" not in text
     assert "imply different behavior" not in text
 
 

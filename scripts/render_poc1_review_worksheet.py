@@ -247,32 +247,32 @@ QUESTION_ZH = {
         " 支撐 USB 3.2 Rev 1.1 的 Hub 結論，同時不要把其中任何一份說成產品已通過？"
     ),
     "DRAFT-L4-039": (
-        "USB 2.0 Table 11-17 把 PORT_POWER 的 Hub Class feature-selector 訂成 8，"
-        "USB 3.2 第 10 章則把 PORT_POWER（PP）當成與 PORT_LINK_STATE（PLS）不同的"
-        "port-status 欄位。這是必須回報的同一對象衝突，還是必須分開寫的"
-        "世代與欄位範圍差異？"
+        "USB 2.0 Table 11-17 把 PORT_POWER 的 Hub Class feature-selector 訂成 8。"
+        "USB 3.2 第 10 章把 PORT_POWER（PP）當成與 PORT_LINK_STATE（PLS）不同的"
+        "port-status 欄位。這兩段是否構成衝突？請分別指出兩段證據描述的對象、"
+        "範圍與權威角色，並說明判斷理由。"
     ),
     "DRAFT-L4-040": (
-        "USB 2.0 Section 7.1.2.2 寫 high-speed 差分 rise/fall（10% 到 90%）最短 500 ps，"
-        "USB 3.2 Section 10.3.1.9 則用 SetPortFeature(PORT_LINK_STATE) eSS.Disabled"
-        "進入 DSPORT.Disabled。這兩邊是在爭同一個對象，還是必須分開報告的"
-        "電氣範圍與協定範圍？"
+        "USB 2.0 Section 7.1.2.2 寫 high-speed 差分 rise/fall（10% 到 90%）最短 500 ps。"
+        "USB 3.2 Section 10.3.1.9 用 SetPortFeature(PORT_LINK_STATE) eSS.Disabled"
+        "進入 DSPORT.Disabled。這兩段是否構成衝突？請分別指出兩段證據描述的對象、"
+        "範圍與權威角色，並說明判斷理由。"
     ),
     "DRAFT-L4-041": (
         "governed Hub reference 的 claim_ceiling 是 spec_reference_only，"
-        "且 cannot_establish firmware_behavior；USB 2.0 Section 11.5.1.2 則是"
-        "規範性的 Powered-off 轉換。這是同一套 Hub-Class 行為上的"
-        "AUTHORITY_MISMATCH 衝突，還是必須分開看待的兩種權威角色？"
+        "且 cannot_establish firmware_behavior。USB 2.0 Section 11.5.1.2 寫"
+        "規範性的 Powered-off 轉換。這兩段是否構成衝突？請分別指出兩段證據"
+        "描述的對象、範圍與權威角色，並說明判斷理由。"
     ),
     "DRAFT-L4-042": (
         "USB 3.2 Section 10.3.1.11 說收到 ClearPortFeature(PORT_POWER) 時，"
-        "downstream port 進入 DSPORT.Powered-off-reset；SuperSpeed Hub LVS"
-        " TD 10.104 把同一個 request 當測試刺激。這是要求與測試條件的衝突，"
-        "還是仍不能當成產品已通過的對應關係？"
+        "downstream port 進入 DSPORT.Powered-off-reset。SuperSpeed Hub LVS"
+        " TD 10.104 把同一個 request 當測試刺激。這兩段是否構成衝突？"
+        "請分別指出兩段證據描述的對象、範圍與權威角色，並說明判斷理由。"
     ),
     "DRAFT-L4-043": (
-        "Phase 1 的 USB Hub 資料是否足以回答 USB4 Router 規範問題？"
-        "如果不行，應如何明確表示此題超出目前範圍，並把它歸到 Phase 2？"
+        "USB4 Router 完成成功的 Phase 2 連線後，啟用 USB4 tunnel 前必須滿足"
+        "哪一條 Router 要求？"
     ),
     "DRAFT-L4-044": (
         "當請求的 USB Hub 行為引用不存在的 99.99 節，且對不到任何已指定規格"
@@ -290,15 +290,14 @@ QUESTION_ZH = {
         "正確回應是什麼？"
     ),
     "DRAFT-L4-048": (
-        "Phase 1 的 USB Hub 資料（USB 2.0、USB 3.2、SuperSpeed Hub LVS、"
-        "governed Hub reference）能否回答 USB Power Delivery（USB PD）的"
-        "contract、PDO 或 PPS 要求？若不能，應如何明確拒絕回答並標出超出範圍？"
+        "USB Power Delivery 來源要支援 20 V / 5 A 合約時，必須在"
+        "Programmable Power Supply（PPS）APDO 裡廣告哪些欄位？"
     ),
     "DRAFT-L4-049": (
         "USB 2.0 Section 11.5.1.2 描述 ClearPortFeature(PORT_POWER) 後進入"
-        " Powered-off；Section 7.1.2.2 則寫 high-speed 差分 rise/fall"
-        "（10% 到 90%）最短 500 ps。這是同一對象上的互相競爭主張，"
-        "還是必須分開寫的 Hub-Class 控制與電氣量測範圍？"
+        " Powered-off。Section 7.1.2.2 寫 high-speed 差分 rise/fall"
+        "（10% 到 90%）最短 500 ps。這兩段是否構成衝突？請分別指出兩段證據"
+        "描述的對象、範圍與權威角色，並說明判斷理由。"
     ),
     "DRAFT-L4-050": (
         "當使用者要求把 informative note 提升成規範性 USB Hub 要求，"
