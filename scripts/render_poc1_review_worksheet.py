@@ -60,6 +60,12 @@ STATUS_ZH = {
     "conflict": "應報衝突、不要硬解",
     "abstain": "應拒絕回答 / 棄權",
 }
+REVIEWER_CHECKS = (
+    "這題能在鎖定原文裡對到依據，不是憑印象出的",
+    "指定的規格文件與版本正確",
+    "這題該「回答 / 報衝突 / 棄權」的分類正確",
+    "題幹沒有偷給答案，也沒有暗示通過認證",
+)
 STATUS_GOLD_RULES = {
     "answer": (
         "accepted evidence + 至少 1 條 required claim + required facts + "
@@ -321,10 +327,8 @@ def render_worksheet(
         add("")
         add("### 審查人勾選")
         add("")
-        add("- [ ] 題幹能對到鎖定原文（不是憑印象）")
-        add("- [ ] 來源身分 / revision 正確")
-        add("- [ ] expected_status 正確（回答 / 衝突 / 棄權）")
-        add("- [ ] 題幹沒有暗示不該有的答案或認證結論")
+        for check in REVIEWER_CHECKS:
+            add(f"- [ ] {check}")
         add("")
         if status == "answer":
             add("請填（answer）：")
@@ -486,11 +490,11 @@ def render_html_worksheet(
             f"<p class=\"question\">{_h(question['question'])}</p>"
             "<h3>審查人勾選</h3>"
             "<div class='checks'>"
-            "<label><input type='checkbox'> 題幹能對到鎖定原文（不是憑印象）</label>"
-            "<label><input type='checkbox'> 來源身分 / revision 正確</label>"
-            "<label><input type='checkbox'> expected_status 正確（回答 / 衝突 / 棄權）</label>"
-            "<label><input type='checkbox'> 題幹沒有暗示不該有的答案或認證結論</label>"
-            "</div>"
+            + "".join(
+                f"<label><input type='checkbox'> {_h(check)}</label>"
+                for check in REVIEWER_CHECKS
+            )
+            + "</div>"
             f"<h3>請填（{_h(status)}）</h3>"
             f"<form>{field_html}"
             "<label><span>判定</span>"
