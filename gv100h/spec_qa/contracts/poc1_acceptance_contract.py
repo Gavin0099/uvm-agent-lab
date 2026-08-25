@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 from typing import Any, Dict, Literal
 
@@ -385,6 +386,20 @@ class POC1AcceptanceSet(BaseModel):
                 "acceptance set lacks question coverage for: "
                 + ", ".join(missing_coverage)
             )
+
+
+def compute_acceptance_set_hash(manifest: POC1AcceptanceSet) -> str:
+    """Hash acceptance content while excluding the self-referential receipt hash."""
+
+    payload = manifest.model_dump(mode="json")
+    payload.pop("review_receipt_hash", None)
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def load_poc1_acceptance_set(path: str | Path) -> POC1AcceptanceSet:

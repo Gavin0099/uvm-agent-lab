@@ -4,6 +4,7 @@ domain: "gv100h-local-ai-qualification"
 policy_gates:
   spec_qa:
     require_corpus_binding: true
+    require_final_acceptance_binding: true
     min_grounded_accuracy: 90.0
     min_version_scope_accuracy: 100.0
     min_unsupported_refusal_rate: 95.0

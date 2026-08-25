@@ -11,6 +11,7 @@ from gv100h.spec_qa.contracts.poc1_acceptance_contract import (
     AcceptanceQuestion,
     BoundaryCode,
     POC1AcceptanceSet,
+    compute_acceptance_set_hash,
     load_poc1_acceptance_set,
 )
 
@@ -79,14 +80,17 @@ class FinalPOC1EvaluationResult(BaseModel):
     authority_violations_count: int
     all_gates_passed: bool
     details: List[FinalQuestionResult]
+    dataset_hash: str
+    acceptance_set_hash: str
+    acceptance_set_path: str
+    corpus_receipt_path: str
+    corpus_receipt_hash: str
+    review_receipt_path: str
+    review_receipt_hash: str
     evidence_class: str = "deterministic_final_poc1"
     admissible_for_model_qualification: bool = False
     endpoint_observed: bool = False
-    dataset_hash: str
-    acceptance_set_hash: str
     benchmark_role: str = "poc1_acceptance_set"
-    review_receipt_path: str
-    review_receipt_hash: str
 
 
 class FinalPOC1Evaluator:
@@ -111,13 +115,7 @@ class FinalPOC1Evaluator:
 
     @staticmethod
     def _hash_manifest(manifest: POC1AcceptanceSet) -> str:
-        payload = json.dumps(
-            manifest.model_dump(mode="json"),
-            ensure_ascii=True,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
-        return hashlib.sha256(payload).hexdigest()
+        return compute_acceptance_set_hash(manifest)
 
     @staticmethod
     def _normalize(value: str) -> str:
@@ -339,6 +337,9 @@ class FinalPOC1Evaluator:
             details=details,
             dataset_hash=self.dataset_hash,
             acceptance_set_hash=self.acceptance_set_hash,
+            acceptance_set_path=self.manifest_path,
+            corpus_receipt_path=self.manifest.corpus_receipt_path,
+            corpus_receipt_hash=self.manifest.corpus_receipt_hash,
             review_receipt_path=self.manifest.review_receipt_path,
             review_receipt_hash=self.manifest.review_receipt_hash,
         )
