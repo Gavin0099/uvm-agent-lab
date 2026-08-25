@@ -222,7 +222,7 @@ def test_html_worksheet_has_fifty_cards_and_lock_hashes(tmp_path: Path):
     assert "MUST_NOT_CREATE" in text
     assert "PENDING_ASSIGNMENT" in text
     assert "瀏覽器勾選只留在本機頁面" in text
-    assert "這題能在鎖定原文裡對到依據，不是憑印象出的" in text
-    assert "指定的規格文件與版本正確" in text
-    assert "這題該「回答 / 報衝突 / 棄權」的分類正確" in text
-    assert "題幹沒有偷給答案，也沒有暗示通過認證" in text
+    assert "鎖定原文裡找得到這題的依據" in text
+    assert "題目點到的規格書和版本是對的" in text
+    assert "該答、該報衝突或該棄權，這題分對了" in text
+    assert "題幹沒把答案寫進去，也沒順便講通過認證" in text
