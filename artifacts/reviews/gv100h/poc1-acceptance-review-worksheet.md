@@ -7,17 +7,17 @@
 ## Review-input provenance
 
 - `source_draft_path`: `gv100h/spec_qa/golden/poc1_acceptance_set.draft.json`
-- `source_draft_git_commit`: `a2b9a79b33dfc5bf4f0e1e0a68b60a88bf5ff2a0`
-- `source_draft_git_blob`: `9922f90e29ebb5d4b6b9d1e180effc5aef53d161`
-- `source_draft_sha256`: `513898114b6f119f5f1c2ec9b999c492bb522b09be39ba30fb2d00ccf2c424e9`
+- `source_draft_git_commit`: `61b19ebfd05b5f0d877e81834104cc76fba70bca`
+- `source_draft_git_blob`: `4918b63efd0ad50499a7b3e7095ad039dfe8822e`
+- `source_draft_sha256`: `c9099399565cb9b036a32217840c524f7af1d755a10398c3fff4e7e81f2e07ef`
 - `corpus_lock_path`: `gv100h/spec_qa/contracts/corpus.lock.yaml`
 - `corpus_lock_sha256`: `f51cc94a9cb478071122a3682cd1386983aa84a08b8304d3bfe7b77375f90847`
 - `corpus_lock_git_blob`: `97c1dc714f5fc72ddeb82bc5fb7538dce5b8e8e8`
 - `renderer_path`: `scripts/render_poc1_review_worksheet.py`
-- `renderer_git_blob`: `bc34e1b6b906bb70d2572a9c82bebe9c456072ae`
-- `renderer_sha256`: `10ccc1154a9c1a2adf8cf967a508940fc6a1793034a133fa6e61b1c5befc0b3c`
-- `generated_at`: `2026-08-25T09:43:30+00:00`
-- `worktree_head`: `a2b9a79b33dfc5bf4f0e1e0a68b60a88bf5ff2a0`
+- `renderer_git_blob`: `db90decfce4ee37646870f297b4519c148a179da`
+- `renderer_sha256`: `3d098aa30e6a788159e8a18af61d26c27925293ad6e1b995274d7bd77f40d20e`
+- `generated_at`: `2026-08-25T10:07:31+00:00`
+- `worktree_head`: `61b19ebfd05b5f0d877e81834104cc76fba70bca`
 - `draft_schema`: `poc1_spec_qa_acceptance_set_draft.v0.1`
 - `draft_status`: `draft_not_admitted`
 - `Independent reviewer`: `PENDING_ASSIGNMENT`
@@ -1938,11 +1938,11 @@ How should a USB 3.2 Revision 1.1 Hub claim be grounded in the governed structur
 
 ### 這題在問什麼？
 
-USB 2.0 Table 11-17 把 PORT_POWER 的 Hub Class feature-selector 訂成 8，USB 3.2 第 10 章則把 PORT_POWER（PP）當成與 PORT_LINK_STATE（PLS）不同的port-status 欄位。這是必須回報的同一對象衝突，還是必須分開寫的世代與欄位範圍差異？
+USB 2.0 Table 11-17 把 PORT_POWER 的 Hub Class feature-selector 訂成 8。USB 3.2 第 10 章把 PORT_POWER（PP）當成與 PORT_LINK_STATE（PLS）不同的port-status 欄位。這兩段是否構成衝突？請分別指出兩段證據描述的對象、範圍與權威角色，並說明判斷理由。
 
 ### 英文原題
 
-USB 2.0 Table 11-17 assigns PORT_POWER the Hub Class feature-selector value 8, while USB 3.2 Chapter 10 treats PORT_POWER (PP) as a port-status field distinct from PORT_LINK_STATE (PLS). Is that a same-object conflict that must be reported, or a generation-and-field-scope difference that must be kept separate?
+USB 2.0 Table 11-17 assigns PORT_POWER the Hub Class feature-selector value 8. USB 3.2 Chapter 10 treats PORT_POWER (PP) as a port-status field distinct from PORT_LINK_STATE (PLS). Do these two statements constitute a conflict? Identify the object, scope, and authority role described by each excerpt, and justify the determination.
 
 ### 請確認
 
@@ -1989,11 +1989,11 @@ USB 2.0 Table 11-17 assigns PORT_POWER the Hub Class feature-selector value 8, w
 
 ### 這題在問什麼？
 
-USB 2.0 Section 7.1.2.2 寫 high-speed 差分 rise/fall（10% 到 90%）最短 500 ps，USB 3.2 Section 10.3.1.9 則用 SetPortFeature(PORT_LINK_STATE) eSS.Disabled進入 DSPORT.Disabled。這兩邊是在爭同一個對象，還是必須分開報告的電氣範圍與協定範圍？
+USB 2.0 Section 7.1.2.2 寫 high-speed 差分 rise/fall（10% 到 90%）最短 500 ps。USB 3.2 Section 10.3.1.9 用 SetPortFeature(PORT_LINK_STATE) eSS.Disabled進入 DSPORT.Disabled。這兩段是否構成衝突？請分別指出兩段證據描述的對象、範圍與權威角色，並說明判斷理由。
 
 ### 英文原題
 
-USB 2.0 Section 7.1.2.2 states a high-speed 10%-to-90% differential rise/fall minimum of 500 ps, and USB 3.2 Section 10.3.1.9 uses SetPortFeature(PORT_LINK_STATE) eSS.Disabled to enter DSPORT.Disabled. Do these two statements compete about the same object, or must they be reported as different electrical versus protocol scopes?
+USB 2.0 Section 7.1.2.2 states a high-speed 10%-to-90% differential rise/fall minimum of 500 ps. USB 3.2 Section 10.3.1.9 uses SetPortFeature(PORT_LINK_STATE) eSS.Disabled to enter DSPORT.Disabled. Do these two statements constitute a conflict? Identify the object, scope, and authority role described by each excerpt, and justify the determination.
 
 ### 請確認
 
@@ -2040,11 +2040,11 @@ USB 2.0 Section 7.1.2.2 states a high-speed 10%-to-90% differential rise/fall mi
 
 ### 這題在問什麼？
 
-governed Hub reference 的 claim_ceiling 是 spec_reference_only，且 cannot_establish firmware_behavior；USB 2.0 Section 11.5.1.2 則是規範性的 Powered-off 轉換。這是同一套 Hub-Class 行為上的AUTHORITY_MISMATCH 衝突，還是必須分開看待的兩種權威角色？
+governed Hub reference 的 claim_ceiling 是 spec_reference_only，且 cannot_establish firmware_behavior。USB 2.0 Section 11.5.1.2 寫規範性的 Powered-off 轉換。這兩段是否構成衝突？請分別指出兩段證據描述的對象、範圍與權威角色，並說明判斷理由。
 
 ### 英文原題
 
-The governed Hub reference claim_ceiling is spec_reference_only and cannot_establish firmware_behavior, while USB 2.0 Section 11.5.1.2 is a normative Powered-off transition. Is that an AUTHORITY_MISMATCH conflict about the same Hub-Class behavior, or two different authority roles that must be kept separate?
+The governed Hub reference claim_ceiling is spec_reference_only and cannot_establish firmware_behavior. USB 2.0 Section 11.5.1.2 states a normative Powered-off transition. Do these two statements constitute a conflict? Identify the object, scope, and authority role described by each excerpt, and justify the determination.
 
 ### 請確認
 
@@ -2091,11 +2091,11 @@ The governed Hub reference claim_ceiling is spec_reference_only and cannot_estab
 
 ### 這題在問什麼？
 
-USB 3.2 Section 10.3.1.11 說收到 ClearPortFeature(PORT_POWER) 時，downstream port 進入 DSPORT.Powered-off-reset；SuperSpeed Hub LVS TD 10.104 把同一個 request 當測試刺激。這是要求與測試條件的衝突，還是仍不能當成產品已通過的對應關係？
+USB 3.2 Section 10.3.1.11 說收到 ClearPortFeature(PORT_POWER) 時，downstream port 進入 DSPORT.Powered-off-reset。SuperSpeed Hub LVS TD 10.104 把同一個 request 當測試刺激。這兩段是否構成衝突？請分別指出兩段證據描述的對象、範圍與權威角色，並說明判斷理由。
 
 ### 英文原題
 
-USB 3.2 Section 10.3.1.11 says a downstream port transitions to DSPORT.Powered-off-reset when it receives ClearPortFeature(PORT_POWER), and SuperSpeed Hub LVS TD 10.104 uses that same request as a test stimulus. Is that a requirement-versus-test-condition conflict, or a mapping that still cannot be treated as a product-pass result?
+USB 3.2 Section 10.3.1.11 says a downstream port transitions to DSPORT.Powered-off-reset when it receives ClearPortFeature(PORT_POWER). SuperSpeed Hub LVS TD 10.104 uses that same request as a test stimulus. Do these two statements constitute a conflict? Identify the object, scope, and authority role described by each excerpt, and justify the determination.
 
 ### 請確認
 
@@ -2137,11 +2137,11 @@ USB 3.2 Section 10.3.1.11 says a downstream port transitions to DSPORT.Powered-o
 
 ### 這題在問什麼？
 
-Phase 1 的 USB Hub 資料是否足以回答 USB4 Router 規範問題？如果不行，應如何明確表示此題超出目前範圍，並把它歸到 Phase 2？
+USB4 Router 完成成功的 Phase 2 連線後，啟用 USB4 tunnel 前必須滿足哪一條 Router 要求？
 
 ### 英文原題
 
-Can a USB4 router requirement be answered from the Phase 1 USB Hub corpus, and what explicit Phase 2 abstention result should be returned?
+After a USB4 Router completes a successful Phase 2 connection, what Router requirement must be satisfied before a USB4 tunnel can be enabled?
 
 ### 請確認
 
@@ -2367,11 +2367,11 @@ What is the correct response to a vendor-specific Hub firmware question outside 
 
 ### 這題在問什麼？
 
-Phase 1 的 USB Hub 資料（USB 2.0、USB 3.2、SuperSpeed Hub LVS、governed Hub reference）能否回答 USB Power Delivery（USB PD）的contract、PDO 或 PPS 要求？若不能，應如何明確拒絕回答並標出超出範圍？
+USB Power Delivery 來源要支援 20 V / 5 A 合約時，必須在Programmable Power Supply（PPS）APDO 裡廣告哪些欄位？
 
 ### 英文原題
 
-Can a USB Power Delivery (USB PD) contract, PDO, or PPS requirement be answered from the Phase 1 USB Hub corpus (USB 2.0, USB 3.2, SuperSpeed Hub LVS, and the governed Hub reference), and what explicit out-of-scope abstention should be returned?
+What Programmable Power Supply (PPS) APDO fields must a USB Power Delivery source advertise to support a 20 V / 5 A contract?
 
 ### 請確認
 
@@ -2418,11 +2418,11 @@ Can a USB Power Delivery (USB PD) contract, PDO, or PPS requirement be answered 
 
 ### 這題在問什麼？
 
-USB 2.0 Section 11.5.1.2 描述 ClearPortFeature(PORT_POWER) 後進入 Powered-off；Section 7.1.2.2 則寫 high-speed 差分 rise/fall（10% 到 90%）最短 500 ps。這是同一對象上的互相競爭主張，還是必須分開寫的 Hub-Class 控制與電氣量測範圍？
+USB 2.0 Section 11.5.1.2 描述 ClearPortFeature(PORT_POWER) 後進入 Powered-off。Section 7.1.2.2 寫 high-speed 差分 rise/fall（10% 到 90%）最短 500 ps。這兩段是否構成衝突？請分別指出兩段證據描述的對象、範圍與權威角色，並說明判斷理由。
 
 ### 英文原題
 
-USB 2.0 Section 11.5.1.2 describes Powered-off after ClearPortFeature(PORT_POWER), and Section 7.1.2.2 states a high-speed 10%-to-90% differential rise/fall minimum of 500 ps. Are those competing claims about the same object, or Hub-Class control versus electrical measurement scopes that must stay separate?
+USB 2.0 Section 11.5.1.2 describes Powered-off after ClearPortFeature(PORT_POWER). USB 2.0 Section 7.1.2.2 states a high-speed 10%-to-90% differential rise/fall minimum of 500 ps. Do these two statements constitute a conflict? Identify the object, scope, and authority role described by each excerpt, and justify the determination.
 
 ### 請確認
 
