@@ -1,0 +1,17 @@
+{
+  "receipt_schema": "test_evidence_receipt.v0.1",
+  "status": "report_only",
+  "command": "pytest -q tests/gv100h/test_poc1_acceptance_contract.py tests/gv100h/test_qualification_policy_evaluator.py tests/gv100h/test_m4_qualification.py",
+  "exit_code": 0,
+  "started_at": "2026-08-25T02:53:33Z",
+  "finished_at": "2026-08-25T02:53:35Z",
+  "runner": "pytest",
+  "linked_commit": "063a930231d36f8bb7eed61569214428c752344b",
+  "output_artifacts": [
+    "artifacts/evidence/test-results/poc1-gold-oracle-contract-20260825.txt"
+  ],
+  "cannot_claim": [
+    "semantic correctness of the tested behavior",
+    "receipt authenticity: every field is fabricatable by a direct writer"
+  ]
+}
