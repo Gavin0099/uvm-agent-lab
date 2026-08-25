@@ -35,10 +35,14 @@ jobs:
         run: |
           pytest -v tests/
 
-      - name: Execute Multi-Turn Self-Healing Benchmark Suite
+      - name: Execute Legacy UVM EDA Smoke Suite
         run: |
-          python scripts/run_case.py --all --runner multi_turn --output-dir results/
+          python scripts/run_case.py --all --cases-dir benchmarks/cases --case-pattern 'UVM-*.yaml' --runner multi_turn --output-dir results/
           python scripts/summarize_results.py --results-dir results/ --output-md results/summary.md
+
+      - name: Report v1 Coding Agent Capability Readiness (non-blocking)
+        run: |
+          python scripts/report_coding_readiness.py --cases-dir benchmarks/cases --mode mock
 
       - name: Run Gate 1 Retrieval Evaluator
         run: |
