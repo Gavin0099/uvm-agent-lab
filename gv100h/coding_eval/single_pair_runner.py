@@ -438,6 +438,7 @@ def run_single_ab_pair(
     repo = _resolve_repo_root(repo_root)
     case_file = Path(case_path).resolve()
     case_data = _load_case(case_file)
+    validator_profile = resolve_validator_profile(case_data)
     runtime_attestation_seed = None
     runtime_process = None
     if case_data.get("id") and case_data["id"] != task_id:
@@ -477,6 +478,7 @@ def run_single_ab_pair(
         api_base=api_base,
         model_id=model_id,
         mock_mode=(mode == "mock"),
+        validator_profile=validator_profile,
     )
 
     manifests: List[GV100HRunManifest] = []

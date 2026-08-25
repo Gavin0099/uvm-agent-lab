@@ -46,15 +46,26 @@ class IndependentVerifier:
         workspace_root: Path,
         mode: str = "mock",
         eda_router: Optional[EDARouter] = None,
+        validator_profile: Literal["lightweight", "eda"] = "eda",
     ):
         self.workspace_root = Path(workspace_root).resolve()
         self.mode = mode
-        self.eda_router = eda_router or EDARouter(
-            workspace_root=self.workspace_root,
-            mode=self.mode,
-        )
+        self.validator_profile = validator_profile
+        self.eda_router = eda_router
+        if self.validator_profile == "eda":
+            self.eda_router = self.eda_router or EDARouter(
+                workspace_root=self.workspace_root,
+                mode=self.mode,
+            )
 
     def _backend_truth(self) -> Dict[str, Any]:
+        if self.validator_profile == "lightweight":
+            return {
+                "backend": "python_compiler",
+                "version": "py_compile_3.13",
+                "verification_level": "compile_and_test",
+                "qualification_admissible": True,
+            }
         if hasattr(self.eda_router, "get_backend_metadata"):
             return self.eda_router.get_backend_metadata()
         backend = self.eda_router.get_active_backend()
@@ -214,6 +225,7 @@ class IndependentVerifier:
                 "eda_version": "py_compile_3.13",
                 "verification_cwd": str(self.workspace_root),
                 "tool_path": self._tool_path("python_compiler"),
+                "validator_profile": self.validator_profile,
             }
             if not build_pass:
                 return FinalVerificationResult(

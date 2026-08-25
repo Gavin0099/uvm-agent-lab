@@ -3,6 +3,7 @@ import json
 import base64
 import binascii
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -39,6 +40,12 @@ class ManifestValidator:
     def __init__(self):
         with open(self.SCHEMA_PATH, "r", encoding="utf-8") as f:
             self.schema = json.load(f)
+
+    @staticmethod
+    def _normalize_replay_log(log: str) -> str:
+        """Ignore pytest's run-duration footer when comparing replay output."""
+
+        return re.sub(r"in \d+(?:\.\d+)?s", "in <duration>s", log)
 
     def validate_manifest_dict(self, data: Dict[str, Any]) -> GV100HRunManifest:
         # 1. JSON Schema validation
@@ -537,6 +544,7 @@ class ManifestValidator:
             replay = IndependentVerifier(
                 replay_dir,
                 mode="mock" if manifest.runtime == "mock_replay" else "live",
+                validator_profile=case_data.get("validator_profile", "eda"),
             ).verify_task(
                 changed_paths=manifest.evidence.changed_paths,
                 target_file=manifest.evidence.target_file,
@@ -560,10 +568,18 @@ class ManifestValidator:
                 "eda_backend",
                 "qualification_admissible",
                 "verification_level",
+                "validator_profile",
                 "build_log_sha256",
                 "test_log_sha256",
             )
             for field in compared_fields:
+                if field == "test_log_sha256":
+                    recorded_log = recorded_verification.get("test_log", "")
+                    if ManifestValidator._normalize_replay_log(recorded_log) != ManifestValidator._normalize_replay_log(replay.test_log):
+                        raise ManifestValidationError(
+                            "Independent replay mismatch in verification field: test_log_sha256"
+                        )
+                    continue
                 if recorded_verification.get(field) != getattr(replay, field):
                     raise ManifestValidationError(
                         f"Independent replay mismatch in verification field: {field}"

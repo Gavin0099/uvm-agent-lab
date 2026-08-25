@@ -14,7 +14,7 @@ from agent.governance.policy import GovernanceViolationCode, GovernanceSeverity
 from agent.tools.fs_tools import GovernedFileSystemTools
 from agent.tools.sim_tools import GovernedSimTools
 from agent.adapters.spec_ref_kit import SpecReferenceKitAdapter
-from agent.prompts.system_prompts import GOVERNED_UVM_SYSTEM_PROMPT, generate_task_prompt
+from agent.runners.execution_strategies import create_execution_strategy
 
 
 from agent.runners.models import AgentExecutionContext, AgentRunResult
@@ -37,6 +37,7 @@ class OpenAICompatibleLLMRunner(BaseAgentRunner):
         token_budget: int = 8000,
         mock_mode: bool = False,
         mock_success_rate: float = 1.0,
+        validator_profile: Optional[str] = None,
     ):
         super().__init__(name)
         self.api_base = api_base.rstrip("/")
@@ -47,15 +48,37 @@ class OpenAICompatibleLLMRunner(BaseAgentRunner):
         self.token_budget = token_budget
         self.mock_mode = mock_mode
         self.mock_success_rate = mock_success_rate
+        if validator_profile not in {None, "lightweight", "eda"}:
+            raise ValueError(
+                "validator_profile must be one of: lightweight, eda"
+            )
+        self.validator_profile = validator_profile
 
-    def _call_llm_api(self, messages: list) -> Dict[str, Any]:
+    def _call_llm_api(
+        self,
+        messages: list,
+        validator_profile: str = "eda",
+        task_id: str = "UNKNOWN_TASK",
+    ) -> Dict[str, Any]:
         """
         Call OpenAI-compatible /chat/completions endpoint.
         """
         if self.mock_mode:
-            # Deterministic simulation of model response
+            if validator_profile == "lightweight" and task_id == "AGENT-CODE-001":
+                content = """def safe_divide(numerator, denominator):
+    if denominator == 0:
+        raise ValueError(\"denominator must not be zero\")
+    return numerator / denominator
+"""
+            elif validator_profile == "lightweight":
+                content = "# Generated lightweight Python response\n"
+            else:
+                content = (
+                    f"// Verified UVM generation by {self.name}\n"
+                    "class evaluated_test;\nendclass\n"
+                )
             return {
-                "content": f"// Verified UVM generation by {self.name}\nclass evaluated_test;\nendclass\n",
+                "content": content,
                 "prompt_tokens": 450,
                 "completion_tokens": 120,
                 "response_model": self.model_id,
@@ -151,27 +174,55 @@ class OpenAICompatibleLLMRunner(BaseAgentRunner):
             interception_mode = "UNSUPPORTED"
 
         fs_tools = GovernedFileSystemTools(guardrail=guardrail, root_dir=str(workspace_root))
-        sim_tools = GovernedSimTools(workspace_root=workspace_root)
-        spec_adapter = SpecReferenceKitAdapter()
-
+        case_profile = case_dict.get("validator_profile", "eda")
+        if self.validator_profile is not None and self.validator_profile != case_profile:
+            raise ValueError(
+                "runner validator_profile does not match benchmark case profile"
+            )
+        validator_profile = self.validator_profile or case_profile
+        strategy = create_execution_strategy(validator_profile)
         req_id = case_dict.get("inputs", {}).get("requirement_id", case_dict.get("id", "UNKNOWN_TASK"))
         target_file = case_dict.get("inputs", {}).get("target_file", "uvm/tests/test_case.sv")
+        if validator_profile == "lightweight" and not target_file.endswith(".py"):
+            raise ValueError(
+                "lightweight coding strategy requires a Python target"
+            )
 
-        # 1. Spec Retrieval
-        spec_res = spec_adapter.query_requirement(req_id)
-        tool_calls.append({
-            "tool": "query_spec",
-            "args": {"requirement_id": req_id},
-            "status": spec_res["status"],
-            "output_summary": f"Retrieved spec snippet for {req_id}"
-        })
+        target_context = ""
+        if not strategy.requires_spec_retrieval:
+            target_read = fs_tools.read_file(target_file)
+            tool_calls.append({
+                "tool": "read_file",
+                "args": {"file_path": target_file},
+                "status": target_read["status"],
+                "output_summary": f"Read existing target {target_file}",
+            })
+            if target_read["status"] == "success":
+                target_context = target_read["content"]
 
-        # 2. Prepare Prompt & Call Model
-        messages = [
-            {"role": "system", "content": GOVERNED_UVM_SYSTEM_PROMPT},
-            {"role": "user", "content": generate_task_prompt(case_dict) + f"\nSpec Context: {spec_res.get('content_snippet', '')}"}
-        ]
-        llm_res = self._call_llm_api(messages)
+        spec_context = ""
+        if strategy.requires_spec_retrieval:
+            spec_adapter = SpecReferenceKitAdapter()
+            spec_res = spec_adapter.query_requirement(req_id)
+            tool_calls.append({
+                "tool": "query_spec",
+                "args": {"requirement_id": req_id},
+                "status": spec_res["status"],
+                "output_summary": f"Retrieved spec snippet for {req_id}"
+            })
+
+            spec_context = spec_res.get("content_snippet", "")
+
+        messages = strategy.build_messages(
+            case_dict,
+            spec_context,
+            target_context,
+        )
+        llm_res = self._call_llm_api(
+            messages,
+            validator_profile=validator_profile,
+            task_id=req_id,
+        )
         code_content = llm_res["content"]
 
         # 3. File System Write (strictly in workspace_root)
@@ -186,7 +237,59 @@ class OpenAICompatibleLLMRunner(BaseAgentRunner):
         if fs_res["status"] == "governance_violation":
             violations.extend(fs_res.get("violations", []))
 
+        if not strategy.requires_eda_tools:
+            diff_text = (
+                f"--- a/{target_file}\n+++ b/{target_file}\n"
+                f"@@ -1,1 +1,{len(code_content.splitlines())} @@\n"
+                + "".join(f"+{line}\n" for line in code_content.splitlines())
+            )
+            total_tokens = llm_res["prompt_tokens"] + llm_res["completion_tokens"]
+            if total_tokens > token_budget:
+                violations.append({
+                    "code": GovernanceViolationCode.TIMEOUT_VIOLATION,
+                    "severity": GovernanceSeverity.HIGH,
+                    "message": f"Token budget exceeded: {total_tokens} > {token_budget} tokens."
+                })
+            status = "scope_violation" if violations else "completed"
+            claimed_outcome = "failure" if violations else "success"
+            return AgentRunResult(
+                case_id=case_dict.get("id", req_id),
+                runner_name=self.name,
+                status=status,
+                agent_claimed_outcome=claimed_outcome,
+                changed_files_claimed=[target_file],
+                duration_seconds=time.time() - start_time,
+                governance_violations=violations,
+                evidence={
+                    "requirement_id": req_id,
+                    "git_diff": diff_text,
+                    "build_log": "NOT RUN: independent LightweightValidator runs after generation.",
+                    "test_log": "NOT RUN: independent LightweightValidator runs after generation.",
+                    "validator_report": "NOT RUN: independent LightweightValidator runs after generation.",
+                },
+                execution={
+                    "validator_profile": validator_profile,
+                    "compile_status": "not_run",
+                    "simulation_status": "not_run",
+                    "validator_status": "not_run",
+                    "endpoint_observed": not self.mock_mode,
+                    "treatment": treatment,
+                    "interception_mode": interception_mode,
+                    "response_model": llm_res.get("response_model"),
+                    "models_endpoint_response": llm_res.get("models_endpoint_response"),
+                    "runtime_attestation_observed_at": datetime.now(timezone.utc).isoformat(),
+                    "step_count": len(tool_calls),
+                    "retry_count": 0,
+                    "tool_calls": tool_calls,
+                },
+                metrics={
+                    "prompt_tokens": llm_res["prompt_tokens"],
+                    "completion_tokens": llm_res["completion_tokens"],
+                },
+            )
+
         # 4. Agent Compile & Simulate Tool Invocations
+        sim_tools = GovernedSimTools(workspace_root=workspace_root)
         comp_res = sim_tools.compile(target_file)
         tool_calls.append({
             "tool": "compile",
