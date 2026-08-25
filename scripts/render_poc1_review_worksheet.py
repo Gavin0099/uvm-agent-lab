@@ -58,15 +58,225 @@ PRIORITY_IDS = {
 STATUS_ZH = {
     "answer": "直接回答",
     "conflict": "回報衝突，不應自行裁決",
-    "abstain": "棄權，不應回答",
+    "abstain": "拒絕回答",
 }
-REVIEWER_CHECKS = (
-    "可在鎖定來源中找到足以支持本題的依據",
-    "題目引用的規格與版本正確",
-    "預期處理類型（回答／衝突／棄權）分類正確",
-    "題幹沒有洩漏預期答案",
-    "題幹沒有暗示產品已通過認證",
+REVIEWER_CHECKS_COMMON = (
+    "指定的規格文件與版本正確",
+    "可以從指定規格中找到答案",
+    "這個問題沒有先把答案透露出來",
+    "這個問題沒有暗示產品已經通過測試或認證",
 )
+STATUS_CHECK = {
+    "answer": "這題確實應該直接回答，而不是回報衝突或拒絕回答",
+    "conflict": "這題確實應該回報衝突，而不是自行給出單一答案",
+    "abstain": "這題確實應該拒絕回答，而不是硬答",
+}
+VERDICT_LABELS = (
+    ("UNSET", "未判定"),
+    ("PASS", "題目可用"),
+    ("REWORD", "題目需要修改"),
+    ("REJECT", "這題不適合使用"),
+)
+QUESTION_ZH = {
+    "DRAFT-L1-001": (
+        "依 USB 2.0 Rev 2.0 第 5 章，`transaction` 與 `transfer` 有什麼差別？"
+    ),
+    "DRAFT-L1-002": (
+        "依 USB 2.0 Rev 2.0 第 8 章，control transfer 的 SETUP、DATA（若有）"
+        "與 STATUS 各是什麼階段？"
+    ),
+    "DRAFT-L1-003": (
+        "在 USB 2.0 Rev 2.0 第 9 章，標準 Hub request 裡的 `bmRequestType`、"
+        "`bRequest`、`wValue` 各代表什麼？"
+    ),
+    "DRAFT-L1-004": (
+        "USB 2.0 Hub Class 用哪個 feature 控制 downstream-port power，"
+        "以及用什麼操作去打開這個 feature？"
+    ),
+    "DRAFT-L1-005": (
+        "USB 2.0 Hub Class 給 `PORT_POWER` feature selector 的數值是多少，"
+        "穩定引用應指向哪一節？"
+    ),
+    "DRAFT-L1-006": (
+        "USB 2.0 Rev 2.0 第 6 章裡，哪一個差分訊號參數在引用數值時，"
+        "必須連同量測條件與單位一起說明？"
+    ),
+    "DRAFT-L1-007": (
+        "USB 2.0 Rev 2.0 第 7 章裡，哪一條 timing 要求在報告時，"
+        "必須連同量測條件與單位？"
+    ),
+    "DRAFT-L1-008": (
+        "評估 Hub link transition 時，應引用 USB 3.2 Rev 1.1 第 6 章的"
+        "哪一條 link-state 或 signaling 規則？"
+    ),
+    "DRAFT-L1-009": (
+        "USB 3.2 Rev 1.1 第 7 章裡，哪一條 protocol 或 ordered-set 規則"
+        "適用於 Hub link exchange？"
+    ),
+    "DRAFT-L1-010": (
+        "USB 3.2 Rev 1.1 第 9 章裡，哪個 descriptor 或 standard-request 欄位"
+        "用來指出正在評估的 device state？"
+    ),
+    "DRAFT-L1-011": (
+        "USB 3.2 Rev 1.1 第 10 章裡，哪一條 Hub descriptor 或 feature-selector"
+        "規則管 downstream-port state？"
+    ),
+    "DRAFT-L1-012": (
+        "對 SuperSpeed Hub LVS Rev 1.15 的一項 Hub 測試，答案必須抽出並引用"
+        "哪些前置條件、刺激與預期觀察？"
+    ),
+    "DRAFT-L1-013": (
+        "這份 governed structured Hub reference 授權哪些結論，又有哪些"
+        "firmware、electrical、LVS 或認證結論超出它自己寫明的範圍？"
+    ),
+    "DRAFT-L2-014": (
+        "USB 2.0 Rev 2.0 第 5 章對 transaction / transfer 的定義，"
+        "可以轉成哪些可驗證的觀察？僅憑這段規格，又有哪些實作行為不能直接推定？"
+    ),
+    "DRAFT-L2-015": (
+        "如何把 USB 2.0 Rev 2.0 第 8 章的 control-transfer packet 規則"
+        "做成測試判定依據，同時不要自行加上原文沒有的 retry 行為？"
+    ),
+    "DRAFT-L2-016": (
+        "如何把 USB 2.0 Rev 2.0 第 9 章的 standard-request 欄位做成檢查項，"
+        "同時不超出原文能支持的範圍？"
+    ),
+    "DRAFT-L2-017": (
+        "針對 USB 2.0 Rev 2.0 第 6 章的電氣要求，哪些內容可以直接轉成"
+        "可量測條件？又有哪些「產品已符合 USB 規範」的結論，不能只靠規格文字就宣稱？"
+    ),
+    "DRAFT-L2-018": (
+        "當 USB 2.0 Rev 2.0 第 7 章某條 timing 陳述的規範效力或量測條件"
+        "還不清楚時，驗證人員該怎麼分類與測試？"
+    ),
+    "DRAFT-L2-019": (
+        "如何把 USB 3.2 Rev 1.1 第 6 章的 link 要求對應成 Hub 測試計畫裡的"
+        "觀察項，同時不要宣稱已通過認證？"
+    ),
+    "DRAFT-L2-020": (
+        "USB 3.2 Rev 1.1 第 7 章的 protocol 規則能支持什麼結論？"
+        "沒有實際 trace 時，又有哪些事情仍然不知道？"
+    ),
+    "DRAFT-L2-021": (
+        "如何把 USB 3.2 Rev 1.1 第 9 章的 descriptor 或 request 要求，"
+        "對應成可觀察的 Hub 檢查項？"
+    ),
+    "DRAFT-L2-022": (
+        "如何把 USB 3.2 Rev 1.1 第 10 章的 Hub 要求，與產品合規測試結果分開報告？"
+    ),
+    "DRAFT-L2-023": (
+        "SuperSpeed Hub LVS Rev 1.15 的測試條件本身能支持什麼結論？"
+        "要宣稱裝置通過，還需要什麼實際執行證據？"
+    ),
+    "DRAFT-L2-024": (
+        "SuperSpeed Hub LVS Rev 1.15 程序裡，哪些是規格自己定義的條件，"
+        "哪些「產品通過」的說法還需要另外的執行證據？"
+    ),
+    "DRAFT-L2-025": (
+        "工程師可以怎麼把這份 governed structured Hub reference 當索引用，"
+        "同時記得它不是完整 USB 規格？"
+    ),
+    "DRAFT-L3-026": (
+        "如何把 USB 2.0 Hub 的 `PORT_POWER` 要求，對應到 SuperSpeed Hub LVS"
+        " Rev 1.15 的相關測試條件？在沒有實際測試結果時，需要哪些證據才能"
+        "建立兩者關聯，而不宣稱產品已通過測試？"
+    ),
+    "DRAFT-L3-027": (
+        "如何把 USB 2.0 Rev 2.0 第 7 章的 electrical 或 timing 要求，"
+        "連到適用的 SuperSpeed Hub LVS Rev 1.15 測試條件？"
+    ),
+    "DRAFT-L3-028": (
+        "USB 3.2 Rev 1.1 第 6 章哪一條 link 要求可以對上 SuperSpeed Hub LVS"
+        " Rev 1.15 的測試項？對上之後，還缺什麼實際執行證據？"
+    ),
+    "DRAFT-L3-029": (
+        "如何把 USB 3.2 Rev 1.1 第 7 章的 protocol 要求，連到觀察到的 Hub"
+        " compliance 條件，同時不要把 Rev 1.1 和 LVS Rev 1.15 混成同一份規格？"
+    ),
+    "DRAFT-L3-030": (
+        "如何把 USB 3.2 Rev 1.1 第 9 章的 descriptor 或 request 要求，"
+        "連到 Hub descriptor 觀察或 LVS 測試項？"
+    ),
+    "DRAFT-L3-031": (
+        "要組成完整的「規格要求 → 測試條件」證據鏈，需要 USB 3.2 Rev 1.1"
+        " 第 10 章的哪一條 Hub 要求，以及 SuperSpeed Hub LVS Rev 1.15 的哪一項條件？"
+    ),
+    "DRAFT-L3-032": (
+        "如何用 governed structured reference 找到 USB 3.2 Rev 1.1 的要求，"
+        "同時正式引用仍落在 USB 3.2 原文？"
+    ),
+    "DRAFT-L3-033": (
+        "如何同時報告 governed-reference 的範圍限制與 USB 2.0 Hub Class 要求，"
+        "而不把 firmware 或產品合規講過頭？"
+    ),
+    "DRAFT-L3-034": (
+        "一項同時涵蓋控制行為與 signaling 的要求，需要哪一對 USB 2.0"
+        " firmware-scope 與 signal/electrical-scope 證據？"
+    ),
+    "DRAFT-L3-035": (
+        "如何比較 USB 2.0 與 USB 3.2 的 `PORT_POWER` 要求，同時保留各自文件、"
+        "版本與權威來源，而不是把 selector 數值等同於完整行為？"
+    ),
+    "DRAFT-L3-036": (
+        "在同一組跨規格答案與引用裡，如何把 USB 2.0 signal/electrical 證據"
+        "與 USB 3.2 protocol 證據分開寫？"
+    ),
+    "DRAFT-L3-037": (
+        "把 USB 2.0 firmware 要求、USB 2.0 signal/electrical 條件，以及"
+        " SuperSpeed Hub LVS Rev 1.15 測試條件連起來，需要哪三截證據？"
+    ),
+    "DRAFT-L3-038": (
+        "如何用 governed structured reference 與 SuperSpeed Hub LVS Rev 1.15"
+        " 支撐 USB 3.2 Rev 1.1 的 Hub 結論，同時不要把其中任何一份說成產品已通過？"
+    ),
+    "DRAFT-L4-039": (
+        "若 USB 2.0 Hub Class 與 USB 3.2 Hub 證據指向不同行為，在試圖調和前，"
+        "必須先報告哪些版本、權威角色、章節位置與互相衝突的主張？"
+    ),
+    "DRAFT-L4-040": (
+        "當 USB 2.0 signal/electrical 陳述與 USB 3.2 protocol 陳述對不上，"
+        "且沒有來源能調和兩邊範圍時，應該怎麼呈現這個未解衝突？"
+    ),
+    "DRAFT-L4-041": (
+        "若 governed reference 的範圍與 USB 2.0 規範原文對「誰說了算」不一致，"
+        "答案必須報告哪些互相衝突的權威事實？"
+    ),
+    "DRAFT-L4-042": (
+        "若 SuperSpeed Hub LVS Rev 1.15 條件無法與 USB 3.2 Rev 1.1 要求對上，"
+        "應該回報什麼衝突結果，以及證據邊界到哪裡？"
+    ),
+    "DRAFT-L4-043": (
+        "Phase 1 的 USB Hub 資料是否足以回答 USB4 Router 規範問題？"
+        "如果不行，應如何明確表示此題超出目前範圍，並把它歸到 Phase 2？"
+    ),
+    "DRAFT-L4-044": (
+        "當請求的 USB Hub 行為引用不存在的 99.99 節，且對不到任何已指定規格"
+        "章節時，應該回什麼？"
+    ),
+    "DRAFT-L4-045": (
+        "當擬議的 USB Hub 答案依賴目前指定規格裡沒有的權威或檔案時，應該怎麼回？"
+    ),
+    "DRAFT-L4-046": (
+        "當請求的 USB 2.0 主張在指定規格裡找不到章節、頁碼或穩定引用位置時，"
+        "應該回什麼？"
+    ),
+    "DRAFT-L4-047": (
+        "對超出目前五類 Phase 1 指定規格的廠商專屬 Hub firmware 問題，"
+        "正確回應是什麼？"
+    ),
+    "DRAFT-L4-048": (
+        "Phase 1 的 USB Hub 資料能否回答 USB4 tunneling 要求？"
+        "若不能回答，必須一併標出哪一條 USB4 Phase 2 範圍邊界？"
+    ),
+    "DRAFT-L4-049": (
+        "當 USB 2.0 firmware-scope 證據與 USB 2.0 signal/electrical-scope"
+        " 證據互相矛盾，且指定頁面無法調和時，應該怎麼報告？"
+    ),
+    "DRAFT-L4-050": (
+        "當使用者要求把 informative note 提升成規範性 USB Hub 要求，"
+        "卻沒有規範原文支持時，應該怎麼做？"
+    ),
+}
 STATUS_GOLD_RULES = {
     "answer": (
         "accepted evidence + 至少 1 條 required claim + required facts + "
@@ -220,30 +430,53 @@ def source_card_lines(source_id: str, source: Mapping[str, Any]) -> list[str]:
     ]
 
 
+def question_plain_zh(question: Mapping[str, Any]) -> str:
+    qid = str(question.get("question_id") or "")
+    text = QUESTION_ZH.get(qid)
+    if not text:
+        raise WorksheetRenderError(f"missing Chinese restatement for {qid}")
+    return text
+
+
+def reviewer_checks(status: str) -> tuple[str, ...]:
+    return (
+        REVIEWER_CHECKS_COMMON[0],
+        REVIEWER_CHECKS_COMMON[1],
+        STATUS_CHECK[status],
+        REVIEWER_CHECKS_COMMON[2],
+        REVIEWER_CHECKS_COMMON[3],
+    )
+
+
 def reviewer_fields(
     status: str, *, conflict_list: str, boundary_list: str
 ) -> list[str]:
     if status == "answer":
         return [
-            "規格文件",
-            "章節",
+            "規格章節",
             "頁碼",
-            "關鍵原文",
-            "答案必須包含",
-            "不得延伸宣稱",
+            "支持答案的規格原文",
+            "正確答案至少要包含哪些重點",
+            "根據這份證據，哪些結論不能下",
         ]
     if status == "conflict":
         return [
             "來源 A 文件 / 章節 / 頁碼 / 主張",
             "來源 B 文件 / 章節 / 頁碼 / 主張",
             f"衝突類型（只准這三個）：{conflict_list}",
-            "為何不能自行裁決",
+            "為什麼不能自己選一邊當答案",
         ]
     return [
-        f"棄權理由碼（只准這六個）：{boundary_list}",
-        "為何 Phase 1 corpus 不能答",
+        f"拒絕回答的理由碼（只准這六個）：{boundary_list}",
+        "為什麼目前指定的規格答不了",
         "不要把章節或頁碼當成正式答案",
     ]
+
+
+def verdict_line() -> str:
+    human = " / ".join(label for _code, label in VERDICT_LABELS)
+    machine = " / ".join(code for code, _label in VERDICT_LABELS)
+    return f"結果：{human}（機器值 {machine}）"
 
 
 def render_worksheet(
@@ -297,12 +530,12 @@ def render_worksheet(
     add("")
     add("## 怎麼用")
     add("")
-    add("1. 先指定獨立審查人，再開已鎖定 PDF 根目錄（bytes/hash 必須對上 lock）。")
-    add("2. 用大綱跳題號。一次只看一張卡，打開對應 PDF，找 section / page，再勾選。")
+    add("1. 先指定獨立審查人，再開指定規格 PDF 根目錄（bytes/hash 必須對上 lock）。")
+    add("2. 用大綱跳題號。一次只看一張卡，先看「這題在問什麼」，再對英文原題與 PDF。")
     add("3. 空白欄位留給審查人；agent 不得憑記憶代填。")
     add("4. 工程側把卡片轉成 v1.1 gold 後，審查人再看一次 manifest diff，最後才簽 receipt。")
     add("")
-    add("## 鎖定來源對照（來自 corpus.lock.yaml，不是 renderer 手寫）")
+    add("## 指定規格對照（來自 corpus.lock.yaml，不是 renderer 手寫）")
     add("")
     add("| source_id | lock identity / scope | source_locator | SHA-256 前 8 |")
     add("|---|---|---|---|")
@@ -334,26 +567,33 @@ def render_worksheet(
         add("")
         add(f"## {qid}{suffix}")
         add("")
+        add(f"**這題預期：{STATUS_ZH[status]}**")
+        add("")
         add(
             f"- 層級：{question['layer']} / {question['priority']} / "
             f"{question['category']}"
         )
-        add(f"- 預期處理：{STATUS_ZH[status]}")
         add(f"- 範圍：`{question['expected_scope']}`")
+        add("")
+        add("### 要查哪份規格？")
+        add("")
         if source_ids:
-            add("- 本題應查閱的規格：")
             for source_id in source_ids:
                 lines.extend(source_card_lines(source_id, sources[source_id]))
         else:
-            add("- 本題應查閱的規格：無（棄權題不該引用 Phase 1 正式來源）")
+            add("- 無。這題不該引用目前指定的 Phase 1 正式來源")
         add("")
-        add("### 題目")
+        add("### 這題在問什麼？")
+        add("")
+        add(question_plain_zh(question))
+        add("")
+        add("### 英文原題")
         add("")
         add(question["question"])
         add("")
         add("### 請確認")
         add("")
-        for check in REVIEWER_CHECKS:
+        for check in reviewer_checks(status):
             add(f"- [ ] {check}")
         add("")
         add("### 請填")
@@ -362,7 +602,7 @@ def render_worksheet(
             status, conflict_list=conflict_list, boundary_list=boundary_list
         ):
             add(f"- {field}：")
-        add("- 判定：未判定 / PASS / REWORD / REJECT")
+        add(f"- {verdict_line()}")
         add("- 備註：")
         add("")
         add("<details>")
@@ -451,7 +691,7 @@ def render_html_worksheet(
                     "</li>"
                 )
         else:
-            source_html.append("<li>無（棄權題不該引用 Phase 1 正式來源）</li>")
+            source_html.append("<li>無。這題不該引用目前指定的 Phase 1 正式來源</li>")
         source_html.append("</ul>")
         fields = reviewer_fields(
             status, conflict_list=conflict_list, boundary_list=boundary_list
@@ -462,6 +702,10 @@ def render_html_worksheet(
             "<textarea rows='2'></textarea>"
             "</label>"
             for field in fields
+        )
+        verdict_html = "".join(
+            f"<option value='{_h(code)}'>{_h(label)}</option>"
+            for code, label in VERDICT_LABELS
         )
         cards.append(
             "<article class='card' id='"
@@ -474,28 +718,29 @@ def render_html_worksheet(
             "<header>"
             f"<h2>{_h(qid)}</h2>"
             + "".join(f"<span class='tag'>{_h(item)}</span>" for item in extra)
-            + f"<span class='status status-{_h(status)}'>預期處理：{_h(STATUS_ZH[status])}</span>"
+            + f"<span class='status status-{_h(status)}'>這題預期：{_h(STATUS_ZH[status])}</span>"
             "</header>"
             "<dl>"
             f"<div><dt>層級</dt><dd>{_h(question['layer'])} / {_h(question['priority'])} / {_h(question['category'])}</dd></div>"
             f"<div><dt>範圍</dt><dd><code>{_h(question['expected_scope'])}</code></dd></div>"
             "</dl>"
-            "<h3>本題應查閱的規格</h3>"
+            "<h3>要查哪份規格？</h3>"
             + "".join(source_html)
-            + "<h3>題目</h3>"
+            + "<h3>這題在問什麼？</h3>"
+            f"<p class=\"plain\">{_h(question_plain_zh(question))}</p>"
+            "<h3>英文原題</h3>"
             f"<p class=\"question\">{_h(question['question'])}</p>"
             "<h3>請確認</h3>"
             "<div class='checks'>"
             + "".join(
                 f"<label class='check'><input type='checkbox'> <span>{_h(check)}</span></label>"
-                for check in REVIEWER_CHECKS
+                for check in reviewer_checks(status)
             )
             + "</div>"
             "<h3>請填</h3>"
             f"<form>{field_html}"
-            "<label><span>判定</span>"
-            "<select><option>未判定</option><option>PASS</option>"
-            "<option>REWORD</option><option>REJECT</option></select></label>"
+            "<label><span>結果</span>"
+            f"<select>{verdict_html}</select></label>"
             "<label><span>備註</span><textarea rows='3'></textarea></label>"
             "</form>"
             "<details class='machine'>"
@@ -585,7 +830,8 @@ th, td {{ border-bottom: 1px solid var(--line); padding: 0.4rem 0.5rem; text-ali
 .status-answer {{ color: var(--answer); border-color: var(--answer); }}
 .status-conflict {{ color: var(--conflict); border-color: var(--conflict); }}
 .status-abstain {{ color: var(--abstain); border-color: var(--abstain); }}
-.question {{ font-size: 1.12rem; }}
+.plain {{ font-size: 1.12rem; }}
+.question {{ color: var(--muted); font-size: 0.98rem; }}
 .checks, form {{ display: grid; gap: 0.55rem; }}
 .checks .check {{ display: flex; align-items: flex-start; gap: 0.45rem; }}
 .checks .check input {{ margin-top: 0.28rem; flex: 0 0 auto; }}
@@ -609,7 +855,7 @@ code {{ font-family: Consolas, "Sarasa Mono TC", monospace; font-size: 0.86em; }
 <main>
 <section class="banner">
 <h1>POC-1 Gold Oracle 人審工作單</h1>
-<p>題目維持英文。操作說明用人話；USB 專有名詞不硬翻。</p>
+<p>每題先看中文「這題在問什麼」，英文原題仍是正式題目。USB 專有名詞不硬翻。</p>
 <p>這是給人看的 review input 投影，不是正式 acceptance set，也不是 review receipt。</p>
 <p>Reviewer 簽這份工作單不夠；最後仍須確認真正會被 admission 的 v1.1 JSON。</p>
 <p>禁止：把 gold 寫進正式 JSON、建立 poc1_acceptance_set.json、建立 approved receipt、宣稱 GO。</p>
@@ -617,7 +863,7 @@ code {{ font-family: Consolas, "Sarasa Mono TC", monospace; font-size: 0.86em; }
 </section>
 <h2>Review-input provenance</h2>
 <table>{provenance_rows}</table>
-<h2>鎖定來源對照</h2>
+<h2>指定規格對照</h2>
 <table>
 <tr><th>source_id</th><th>lock identity / scope</th><th>source_locator</th><th>SHA-256 前 8</th></tr>
 {"".join(source_rows)}
@@ -656,7 +902,7 @@ def main() -> None:
     html_text = render_html_worksheet()
     print(OUT_PATH)
     print(HTML_OUT_PATH)
-    print(f"cards={text.count('### 題目')}")
+    print(f"cards={text.count('### 這題在問什麼？')}")
     print(f"html_cards={html_text.count('class=\"question\"')}")
 
 

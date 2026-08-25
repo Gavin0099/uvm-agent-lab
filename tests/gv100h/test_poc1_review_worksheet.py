@@ -112,7 +112,8 @@ def test_worksheet_binds_draft_lock_and_contract_enums(tmp_path: Path):
     head = _git("rev-parse", "HEAD", cwd=repo)
 
     assert output.is_file()
-    assert text.count("### 題目") == 50
+    assert text.count("### 這題在問什麼？") == 50
+    assert text.count("### 英文原題") == 50
     assert "`source_draft_path`:" in text
     assert f"`source_draft_git_commit`: `{head}`" in text
     assert f"`source_draft_git_blob`: `{draft_blob}`" in text
@@ -137,11 +138,27 @@ def test_worksheet_binds_draft_lock_and_contract_enums(tmp_path: Path):
     assert lvs_hash[:8] in text
     assert hub_commit in text
     assert lock["sources"]["usb20_fw"]["source_locator"] in text
-    assert "其他" not in text
-    assert "棄權理由碼（只准這六個）：" + " / ".join(BOUNDARY_CODES) in text
+    assert "拒絕回答的理由碼（只准這六個）：" + " / ".join(BOUNDARY_CODES) in text
     assert "衝突類型（只准這三個）：" + " / ".join(sorted(CONFLICT_BOUNDARY_CODES)) in text
     assert "不是正式 acceptance set，也不是 review receipt" in text
     assert "MUST_NOT_CREATE" in text
+    assert "這題預期：直接回答" in text
+    assert "要查哪份規格？" in text
+    assert "這題在問什麼？" in text
+    assert "依 USB 2.0 Rev 2.0 第 5 章，`transaction` 與 `transfer` 有什麼差別？" in text
+    assert "指定的規格文件與版本正確" in text
+    assert "可以從指定規格中找到答案" in text
+    assert "這題確實應該直接回答，而不是回報衝突或拒絕回答" in text
+    assert "這個問題沒有先把答案透露出來" in text
+    assert "這個問題沒有暗示產品已經通過測試或認證" in text
+    assert "支持答案的規格原文" in text
+    assert "正確答案至少要包含哪些重點" in text
+    assert "根據這份證據，哪些結論不能下" in text
+    assert "題目可用" in text
+    assert "題目需要修改" in text
+    assert "這題不適合使用" in text
+    assert "題幹" not in text
+    assert "棄權理由碼" not in text
 
 
 def test_source_table_follows_lock_bytes_not_hardcoded_hashes():
@@ -222,16 +239,36 @@ def test_html_worksheet_has_fifty_cards_and_lock_hashes(tmp_path: Path):
     assert "MUST_NOT_CREATE" in text
     assert "PENDING_ASSIGNMENT" in text
     assert "瀏覽器勾選只留在本機頁面" in text
-    assert "預期處理：直接回答" in text
-    assert "本題應查閱的規格" in text
-    assert "可在鎖定來源中找到足以支持本題的依據" in text
-    assert "題目引用的規格與版本正確" in text
-    assert "預期處理類型（回答／衝突／棄權）分類正確" in text
-    assert "題幹沒有洩漏預期答案" in text
-    assert "題幹沒有暗示產品已通過認證" in text
-    assert "答案必須包含" in text
-    assert "不得延伸宣稱" in text
+    assert "這題預期：直接回答" in text
+    assert "要查哪份規格？" in text
+    assert "這題在問什麼？" in text
+    assert "依 USB 2.0 Rev 2.0 第 5 章，`transaction` 與 `transfer` 有什麼差別？" in text
+    assert "指定的規格文件與版本正確" in text
+    assert "可以從指定規格中找到答案" in text
+    assert "這題確實應該直接回答，而不是回報衝突或拒絕回答" in text
+    assert "這個問題沒有先把答案透露出來" in text
+    assert "這個問題沒有暗示產品已經通過測試或認證" in text
+    assert "支持答案的規格原文" in text
+    assert "正確答案至少要包含哪些重點" in text
+    assert "根據這份證據，哪些結論不能下" in text
+    assert "題目可用" in text
+    assert "題目需要修改" in text
+    assert "這題不適合使用" in text
     assert "機器規則（admission 用，審查時可略過）" in text
     assert "<label class='check'>" in text
     assert "應對規格" not in text
     assert "應能回答" not in text
+    assert "題幹" not in text
+    assert "棄權理由碼" not in text
+    assert (
+        "USB 2.0 Rev 2.0 第 6 章裡，哪一個差分訊號參數在引用數值時，"
+        "必須連同量測條件與單位一起說明？"
+    ) in text
+
+
+def test_missing_chinese_restatement_fails_closed():
+    with pytest.raises(
+        renderer.WorksheetRenderError,
+        match="missing Chinese restatement for DRAFT-MISSING",
+    ):
+        renderer.question_plain_zh({"question_id": "DRAFT-MISSING"})
