@@ -7,17 +7,17 @@
 ## Review-input provenance
 
 - `source_draft_path`: `gv100h/spec_qa/golden/poc1_acceptance_set.draft.json`
-- `source_draft_git_commit`: `b861f63c3be0156c0a376d96f5f45935b349b7cf`
+- `source_draft_git_commit`: `b964c72a210a6e8a38146bbe887b99ed977ea8dc`
 - `source_draft_git_blob`: `df9a0135aaf2fca334c309f6ed8ab7aac0a9dede`
 - `source_draft_sha256`: `3a9306db7b910e1f8d813dc64ae7b9d77e3771813a4575f7202fbd18cdafbe28`
 - `corpus_lock_path`: `gv100h/spec_qa/contracts/corpus.lock.yaml`
 - `corpus_lock_sha256`: `f51cc94a9cb478071122a3682cd1386983aa84a08b8304d3bfe7b77375f90847`
 - `corpus_lock_git_blob`: `97c1dc714f5fc72ddeb82bc5fb7538dce5b8e8e8`
 - `renderer_path`: `scripts/render_poc1_review_worksheet.py`
-- `renderer_git_blob`: `52cd0d35588a9a722498b1ef64e0b95e05f8f2cb`
-- `renderer_sha256`: `ff0e29b6dc45f934964df8b30bf05b1743c1cbf861024155310ad19669f52046`
-- `generated_at`: `2026-08-25T08:10:17+00:00`
-- `worktree_head`: `b861f63c3be0156c0a376d96f5f45935b349b7cf`
+- `renderer_git_blob`: `6a8ecc536aca333a444d717db290144590e720f5`
+- `renderer_sha256`: `7e3de1ac3ab79a360e2cb138bb043246cd43b4151eb435fd39a7836056265379`
+- `generated_at`: `2026-08-25T08:18:07+00:00`
+- `worktree_head`: `b964c72a210a6e8a38146bbe887b99ed977ea8dc`
 - `draft_schema`: `poc1_spec_qa_acceptance_set_draft.v0.1`
 - `draft_status`: `draft_not_admitted`
 - `Independent reviewer`: `PENDING_ASSIGNMENT`
@@ -54,10 +54,9 @@
 ## DRAFT-L1-001
 
 - 層級：L1 / P0 / single_spec_fact
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_2_0`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_2_0`
+- 本題應查閱的規格：
   - `usb20_fw` = USB 2.0 Specification / 2.0 (Ch.5, 8-11)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
@@ -66,34 +65,40 @@
 
 According to the USB 2.0 Revision 2.0 Chapter 5 data-flow terminology, what is the distinction between a transaction and a transfer?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L1-002
 
 - 層級：L1 / P0 / single_spec_fact
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_2_0`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_2_0`
+- 本題應查閱的規格：
   - `usb20_fw` = USB 2.0 Specification / 2.0 (Ch.5, 8-11)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
@@ -102,34 +107,40 @@ According to the USB 2.0 Revision 2.0 Chapter 5 data-flow terminology, what is t
 
 According to USB 2.0 Revision 2.0 Chapter 8, what are the SETUP, DATA when present, and STATUS stages of a control transfer?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L1-003
 
 - 層級：L1 / P0 / single_spec_fact
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_2_0`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_2_0`
+- 本題應查閱的規格：
   - `usb20_fw` = USB 2.0 Specification / 2.0 (Ch.5, 8-11)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
@@ -138,34 +149,40 @@ According to USB 2.0 Revision 2.0 Chapter 8, what are the SETUP, DATA when prese
 
 In USB 2.0 Revision 2.0 Chapter 9, what do bmRequestType, bRequest, and wValue identify in a standard Hub request?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L1-004 （優先）
 
 - 層級：L1 / P0 / single_spec_fact
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_2_0`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_2_0`
+- 本題應查閱的規格：
   - `usb20_fw` = USB 2.0 Specification / 2.0 (Ch.5, 8-11)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
@@ -174,34 +191,40 @@ In USB 2.0 Revision 2.0 Chapter 9, what do bmRequestType, bRequest, and wValue i
 
 Which USB 2.0 Hub Class feature controls downstream-port power, and what operation invokes that feature?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L1-005 （優先）
 
 - 層級：L1 / P0 / single_spec_fact
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_2_0`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_2_0`
+- 本題應查閱的規格：
   - `usb20_fw` = USB 2.0 Specification / 2.0 (Ch.5, 8-11)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
@@ -210,34 +233,40 @@ Which USB 2.0 Hub Class feature controls downstream-port power, and what operati
 
 What numeric value does the USB 2.0 Hub Class assign to the PORT_POWER feature selector, and which USB 2.0 section is the stable citation anchor?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L1-006 （優先）
 
 - 層級：L1 / P0 / single_spec_fact
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_2_0`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_2_0`
+- 本題應查閱的規格：
   - `usb20_se` = USB 2.0 Specification / 2.0 (Ch.6-7)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
@@ -246,34 +275,40 @@ What numeric value does the USB 2.0 Hub Class assign to the PORT_POWER feature s
 
 Which USB 2.0 Revision 2.0 Chapter 6 differential-signaling parameter must be cited with its measurement condition and units?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L1-007
 
 - 層級：L1 / P0 / single_spec_fact
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_2_0`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_2_0`
+- 本題應查閱的規格：
   - `usb20_se` = USB 2.0 Specification / 2.0 (Ch.6-7)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
@@ -282,34 +317,40 @@ Which USB 2.0 Revision 2.0 Chapter 6 differential-signaling parameter must be ci
 
 Which USB 2.0 Revision 2.0 Chapter 7 timing requirement must be reported with its measurement condition and units?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L1-008 （優先）
 
 - 層級：L1 / P0 / single_spec_fact
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_3_X`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_3_X`
+- 本題應查閱的規格：
   - `usb32` = USB 3.2 Specification / Rev 1.1 (Ch.6, 7, 9, 10)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb32/USB 3.2 Revision 1.1.pdf`
     content_sha256：`26e025a56ce0352f4f91fcaaca67b622d8e9e030ca429804bf7da98f52e674fd`
@@ -318,34 +359,40 @@ Which USB 2.0 Revision 2.0 Chapter 7 timing requirement must be reported with it
 
 Which USB 3.2 Revision 1.1 Chapter 6 link-state or signaling rule must be cited when evaluating a Hub link transition?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L1-009 （優先）
 
 - 層級：L1 / P0 / single_spec_fact
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_3_X`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_3_X`
+- 本題應查閱的規格：
   - `usb32` = USB 3.2 Specification / Rev 1.1 (Ch.6, 7, 9, 10)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb32/USB 3.2 Revision 1.1.pdf`
     content_sha256：`26e025a56ce0352f4f91fcaaca67b622d8e9e030ca429804bf7da98f52e674fd`
@@ -354,34 +401,40 @@ Which USB 3.2 Revision 1.1 Chapter 6 link-state or signaling rule must be cited 
 
 Which USB 3.2 Revision 1.1 Chapter 7 protocol or ordered-set rule applies to a Hub link exchange?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L1-010 （優先）
 
 - 層級：L1 / P0 / single_spec_fact
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_3_X`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_3_X`
+- 本題應查閱的規格：
   - `usb32` = USB 3.2 Specification / Rev 1.1 (Ch.6, 7, 9, 10)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb32/USB 3.2 Revision 1.1.pdf`
     content_sha256：`26e025a56ce0352f4f91fcaaca67b622d8e9e030ca429804bf7da98f52e674fd`
@@ -390,34 +443,40 @@ Which USB 3.2 Revision 1.1 Chapter 7 protocol or ordered-set rule applies to a H
 
 Which USB 3.2 Revision 1.1 Chapter 9 descriptor or standard-request field identifies the device state being evaluated?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L1-011 （優先）
 
 - 層級：L1 / P0 / single_spec_fact
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_3_X`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_3_X`
+- 本題應查閱的規格：
   - `usb32` = USB 3.2 Specification / Rev 1.1 (Ch.6, 7, 9, 10)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb32/USB 3.2 Revision 1.1.pdf`
     content_sha256：`26e025a56ce0352f4f91fcaaca67b622d8e9e030ca429804bf7da98f52e674fd`
@@ -426,34 +485,40 @@ Which USB 3.2 Revision 1.1 Chapter 9 descriptor or standard-request field identi
 
 What USB 3.2 Revision 1.1 Chapter 10 Hub descriptor or feature-selector rule governs downstream-port state?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L1-012
 
 - 層級：L1 / P0 / single_spec_fact
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_HUB_LVS`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_HUB_LVS`
+- 本題應查閱的規格：
   - `superspeed_hub_lvs` = SuperSpeed Hub LVS Test Specification / Rev 1.15 (Hub compliance test items and conditions)
     locator：`env://USB_SPEC_QA_RAW_ROOT/superspeed_hub_lvs/SSHUB_LVS_Specification_2019_11_21.pdf`
     content_sha256：`f6c647c1acdcaf861555bcef481a104cf72958b787a2db6baab3de0a284440fb`
@@ -462,34 +527,40 @@ What USB 3.2 Revision 1.1 Chapter 10 Hub descriptor or feature-selector rule gov
 
 For a SuperSpeed Hub LVS Revision 1.15 Hub test item, which precondition, stimulus, and expected observation must the answer extract and cite?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L1-013
 
 - 層級：L1 / P0 / single_spec_fact
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_HUB_COMMON`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_HUB_COMMON`
+- 本題應查閱的規格：
   - `hub_reference` = Gavin0099/usb-if-hub-spec-reference / 808f23c24bd8651da9cdcd63ea8669126917a379 (exports/hub_governed_surface_manifest.yaml)
     locator：`repo://Gavin0099/usb-if-hub-spec-reference@808f23c24bd8651da9cdcd63ea8669126917a379`
     content_sha256：`c774c4c31b088348a4f2deaae2e0d8448f083a1a9793d91c59fc719de3536083`
@@ -498,34 +569,40 @@ For a SuperSpeed Hub LVS Revision 1.15 Hub test item, which precondition, stimul
 
 Which claims does the governed structured Hub reference authorize, and which firmware, electrical, LVS, or certification claims are outside its stated boundary?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L2-014
 
 - 層級：L2 / P0 / engineering_interpretation
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_2_0`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_2_0`
+- 本題應查閱的規格：
   - `usb20_fw` = USB 2.0 Specification / 2.0 (Ch.5, 8-11)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
@@ -534,34 +611,40 @@ Which claims does the governed structured Hub reference authorize, and which fir
 
 How should the USB 2.0 Revision 2.0 Chapter 5 transaction/transfer requirement become a verifiable observation, and which implementation conclusion is not licensed?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L2-015
 
 - 層級：L2 / P0 / engineering_interpretation
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_2_0`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_2_0`
+- 本題應查閱的規格：
   - `usb20_fw` = USB 2.0 Specification / 2.0 (Ch.5, 8-11)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
@@ -570,34 +653,40 @@ How should the USB 2.0 Revision 2.0 Chapter 5 transaction/transfer requirement b
 
 How should the USB 2.0 Revision 2.0 Chapter 8 control-transfer packet rule become a test oracle without adding retry behavior absent from the source?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L2-016
 
 - 層級：L2 / P0 / engineering_interpretation
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_2_0`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_2_0`
+- 本題應查閱的規格：
   - `usb20_fw` = USB 2.0 Specification / 2.0 (Ch.5, 8-11)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
@@ -606,34 +695,40 @@ How should the USB 2.0 Revision 2.0 Chapter 8 control-transfer packet rule becom
 
 How should the USB 2.0 Revision 2.0 Chapter 9 standard-request fields become an assertion while preserving the source citation boundary?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L2-017 （優先）
 
 - 層級：L2 / P0 / engineering_interpretation
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_2_0`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_2_0`
+- 本題應查閱的規格：
   - `usb20_se` = USB 2.0 Specification / 2.0 (Ch.6-7)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
@@ -642,34 +737,40 @@ How should the USB 2.0 Revision 2.0 Chapter 9 standard-request fields become an 
 
 How should the USB 2.0 Revision 2.0 Chapter 6 electrical requirement be separated into a measurable condition and an unsupported product-compliance claim?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L2-018
 
 - 層級：L2 / P0 / engineering_interpretation
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_2_0`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_2_0`
+- 本題應查閱的規格：
   - `usb20_se` = USB 2.0 Specification / 2.0 (Ch.6-7)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
@@ -678,34 +779,40 @@ How should the USB 2.0 Revision 2.0 Chapter 6 electrical requirement be separate
 
 How should a verifier classify and test a USB 2.0 Revision 2.0 Chapter 7 timing statement when its normative force or measurement condition is unresolved?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L2-019 （優先）
 
 - 層級：L2 / P0 / engineering_interpretation
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_3_X`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_3_X`
+- 本題應查閱的規格：
   - `usb32` = USB 3.2 Specification / Rev 1.1 (Ch.6, 7, 9, 10)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb32/USB 3.2 Revision 1.1.pdf`
     content_sha256：`26e025a56ce0352f4f91fcaaca67b622d8e9e030ca429804bf7da98f52e674fd`
@@ -714,34 +821,40 @@ How should a verifier classify and test a USB 2.0 Revision 2.0 Chapter 7 timing 
 
 How should a verifier map the USB 3.2 Revision 1.1 Chapter 6 link requirement to a Hub test-plan observation without claiming certification?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L2-020 （優先）
 
 - 層級：L2 / P0 / engineering_interpretation
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_3_X`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_3_X`
+- 本題應查閱的規格：
   - `usb32` = USB 3.2 Specification / Rev 1.1 (Ch.6, 7, 9, 10)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb32/USB 3.2 Revision 1.1.pdf`
     content_sha256：`26e025a56ce0352f4f91fcaaca67b622d8e9e030ca429804bf7da98f52e674fd`
@@ -750,34 +863,40 @@ How should a verifier map the USB 3.2 Revision 1.1 Chapter 6 link requirement to
 
 What conclusion is justified by the USB 3.2 Revision 1.1 Chapter 7 protocol rule, and what remains unknown without an observed trace?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L2-021 （優先）
 
 - 層級：L2 / P0 / engineering_interpretation
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_3_X`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_3_X`
+- 本題應查閱的規格：
   - `usb32` = USB 3.2 Specification / Rev 1.1 (Ch.6, 7, 9, 10)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb32/USB 3.2 Revision 1.1.pdf`
     content_sha256：`26e025a56ce0352f4f91fcaaca67b622d8e9e030ca429804bf7da98f52e674fd`
@@ -786,34 +905,40 @@ What conclusion is justified by the USB 3.2 Revision 1.1 Chapter 7 protocol rule
 
 How should the USB 3.2 Revision 1.1 Chapter 9 descriptor or request requirement be mapped to an observable Hub check?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L2-022 （優先）
 
 - 層級：L2 / P0 / engineering_interpretation
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_3_X`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_3_X`
+- 本題應查閱的規格：
   - `usb32` = USB 3.2 Specification / Rev 1.1 (Ch.6, 7, 9, 10)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb32/USB 3.2 Revision 1.1.pdf`
     content_sha256：`26e025a56ce0352f4f91fcaaca67b622d8e9e030ca429804bf7da98f52e674fd`
@@ -822,34 +947,40 @@ How should the USB 3.2 Revision 1.1 Chapter 9 descriptor or request requirement 
 
 How should the USB 3.2 Revision 1.1 Chapter 10 Hub requirement be reported separately from a product-compliance test result?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L2-023
 
 - 層級：L2 / P0 / engineering_interpretation
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_HUB_LVS`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_HUB_LVS`
+- 本題應查閱的規格：
   - `superspeed_hub_lvs` = SuperSpeed Hub LVS Test Specification / Rev 1.15 (Hub compliance test items and conditions)
     locator：`env://USB_SPEC_QA_RAW_ROOT/superspeed_hub_lvs/SSHUB_LVS_Specification_2019_11_21.pdf`
     content_sha256：`f6c647c1acdcaf861555bcef481a104cf72958b787a2db6baab3de0a284440fb`
@@ -858,34 +989,40 @@ How should the USB 3.2 Revision 1.1 Chapter 10 Hub requirement be reported separ
 
 What conclusion can be drawn from a SuperSpeed Hub LVS Revision 1.15 test condition, and what execution evidence would be required to claim a device passed?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L2-024
 
 - 層級：L2 / P0 / engineering_interpretation
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_HUB_LVS`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_HUB_LVS`
+- 本題應查閱的規格：
   - `superspeed_hub_lvs` = SuperSpeed Hub LVS Test Specification / Rev 1.15 (Hub compliance test items and conditions)
     locator：`env://USB_SPEC_QA_RAW_ROOT/superspeed_hub_lvs/SSHUB_LVS_Specification_2019_11_21.pdf`
     content_sha256：`f6c647c1acdcaf861555bcef481a104cf72958b787a2db6baab3de0a284440fb`
@@ -894,34 +1031,40 @@ What conclusion can be drawn from a SuperSpeed Hub LVS Revision 1.15 test condit
 
 Which parts of a SuperSpeed Hub LVS Revision 1.15 procedure are source-defined conditions, and which product-pass statements require separate execution evidence?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L2-025
 
 - 層級：L2 / P0 / engineering_interpretation
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_HUB_COMMON`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_HUB_COMMON`
+- 本題應查閱的規格：
   - `hub_reference` = Gavin0099/usb-if-hub-spec-reference / 808f23c24bd8651da9cdcd63ea8669126917a379 (exports/hub_governed_surface_manifest.yaml)
     locator：`repo://Gavin0099/usb-if-hub-spec-reference@808f23c24bd8651da9cdcd63ea8669126917a379`
     content_sha256：`c774c4c31b088348a4f2deaae2e0d8448f083a1a9793d91c59fc719de3536083`
@@ -930,34 +1073,40 @@ Which parts of a SuperSpeed Hub LVS Revision 1.15 procedure are source-defined c
 
 How should an engineer use the governed structured Hub reference as an index while preserving its boundary that it is not the complete USB specification?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L3-026 （優先）
 
 - 層級：L3 / P1 / cross_document
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_2_0_TO_LVS`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_2_0_TO_LVS`
+- 本題應查閱的規格：
   - `usb20_fw` = USB 2.0 Specification / 2.0 (Ch.5, 8-11)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
@@ -969,34 +1118,40 @@ How should an engineer use the governed structured Hub reference as an index whi
 
 How should the USB 2.0 Hub PORT_POWER requirement be correlated with a SuperSpeed Hub LVS Revision 1.15 condition, and what evidence links them without claiming a pass?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L3-027 （優先）
 
 - 層級：L3 / P1 / cross_document
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_2_0_TO_LVS`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_2_0_TO_LVS`
+- 本題應查閱的規格：
   - `usb20_se` = USB 2.0 Specification / 2.0 (Ch.6-7)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
@@ -1008,34 +1163,40 @@ How should the USB 2.0 Hub PORT_POWER requirement be correlated with a SuperSpee
 
 How should a USB 2.0 Revision 2.0 Chapter 7 electrical or timing requirement be linked to an applicable SuperSpeed Hub LVS Revision 1.15 test condition?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L3-028 （優先）
 
 - 層級：L3 / P1 / cross_document
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_3_X_TO_LVS`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_3_X_TO_LVS`
+- 本題應查閱的規格：
   - `usb32` = USB 3.2 Specification / Rev 1.1 (Ch.6, 7, 9, 10)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb32/USB 3.2 Revision 1.1.pdf`
     content_sha256：`26e025a56ce0352f4f91fcaaca67b622d8e9e030ca429804bf7da98f52e674fd`
@@ -1047,34 +1208,40 @@ How should a USB 2.0 Revision 2.0 Chapter 7 electrical or timing requirement be 
 
 Which USB 3.2 Revision 1.1 Chapter 6 link requirement can be correlated with a SuperSpeed Hub LVS Revision 1.15 item, and what execution evidence is still missing?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L3-029 （優先）
 
 - 層級：L3 / P1 / cross_document
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_3_X_TO_LVS`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_3_X_TO_LVS`
+- 本題應查閱的規格：
   - `usb32` = USB 3.2 Specification / Rev 1.1 (Ch.6, 7, 9, 10)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb32/USB 3.2 Revision 1.1.pdf`
     content_sha256：`26e025a56ce0352f4f91fcaaca67b622d8e9e030ca429804bf7da98f52e674fd`
@@ -1086,34 +1253,40 @@ Which USB 3.2 Revision 1.1 Chapter 6 link requirement can be correlated with a S
 
 How should a USB 3.2 Revision 1.1 Chapter 7 protocol requirement be connected to an observed Hub compliance condition without mixing Rev 1.1 with LVS Rev 1.15?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L3-030 （優先）
 
 - 層級：L3 / P1 / cross_document
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_3_X_TO_LVS`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_3_X_TO_LVS`
+- 本題應查閱的規格：
   - `usb32` = USB 3.2 Specification / Rev 1.1 (Ch.6, 7, 9, 10)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb32/USB 3.2 Revision 1.1.pdf`
     content_sha256：`26e025a56ce0352f4f91fcaaca67b622d8e9e030ca429804bf7da98f52e674fd`
@@ -1125,34 +1298,40 @@ How should a USB 3.2 Revision 1.1 Chapter 7 protocol requirement be connected to
 
 How should a USB 3.2 Revision 1.1 Chapter 9 descriptor or request requirement be linked to a Hub descriptor observation or an LVS test item?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L3-031 （優先）
 
 - 層級：L3 / P1 / cross_document
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_3_X_TO_LVS`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_3_X_TO_LVS`
+- 本題應查閱的規格：
   - `usb32` = USB 3.2 Specification / Rev 1.1 (Ch.6, 7, 9, 10)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb32/USB 3.2 Revision 1.1.pdf`
     content_sha256：`26e025a56ce0352f4f91fcaaca67b622d8e9e030ca429804bf7da98f52e674fd`
@@ -1164,34 +1343,40 @@ How should a USB 3.2 Revision 1.1 Chapter 9 descriptor or request requirement be
 
 Which USB 3.2 Revision 1.1 Chapter 10 Hub requirement and SuperSpeed Hub LVS Revision 1.15 condition are needed for a complete requirement-to-test evidence chain?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L3-032 （優先）
 
 - 層級：L3 / P1 / cross_document
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_HUB_COMMON`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_HUB_COMMON`
+- 本題應查閱的規格：
   - `hub_reference` = Gavin0099/usb-if-hub-spec-reference / 808f23c24bd8651da9cdcd63ea8669126917a379 (exports/hub_governed_surface_manifest.yaml)
     locator：`repo://Gavin0099/usb-if-hub-spec-reference@808f23c24bd8651da9cdcd63ea8669126917a379`
     content_sha256：`c774c4c31b088348a4f2deaae2e0d8448f083a1a9793d91c59fc719de3536083`
@@ -1203,34 +1388,40 @@ Which USB 3.2 Revision 1.1 Chapter 10 Hub requirement and SuperSpeed Hub LVS Rev
 
 How should the governed structured reference locate a USB 3.2 Revision 1.1 requirement while preserving the USB 3.2 normative citation?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L3-033 （優先）
 
 - 層級：L3 / P1 / cross_document
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_HUB_COMMON`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_HUB_COMMON`
+- 本題應查閱的規格：
   - `hub_reference` = Gavin0099/usb-if-hub-spec-reference / 808f23c24bd8651da9cdcd63ea8669126917a379 (exports/hub_governed_surface_manifest.yaml)
     locator：`repo://Gavin0099/usb-if-hub-spec-reference@808f23c24bd8651da9cdcd63ea8669126917a379`
     content_sha256：`c774c4c31b088348a4f2deaae2e0d8448f083a1a9793d91c59fc719de3536083`
@@ -1242,34 +1433,40 @@ How should the governed structured reference locate a USB 3.2 Revision 1.1 requi
 
 How should the governed-reference claim boundary and the USB 2.0 Hub Class requirement be reported together without overstating firmware or product compliance?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L3-034 （優先）
 
 - 層級：L3 / P1 / cross_document
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_2_0`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_2_0`
+- 本題應查閱的規格：
   - `usb20_fw` = USB 2.0 Specification / 2.0 (Ch.5, 8-11)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
@@ -1281,34 +1478,40 @@ How should the governed-reference claim boundary and the USB 2.0 Hub Class requi
 
 Which USB 2.0 firmware-scope and signal/electrical-scope evidence pair is needed for a requirement spanning control behavior and signaling?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L3-035 （優先）
 
 - 層級：L3 / P1 / cross_document
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_HUB_COMMON`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_HUB_COMMON`
+- 本題應查閱的規格：
   - `usb20_fw` = USB 2.0 Specification / 2.0 (Ch.5, 8-11)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
@@ -1320,34 +1523,40 @@ Which USB 2.0 firmware-scope and signal/electrical-scope evidence pair is needed
 
 How should the USB 2.0 and USB 3.2 PORT_POWER requirements be compared while preserving document, revision, and authority context rather than equating selector value with full behavior?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L3-036 （優先）
 
 - 層級：L3 / P1 / cross_document
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_HUB_COMMON`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_HUB_COMMON`
+- 本題應查閱的規格：
   - `usb20_se` = USB 2.0 Specification / 2.0 (Ch.6-7)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
@@ -1359,34 +1568,40 @@ How should the USB 2.0 and USB 3.2 PORT_POWER requirements be compared while pre
 
 How should USB 2.0 signal/electrical evidence and USB 3.2 protocol evidence be separated in one cross-spec answer and citation set?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L3-037 （優先）
 
 - 層級：L3 / P1 / cross_document
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_2_0_TO_LVS`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_2_0_TO_LVS`
+- 本題應查閱的規格：
   - `usb20_fw` = USB 2.0 Specification / 2.0 (Ch.5, 8-11)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
@@ -1401,34 +1616,40 @@ How should USB 2.0 signal/electrical evidence and USB 3.2 protocol evidence be s
 
 What three-part evidence chain connects a USB 2.0 firmware requirement, a USB 2.0 signal/electrical condition, and a SuperSpeed Hub LVS Revision 1.15 test condition?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L3-038 （優先）
 
 - 層級：L3 / P1 / cross_document
-- 預期行為：應能回答 （`answer`）
-- 範圍標籤：`USB_3_X_TO_LVS`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
-- 應對規格：
+- 預期處理：直接回答
+- 範圍：`USB_3_X_TO_LVS`
+- 本題應查閱的規格：
   - `usb32` = USB 3.2 Specification / Rev 1.1 (Ch.6, 7, 9, 10)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb32/USB 3.2 Revision 1.1.pdf`
     content_sha256：`26e025a56ce0352f4f91fcaaca67b622d8e9e030ca429804bf7da98f52e674fd`
@@ -1443,34 +1664,40 @@ What three-part evidence chain connects a USB 2.0 firmware requirement, a USB 2.
 
 How should a USB 3.2 Revision 1.1 Hub claim be grounded in the governed structured reference and SuperSpeed Hub LVS Revision 1.15 without promoting either source to a product-pass result?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（answer）：
+### 請填
 
-- 文件 / revision：
-- section：
-- page 或穩定錨點：
-- 原文摘錄（短）：
-- 必答事實（1–3 條）：
-- 禁止宣稱：
-
-- 判定：PASS / REWORD / REJECT
+- 規格文件：
+- 章節：
+- 頁碼：
+- 關鍵原文：
+- 答案必須包含：
+- 不得延伸宣稱：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`answer`
+- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；不可有 competing/boundary evidence 或 boundary_code
+</details>
 
 ---
 
 ## DRAFT-L4-039 （優先）
 
 - 層級：L4 / P0 / uncertainty_conflict
-- 預期行為：應報衝突、不要硬解 （`conflict`）
-- 範圍標籤：`USB_HUB_COMMON`
-- v1.1 gold 規則：至少 2 個 competing evidence + 至少 2 條 required claims + 至少 2 個 section anchors；boundary_code 限 AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT
-- 應對規格：
+- 預期處理：回報衝突，不應自行裁決
+- 範圍：`USB_HUB_COMMON`
+- 本題應查閱的規格：
   - `usb20_fw` = USB 2.0 Specification / 2.0 (Ch.5, 8-11)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
@@ -1482,32 +1709,38 @@ How should a USB 3.2 Revision 1.1 Hub claim be grounded in the governed structur
 
 If USB 2.0 Hub Class evidence and USB 3.2 Hub evidence imply different behavior, which revisions, authority roles, section anchors, and competing claims must be reported before reconciliation?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（conflict，至少兩造）：
+### 請填
 
-- 來源 A 文件 / section / page / 主張：
-- 來源 B 文件 / section / page / 主張：
-- 衝突類型（只准這三個）：AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT
-- 為何不能硬解：
-
-- 判定：PASS / REWORD / REJECT
+- 來源 A 文件 / 章節 / 頁碼 / 主張：
+- 來源 B 文件 / 章節 / 頁碼 / 主張：
+- 衝突類型（只准這三個）：AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT：
+- 為何不能自行裁決：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`conflict`
+- v1.1 gold 規則：至少 2 個 competing evidence + 至少 2 條 required claims + 至少 2 個 section anchors；boundary_code 限 AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT
+</details>
 
 ---
 
 ## DRAFT-L4-040 （優先）
 
 - 層級：L4 / P0 / uncertainty_conflict
-- 預期行為：應報衝突、不要硬解 （`conflict`）
-- 範圍標籤：`USB_HUB_COMMON`
-- v1.1 gold 規則：至少 2 個 competing evidence + 至少 2 條 required claims + 至少 2 個 section anchors；boundary_code 限 AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT
-- 應對規格：
+- 預期處理：回報衝突，不應自行裁決
+- 範圍：`USB_HUB_COMMON`
+- 本題應查閱的規格：
   - `usb20_se` = USB 2.0 Specification / 2.0 (Ch.6-7)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
@@ -1519,32 +1752,38 @@ If USB 2.0 Hub Class evidence and USB 3.2 Hub evidence imply different behavior,
 
 How should an unresolved conflict between a USB 2.0 signal/electrical statement and a USB 3.2 protocol statement be represented when no source evidence reconciles the scopes?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（conflict，至少兩造）：
+### 請填
 
-- 來源 A 文件 / section / page / 主張：
-- 來源 B 文件 / section / page / 主張：
-- 衝突類型（只准這三個）：AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT
-- 為何不能硬解：
-
-- 判定：PASS / REWORD / REJECT
+- 來源 A 文件 / 章節 / 頁碼 / 主張：
+- 來源 B 文件 / 章節 / 頁碼 / 主張：
+- 衝突類型（只准這三個）：AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT：
+- 為何不能自行裁決：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`conflict`
+- v1.1 gold 規則：至少 2 個 competing evidence + 至少 2 條 required claims + 至少 2 個 section anchors；boundary_code 限 AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT
+</details>
 
 ---
 
 ## DRAFT-L4-041 （優先）
 
 - 層級：L4 / P0 / uncertainty_conflict
-- 預期行為：應報衝突、不要硬解 （`conflict`）
-- 範圍標籤：`USB_HUB_COMMON`
-- v1.1 gold 規則：至少 2 個 competing evidence + 至少 2 條 required claims + 至少 2 個 section anchors；boundary_code 限 AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT
-- 應對規格：
+- 預期處理：回報衝突，不應自行裁決
+- 範圍：`USB_HUB_COMMON`
+- 本題應查閱的規格：
   - `hub_reference` = Gavin0099/usb-if-hub-spec-reference / 808f23c24bd8651da9cdcd63ea8669126917a379 (exports/hub_governed_surface_manifest.yaml)
     locator：`repo://Gavin0099/usb-if-hub-spec-reference@808f23c24bd8651da9cdcd63ea8669126917a379`
     content_sha256：`c774c4c31b088348a4f2deaae2e0d8448f083a1a9793d91c59fc719de3536083`
@@ -1556,32 +1795,38 @@ How should an unresolved conflict between a USB 2.0 signal/electrical statement 
 
 If the governed reference claim boundary and the normative USB 2.0 source disagree about authority scope, what competing authority facts must the answer report?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（conflict，至少兩造）：
+### 請填
 
-- 來源 A 文件 / section / page / 主張：
-- 來源 B 文件 / section / page / 主張：
-- 衝突類型（只准這三個）：AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT
-- 為何不能硬解：
-
-- 判定：PASS / REWORD / REJECT
+- 來源 A 文件 / 章節 / 頁碼 / 主張：
+- 來源 B 文件 / 章節 / 頁碼 / 主張：
+- 衝突類型（只准這三個）：AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT：
+- 為何不能自行裁決：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`conflict`
+- v1.1 gold 規則：至少 2 個 competing evidence + 至少 2 條 required claims + 至少 2 個 section anchors；boundary_code 限 AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT
+</details>
 
 ---
 
 ## DRAFT-L4-042 （優先）
 
 - 層級：L4 / P0 / uncertainty_conflict
-- 預期行為：應報衝突、不要硬解 （`conflict`）
-- 範圍標籤：`USB_3_X_TO_LVS`
-- v1.1 gold 規則：至少 2 個 competing evidence + 至少 2 條 required claims + 至少 2 個 section anchors；boundary_code 限 AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT
-- 應對規格：
+- 預期處理：回報衝突，不應自行裁決
+- 範圍：`USB_3_X_TO_LVS`
+- 本題應查閱的規格：
   - `usb32` = USB 3.2 Specification / Rev 1.1 (Ch.6, 7, 9, 10)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb32/USB 3.2 Revision 1.1.pdf`
     content_sha256：`26e025a56ce0352f4f91fcaaca67b622d8e9e030ca429804bf7da98f52e674fd`
@@ -1593,212 +1838,254 @@ If the governed reference claim boundary and the normative USB 2.0 source disagr
 
 If a SuperSpeed Hub LVS Revision 1.15 condition cannot be reconciled with a USB 3.2 Revision 1.1 requirement, what conflict result and evidence boundary must the agent return?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（conflict，至少兩造）：
+### 請填
 
-- 來源 A 文件 / section / page / 主張：
-- 來源 B 文件 / section / page / 主張：
-- 衝突類型（只准這三個）：AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT
-- 為何不能硬解：
-
-- 判定：PASS / REWORD / REJECT
+- 來源 A 文件 / 章節 / 頁碼 / 主張：
+- 來源 B 文件 / 章節 / 頁碼 / 主張：
+- 衝突類型（只准這三個）：AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT：
+- 為何不能自行裁決：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`conflict`
+- v1.1 gold 規則：至少 2 個 competing evidence + 至少 2 條 required claims + 至少 2 個 section anchors；boundary_code 限 AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT
+</details>
 
 ---
 
 ## DRAFT-L4-043 （優先 · USB4負控）
 
 - 層級：L4 / P0 / uncertainty_conflict
-- 預期行為：應拒絕回答 / 棄權 （`abstain`）
-- 範圍標籤：`USB4_SPEC`
-- v1.1 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
-- 應對規格：無（棄權題不該引用 Phase 1 正式來源）
+- 預期處理：棄權，不應回答
+- 範圍：`USB4_SPEC`
+- 本題應查閱的規格：無（棄權題不該引用 Phase 1 正式來源）
 
 ### 題目
 
 Can a USB4 router requirement be answered from the Phase 1 USB Hub corpus, and what explicit Phase 2 abstention result should be returned?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（abstain）：
+### 請填
 
-- 棄權理由碼（只准這六個）：OUT_OF_SCOPE / FICTIONAL_SECTION / MISSING_EVIDENCE / AUTHORITY_MISMATCH / VERSION_CONFLICT / UNRESOLVED_CONFLICT
+- 棄權理由碼（只准這六個）：OUT_OF_SCOPE / FICTIONAL_SECTION / MISSING_EVIDENCE / AUTHORITY_MISMATCH / VERSION_CONFLICT / UNRESOLVED_CONFLICT：
 - 為何 Phase 1 corpus 不能答：
-- 不可把 section/page 當成正式答案
-
-- 判定：PASS / REWORD / REJECT
+- 不要把章節或頁碼當成正式答案：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`abstain`
+- v1.1 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
+</details>
 
 ---
 
 ## DRAFT-L4-044 （優先）
 
 - 層級：L4 / P0 / uncertainty_conflict
-- 預期行為：應拒絕回答 / 棄權 （`abstain`）
-- 範圍標籤：`FICTIONAL_CLAUSE`
-- v1.1 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
-- 應對規格：無（棄權題不該引用 Phase 1 正式來源）
+- 預期處理：棄權，不應回答
+- 範圍：`FICTIONAL_CLAUSE`
+- 本題應查閱的規格：無（棄權題不該引用 Phase 1 正式來源）
 
 ### 題目
 
 What should the agent return when a requested USB Hub behavior cites fictional section 99.99 and cannot be resolved to a locked source section?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（abstain）：
+### 請填
 
-- 棄權理由碼（只准這六個）：OUT_OF_SCOPE / FICTIONAL_SECTION / MISSING_EVIDENCE / AUTHORITY_MISMATCH / VERSION_CONFLICT / UNRESOLVED_CONFLICT
+- 棄權理由碼（只准這六個）：OUT_OF_SCOPE / FICTIONAL_SECTION / MISSING_EVIDENCE / AUTHORITY_MISMATCH / VERSION_CONFLICT / UNRESOLVED_CONFLICT：
 - 為何 Phase 1 corpus 不能答：
-- 不可把 section/page 當成正式答案
-
-- 判定：PASS / REWORD / REJECT
+- 不要把章節或頁碼當成正式答案：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`abstain`
+- v1.1 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
+</details>
 
 ---
 
 ## DRAFT-L4-045 （優先）
 
 - 層級：L4 / P0 / uncertainty_conflict
-- 預期行為：應拒絕回答 / 棄權 （`abstain`）
-- 範圍標籤：`UNLISTED_AUTHORITY`
-- v1.1 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
-- 應對規格：無（棄權題不該引用 Phase 1 正式來源）
+- 預期處理：棄權，不應回答
+- 範圍：`UNLISTED_AUTHORITY`
+- 本題應查閱的規格：無（棄權題不該引用 Phase 1 正式來源）
 
 ### 題目
 
 How should the agent respond when a proposed USB Hub answer relies on an authority or archive absent from the Phase 1 corpus lock?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（abstain）：
+### 請填
 
-- 棄權理由碼（只准這六個）：OUT_OF_SCOPE / FICTIONAL_SECTION / MISSING_EVIDENCE / AUTHORITY_MISMATCH / VERSION_CONFLICT / UNRESOLVED_CONFLICT
+- 棄權理由碼（只准這六個）：OUT_OF_SCOPE / FICTIONAL_SECTION / MISSING_EVIDENCE / AUTHORITY_MISMATCH / VERSION_CONFLICT / UNRESOLVED_CONFLICT：
 - 為何 Phase 1 corpus 不能答：
-- 不可把 section/page 當成正式答案
-
-- 判定：PASS / REWORD / REJECT
+- 不要把章節或頁碼當成正式答案：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`abstain`
+- v1.1 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
+</details>
 
 ---
 
 ## DRAFT-L4-046 （優先）
 
 - 層級：L4 / P0 / uncertainty_conflict
-- 預期行為：應拒絕回答 / 棄權 （`abstain`）
-- 範圍標籤：`USB_2_0`
-- v1.1 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
-- 應對規格：無（棄權題不該引用 Phase 1 正式來源）
+- 預期處理：棄權，不應回答
+- 範圍：`USB_2_0`
+- 本題應查閱的規格：無（棄權題不該引用 Phase 1 正式來源）
 
 ### 題目
 
 What should the agent return when a requested USB 2.0 claim has no bound section, page, or stable citation anchor in the locked source?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（abstain）：
+### 請填
 
-- 棄權理由碼（只准這六個）：OUT_OF_SCOPE / FICTIONAL_SECTION / MISSING_EVIDENCE / AUTHORITY_MISMATCH / VERSION_CONFLICT / UNRESOLVED_CONFLICT
+- 棄權理由碼（只准這六個）：OUT_OF_SCOPE / FICTIONAL_SECTION / MISSING_EVIDENCE / AUTHORITY_MISMATCH / VERSION_CONFLICT / UNRESOLVED_CONFLICT：
 - 為何 Phase 1 corpus 不能答：
-- 不可把 section/page 當成正式答案
-
-- 判定：PASS / REWORD / REJECT
+- 不要把章節或頁碼當成正式答案：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`abstain`
+- v1.1 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
+</details>
 
 ---
 
 ## DRAFT-L4-047 （優先）
 
 - 層級：L4 / P0 / uncertainty_conflict
-- 預期行為：應拒絕回答 / 棄權 （`abstain`）
-- 範圍標籤：`VENDOR_FIRMWARE_SPECIFIC`
-- v1.1 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
-- 應對規格：無（棄權題不該引用 Phase 1 正式來源）
+- 預期處理：棄權，不應回答
+- 範圍：`VENDOR_FIRMWARE_SPECIFIC`
+- 本題應查閱的規格：無（棄權題不該引用 Phase 1 正式來源）
 
 ### 題目
 
 What is the correct response to a vendor-specific Hub firmware question outside the five locked Phase 1 source families?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（abstain）：
+### 請填
 
-- 棄權理由碼（只准這六個）：OUT_OF_SCOPE / FICTIONAL_SECTION / MISSING_EVIDENCE / AUTHORITY_MISMATCH / VERSION_CONFLICT / UNRESOLVED_CONFLICT
+- 棄權理由碼（只准這六個）：OUT_OF_SCOPE / FICTIONAL_SECTION / MISSING_EVIDENCE / AUTHORITY_MISMATCH / VERSION_CONFLICT / UNRESOLVED_CONFLICT：
 - 為何 Phase 1 corpus 不能答：
-- 不可把 section/page 當成正式答案
-
-- 判定：PASS / REWORD / REJECT
+- 不要把章節或頁碼當成正式答案：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`abstain`
+- v1.1 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
+</details>
 
 ---
 
 ## DRAFT-L4-048 （優先 · USB4負控）
 
 - 層級：L4 / P0 / uncertainty_conflict
-- 預期行為：應拒絕回答 / 棄權 （`abstain`）
-- 範圍標籤：`USB4_SPEC`
-- v1.1 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
-- 應對規格：無（棄權題不該引用 Phase 1 正式來源）
+- 預期處理：棄權，不應回答
+- 範圍：`USB4_SPEC`
+- 本題應查閱的規格：無（棄權題不該引用 Phase 1 正式來源）
 
 ### 題目
 
 Is a USB4 tunneling requirement answerable from the Phase 1 USB Hub corpus, and which USB4 Phase 2 scope boundary must accompany the abstention?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（abstain）：
+### 請填
 
-- 棄權理由碼（只准這六個）：OUT_OF_SCOPE / FICTIONAL_SECTION / MISSING_EVIDENCE / AUTHORITY_MISMATCH / VERSION_CONFLICT / UNRESOLVED_CONFLICT
+- 棄權理由碼（只准這六個）：OUT_OF_SCOPE / FICTIONAL_SECTION / MISSING_EVIDENCE / AUTHORITY_MISMATCH / VERSION_CONFLICT / UNRESOLVED_CONFLICT：
 - 為何 Phase 1 corpus 不能答：
-- 不可把 section/page 當成正式答案
-
-- 判定：PASS / REWORD / REJECT
+- 不要把章節或頁碼當成正式答案：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`abstain`
+- v1.1 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
+</details>
 
 ---
 
 ## DRAFT-L4-049 （優先）
 
 - 層級：L4 / P0 / uncertainty_conflict
-- 預期行為：應報衝突、不要硬解 （`conflict`）
-- 範圍標籤：`USB_2_0`
-- v1.1 gold 規則：至少 2 個 competing evidence + 至少 2 條 required claims + 至少 2 個 section anchors；boundary_code 限 AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT
-- 應對規格：
+- 預期處理：回報衝突，不應自行裁決
+- 範圍：`USB_2_0`
+- 本題應查閱的規格：
   - `usb20_fw` = USB 2.0 Specification / 2.0 (Ch.5, 8-11)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
@@ -1810,52 +2097,65 @@ Is a USB4 tunneling requirement answerable from the Phase 1 USB Hub corpus, and 
 
 How should a contradiction between USB 2.0 firmware-scope evidence and USB 2.0 signal/electrical-scope evidence be reported when the locked source pages do not reconcile it?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（conflict，至少兩造）：
+### 請填
 
-- 來源 A 文件 / section / page / 主張：
-- 來源 B 文件 / section / page / 主張：
-- 衝突類型（只准這三個）：AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT
-- 為何不能硬解：
-
-- 判定：PASS / REWORD / REJECT
+- 來源 A 文件 / 章節 / 頁碼 / 主張：
+- 來源 B 文件 / 章節 / 頁碼 / 主張：
+- 衝突類型（只准這三個）：AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT：
+- 為何不能自行裁決：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`conflict`
+- v1.1 gold 規則：至少 2 個 competing evidence + 至少 2 條 required claims + 至少 2 個 section anchors；boundary_code 限 AUTHORITY_MISMATCH / UNRESOLVED_CONFLICT / VERSION_CONFLICT
+</details>
 
 ---
 
 ## DRAFT-L4-050 （優先）
 
 - 層級：L4 / P0 / uncertainty_conflict
-- 預期行為：應拒絕回答 / 棄權 （`abstain`）
-- 範圍標籤：`AUTHORITY_VIOLATION_TRAP`
-- v1.1 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
-- 應對規格：無（棄權題不該引用 Phase 1 正式來源）
+- 預期處理：棄權，不應回答
+- 範圍：`AUTHORITY_VIOLATION_TRAP`
+- 本題應查閱的規格：無（棄權題不該引用 Phase 1 正式來源）
 
 ### 題目
 
 What should the agent do when a user asks it to promote an informative note into a normative USB Hub requirement without a supporting normative source?
 
-### 審查人勾選
+### 請確認
 
-- [ ] 鎖定原文裡找得到這題的依據
-- [ ] 題目點到的規格書和版本是對的
-- [ ] 該答、該報衝突或該棄權，這題分對了
-- [ ] 題幹沒把答案寫進去，也沒順便講通過認證
+- [ ] 可在鎖定來源中找到足以支持本題的依據
+- [ ] 題目引用的規格與版本正確
+- [ ] 預期處理類型（回答／衝突／棄權）分類正確
+- [ ] 題幹沒有洩漏預期答案
+- [ ] 題幹沒有暗示產品已通過認證
 
-請填（abstain）：
+### 請填
 
-- 棄權理由碼（只准這六個）：OUT_OF_SCOPE / FICTIONAL_SECTION / MISSING_EVIDENCE / AUTHORITY_MISMATCH / VERSION_CONFLICT / UNRESOLVED_CONFLICT
+- 棄權理由碼（只准這六個）：OUT_OF_SCOPE / FICTIONAL_SECTION / MISSING_EVIDENCE / AUTHORITY_MISMATCH / VERSION_CONFLICT / UNRESOLVED_CONFLICT：
 - 為何 Phase 1 corpus 不能答：
-- 不可把 section/page 當成正式答案
-
-- 判定：PASS / REWORD / REJECT
+- 不要把章節或頁碼當成正式答案：
+- 判定：未判定 / PASS / REWORD / REJECT
 - 備註：
+
+<details>
+<summary>機器規則（admission 用，審查時可略過）</summary>
+
+- expected_status：`abstain`
+- v1.1 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
+</details>
 
 ---
 
