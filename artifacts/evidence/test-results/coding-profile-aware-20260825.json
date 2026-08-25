@@ -1,0 +1,17 @@
+{
+  "receipt_schema": "test_evidence_receipt.v0.1",
+  "status": "report_only",
+  "command": "pytest -q tests/gv100h/test_coding_agent_profile_aware.py tests/test_validator_profiles.py tests/gv100h/test_single_ab_pair_slice.py tests/test_gate3_model_ab.py tests/test_ab_treatment_separation.py tests/gv100h/test_p0_eda_integrity.py",
+  "exit_code": 0,
+  "started_at": "2026-08-25T02:20:08Z",
+  "finished_at": "2026-08-25T02:23:43Z",
+  "runner": "pytest",
+  "linked_commit": "852ea354339ed77d725a8097625f9da8903a885e",
+  "output_artifacts": [
+    "artifacts/evidence/test-results/coding-profile-aware-20260825.txt"
+  ],
+  "cannot_claim": [
+    "semantic correctness of the tested behavior",
+    "receipt authenticity: every field is fabricatable by a direct writer"
+  ]
+}
