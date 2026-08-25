@@ -21,15 +21,63 @@ REQUIRED_POC1_SOURCE_IDS = frozenset(
     }
 )
 
+BoundaryCode = Literal[
+    "OUT_OF_SCOPE",
+    "FICTIONAL_SECTION",
+    "MISSING_EVIDENCE",
+    "AUTHORITY_MISMATCH",
+    "VERSION_CONFLICT",
+    "UNRESOLVED_CONFLICT",
+]
+
 
 class CitationRequirements(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    document: bool
-    revision: bool
-    section: bool
-    page_or_anchor: bool
-    excerpt_or_evidence_id: bool
+    document: bool = False
+    revision: bool = False
+    section: bool = False
+    page_or_anchor: bool = False
+    excerpt_or_evidence_id: bool = False
+    scope: bool = False
+    boundary_code: bool = False
+    mode: Literal[
+        "normative_source",
+        "competing_sources",
+        "boundary_evidence",
+    ] = "normative_source"
+
+
+class GoldClaim(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    claim_id: str = Field(min_length=1)
+    assertion: str = Field(min_length=1)
+    required: bool = True
+
+
+class GoldOracle(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    accepted_evidence_ids: list[str] = Field(default_factory=list)
+    competing_evidence_ids: list[str] = Field(default_factory=list)
+    boundary_evidence_ids: list[str] = Field(default_factory=list)
+    required_claims: list[GoldClaim] = Field(default_factory=list)
+    section_anchors: list[str] = Field(default_factory=list)
+    required_facts: list[str] = Field(default_factory=list)
+    forbidden_claims: list[str] = Field(default_factory=list)
+    acceptable_variants: list[str] = Field(default_factory=list)
+    boundary_code: BoundaryCode | None = None
+
+
+class GradingWeights(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    factual_correctness: float = Field(ge=0.0, le=1.0)
+    citation_correctness: float = Field(ge=0.0, le=1.0)
+    source_authority: float = Field(ge=0.0, le=1.0)
+    scope_control: float = Field(ge=0.0, le=1.0)
+    uncertainty_behavior: float = Field(ge=0.0, le=1.0)
 
 
 class AcceptanceQuestion(BaseModel):
@@ -49,6 +97,8 @@ class AcceptanceQuestion(BaseModel):
     expected_scope: str = Field(min_length=1)
     accepted_source_ids: list[str] = Field(default_factory=list)
     required_citation_fields: CitationRequirements
+    gold: GoldOracle
+    grading: GradingWeights
     independently_reviewed: Literal[True]
     usb4_negative_control: bool = False
 
@@ -57,7 +107,7 @@ class POC1AcceptanceSet(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     schema_name: Literal["poc1_spec_qa_acceptance_set"]
-    schema_version: Literal["1.0"]
+    schema_version: Literal["1.1"]
     corpus_lock: str = Field(min_length=1)
     corpus_receipt_path: str = Field(min_length=1)
     corpus_receipt_hash: str = Field(pattern=r"^[0-9a-fA-F]{64}$")
@@ -156,19 +206,134 @@ class POC1AcceptanceSet(BaseModel):
                 raise AcceptanceContractError(
                     f"conflict question {question.question_id} requires at least two competing sources"
                 )
-            if not all(
-                getattr(question.required_citation_fields, field_name) is True
-                for field_name in (
-                    "document",
-                    "revision",
-                    "section",
-                    "page_or_anchor",
-                    "excerpt_or_evidence_id",
-                )
-            ):
+            citation = question.required_citation_fields
+            gold = question.gold
+            evidence_ids = (
+                gold.accepted_evidence_ids
+                + gold.competing_evidence_ids
+                + gold.boundary_evidence_ids
+            )
+            if any(not evidence_id.strip() for evidence_id in evidence_ids):
                 raise AcceptanceContractError(
-                    f"question {question.question_id} must require all citation fields"
+                    f"question {question.question_id} gold evidence IDs must be non-empty"
                 )
+            if len(evidence_ids) != len(set(evidence_ids)):
+                raise AcceptanceContractError(
+                    f"question {question.question_id} gold evidence IDs must be unique"
+                )
+            claim_ids = [claim.claim_id for claim in gold.required_claims]
+            if any(not claim_id.strip() for claim_id in claim_ids):
+                raise AcceptanceContractError(
+                    f"question {question.question_id} gold claim IDs must be non-empty"
+                )
+            if len(claim_ids) != len(set(claim_ids)):
+                raise AcceptanceContractError(
+                    f"question {question.question_id} gold claim IDs must be unique"
+                )
+            weight_total = sum(
+                (
+                    question.grading.factual_correctness,
+                    question.grading.citation_correctness,
+                    question.grading.source_authority,
+                    question.grading.scope_control,
+                    question.grading.uncertainty_behavior,
+                )
+            )
+            if abs(weight_total - 1.0) > 1e-6:
+                raise AcceptanceContractError(
+                    f"question {question.question_id} grading weights must sum to 1.0"
+                )
+            normative_fields = (
+                "document",
+                "revision",
+                "section",
+                "page_or_anchor",
+                "excerpt_or_evidence_id",
+            )
+            if question.usb4_negative_control and question.expected_status != "abstain":
+                raise AcceptanceContractError(
+                    f"USB4 negative control {question.question_id} must abstain"
+                )
+            if question.expected_status == "answer":
+                if not gold.accepted_evidence_ids:
+                    raise AcceptanceContractError(
+                        f"answer question {question.question_id} requires gold accepted evidence"
+                    )
+                if gold.competing_evidence_ids or gold.boundary_evidence_ids:
+                    raise AcceptanceContractError(
+                        f"answer question {question.question_id} cannot use competing or boundary evidence"
+                    )
+                if (
+                    not gold.required_claims
+                    or not any(claim.required for claim in gold.required_claims)
+                    or not gold.required_facts
+                    or not gold.section_anchors
+                ):
+                    raise AcceptanceContractError(
+                        f"answer question {question.question_id} requires gold claims, facts, and section anchors"
+                    )
+                if gold.boundary_code is not None:
+                    raise AcceptanceContractError(
+                        f"answer question {question.question_id} must not declare a boundary code"
+                    )
+                if citation.mode != "normative_source" or not citation.scope or citation.boundary_code or not all(
+                    getattr(citation, field_name) is True for field_name in normative_fields
+                ):
+                    raise AcceptanceContractError(
+                        f"question {question.question_id} must require normative source citation fields"
+                    )
+            elif question.expected_status == "conflict":
+                if gold.accepted_evidence_ids or gold.boundary_evidence_ids:
+                    raise AcceptanceContractError(
+                        f"conflict question {question.question_id} must use competing evidence only"
+                    )
+                if len(set(gold.competing_evidence_ids)) < 2:
+                    raise AcceptanceContractError(
+                        f"conflict question {question.question_id} requires at least two gold competing evidence IDs"
+                    )
+                if len(gold.required_claims) < 2 or len(gold.section_anchors) < 2:
+                    raise AcceptanceContractError(
+                        f"conflict question {question.question_id} requires two gold claims and section anchors"
+                    )
+                if gold.boundary_code not in {
+                    "AUTHORITY_MISMATCH",
+                    "VERSION_CONFLICT",
+                    "UNRESOLVED_CONFLICT",
+                }:
+                    raise AcceptanceContractError(
+                        f"conflict question {question.question_id} requires a conflict boundary code"
+                    )
+                if citation.mode != "competing_sources" or not citation.scope or not citation.boundary_code or not all(
+                    getattr(citation, field_name) is True for field_name in normative_fields
+                ):
+                    raise AcceptanceContractError(
+                        f"conflict question {question.question_id} requires competing-source citation fields"
+                    )
+            else:
+                if gold.accepted_evidence_ids or gold.competing_evidence_ids:
+                    raise AcceptanceContractError(
+                        f"abstain question {question.question_id} must not use answer or competing evidence"
+                    )
+                if not gold.boundary_evidence_ids or not gold.required_claims:
+                    raise AcceptanceContractError(
+                        f"abstain question {question.question_id} requires boundary evidence and a boundary claim"
+                    )
+                if gold.section_anchors:
+                    raise AcceptanceContractError(
+                        f"abstain question {question.question_id} must not declare normative section anchors"
+                    )
+                if gold.boundary_code is None:
+                    raise AcceptanceContractError(
+                        f"abstain question {question.question_id} requires a boundary code"
+                    )
+                if citation.mode != "boundary_evidence" or not citation.scope or not citation.boundary_code or not citation.excerpt_or_evidence_id:
+                    raise AcceptanceContractError(
+                        f"abstain question {question.question_id} requires boundary citation fields"
+                    )
+                if any(getattr(citation, field_name) for field_name in normative_fields[:-1]):
+                    raise AcceptanceContractError(
+                        f"abstain question {question.question_id} must not require normative citation fields"
+                    )
             source_coverage.update(question.accepted_source_ids)
             if question.usb4_negative_control:
                 has_usb4_negative_control = True
