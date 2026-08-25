@@ -56,15 +56,16 @@ PRIORITY_IDS = {
     "DRAFT-L4-048",
 }
 STATUS_ZH = {
-    "answer": "應能回答",
-    "conflict": "應報衝突、不要硬解",
-    "abstain": "應拒絕回答 / 棄權",
+    "answer": "直接回答",
+    "conflict": "回報衝突，不應自行裁決",
+    "abstain": "棄權，不應回答",
 }
 REVIEWER_CHECKS = (
-    "鎖定原文裡找得到這題的依據",
-    "題目點到的規格書和版本是對的",
-    "該答、該報衝突或該棄權，這題分對了",
-    "題幹沒把答案寫進去，也沒順便講通過認證",
+    "可在鎖定來源中找到足以支持本題的依據",
+    "題目引用的規格與版本正確",
+    "預期處理類型（回答／衝突／棄權）分類正確",
+    "題幹沒有洩漏預期答案",
+    "題幹沒有暗示產品已通過認證",
 )
 STATUS_GOLD_RULES = {
     "answer": (
@@ -219,6 +220,32 @@ def source_card_lines(source_id: str, source: Mapping[str, Any]) -> list[str]:
     ]
 
 
+def reviewer_fields(
+    status: str, *, conflict_list: str, boundary_list: str
+) -> list[str]:
+    if status == "answer":
+        return [
+            "規格文件",
+            "章節",
+            "頁碼",
+            "關鍵原文",
+            "答案必須包含",
+            "不得延伸宣稱",
+        ]
+    if status == "conflict":
+        return [
+            "來源 A 文件 / 章節 / 頁碼 / 主張",
+            "來源 B 文件 / 章節 / 頁碼 / 主張",
+            f"衝突類型（只准這三個）：{conflict_list}",
+            "為何不能自行裁決",
+        ]
+    return [
+        f"棄權理由碼（只准這六個）：{boundary_list}",
+        "為何 Phase 1 corpus 不能答",
+        "不要把章節或頁碼當成正式答案",
+    ]
+
+
 def render_worksheet(
     *,
     draft_path: Path = DRAFT_PATH,
@@ -311,50 +338,39 @@ def render_worksheet(
             f"- 層級：{question['layer']} / {question['priority']} / "
             f"{question['category']}"
         )
-        add(f"- 預期行為：{STATUS_ZH[status]} （`{status}`）")
-        add(f"- 範圍標籤：`{question['expected_scope']}`")
-        add(f"- v1.1 gold 規則：{STATUS_GOLD_RULES[status]}")
+        add(f"- 預期處理：{STATUS_ZH[status]}")
+        add(f"- 範圍：`{question['expected_scope']}`")
         if source_ids:
-            add("- 應對規格：")
+            add("- 本題應查閱的規格：")
             for source_id in source_ids:
                 lines.extend(source_card_lines(source_id, sources[source_id]))
         else:
-            add("- 應對規格：無（棄權題不該引用 Phase 1 正式來源）")
+            add("- 本題應查閱的規格：無（棄權題不該引用 Phase 1 正式來源）")
         add("")
         add("### 題目")
         add("")
         add(question["question"])
         add("")
-        add("### 審查人勾選")
+        add("### 請確認")
         add("")
         for check in REVIEWER_CHECKS:
             add(f"- [ ] {check}")
         add("")
-        if status == "answer":
-            add("請填（answer）：")
-            add("")
-            add("- 文件 / revision：")
-            add("- section：")
-            add("- page 或穩定錨點：")
-            add("- 原文摘錄（短）：")
-            add("- 必答事實（1–3 條）：")
-            add("- 禁止宣稱：")
-        elif status == "conflict":
-            add("請填（conflict，至少兩造）：")
-            add("")
-            add("- 來源 A 文件 / section / page / 主張：")
-            add("- 來源 B 文件 / section / page / 主張：")
-            add(f"- 衝突類型（只准這三個）：{conflict_list}")
-            add("- 為何不能硬解：")
-        else:
-            add("請填（abstain）：")
-            add("")
-            add(f"- 棄權理由碼（只准這六個）：{boundary_list}")
-            add("- 為何 Phase 1 corpus 不能答：")
-            add("- 不可把 section/page 當成正式答案")
+        add("### 請填")
         add("")
-        add("- 判定：PASS / REWORD / REJECT")
+        for field in reviewer_fields(
+            status, conflict_list=conflict_list, boundary_list=boundary_list
+        ):
+            add(f"- {field}：")
+        add("- 判定：未判定 / PASS / REWORD / REJECT")
         add("- 備註：")
+        add("")
+        add("<details>")
+        add("<summary>機器規則（admission 用，審查時可略過）</summary>")
+        add("")
+        add(f"- expected_status：`{status}`")
+        add(f"- v1.1 gold 規則：{STATUS_GOLD_RULES[status]}")
+        add("</details>")
         add("")
 
     add("---")
@@ -437,28 +453,9 @@ def render_html_worksheet(
         else:
             source_html.append("<li>無（棄權題不該引用 Phase 1 正式來源）</li>")
         source_html.append("</ul>")
-        if status == "answer":
-            fields = [
-                "文件 / revision",
-                "section",
-                "page 或穩定錨點",
-                "原文摘錄（短）",
-                "必答事實（1–3 條）",
-                "禁止宣稱",
-            ]
-        elif status == "conflict":
-            fields = [
-                "來源 A 文件 / section / page / 主張",
-                "來源 B 文件 / section / page / 主張",
-                f"衝突類型（只准這三個）：{conflict_list}",
-                "為何不能硬解",
-            ]
-        else:
-            fields = [
-                f"棄權理由碼（只准這六個）：{boundary_list}",
-                "為何 Phase 1 corpus 不能答",
-                "不可把 section/page 當成正式答案",
-            ]
+        fields = reviewer_fields(
+            status, conflict_list=conflict_list, boundary_list=boundary_list
+        )
         field_html = "".join(
             "<label>"
             f"<span>{_h(field)}</span>"
@@ -477,31 +474,35 @@ def render_html_worksheet(
             "<header>"
             f"<h2>{_h(qid)}</h2>"
             + "".join(f"<span class='tag'>{_h(item)}</span>" for item in extra)
-            + f"<span class='status status-{_h(status)}'>{_h(STATUS_ZH[status])} ({_h(status)})</span>"
+            + f"<span class='status status-{_h(status)}'>預期處理：{_h(STATUS_ZH[status])}</span>"
             "</header>"
             "<dl>"
             f"<div><dt>層級</dt><dd>{_h(question['layer'])} / {_h(question['priority'])} / {_h(question['category'])}</dd></div>"
             f"<div><dt>範圍</dt><dd><code>{_h(question['expected_scope'])}</code></dd></div>"
-            f"<div><dt>v1.1 gold 規則</dt><dd>{_h(STATUS_GOLD_RULES[status])}</dd></div>"
             "</dl>"
-            "<h3>應對規格</h3>"
+            "<h3>本題應查閱的規格</h3>"
             + "".join(source_html)
             + "<h3>題目</h3>"
             f"<p class=\"question\">{_h(question['question'])}</p>"
-            "<h3>審查人勾選</h3>"
+            "<h3>請確認</h3>"
             "<div class='checks'>"
             + "".join(
-                f"<label><input type='checkbox'> {_h(check)}</label>"
+                f"<label class='check'><input type='checkbox'> <span>{_h(check)}</span></label>"
                 for check in REVIEWER_CHECKS
             )
             + "</div>"
-            f"<h3>請填（{_h(status)}）</h3>"
+            "<h3>請填</h3>"
             f"<form>{field_html}"
             "<label><span>判定</span>"
             "<select><option>未判定</option><option>PASS</option>"
             "<option>REWORD</option><option>REJECT</option></select></label>"
             "<label><span>備註</span><textarea rows='3'></textarea></label>"
             "</form>"
+            "<details class='machine'>"
+            "<summary>機器規則（admission 用，審查時可略過）</summary>"
+            f"<p><code>expected_status</code> = <code>{_h(status)}</code></p>"
+            f"<p>{_h(STATUS_GOLD_RULES[status])}</p>"
+            "</details>"
             "</article>"
         )
 
@@ -585,8 +586,11 @@ th, td {{ border-bottom: 1px solid var(--line); padding: 0.4rem 0.5rem; text-ali
 .status-conflict {{ color: var(--conflict); border-color: var(--conflict); }}
 .status-abstain {{ color: var(--abstain); border-color: var(--abstain); }}
 .question {{ font-size: 1.12rem; }}
-.checks, form {{ display: grid; gap: 0.45rem; }}
-label {{ display: grid; gap: 0.2rem; }}
+.checks, form {{ display: grid; gap: 0.55rem; }}
+.checks .check {{ display: flex; align-items: flex-start; gap: 0.45rem; }}
+.checks .check input {{ margin-top: 0.28rem; flex: 0 0 auto; }}
+form label {{ display: grid; gap: 0.2rem; }}
+.machine {{ margin-top: 0.9rem; color: var(--muted); font-size: 0.92rem; }}
 textarea, select {{ width: 100%; font: inherit; padding: 0.4rem; }}
 code {{ font-family: Consolas, "Sarasa Mono TC", monospace; font-size: 0.86em; }}
 @media print {{
@@ -605,6 +609,7 @@ code {{ font-family: Consolas, "Sarasa Mono TC", monospace; font-size: 0.86em; }
 <main>
 <section class="banner">
 <h1>POC-1 Gold Oracle 人審工作單</h1>
+<p>題目維持英文。操作說明用人話；USB 專有名詞不硬翻。</p>
 <p>這是給人看的 review input 投影，不是正式 acceptance set，也不是 review receipt。</p>
 <p>Reviewer 簽這份工作單不夠；最後仍須確認真正會被 admission 的 v1.1 JSON。</p>
 <p>禁止：把 gold 寫進正式 JSON、建立 poc1_acceptance_set.json、建立 approved receipt、宣稱 GO。</p>
