@@ -1,7 +1,7 @@
 import json
 import yaml
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Literal, Optional
 from pydantic import BaseModel, Field
 
 from gv100h.spec_qa.contracts.corpus_binding_receipt import (
@@ -9,7 +9,12 @@ from gv100h.spec_qa.contracts.corpus_binding_receipt import (
     load_corpus_binding_receipt,
     verify_corpus_binding_receipt,
 )
+from gv100h.spec_qa.contracts.poc1_admission import (
+    POC1AdmissionError,
+    verify_poc1_acceptance_admission,
+)
 from gv100h.spec_qa.evaluation.deterministic_evaluator import QAEvaluationResult
+from gv100h.spec_qa.evaluation.final_evaluator import FinalPOC1EvaluationResult
 from gv100h.coding_eval.governance_ab_runner import ABExperimentSummary
 from gv100h.spec_qa.retrieval.governed_retriever import GovernedSpecRetriever
 from gv100h.runtime.admission_matrix import (
@@ -33,6 +38,21 @@ class QualificationDecision(BaseModel):
     summary_reason: str
     gates: List[GateResult]
     details: Dict[str, Any]
+    acceptance_set_hash: Optional[str] = Field(
+        default=None,
+        pattern=r"^[0-9a-fA-F]{64}$",
+    )
+    review_receipt_path: Optional[str] = None
+    review_receipt_hash: Optional[str] = Field(
+        default=None,
+        pattern=r"^[0-9a-fA-F]{64}$",
+    )
+    decision_boundary_state: Literal[
+        "acceptance_not_bound",
+        "acceptance_evaluation_failed",
+        "synthetic_scaffold",
+        "live_candidate",
+    ] = "acceptance_not_bound"
 
 
 class QualificationPolicyEvaluator:
@@ -75,6 +95,30 @@ class QualificationPolicyEvaluator:
             return "mismatch", None
         return "verified", receipt.receipt_hash
 
+    @staticmethod
+    def _verify_acceptance_admission(
+        final_result: Optional[FinalPOC1EvaluationResult],
+        acceptance_set_path: Optional[str | Path],
+        repo_root: Optional[str | Path],
+    ) -> tuple[str, Dict[str, Any]]:
+        if final_result is None:
+            return "missing", {"status": "missing"}
+        manifest_path = acceptance_set_path or final_result.acceptance_set_path
+        if not manifest_path:
+            return "missing", {
+                "status": "missing",
+                "error": "acceptance set path is missing",
+            }
+        try:
+            admission = verify_poc1_acceptance_admission(
+                manifest_path=manifest_path,
+                result=final_result,
+                repo_root=repo_root or Path(__file__).resolve().parents[2],
+            )
+        except POC1AdmissionError as exc:
+            return exc.status, {"status": exc.status, "error": str(exc)}
+        return "verified", admission
+
     def evaluate(
         self,
         qa_result: QAEvaluationResult,
@@ -85,6 +129,9 @@ class QualificationPolicyEvaluator:
         corpus_binding_receipt_path: Optional[str | Path] = None,
         corpus_retriever: Optional[GovernedSpecRetriever] = None,
         corpus_repo_root: Optional[str | Path] = None,
+        final_poc1_result: Optional[FinalPOC1EvaluationResult] = None,
+        acceptance_set_path: Optional[str | Path] = None,
+        acceptance_repo_root: Optional[str | Path] = None,
     ) -> QualificationDecision:
         gates_cfg = self.policy.get("policy_gates", {})
         gates: List[GateResult] = []
@@ -138,6 +185,47 @@ class QualificationPolicyEvaluator:
             description="Qualification requires a verified corpus binding receipt",
         )
         gates.append(g_qa_corpus)
+
+        acceptance_binding_required = qa_cfg.get(
+            "require_final_acceptance_binding", True
+        )
+        acceptance_status, acceptance_observed = self._verify_acceptance_admission(
+            final_poc1_result,
+            acceptance_set_path,
+            acceptance_repo_root or corpus_repo_root,
+        )
+        acceptance_bound = acceptance_status == "verified"
+        g_qa_acceptance_bound = GateResult(
+            gate_name="spec_qa.final_acceptance_set_bound",
+            required="verified" if acceptance_binding_required else "not_required",
+            observed=acceptance_observed,
+            passed=(not acceptance_binding_required or acceptance_bound),
+            description=(
+                "Qualification requires a decision-time verified final acceptance "
+                "manifest and review receipt"
+            ),
+        )
+        gates.append(g_qa_acceptance_bound)
+
+        final_evaluation_passed = bool(
+            acceptance_bound
+            and final_poc1_result is not None
+            and final_poc1_result.all_gates_passed
+            and final_poc1_result.total_questions
+            == acceptance_observed.get("total_questions")
+        )
+        g_qa_acceptance_eval = GateResult(
+            gate_name="spec_qa.final_acceptance_evaluation_passed",
+            required=True if acceptance_binding_required else "not_required",
+            observed=(
+                "missing"
+                if final_poc1_result is None
+                else final_poc1_result.all_gates_passed
+            ),
+            passed=(not acceptance_binding_required or final_evaluation_passed),
+            description="Final evaluator result is bound to the admitted acceptance set",
+        )
+        gates.append(g_qa_acceptance_eval)
 
         g_qa_cat_a = GateResult(
             gate_name="spec_qa.min_grounded_accuracy",
@@ -373,14 +461,45 @@ class QualificationPolicyEvaluator:
             decision = "NO_GO"
             reason = "One or more qualification gates failed."
 
+        if not acceptance_bound:
+            decision_boundary_state = "acceptance_not_bound"
+        elif not final_evaluation_passed:
+            decision_boundary_state = "acceptance_evaluation_failed"
+        elif is_synthetic:
+            decision_boundary_state = "synthetic_scaffold"
+        else:
+            decision_boundary_state = "live_candidate"
+
         return QualificationDecision(
             decision=decision,
             evidence_class=coding_summary.evidence_class,
             is_synthetic=is_synthetic,
             summary_reason=reason,
             gates=gates,
+            acceptance_set_hash=(
+                final_poc1_result.acceptance_set_hash
+                if final_poc1_result is not None
+                else None
+            ),
+            review_receipt_path=(
+                final_poc1_result.review_receipt_path
+                if final_poc1_result is not None
+                else None
+            ),
+            review_receipt_hash=(
+                final_poc1_result.review_receipt_hash
+                if final_poc1_result is not None
+                else None
+            ),
+            decision_boundary_state=decision_boundary_state,
             details={
                 "spec_qa": qa_result.model_dump(),
+                "acceptance_admission": acceptance_observed,
+                "final_poc1_evaluation": (
+                    final_poc1_result.model_dump()
+                    if final_poc1_result is not None
+                    else None
+                ),
                 "coding_agent": coding_summary.model_dump(),
                 "hardware": hardware_profile
                 ,"human_review": {

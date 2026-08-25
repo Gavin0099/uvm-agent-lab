@@ -223,11 +223,6 @@ unreviewed PR #23 authoring draft remain outside this formal loader.
 
 P0 admission signals are:
 
-- `Recall@1` for the governing evidence, with the query-set hash recorded;
-- grounded claim rate and citation validity/completeness;
-- wrong-version and wrong-authority rates;
-- unsupported/conflict abstention rate;
-- fabricated citation count.
 
 The existing retrieval target remains `Recall@1 >= 95%` and
 `Wrong-Version Rate = 0%`. In addition, the POC-1 baseline must report zero
@@ -251,6 +246,24 @@ are not proof. `missing`, `mismatch`, and `unverified` statuses are admission
 failures and force `NO_GO`. A verified receipt proves only that the current
 lock and bound sources match the receipt at verification time; it does not
 prove document correctness, model quality, or live qualification by itself.
+
+Final POC-1 evaluation has a separate acceptance-admission boundary. When a
+`FinalPOC1EvaluationResult` is supplied to qualification, the policy re-loads
+the formal v1.1 manifest and verifies its canonical acceptance-set hash, the
+raw review-receipt SHA-256, the receipt's reviewer metadata and source-revision
+coverage, and the reviewed Git commit's copy of the manifest. The receipt must
+report an approved review with every question passed. The manifest's
+`review_receipt_hash` is deliberately excluded from the canonical acceptance
+set hash so the manifest hash and receipt hash do not form a circular binding;
+the receipt hash is still checked independently against the physical receipt
+bytes. Missing or mismatched acceptance binding emits a failed
+`spec_qa.final_acceptance_set_bound` gate and cannot support qualification.
+The admission check also requires one result detail for every manifest question
+and recomputes the reported counts, rates, fabricated-citation count,
+authority-violation count, and overall pass flag from those details. A
+summary-only or internally inconsistent `FinalPOC1EvaluationResult` is
+rejected. This is provenance and consistency enforcement, not independent
+proof that the private-source interpretation is semantically correct.
 
 P1 admission signals are cross-document chain retrieval and chain explanation
 accuracy. They are reported as their own score and target, rather than being
