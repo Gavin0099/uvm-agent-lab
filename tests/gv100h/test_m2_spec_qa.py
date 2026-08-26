@@ -233,6 +233,35 @@ def test_governed_retriever_power_management_timeout_question_still_abstains():
 
 
 @pytest.mark.unit
+def test_governed_retriever_link_power_management_feature_question_still_abstains():
+    # PR #29 review regression (5th pass): "power" + a feature-selector
+    # qualifier word is STILL not high-precision enough on its own -- this
+    # question is about USB 3.2 Link Power Management, not the Hub Class
+    # PORT_POWER feature selector, yet it contains both "power" and
+    # "feature". A bare "power" token must co-occur with BOTH explicit
+    # port/VBUS context (port/downstream/vbus) AND a feature-selector
+    # qualifier to count as a strong PORT_POWER signal; "power"+"feature"
+    # alone, with no port/VBUS context, must not.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "Which feature controls link power management in USB 3.2?",
+        target_scope="USB_3_X",
+    )
+    assert results == []
+
+
+@pytest.mark.unit
+def test_governed_retriever_power_management_behavior_feature_question_still_abstains():
+    # PR #29 review regression (5th pass), sibling of the above.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "What feature defines power management behavior in USB 3.2?",
+        target_scope="USB_3_X",
+    )
+    assert results == []
+
+
+@pytest.mark.unit
 def test_governed_retriever_section_ref_does_not_collide_with_unrelated_section():
     # A bare version-like fragment ("3.2") must never match an unrelated
     # section id merely because "3.2" happens to be a substring of it (e.g.

@@ -503,31 +503,41 @@ class GovernedSpecRetriever:
             if "descriptor" in q_lower or "描述符" in q_lower or "bdescriptortype" in q_lower:
                 if "DESC" in ev.evidence_id:
                     strong_score += 15
-            # PR #29 review regression (4th pass): a bare "power" *substring*
-            # match was too permissive -- "What are the USB 3.2 link power
-            # management states?" is not a PORT_POWER question, but contains
-            # "power" as a substring and would wrongly establish a candidate.
-            # Mirror the "link state" design below: an explicit, unambiguous
-            # phrase ("port_power" / "port power" / "downstream port power" /
-            # "電源") is always a strong signal; a *bare* "power" token is only
-            # a strong signal when it co-occurs with an explicit
-            # feature-selector qualifier word. Match on the tokenized "power"
-            # (not a substring of `q_lower`) so "powered"/"powerful" can't
-            # accidentally trigger it.
+            # PR #29 review regression (5th pass): "power" + a mere
+            # feature-selector qualifier (e.g. "Which feature controls link
+            # power management in USB 3.2?") is STILL not high-precision
+            # enough -- that question is about USB 3.2 Link Power Management,
+            # not the Hub Class PORT_POWER feature selector, yet it contains
+            # both "power" and "feature". A bare "power" token may only be
+            # treated as strong when it co-occurs with BOTH (a) explicit
+            # port/VBUS context (`port`/`downstream`/`vbus`) AND (b) a
+            # feature-selector qualifier (`feature`/`selector`) -- "power"
+            # alone, or "power"+qualifier without port/VBUS context, is not
+            # enough. `setportfeature`/`clearportfeature`/`vbus` are
+            # unambiguous technical identifiers and remain strong on their
+            # own. All matching is on tokenized words (`query_tokens`), not
+            # substrings of `q_lower`, so "powered"/"powerful" can't misfire.
+            query_token_set = set(query_tokens)
             has_explicit_port_power_phrase = (
-                "port_power" in q_lower or "port power" in q_lower or "電源" in q_lower
+                "port_power" in q_lower
+                or "port power" in q_lower
+                or "downstream port power" in q_lower
+                or "vbus power" in q_lower
+                or "電源" in q_lower
             )
-            has_bare_power_with_qualifier = "power" in query_tokens and any(
-                qualifier in q_lower
-                for qualifier in (
-                    "feature",
-                    "selector",
-                    "setportfeature",
-                    "clearportfeature",
-                    "vbus",
-                )
+            has_explicit_power_technical_identifier = bool(
+                query_token_set & {"setportfeature", "clearportfeature", "vbus"}
             )
-            if has_explicit_port_power_phrase or has_bare_power_with_qualifier:
+            has_power_with_port_context_and_qualifier = (
+                "power" in query_token_set
+                and bool(query_token_set & {"port", "downstream", "vbus"})
+                and bool(query_token_set & {"feature", "selector"})
+            )
+            if (
+                has_explicit_port_power_phrase
+                or has_explicit_power_technical_identifier
+                or has_power_with_port_context_and_qualifier
+            ):
                 if "PORT_POWER" in ev.evidence_id:
                     strong_score += 15
             has_explicit_link_state_phrase = (
