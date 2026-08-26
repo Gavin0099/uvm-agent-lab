@@ -131,8 +131,16 @@ class DeterministicSpecQAEvaluator:
             category = q["category"]
             cat_counts[category] += 1
 
-            # Execute agent callback
-            agent_answer, cited_ev_ids = agent_fn(q["question"], q["expected_scope"])
+            # Execute agent callback. `retrieval_mode`/`allowed_evidence_scopes`
+            # are the dataset row's own explicit RetrievalPolicy declaration
+            # (defaulting to a plain single_scope answer_scope match) -- this
+            # evaluator never infers them from question text.
+            agent_answer, cited_ev_ids = agent_fn(
+                q["question"],
+                q["expected_scope"],
+                retrieval_mode=q.get("retrieval_mode", "single_scope"),
+                allowed_evidence_scopes=q.get("allowed_evidence_scopes"),
+            )
             res = self.evaluate_response(q, agent_answer, cited_ev_ids)
             details.append(res)
 

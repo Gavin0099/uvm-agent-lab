@@ -1,12 +1,16 @@
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Sequence, Tuple
 from pydantic import BaseModel
 
 from gv100h.spec_qa.retrieval.governed_retriever import GovernedSpecRetriever, GovernedEvidence
+from gv100h.spec_qa.contracts.retrieval_policy import RetrievalMode, RetrievalPolicy
 
 
 class QARequest(BaseModel):
     query: str
-    target_scope: Optional[str] = None
+    domain: str = "USB_HUB"
+    answer_scope: Optional[str] = None
+    retrieval_mode: RetrievalMode = "single_scope"
+    allowed_evidence_scopes: Optional[Tuple[str, ...]] = None
 
 
 class QAResponse(BaseModel):
@@ -27,9 +31,16 @@ class GovernedQAService:
     def __init__(self):
         self.retriever = GovernedSpecRetriever()
 
-    def answer_question(self, query_text: str, target_scope: Optional[str] = None) -> QAResponse:
+    def answer_question(
+        self,
+        query_text: str,
+        answer_scope: Optional[str] = None,
+        *,
+        retrieval_mode: RetrievalMode = "single_scope",
+        allowed_evidence_scopes: Optional[Sequence[str]] = None,
+    ) -> QAResponse:
         q_lower = query_text.lower()
-        
+
         # Check for explicitly unsupported / out-of-scope queries
         unsupported_keywords = [
             "xhci", "eeprom", "眼圖", "抖動", "usbcore", "pcie", "穿透通道",
@@ -39,20 +50,35 @@ class GovernedQAService:
             if uk in q_lower:
                 return QAResponse(
                     answer="現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論與權威違規 (Abstain)。",
-                    scope=target_scope or "OUT_OF_SCOPE",
+                    scope=answer_scope or "OUT_OF_SCOPE",
                     cited_evidences=[],
                     claim_level="abstain_no_evidence",
                     boundary="Exceeds governed knowledge surface of usb-if-hub-spec-reference.",
                     is_abstain=True
                 )
 
-        evidences = self.retriever.query(query_text, target_scope)
+        # RetrievalPolicy is only constructed when the caller declares an
+        # answer_scope. `retrieval_mode`/`allowed_evidence_scopes` are the
+        # caller's explicit policy declaration -- this service never infers
+        # them from `query_text`.
+        retrieval_policy = (
+            RetrievalPolicy(
+                answer_scope=answer_scope,
+                retrieval_mode=retrieval_mode,
+                allowed_evidence_scopes=(
+                    tuple(allowed_evidence_scopes) if allowed_evidence_scopes else None
+                ),
+            )
+            if answer_scope is not None
+            else None
+        )
+        evidences = self.retriever.query(query_text, retrieval_policy=retrieval_policy)
 
         # Abstention if no evidence found
         if not evidences:
             return QAResponse(
                 answer="現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論 (Abstain)。",
-                scope=target_scope or "OUT_OF_SCOPE",
+                scope=answer_scope or "OUT_OF_SCOPE",
                 cited_evidences=[],
                 claim_level="abstain_no_evidence",
                 boundary="Exceeds governed knowledge surface of usb-if-hub-spec-reference.",
@@ -67,7 +93,7 @@ class GovernedQAService:
 
         # Add comparative notes for version confusion queries
         if "支援" in q_lower or "有效" in q_lower:
-            if "port_link_state" in q_lower and ("2.0" in q_lower or target_scope == "USB_2_0"):
+            if "port_link_state" in q_lower and ("2.0" in q_lower or answer_scope == "USB_2_0"):
                 answer_parts.append("總結：USB 2.0 Hub 不支援且不適用 PORT_LINK_STATE (0x0005)，此為 USB 3.x 專屬特徵選擇器，在 USB 2.0 下無效。")
 
         if "相同" in q_lower or "區分" in q_lower or "差異" in q_lower or "是否" in q_lower:
@@ -80,9 +106,10 @@ class GovernedQAService:
 
         return QAResponse(
             answer=full_answer,
-            scope=primary_ev.scope if not target_scope else target_scope,
+            scope=primary_ev.scope if not answer_scope else answer_scope,
             cited_evidences=evidences[:2],
             claim_level=primary_ev.claim_level,
             boundary="Strictly bounded by in-scope governed evidence.",
             is_abstain=False
         )
+

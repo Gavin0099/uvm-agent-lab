@@ -7,6 +7,8 @@ from typing import List, Dict, Any, Mapping, Optional
 from pydantic import BaseModel
 import yaml
 
+from gv100h.spec_qa.contracts.retrieval_policy import RetrievalPolicy
+
 
 class GovernedEvidence(BaseModel):
     evidence_id: str
@@ -474,13 +476,36 @@ class GovernedSpecRetriever:
             return False
         return query_parts == ev_parts[: len(query_parts)]
 
-    def query(self, query_text: str, target_scope: Optional[str] = None) -> List[GovernedEvidence]:
+    def query(
+        self,
+        query_text: str,
+        retrieval_policy: Optional[RetrievalPolicy] = None,
+    ) -> List[GovernedEvidence]:
         q_lower = query_text.lower()
         query_tokens = self._WORD_TOKEN_PATTERN.findall(q_lower)
         query_section_refs = self._SECTION_REF_PATTERN.findall(q_lower)
         scored_results = []
 
+        # RetrievalPolicy.allowed_evidence_scopes is a caller-declared hard
+        # eligibility boundary, not a reranking signal (unlike the old
+        # `target_scope` bonus it replaces). When no policy is supplied,
+        # retrieval is unscoped (as before): any evidence scope is eligible,
+        # and only topic relevance decides candidacy. The retriever itself
+        # never infers `allowed_evidence_scopes` from query text -- see
+        # RetrievalPolicy's docstring for why.
+        allowed_evidence_scopes = (
+            set(retrieval_policy.allowed_evidence_scopes) if retrieval_policy else None
+        )
+        answer_scope = retrieval_policy.answer_scope if retrieval_policy else None
+
         for ev in self.EVIDENCE_REGISTRY:
+            if allowed_evidence_scopes is not None and ev.scope not in allowed_evidence_scopes:
+                # Hard eligibility gate, applied before any topic-relevance
+                # scoring: an evidence entry outside the caller-declared
+                # allowed_evidence_scopes can never become a candidate here,
+                # no matter how strong its topical match would otherwise be.
+                continue
+
             # `strong_score` captures only high-precision topic signals that
             # are sufficient, on their own, to establish `ev` as a candidate:
             # explicit concept/technical-phrase aliases and structured
@@ -494,10 +519,10 @@ class GovernedSpecRetriever:
             # enough to manufacture a false candidate, an unbounded stoplist
             # "whack-a-mole" problem (concretely observed with
             # "link"/"downstream"/"upstream" before this split existed).
-            # `target_scope` is excluded from both: it must remain only a
-            # reranking bonus applied on top of an already-established
-            # candidate, never a standalone reason to treat an evidence
-            # entry as relevant.
+            # `answer_scope` is excluded from both: it may only rerank an
+            # already-established candidate (see the scope bonus below), and
+            # it plays no role in the eligibility gate above beyond what
+            # `allowed_evidence_scopes` already encodes.
             strong_score = 0
 
             if "descriptor" in q_lower or "描述符" in q_lower or "bdescriptortype" in q_lower:
@@ -597,23 +622,14 @@ class GovernedSpecRetriever:
                     lexical_bonus += 2
 
             score = strong_score + lexical_bonus
-            if target_scope and ev.scope == target_scope:
+            if answer_scope and ev.scope == answer_scope:
+                # Rerank-only: prefer the evidence that matches the answer's
+                # own scope over other evidence the eligibility gate above
+                # has already allowed in (e.g. an explicit_cross_scope
+                # policy that allows both USB_2_0 and USB_3_X evidence for a
+                # USB_2_0 answer_scope question should still rank the
+                # USB_2_0 evidence first).
                 score += 5
-            # KNOWN LIMITATION (tracked for a future retrieval-contract PR):
-            # target_scope is only a reranking bonus here, not a hard
-            # evidence-scope boundary -- an evidence entry from a *different*
-            # scope with genuine topic relevance can still be returned
-            # alongside the in-scope evidence. A hard
-            # `if ev.scope != target_scope: continue` filter is NOT a safe
-            # substitute: some questions (e.g. "is PORT_LINK_STATE supported
-            # in USB 2.0?") legitimately need to cite out-of-scope evidence
-            # to answer a question about the target scope. Closing this
-            # properly requires splitting the retrieval contract into
-            # `answer_scope` vs `allowed_evidence_scopes` rather than
-            # tightening this bonus. See
-            # test_governed_retriever_scope_bonus_is_reranking_only_not_a_hard_filter
-            # for the current (intentionally uncorrected) behavior this
-            # produces.
 
             scored_results.append((score, ev))
 
