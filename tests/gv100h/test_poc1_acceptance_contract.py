@@ -141,6 +141,7 @@ def _question(index: int, layer: str, category: str) -> dict:
         },
         "independently_reviewed": True,
         "usb4_negative_control": index == 50,
+        "question_style": "user_realistic",
     }
 
 
@@ -158,7 +159,7 @@ def _valid_manifest() -> dict:
         questions.append(_question(index, layer, category))
     return {
         "schema_name": "poc1_spec_qa_acceptance_set",
-        "schema_version": "1.1",
+        "schema_version": "1.2",
         "corpus_lock": "gv100h/spec_qa/contracts/corpus.lock.yaml",
         "corpus_receipt_path": "artifacts/evidence/test-results/corpus.json",
         "corpus_receipt_hash": "a" * 64,
@@ -194,7 +195,7 @@ def test_smoke_dataset_is_not_admitted_as_final_acceptance_set(tmp_path: Path):
     smoke.update(
         {
             "schema_name": "poc1_spec_qa_acceptance_set",
-            "schema_version": "1.1",
+            "schema_version": "1.2",
             "corpus_receipt_path": "artifacts/evidence/test-results/corpus.json",
             "corpus_receipt_hash": "a" * 64,
             "benchmark_role": "poc1_acceptance_set",
@@ -277,6 +278,7 @@ def test_valid_acceptance_set_contract_loads(tmp_path: Path):
         ("missing_source_coverage", "lacks question coverage for"),
         ("missing_usb4_control", "requires at least one USB4 negative control"),
         ("review_receipt_path", "durable artifacts/ path"),
+        ("user_realistic_ratio_violation", "user_realistic question ratio"),
     ],
 )
 def test_acceptance_set_rejects_contract_violations(
@@ -383,6 +385,11 @@ def test_acceptance_set_rejects_contract_violations(
         manifest["questions"][49]["usb4_negative_control"] = False
     elif mutation == "review_receipt_path":
         manifest["review_receipt_path"] = "review/poc1.json"
+    elif mutation == "user_realistic_ratio_violation":
+        # Push the user_realistic ratio below the 0.7 minimum by tagging
+        # enough questions as diagnostic-only phrasing.
+        for question in manifest["questions"][:16]:
+            question["question_style"] = "diagnostic"
     else:
         manifest["questions"][49]["accepted_source_ids"] = ["usb32"]
         manifest["questions"][49]["expected_status"] = "answer"

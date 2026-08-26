@@ -155,7 +155,7 @@ def test_worksheet_binds_draft_lock_and_contract_enums(tmp_path: Path):
     assert "這題預期：直接回答" in text
     assert "要查哪份規格？" in text
     assert "這題在問什麼？" in text
-    assert "依 USB 2.0 Rev 2.0 第 5 章，`transaction` 與 `transfer` 有什麼差別？" in text
+    assert "USB 2.0 裡，`transaction` 與 `transfer` 有什麼差別？" in text
     assert "指定的規格文件與版本正確" in text
     assert "可以從指定規格中找到答案" in text
     assert "這題確實應該直接回答，而不是回報衝突或拒絕回答" in text
@@ -198,7 +198,7 @@ def test_worksheet_binds_draft_lock_and_contract_enums(tmp_path: Path):
     assert "AUTHORITY_MISMATCH" not in l4_041_block
     assert "目前指定的 Phase 1 規格裡，沒有足夠、可接受的證據能回答這題" not in answer_block
     assert "Contact Capacitance" in text
-    assert "TD 10.104 Toggle Port Power" in text
+    assert "TD 10.104" in text
     assert "Programmable Power Supply" in text
     assert "generation-and-field-scope" not in text
     assert "imply different behavior" not in text
@@ -285,7 +285,7 @@ def test_html_worksheet_has_fifty_cards_and_lock_hashes(tmp_path: Path):
     assert "這題預期：直接回答" in text
     assert "要查哪份規格？" in text
     assert "這題在問什麼？" in text
-    assert "依 USB 2.0 Rev 2.0 第 5 章，`transaction` 與 `transfer` 有什麼差別？" in text
+    assert "USB 2.0 裡，`transaction` 與 `transfer` 有什麼差別？" in text
     assert "指定的規格文件與版本正確" in text
     assert "可以從指定規格中找到答案" in text
     assert "這題確實應該直接回答，而不是回報衝突或拒絕回答" in text
@@ -304,7 +304,7 @@ def test_html_worksheet_has_fifty_cards_and_lock_hashes(tmp_path: Path):
     assert "題幹" not in text
     assert "棄權理由碼" not in text
     assert (
-        "USB 2.0 Rev 2.0 Table 6-7 對 Contact Capacitance 的性能要求是什麼？"
+        "USB 2.0 對 Contact Capacitance 的性能要求是什麼？"
         "必須寫出未插合（unmated）條件與單位。"
     ) in text
     assert "兩邊互相競爭的證據都確實存在於指定規格" not in text
@@ -328,7 +328,7 @@ def test_html_worksheet_has_fifty_cards_and_lock_hashes(tmp_path: Path):
     assert "這題確實應該直接回答，而不是回報衝突或拒絕回答" in l4_039
     assert "不應為了硬答而去引用指定規格以外的來源" in l4_043
     assert "USB Power Delivery" in text
-    assert "TD 10.104 Toggle Port Power" in text
+    assert "TD 10.104" in text
 
 
 def test_missing_chinese_restatement_fails_closed():

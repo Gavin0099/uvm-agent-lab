@@ -41,6 +41,16 @@ CONFLICT_BOUNDARY_CODES = frozenset(
     }
 )
 
+# A question is "user_realistic" when an engineer could plausibly ask it
+# without already knowing which section/table/test-case identifier answers
+# it (the agent must locate that itself). "diagnostic" is reserved for
+# questions that are only well-posed when a specific excerpt/identifier is
+# named up front (e.g. conflict-detection questions that compare two named
+# statements). At least this fraction of the acceptance set must be
+# user_realistic, or the set over-represents "open-book quiz" phrasing and
+# overstates real retrieval+reasoning difficulty.
+MIN_USER_REALISTIC_QUESTION_RATIO = 0.7
+
 
 def _bound_source_ids(values: list[str]) -> set[str]:
     bound: set[str] = set()
@@ -274,13 +284,14 @@ class AcceptanceQuestion(BaseModel):
     grading: GradingWeights
     independently_reviewed: Literal[True]
     usb4_negative_control: bool = False
+    question_style: Literal["user_realistic", "diagnostic"]
 
 
 class POC1AcceptanceSet(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     schema_name: Literal["poc1_spec_qa_acceptance_set"]
-    schema_version: Literal["1.1"]
+    schema_version: Literal["1.2"]
     corpus_lock: str = Field(min_length=1)
     corpus_receipt_path: str = Field(min_length=1)
     corpus_receipt_hash: str = Field(pattern=r"^[0-9a-fA-F]{64}$")
@@ -575,6 +586,17 @@ class POC1AcceptanceSet(BaseModel):
         if not has_usb4_negative_control:
             raise AcceptanceContractError(
                 "acceptance set requires at least one USB4 negative control"
+            )
+        realistic_count = sum(
+            question.question_style == "user_realistic" for question in self.questions
+        )
+        realistic_ratio = realistic_count / len(self.questions)
+        if realistic_ratio < MIN_USER_REALISTIC_QUESTION_RATIO:
+            raise AcceptanceContractError(
+                f"user_realistic question ratio {realistic_ratio:.2f} is below "
+                f"the required minimum {MIN_USER_REALISTIC_QUESTION_RATIO:.2f}; "
+                "questions must not lean on diagnostic-only phrasing that "
+                "leaks target section/table/test-case identifiers"
             )
         # NOTE: frozen source-set identity is deliberately NOT checked here.
         # This method validates structural/schema correctness for any

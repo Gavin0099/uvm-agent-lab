@@ -91,14 +91,14 @@ VERDICT_LABELS = (
 )
 QUESTION_ZH = {
     "DRAFT-L1-001": (
-        "依 USB 2.0 Rev 2.0 第 5 章，`transaction` 與 `transfer` 有什麼差別？"
+        "USB 2.0 裡，`transaction` 與 `transfer` 有什麼差別？"
     ),
     "DRAFT-L1-002": (
-        "依 USB 2.0 Rev 2.0 第 8 章，control transfer 的 SETUP、DATA（若有）"
+        "USB 2.0 的 control transfer 裡，SETUP、DATA（若有）"
         "與 STATUS 各是什麼階段？"
     ),
     "DRAFT-L1-003": (
-        "在 USB 2.0 Rev 2.0 第 9 章，標準 Hub request 裡的 `bmRequestType`、"
+        "在標準 USB 2.0 Hub request 裡，`bmRequestType`、"
         "`bRequest`、`wValue` 各代表什麼？"
     ),
     "DRAFT-L1-004": (
@@ -110,89 +110,89 @@ QUESTION_ZH = {
         "穩定引用應指向哪一節？"
     ),
     "DRAFT-L1-006": (
-        "USB 2.0 Rev 2.0 Table 6-7 對 Contact Capacitance 的性能要求是什麼？"
+        "USB 2.0 對 Contact Capacitance 的性能要求是什麼？"
         "必須寫出未插合（unmated）條件與單位。"
     ),
     "DRAFT-L1-007": (
-        "依 USB 2.0 Rev 2.0 Section 7.1.2.2，對 hub 或可拆線裝置，"
+        "對 USB 2.0 hub 或可拆線裝置，"
         "在 A 或 B receptacle 量到的 high-speed 差分 rise/fall（10% 到 90%）"
         "最短時間是多少，單位是什麼？"
     ),
     "DRAFT-L1-008": (
-        "依 USB 3.2 Rev 1.1 Section 6.9.3，downstream port 可以在哪些"
-        "link state 發出 Warm Reset？Table 6-30 給的 tReset 最短與最長是多少？"
+        "USB 3.2 裡，downstream port 可以在哪些"
+        "link state 發出 Warm Reset？tReset 最短與最長是多少？"
     ),
     "DRAFT-L1-009": (
-        "依 USB 3.2 Rev 1.1 Table 7-8，x1 與 x2 操作下的 PM_LC_TIMER"
+        "USB 3.2 裡，x1 與 x2 操作下的 PM_LC_TIMER"
         "逾時值各是多少，單位是什麼？"
     ),
     "DRAFT-L1-010": (
-        "依 USB 3.2 Rev 1.1 Section 9.4.2 Get Configuration，裝置在"
+        "USB 3.2 的 Get Configuration 請求裡，裝置在"
         "Address state 應回什麼 configuration value？在 Configured state 又應回什麼？"
     ),
     "DRAFT-L1-011": (
-        "依 USB 3.2 Rev 1.1 Figure 10-10 與 Section 10.3.1.9，"
-        "PORT_LINK_STATE（PLS）是哪一個 port-status 欄位？"
+        "USB 3.2 裡，"
+        "PORT_LINK_STATE（PLS）這個 port-status 欄位代表什麼？"
         "哪個 request 會讓 downstream port 進入 DSPORT.Disabled、link 在 eSS.Disabled？"
     ),
     "DRAFT-L1-012": (
-        "在 SuperSpeed Hub LVS Rev 1.15 TD 10.104 Toggle Port Power 中，"
-        "先 ClearPortFeature(PORT_POWER)，再在最短 tReset（80 ms）內"
+        "如果 hub port 先 ClearPortFeature(PORT_POWER)，"
+        "再在最短 tReset（80 ms）內"
         "SetPortFeature(PORT_POWER) 之後，最長 tReset（120 ms）時"
         "GetPortStatus 必須看到什麼？"
     ),
     "DRAFT-L1-013": (
-        "依 USB 2.0 Rev 2.0 Section 11.5.1.2，成功執行 ClearPortFeature"
-        "（PORT_POWER）後，Hub port 進入什麼狀態？是哪個 request 造成這個轉換？"
+        "USB 2.0 hub port 成功執行 ClearPortFeature"
+        "（PORT_POWER）後，會進入什麼狀態？是哪個 request 造成這個轉換？"
     ),
     "DRAFT-L2-014": (
-        "USB 2.0 Rev 2.0 第 5 章對 transaction / transfer 的定義，"
+        "USB 2.0 對 transaction / transfer 的要求，"
         "可以轉成哪些可驗證的觀察？僅憑這段規格，又有哪些實作行為不能直接推定？"
     ),
     "DRAFT-L2-015": (
-        "如何把 USB 2.0 Rev 2.0 第 8 章的 control-transfer packet 規則"
+        "如何把 USB 2.0 的 control-transfer packet 規則"
         "做成測試判定依據，同時不要自行加上原文沒有的 retry 行為？"
     ),
     "DRAFT-L2-016": (
-        "如何把 USB 2.0 Rev 2.0 第 9 章的 standard-request 欄位做成檢查項，"
+        "如何把 USB 2.0 的 standard-request 欄位做成檢查項，"
         "同時不超出原文能支持的範圍？"
     ),
     "DRAFT-L2-017": (
-        "針對 USB 2.0 Rev 2.0 第 6 章的電氣要求，哪些內容可以直接轉成"
+        "USB 2.0 的電氣要求裡，哪些內容可以直接轉成"
         "可量測條件？又有哪些「產品已符合 USB 規範」的結論，不能只靠規格文字就宣稱？"
     ),
     "DRAFT-L2-018": (
-        "當 USB 2.0 Rev 2.0 第 7 章某條 timing 陳述的規範效力或量測條件"
+        "當 USB 2.0 某條 timing 陳述的規範效力或量測條件"
         "還不清楚時，驗證人員該怎麼分類與測試？"
     ),
     "DRAFT-L2-019": (
-        "如何把 USB 3.2 Rev 1.1 第 6 章的 link 要求對應成 Hub 測試計畫裡的"
+        "如何把 USB 3.2 的 link 要求對應成 Hub 測試計畫裡的"
         "觀察項，同時不要宣稱已通過認證？"
     ),
     "DRAFT-L2-020": (
-        "USB 3.2 Rev 1.1 第 7 章的 protocol 規則能支持什麼結論？"
+        "USB 3.2 的 protocol 規則能支持什麼結論？"
         "沒有實際 trace 時，又有哪些事情仍然不知道？"
     ),
     "DRAFT-L2-021": (
-        "如何把 USB 3.2 Rev 1.1 第 9 章的 descriptor 或 request 要求，"
+        "如何把 USB 3.2 的 descriptor 或 request 要求，"
         "對應成可觀察的 Hub 檢查項？"
     ),
     "DRAFT-L2-022": (
-        "如何把 USB 3.2 Rev 1.1 第 10 章的 Hub 要求，與產品合規測試結果分開報告？"
+        "如何把 USB 3.2 的 Hub 要求，與產品合規測試結果分開報告？"
     ),
     "DRAFT-L2-023": (
         "SuperSpeed Hub LVS Rev 1.15 的測試條件本身能支持什麼結論？"
         "要宣稱裝置通過，還需要什麼實際執行證據？"
     ),
     "DRAFT-L2-024": (
-        "SuperSpeed Hub LVS Rev 1.15 TD 10.105 Disconnect Device Test"
-        "在 U0–U3 disconnect 後要求的 GetPortStatus 觀察，可以怎麼當測試判定？"
+        "裝置從 U0 或 U3 斷線後，"
+        "要求的 GetPortStatus 觀察可以怎麼當測試判定？"
         "為什麼寫在程序裡的條件，還不能直接當成產品已通過？"
     ),
     "DRAFT-L2-025": (
-        "如何把 USB 2.0 Rev 2.0 Section 11.5.1.2 在 ClearPortFeature"
-        "（PORT_POWER）後進入 Powered-off 的要求，轉成可驗證觀察？"
-        "僅憑這條要求，又不能宣稱產品已通過？"
+        "ClearPortFeature（PORT_POWER）後進入 Powered-off 的要求，"
+        "如何轉成可驗證觀察？"
+        "僅憑這條要求，又不能宣稱產品已通過什麼？"
     ),
     "DRAFT-L3-026": (
         "如何把 USB 2.0 Hub 的 `PORT_POWER` 要求，對應到 SuperSpeed Hub LVS"
@@ -220,17 +220,17 @@ QUESTION_ZH = {
         " 第 10 章的哪一條 Hub 要求，以及 SuperSpeed Hub LVS Rev 1.15 的哪一項條件？"
     ),
     "DRAFT-L3-032": (
-        "USB 3.2 Rev 1.1 第 6.9.3 節規定 downstream port 可以在 Table 6-30 的"
-        " tReset 區間內發出 Warm Reset；第 10.3.1.9 節把 PORT_LINK_STATE（PLS）"
-        "定義成該轉換期間 GetPortStatus 要回報的欄位。哪一項 SuperSpeed Hub LVS"
-        " Rev 1.15 測試條件，能把 Warm Reset 要求與觀察到的 PLS 值串成實際執行"
+        "downstream port 可以在限定的時間窗內發出 Warm Reset；"
+        "PORT_LINK_STATE（PLS）"
+        "則是這段轉換期間 GetPortStatus 要回報的欄位。哪一項 LVS"
+        " 測試證據，能把 Warm Reset 的時間要求與觀察到的 PLS 值串成實際執行"
         "證據？要補齊這條證據鏈，還缺什麼？"
     ),
     "DRAFT-L3-033": (
-        "USB 2.0 Rev 2.0 Table 11-17 把 Hub Class PORT_POWER feature-selector"
-        " 訂成 8，供 ClearPortFeature/SetPortFeature 使用；Table 6-7 則是同一個"
-        " connector 的 Contact Capacitance 效能要求。當合規報告用 Table 11-17"
-        " 支撐一項 PORT_POWER 控制轉換測試時，Table 6-7 的電容要求是否也是這項"
+        "USB 2.0 定義了供 ClearPortFeature/SetPortFeature 使用的"
+        " PORT_POWER feature selector，另外也對同一個"
+        " connector 訂了 Contact Capacitance 效能要求。當合規報告引用"
+        " PORT_POWER 控制轉換要求來支撐一項測試時，Contact Capacitance 要求是否也是這項"
         "測試的必要證據？還是它屬於另一個獨立範圍的電氣或機械測試？請指出"
         " PORT_POWER 這項主張實際需要哪些引用。"
     ),
@@ -251,11 +251,11 @@ QUESTION_ZH = {
         " SuperSpeed Hub LVS Rev 1.15 測試條件連起來，需要哪三截證據？"
     ),
     "DRAFT-L3-038": (
-        "某 Hub 廠商只因為 SuperSpeed Hub LVS Rev 1.15 TD 10.104 通過，就宣稱"
-        "完全符合 USB 3.2 Rev 1.1 第 10.3.1.11 節的 Powered-off-reset 要求。"
-        "請完成三個明確步驟：(1) 說明第 10.3.1.11 節在收到 ClearPortFeature"
+        "某 Hub 廠商只因為 SuperSpeed Hub LVS TD 10.104 通過，就宣稱"
+        "完全符合 USB 3.2 的 Powered-off-reset 要求。"
+        "請完成三個明確步驟：(1) 說明 Powered-off-reset 要求在收到 ClearPortFeature"
         "(PORT_POWER) 後實際要求的轉換是什麼；(2) 說明 TD 10.104 實際施加的"
-        " stimulus 與觀察的 response 是什麼；(3) 指出第 10.3.1.11 節要求中，"
+        " stimulus 與觀察的 response 是什麼；(3) 指出 Powered-off-reset 要求中，"
         "TD 10.104 的執行證據沒有涵蓋到的部分。這個廠商的合規主張是否成立？"
         "為什麼？"
     ),
@@ -596,7 +596,7 @@ def render_worksheet(
     add("# POC-1 Gold Oracle 人審工作單")
     add("")
     add("> 這是給人看的 review input 投影，不是正式 acceptance set，也不是 review receipt。")
-    add("> Reviewer 簽這份工作單不夠；最後仍須確認真正會被 admission 的 v1.1 JSON。")
+    add("> Reviewer 簽這份工作單不夠；最後仍須確認真正會被 admission 的 v1.2 JSON。")
     add(
         "> 禁止：把 gold 寫進正式 JSON、建立 `poc1_acceptance_set.json`、"
         "建立 approved receipt、宣稱 GO"
@@ -616,7 +616,7 @@ def render_worksheet(
     add("1. 先指定獨立審查人，再開指定規格 PDF 根目錄（bytes/hash 必須對上 lock）。")
     add("2. 用大綱跳題號。一次只看一張卡，先看「這題在問什麼」，再對英文原題與 PDF。")
     add("3. 空白欄位留給審查人；agent 不得憑記憶代填。")
-    add("4. 工程側把卡片轉成 v1.1 gold 後，審查人再看一次 manifest diff，最後才簽 receipt。")
+    add("4. 工程側把卡片轉成 v1.2 gold 後，審查人再看一次 manifest diff，最後才簽 receipt。")
     add("")
     add("## 指定規格對照（來自 corpus.lock.yaml，不是 renderer 手寫）")
     add("")
@@ -695,7 +695,7 @@ def render_worksheet(
         add("<summary>機器規則（admission 用，審查時可略過）</summary>")
         add("")
         add(f"- expected_status：`{status}`")
-        add(f"- v1.1 gold 規則：{STATUS_GOLD_RULES[status]}")
+        add(f"- v1.2 gold 規則：{STATUS_GOLD_RULES[status]}")
         add("</details>")
         add("")
 
@@ -707,7 +707,7 @@ def render_worksheet(
     add("- USB_SPEC_QA_RAW_ROOT：NOT_CONFIGURED")
     add("- 通過題數：0 / 50")
     add("- 正式 receipt：MUST_NOT_CREATE")
-    add("- 最終仍須確認：`poc1_acceptance_set.json` v1.1 manifest diff")
+    add("- 最終仍須確認：`poc1_acceptance_set.json` v1.2 manifest diff")
     add("")
     text = "\n".join(lines)
     target = output_path or OUT_PATH
@@ -946,7 +946,7 @@ code {{ font-family: Consolas, "Sarasa Mono TC", monospace; font-size: 0.86em; }
 <h1>POC-1 Gold Oracle 人審工作單</h1>
 <p>每題先看中文「這題在問什麼」，英文原題仍是正式題目。USB 專有名詞不硬翻。</p>
 <p>這是給人看的 review input 投影，不是正式 acceptance set，也不是 review receipt。</p>
-<p>Reviewer 簽這份工作單不夠；最後仍須確認真正會被 admission 的 v1.1 JSON。</p>
+<p>Reviewer 簽這份工作單不夠；最後仍須確認真正會被 admission 的 v1.2 JSON。</p>
 <p>禁止：把 gold 寫進正式 JSON、建立 poc1_acceptance_set.json、建立 approved receipt、宣稱 GO。</p>
 <p>瀏覽器勾選只留在本機頁面，不會寫回倉庫。</p>
 </section>
@@ -973,7 +973,7 @@ code {{ font-family: Consolas, "Sarasa Mono TC", monospace; font-size: 0.86em; }
 <p>USB_SPEC_QA_RAW_ROOT：NOT_CONFIGURED</p>
 <p>通過題數：0 / 50</p>
 <p>正式 receipt：MUST_NOT_CREATE</p>
-<p>最終仍須確認：poc1_acceptance_set.json v1.1 manifest diff</p>
+<p>最終仍須確認：poc1_acceptance_set.json v1.2 manifest diff</p>
 </section>
 </main>
 </div>

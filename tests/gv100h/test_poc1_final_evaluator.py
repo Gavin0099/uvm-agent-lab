@@ -150,13 +150,14 @@ def _question(index: int) -> dict:
         },
         "independently_reviewed": True,
         "usb4_negative_control": index == 50,
+        "question_style": "user_realistic",
     }
 
 
 def _manifest() -> dict:
     return {
         "schema_name": "poc1_spec_qa_acceptance_set",
-        "schema_version": "1.1",
+        "schema_version": "1.2",
         "corpus_lock": "gv100h/spec_qa/contracts/corpus.lock.yaml",
         "corpus_receipt_path": "artifacts/evidence/test-results/corpus.json",
         "corpus_receipt_hash": "a" * 64,
@@ -424,6 +425,7 @@ def _constructed_same_object_conflict_question() -> dict:
         },
         "independently_reviewed": True,
         "usb4_negative_control": False,
+        "question_style": "diagnostic",
     }
 
 
