@@ -441,13 +441,43 @@ class GovernedSpecRetriever:
         "are", "to", "on", "at", "not",
     })
 
+    # Deterministic word tokenizer: alphanumeric/underscore identifiers (so
+    # "port_link_state" stays one token) or runs of CJK characters. This is
+    # used instead of naive `.split()` so natural-language punctuation and
+    # hyphenation ("downstream-port", "power,", "feature?") don't prevent a
+    # genuine word match, and so purely numeric/version-like tokens (e.g.
+    # "3.2") are never fed into the generic title/content overlap check --
+    # they can only ever contribute relevance through the structured
+    # section-reference matcher below.
+    _WORD_TOKEN_PATTERN = re.compile(r"[a-z_][a-z0-9_]*|[\u4e00-\u9fff]+")
+
+    # A "section reference" in a query is any dotted numeric fragment (e.g.
+    # "11.24.2.1", "11.23", "3.2"). It is matched against an evidence's
+    # (opaque) `section` identifier by per-segment prefix comparison, not by
+    # substring containment: "11.23" is a legitimate prefix of "11.23.2.1",
+    # but "3.2" must NOT match "11.23.2.1" just because the digits "3.2"
+    # happen to appear inside it. This generalizes cleanly to any section
+    # number without hardcoding a new `if "<section>" in q_lower` rule per
+    # entry as the corpus grows.
+    _SECTION_REF_PATTERN = re.compile(r"\d+(?:\.\d+)+")
+
+    @staticmethod
+    def _section_ref_matches(query_section: str, ev_section: str) -> bool:
+        query_parts = query_section.split(".")
+        ev_parts = ev_section.split(".")
+        if len(query_parts) > len(ev_parts):
+            return False
+        return query_parts == ev_parts[: len(query_parts)]
+
     def query(self, query_text: str, target_scope: Optional[str] = None) -> List[GovernedEvidence]:
         q_lower = query_text.lower()
+        query_tokens = self._WORD_TOKEN_PATTERN.findall(q_lower)
+        query_section_refs = self._SECTION_REF_PATTERN.findall(q_lower)
         scored_results = []
 
         for ev in self.EVIDENCE_REGISTRY:
             # `topic_score` captures genuine topic/term relevance signals only
-            # (specific keyword bonuses, exact section-number matches, and
+            # (specific keyword bonuses, section-reference matches, and
             # filtered generic-token overlap). `target_scope` is deliberately
             # excluded here: it must act only as a reranking bonus applied on
             # top of an already-established topic match, never as a
@@ -460,29 +490,27 @@ class GovernedSpecRetriever:
             if "port_power" in q_lower or "電源" in q_lower:
                 if "PORT_POWER" in ev.evidence_id:
                     topic_score += 15
-            if "port_link_state" in q_lower or "port link state" in q_lower:
+            if (
+                "port_link_state" in q_lower
+                or "port link state" in q_lower
+                or "link state" in q_lower
+            ):
+                # "link state" alone (without a leading "port") is a genuine
+                # compound-topic alias for PORT_LINK_STATE: a realistic
+                # question like "What is the link state feature selector
+                # value?" never says "port" explicitly, and both "link" and
+                # "state" are individually in `_GENERIC_TOKENS`, so without
+                # this explicit compound check the generic-token loop below
+                # would never contribute any signal and the query would
+                # incorrectly abstain.
                 if "PORT_LINK_STATE" in ev.evidence_id:
                     topic_score += 15
-            if "10.16.2.1" in q_lower and "10.16.2.1" in ev.section:
-                topic_score += 20
-            if "10.16.2.2" in q_lower and "10.16.2.2" in ev.section:
-                topic_score += 20
-            if "11.23" in q_lower and "11.23" in ev.section:
-                topic_score += 20
-            if "10.15" in q_lower and "10.15" in ev.section:
-                topic_score += 20
 
-            for token in q_lower.replace("？", " ").replace("。", " ").split():
-                # Purely numeric/dotted tokens (version numbers like "3.2",
-                # section-like fragments) are excluded from generic overlap
-                # entirely: `ev.section` is an opaque identifier string
-                # (e.g. "11.23.2.1"), and naive substring containment on
-                # digits-and-dots tokens produces accidental collisions
-                # (e.g. "3.2" is a substring of "11.23.2.1") that carry no
-                # real topic relevance. Genuine section-number relevance is
-                # already covered by the explicit exact-match bonuses above.
-                if re.fullmatch(r"[\d.]+", token):
-                    continue
+            for section_ref in query_section_refs:
+                if self._section_ref_matches(section_ref, ev.section):
+                    topic_score += 20
+
+            for token in query_tokens:
                 if (
                     len(token) > 2
                     and token not in self._GENERIC_TOKENS
@@ -499,6 +527,21 @@ class GovernedSpecRetriever:
             score = topic_score
             if target_scope and ev.scope == target_scope:
                 score += 5
+            # KNOWN LIMITATION (tracked for a future retrieval-contract PR):
+            # target_scope is only a reranking bonus here, not a hard
+            # evidence-scope boundary -- an evidence entry from a *different*
+            # scope with genuine topic relevance can still be returned
+            # alongside the in-scope evidence. A hard
+            # `if ev.scope != target_scope: continue` filter is NOT a safe
+            # substitute: some questions (e.g. "is PORT_LINK_STATE supported
+            # in USB 2.0?") legitimately need to cite out-of-scope evidence
+            # to answer a question about the target scope. Closing this
+            # properly requires splitting the retrieval contract into
+            # `answer_scope` vs `allowed_evidence_scopes` rather than
+            # tightening this bonus. See
+            # test_governed_retriever_scope_bonus_is_reranking_only_not_a_hard_filter
+            # for the current (intentionally uncorrected) behavior this
+            # produces.
 
             scored_results.append((score, ev))
 

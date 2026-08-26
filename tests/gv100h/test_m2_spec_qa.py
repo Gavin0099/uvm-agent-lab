@@ -68,6 +68,115 @@ def test_governed_retriever_still_finds_genuine_port_link_state_match():
     assert results[0].evidence_id == "USB3-FEAT-PORT_LINK_STATE"
 
 
+@pytest.mark.unit
+def test_governed_retriever_finds_natural_language_port_power_question():
+    # PR #29 review regression: a realistic user-phrased question (matching
+    # the style of PR #23's user_realistic acceptance questions) must not be
+    # abstained away just because it doesn't use the exact "PORT_POWER" /
+    # "port_power" token. Naive `.split()` tokenization previously turned
+    # every content word into a stopword, punctuation-suffixed token, or a
+    # hyphen-glued compound that never matched anything, driving
+    # topic_score to 0 for a question that is clearly about PORT_POWER.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "Which USB 2.0 Hub Class feature controls downstream-port power, "
+        "and what operation invokes that feature?",
+        target_scope="USB_2_0",
+    )
+    assert len(results) > 0
+    assert results[0].evidence_id == "USB2-FEAT-PORT_POWER"
+
+
+@pytest.mark.unit
+def test_governed_retriever_tokenizer_normalizes_hyphens_and_punctuation():
+    # Isolates the tokenizer fix: a hyphenated compound ("downstream-port")
+    # must be split into its constituent words so "downstream" alone can
+    # still match evidence content, and trailing punctuation must not be
+    # treated as part of the word.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query("Explain the downstream-port behavior, please.")
+    result_ids = {r.evidence_id for r in results}
+    assert "USB3-FEAT-PORT_POWER" in result_ids
+
+
+@pytest.mark.unit
+def test_governed_retriever_matches_section_ref_by_exact_and_prefix():
+    # Generalized section-reference matching (segment-wise prefix
+    # comparison) must work for section numbers with no hardcoded rule,
+    # such as USB2-FEAT-PORT_POWER's "11.24.2.1" section.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query("What does USB 2.0 section 11.24.2.1 define?")
+    result_ids = {r.evidence_id for r in results}
+    assert "USB2-FEAT-PORT_POWER" in result_ids
+
+    # A shorter section prefix ("11.23") must still match the longer,
+    # fully-qualified section id ("11.23.2.1") it is a genuine prefix of.
+    prefix_results = retriever.query("What is defined in USB 2.0 section 11.23?")
+    prefix_result_ids = {r.evidence_id for r in prefix_results}
+    assert "USB2-HUB-DESC-FORMAT" in prefix_result_ids
+
+
+@pytest.mark.unit
+def test_governed_retriever_bare_section_reference_query_finds_evidence():
+    # PR #29 review regression: a bare section-number query (no surrounding
+    # sentence) must resolve via the generalized section-reference matcher,
+    # not depend on any hardcoded per-section rule. USB2-FEAT-PORT_POWER's
+    # real section ("11.24.2.1") was previously missing from the old
+    # hardcoded 4-section rule set entirely.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query("11.24.2.1")
+    assert len(results) > 0
+    assert results[0].evidence_id == "USB2-FEAT-PORT_POWER"
+
+
+@pytest.mark.unit
+def test_governed_retriever_finds_bare_link_state_natural_language_question():
+    # PR #29 review regression: "link state" (without a leading "port")
+    # must still resolve to PORT_LINK_STATE. Both "link" and "state" are
+    # individually in `_GENERIC_TOKENS`, so a realistic question that never
+    # says the word "port" (e.g. "What is the link state feature selector
+    # value?") must not be driven to topic_score=0 and abstained.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "What is the link state feature selector value?", target_scope="USB_3_X"
+    )
+    assert len(results) > 0
+    assert results[0].evidence_id == "USB3-FEAT-PORT_LINK_STATE"
+
+
+@pytest.mark.unit
+def test_governed_retriever_section_ref_does_not_collide_with_unrelated_section():
+    # A bare version-like fragment ("3.2") must never match an unrelated
+    # section id merely because "3.2" happens to be a substring of it (e.g.
+    # "11.23.2.1"). Segment-wise prefix comparison (not substring
+    # containment) is required to avoid this collision.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query("USB 3.2 random unrelated benign question")
+    assert results == []
+
+
+@pytest.mark.unit
+def test_governed_retriever_scope_bonus_is_reranking_only_not_a_hard_filter():
+    # KNOWN LIMITATION, intentionally documented rather than silently
+    # assumed solved (see PR #29 review discussion): target_scope is only a
+    # reranking bonus, not a hard evidence-scope boundary. A topically
+    # relevant query still surfaces the out-of-scope evidence entry
+    # alongside the in-scope one. A hard `if ev.scope != target_scope:
+    # continue` filter is NOT a safe substitute here, because some
+    # legitimate questions (e.g. "is PORT_LINK_STATE supported in USB 2.0?")
+    # must cite out-of-scope evidence to correctly answer a question about
+    # the target scope. Properly closing this requires splitting the
+    # retrieval contract into `answer_scope` vs `allowed_evidence_scopes`,
+    # tracked as follow-up work, not a change to this bonus.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query("PORT_POWER feature selector value", target_scope="USB_2_0")
+    result_ids = {r.evidence_id for r in results}
+    assert "USB2-FEAT-PORT_POWER" in result_ids
+    assert "USB3-FEAT-PORT_POWER" in result_ids
+    # The in-scope evidence must still be ranked first via the scope bonus.
+    assert results[0].evidence_id == "USB2-FEAT-PORT_POWER"
+
+
 @pytest.mark.contract
 def test_poc1_corpus_lock_binds_governed_reference_and_blocks_incomplete_claims():
     retriever = GovernedSpecRetriever()
