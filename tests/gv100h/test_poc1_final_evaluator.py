@@ -93,15 +93,27 @@ def _question(index: int) -> dict:
             "L4": "uncertainty_conflict",
         }[layer]
         scope = "USB_HUB_COMMON"
-        accepted_sources = [SOURCE_IDS[(index - 1) % len(SOURCE_IDS)]]
+        primary = SOURCE_IDS[(index - 1) % len(SOURCE_IDS)]
+        secondary = SOURCE_IDS[index % len(SOURCE_IDS)]
+        accepted_sources = (
+            [primary, secondary] if layer == "L3" else [primary]
+        )
         gold = {
-            "accepted_evidence_ids": [f"EVIDENCE-{index}"],
+            "accepted_evidence_ids": (
+                [f"{primary}:EVIDENCE-{index}-A", f"{secondary}:EVIDENCE-{index}-B"]
+                if layer == "L3"
+                else [f"EVIDENCE-{index}"]
+            ),
             "competing_evidence_ids": [],
             "boundary_evidence_ids": [],
             "required_claims": [
                 {"claim_id": f"CLAIM-{index}", "assertion": f"fact-{index}"}
             ],
-            "section_anchors": [f"section-{index}"],
+            "section_anchors": (
+                [f"{primary}:section-{index}-a", f"{secondary}:section-{index}-b"]
+                if layer == "L3"
+                else [f"section-{index}"]
+            ),
             "required_facts": [f"fact-{index}"],
             "forbidden_claims": [f"forbidden-{index}"],
             "acceptable_variants": [],
@@ -189,14 +201,18 @@ def _response(index: int) -> dict:
             "claims": [f"fact-{index}"],
             "citations": [
                 {
-                    "evidence_id": f"EVIDENCE-{index}",
+                    "evidence_id": evidence_id,
                     "document": "USB synthetic source",
                     "revision": "synthetic revision",
-                    "section": f"section-{index}",
-                    "page_or_anchor": f"page-{index}",
-                    "excerpt_or_evidence_id": f"EVIDENCE-{index}",
+                    "section": section,
+                    "page_or_anchor": section,
+                    "excerpt_or_evidence_id": evidence_id,
                     "scope": question["expected_scope"],
                 }
+                for evidence_id, section in zip(
+                    question["gold"]["accepted_evidence_ids"],
+                    question["gold"]["section_anchors"],
+                )
             ],
             "scope": question["expected_scope"],
             "boundary_code": None,

@@ -99,6 +99,11 @@ def test_poc1_authoring_draft_is_consistent_and_not_admitted():
         for question in questions
     )
     assert all(
+        question["category"] != "cross_document"
+        or len(set(question["accepted_source_ids"])) >= 2
+        for question in questions
+    )
+    assert all(
         (
             question["expected_status"] == "answer"
             and question["accepted_source_ids"]

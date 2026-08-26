@@ -105,15 +105,27 @@ def _question(index: int) -> dict:
             "L4": "uncertainty_conflict",
         }[layer]
         scope = "USB_HUB_COMMON"
-        accepted_sources = [SOURCE_IDS[(index - 1) % len(SOURCE_IDS)]]
+        primary = SOURCE_IDS[(index - 1) % len(SOURCE_IDS)]
+        secondary = SOURCE_IDS[index % len(SOURCE_IDS)]
+        accepted_sources = (
+            [primary, secondary] if layer == "L3" else [primary]
+        )
         gold = {
-            "accepted_evidence_ids": [f"EVIDENCE-{index}"],
+            "accepted_evidence_ids": (
+                [f"{primary}:EVIDENCE-{index}-A", f"{secondary}:EVIDENCE-{index}-B"]
+                if layer == "L3"
+                else [f"EVIDENCE-{index}"]
+            ),
             "competing_evidence_ids": [],
             "boundary_evidence_ids": [],
             "required_claims": [
                 {"claim_id": f"CLAIM-{index}", "assertion": f"fact-{index}"},
             ],
-            "section_anchors": [f"section-{index}"],
+            "section_anchors": (
+                [f"{primary}:section-{index}-a", f"{secondary}:section-{index}-b"]
+                if layer == "L3"
+                else [f"section-{index}"]
+            ),
             "required_facts": [f"fact-{index}"],
             "forbidden_claims": [],
             "acceptable_variants": [],

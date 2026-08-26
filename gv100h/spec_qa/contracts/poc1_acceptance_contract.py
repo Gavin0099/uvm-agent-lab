@@ -53,6 +53,103 @@ def _bound_source_ids(values: list[str]) -> set[str]:
     return bound
 
 
+DEFAULT_POC1_SOURCE_SET_IDENTITY_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "gv100h"
+    / "spec_qa"
+    / "golden"
+    / "poc1_acceptance_set.draft.json"
+)
+
+
+def _question_id(question: Any) -> str:
+    if isinstance(question, dict):
+        return str(question["question_id"])
+    return str(question.question_id)
+
+
+def _accepted_source_ids(question: Any) -> list[str]:
+    if isinstance(question, dict):
+        return list(question.get("accepted_source_ids") or [])
+    return list(question.accepted_source_ids)
+
+
+def load_frozen_source_sets(
+    draft_path: str | Path | None = None,
+) -> Dict[str, frozenset[str]]:
+    identity_path = (
+        Path(draft_path)
+        if draft_path is not None
+        else DEFAULT_POC1_SOURCE_SET_IDENTITY_PATH
+    )
+    try:
+        payload: Any = json.loads(identity_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AcceptanceContractError(
+            f"preregistered source-set identity is missing or invalid: {identity_path}"
+        ) from exc
+    questions = payload.get("questions") if isinstance(payload, dict) else None
+    if not isinstance(questions, list) or not questions:
+        raise AcceptanceContractError(
+            "preregistered source-set identity must declare questions"
+        )
+    frozen: Dict[str, frozenset[str]] = {}
+    for question in questions:
+        if not isinstance(question, dict):
+            raise AcceptanceContractError(
+                "preregistered source-set identity has an invalid question"
+            )
+        question_id = str(question.get("question_id") or "").strip()
+        if not question_id:
+            raise AcceptanceContractError(
+                "preregistered source-set identity requires question_id"
+            )
+        if question_id in frozen:
+            raise AcceptanceContractError(
+                f"preregistered source-set identity has duplicate question_id: {question_id}"
+            )
+        frozen[question_id] = frozenset(_accepted_source_ids(question))
+    return frozen
+
+
+def verify_accepted_source_set_identity(
+    questions: Any,
+    frozen_source_sets: Dict[str, frozenset[str]] | None = None,
+    *,
+    draft_path: str | Path | None = None,
+) -> None:
+    identity = (
+        frozen_source_sets
+        if frozen_source_sets is not None
+        else load_frozen_source_sets(draft_path)
+    )
+    admitted_ids = {_question_id(question) for question in questions}
+    overlapping = admitted_ids.intersection(identity)
+    if overlapping and admitted_ids != set(identity):
+        missing = sorted(set(identity) - admitted_ids)
+        extra = sorted(admitted_ids - set(identity))
+        details = []
+        if missing:
+            details.append("missing: " + ", ".join(missing))
+        if extra:
+            details.append("extra: " + ", ".join(extra))
+        raise AcceptanceContractError(
+            "admitted question IDs must exactly match the preregistered "
+            "source-set identity (" + "; ".join(details) + ")"
+        )
+    for question in questions:
+        question_id = _question_id(question)
+        if question_id not in identity:
+            continue
+        accepted = set(_accepted_source_ids(question))
+        required = set(identity[question_id])
+        if accepted != required:
+            raise AcceptanceContractError(
+                f"question {question_id} accepted_source_ids must exactly match "
+                "the preregistered source set"
+            )
+
+
 class CitationRequirements(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -213,6 +310,12 @@ class POC1AcceptanceSet(BaseModel):
             if not set(question.accepted_source_ids).issubset(required_source_ids):
                 raise AcceptanceContractError(
                     f"question {question.question_id} cites a source outside required_source_ids"
+                )
+            if question.category == "cross_document" and len(
+                set(question.accepted_source_ids)
+            ) < 2:
+                raise AcceptanceContractError(
+                    f"cross_document question {question.question_id} requires at least two sources"
                 )
             if question.expected_status == "answer" and not question.accepted_source_ids:
                 raise AcceptanceContractError(
@@ -411,6 +514,7 @@ class POC1AcceptanceSet(BaseModel):
             raise AcceptanceContractError(
                 "acceptance set requires at least one USB4 negative control"
             )
+        verify_accepted_source_set_identity(self.questions)
         missing_coverage = sorted(REQUIRED_POC1_SOURCE_IDS - source_coverage)
         if missing_coverage:
             raise AcceptanceContractError(
