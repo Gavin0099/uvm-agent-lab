@@ -24,7 +24,7 @@ if str(ROOT) not in sys.path:
 from gv100h.spec_qa.contracts.poc1_acceptance_contract import (
     BOUNDARY_CODES,
     CONFLICT_BOUNDARY_CODES,
-    REQUIRED_POC1_SOURCE_IDS,
+    POC1_CORPUS_SOURCE_IDS,
 )
 DRAFT_PATH = ROOT / "gv100h" / "spec_qa" / "golden" / "poc1_acceptance_set.draft.json"
 LOCK_PATH = ROOT / "gv100h" / "spec_qa" / "contracts" / "corpus.lock.yaml"
@@ -142,8 +142,8 @@ QUESTION_ZH = {
         "GetPortStatus 必須看到什麼？"
     ),
     "DRAFT-L1-013": (
-        "這份 governed structured Hub reference 授權哪些結論，又有哪些"
-        "firmware、electrical、LVS 或認證結論超出它自己寫明的範圍？"
+        "依 USB 2.0 Rev 2.0 Section 11.5.1.2，成功執行 ClearPortFeature"
+        "（PORT_POWER）後，Hub port 進入什麼狀態？是哪個 request 造成這個轉換？"
     ),
     "DRAFT-L2-014": (
         "USB 2.0 Rev 2.0 第 5 章對 transaction / transfer 的定義，"
@@ -190,8 +190,9 @@ QUESTION_ZH = {
         "為什麼寫在程序裡的條件，還不能直接當成產品已通過？"
     ),
     "DRAFT-L2-025": (
-        "工程師可以怎麼把這份 governed structured Hub reference 當索引用，"
-        "同時記得它不是完整 USB 規格？"
+        "如何把 USB 2.0 Rev 2.0 Section 11.5.1.2 在 ClearPortFeature"
+        "（PORT_POWER）後進入 Powered-off 的要求，轉成可驗證觀察？"
+        "僅憑這條要求，又不能宣稱產品已通過？"
     ),
     "DRAFT-L3-026": (
         "如何把 USB 2.0 Hub 的 `PORT_POWER` 要求，對應到 SuperSpeed Hub LVS"
@@ -219,12 +220,12 @@ QUESTION_ZH = {
         " 第 10 章的哪一條 Hub 要求，以及 SuperSpeed Hub LVS Rev 1.15 的哪一項條件？"
     ),
     "DRAFT-L3-032": (
-        "如何用 governed structured reference 找到 USB 3.2 Rev 1.1 的要求，"
-        "同時正式引用仍落在 USB 3.2 原文？"
+        "如何把 USB 3.2 Rev 1.1 的 Hub 或 link 要求，對上 SuperSpeed Hub LVS"
+        " Rev 1.15 的測試條件，同時正式引用仍落在 USB 3.2 原文？"
     ),
     "DRAFT-L3-033": (
-        "如何同時報告 governed-reference 的範圍限制與 USB 2.0 Hub Class 要求，"
-        "而不把 firmware 或產品合規講過頭？"
+        "如何同時報告 USB 2.0 firmware-scope 的 Hub Class 要求與 USB 2.0"
+        " signal/electrical 要求，而不把 firmware 或產品合規講過頭？"
     ),
     "DRAFT-L3-034": (
         "一項同時涵蓋控制行為與 signaling 的要求，需要哪一對 USB 2.0"
@@ -243,8 +244,8 @@ QUESTION_ZH = {
         " SuperSpeed Hub LVS Rev 1.15 測試條件連起來，需要哪三截證據？"
     ),
     "DRAFT-L3-038": (
-        "如何用 governed structured reference 與 SuperSpeed Hub LVS Rev 1.15"
-        " 支撐 USB 3.2 Rev 1.1 的 Hub 結論，同時不要把其中任何一份說成產品已通過？"
+        "如何用 USB 3.2 Rev 1.1 與 SuperSpeed Hub LVS Rev 1.15 支撐"
+        " USB 3.2 Hub 結論，同時不要把其中任何一份說成產品已通過？"
     ),
     "DRAFT-L4-039": (
         "USB 2.0 Table 11-17 把 PORT_POWER 的 Hub Class feature-selector 訂成 8。"
@@ -259,10 +260,10 @@ QUESTION_ZH = {
         "範圍與權威角色，並說明判斷理由。"
     ),
     "DRAFT-L4-041": (
-        "governed Hub reference 的 claim_ceiling 是 spec_reference_only，"
-        "且 cannot_establish firmware_behavior。USB 2.0 Section 11.5.1.2 寫"
-        "規範性的 Powered-off 轉換。這兩段是否構成衝突？請分別指出兩段證據"
-        "描述的對象、範圍與權威角色，並說明判斷理由。"
+        "SuperSpeed Hub LVS Rev 1.15 TD 10.104 把 ClearPortFeature(PORT_POWER)"
+        "當測試刺激。USB 2.0 Section 11.5.1.2 寫規範性的 Powered-off 轉換。"
+        "這兩段是否構成衝突？請分別指出兩段證據描述的對象、範圍與權威角色，"
+        "並說明判斷理由。"
     ),
     "DRAFT-L4-042": (
         "USB 3.2 Section 10.3.1.11 說收到 ClearPortFeature(PORT_POWER) 時，"
@@ -417,7 +418,7 @@ def required_sources_from_lock(lock: Mapping[str, Any]) -> dict[str, Any]:
     sources = lock["sources"]
     if not isinstance(sources, dict):
         raise WorksheetRenderError("corpus lock is missing sources")
-    missing = sorted(REQUIRED_POC1_SOURCE_IDS - set(sources))
+    missing = sorted(POC1_CORPUS_SOURCE_IDS - set(sources))
     if missing:
         raise WorksheetRenderError(
             "corpus lock is missing required POC-1 sources: " + ", ".join(missing)
@@ -609,7 +610,7 @@ def render_worksheet(
     add("")
     add("| source_id | lock identity / scope | source_locator | SHA-256 前 8 |")
     add("|---|---|---|---|")
-    for source_id in sorted(REQUIRED_POC1_SOURCE_IDS):
+    for source_id in sorted(POC1_CORPUS_SOURCE_IDS):
         row = source_row(source_id, sources[source_id])
         add(f"| `{row[0]}` | {row[1]} | `{row[2]}` | `{row[3]}` |")
     add("")
@@ -828,7 +829,7 @@ def render_html_worksheet(
         )
 
     source_rows = []
-    for source_id in sorted(REQUIRED_POC1_SOURCE_IDS):
+    for source_id in sorted(POC1_CORPUS_SOURCE_IDS):
         row = source_row(source_id, sources[source_id])
         source_rows.append(
             "<tr>"

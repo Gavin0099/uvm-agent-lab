@@ -22,12 +22,19 @@ DRAFT_PATH = (
 )
 ADMITTED_MANIFEST_PATH = DRAFT_PATH.with_name("poc1_acceptance_set.json")
 REQUIRED_SOURCE_IDS = [
-    "hub_reference",
     "usb20_fw",
     "usb20_se",
     "usb32",
     "superspeed_hub_lvs",
 ]
+FORBIDDEN_SUBJECT_TOKENS = (
+    "hub_reference",
+    "governed reference",
+    "governed-reference",
+    "governed structured",
+    "claim_ceiling",
+    "usb-if-hub-spec-reference",
+)
 EXPECTED_CATEGORY_BY_LAYER = {
     "L1": "single_spec_fact",
     "L2": "engineering_interpretation",
@@ -85,9 +92,24 @@ def test_poc1_authoring_draft_is_consistent_and_not_admitted():
     )
     assert actual_source_coverage(questions) == set(REQUIRED_SOURCE_IDS)
     assert actual_source_coverage(questions) == REQUIRED_POC1_SOURCE_IDS
+    assert payload["coverage_status"]["source_question_coverage"].get(
+        "hub_reference"
+    ) is not True
     assert all(
         payload["coverage_status"]["source_question_coverage"][source_id]
         for source_id in REQUIRED_SOURCE_IDS
+    )
+    assert "hub_reference" not in actual_source_coverage(questions)
+    assert all(
+        "hub_reference" not in question["accepted_source_ids"]
+        for question in questions
+    )
+    assert all(
+        all(
+            token not in question["question"].lower()
+            for token in FORBIDDEN_SUBJECT_TOKENS
+        )
+        for question in questions
     )
     assert all(
         question["category"] == EXPECTED_CATEGORY_BY_LAYER[question["layer"]]
@@ -153,17 +175,11 @@ def test_poc1_authoring_draft_is_consistent_and_not_admitted():
     assert not ADMITTED_MANIFEST_PATH.exists()
 
 
-def test_authoring_draft_source_coverage_fails_when_hub_reference_absent():
+def test_authoring_draft_rejects_hub_reference_as_gold_source():
     payload = json.loads(DRAFT_PATH.read_text(encoding="utf-8"))
     questions = copy.deepcopy(payload["questions"])
-    for question in questions:
-        question["accepted_source_ids"] = [
-            source_id
-            for source_id in question["accepted_source_ids"]
-            if source_id != "hub_reference"
-        ]
-    assert payload["coverage_status"]["source_question_coverage"]["hub_reference"]
+    questions[0]["accepted_source_ids"] = ["hub_reference"]
     actual = actual_source_coverage(questions)
-    assert "hub_reference" not in actual
+    assert "hub_reference" in actual
     with pytest.raises(AssertionError):
         assert actual == REQUIRED_POC1_SOURCE_IDS

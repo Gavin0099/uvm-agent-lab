@@ -24,7 +24,7 @@ from gv100h.spec_qa.evaluation.final_evaluator import (
 )
 
 
-SOURCE_IDS = ["hub_reference", "usb20_fw", "usb20_se", "usb32", "superspeed_hub_lvs"]
+SOURCE_IDS = ["usb20_fw", "usb20_se", "usb32", "superspeed_hub_lvs"]
 
 
 def _question(index: int) -> dict:

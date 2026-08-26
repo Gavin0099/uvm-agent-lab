@@ -12,15 +12,17 @@ class AcceptanceContractError(ValueError):
     pass
 
 
-REQUIRED_POC1_SOURCE_IDS = frozenset(
+GOLD_EVIDENCE_SOURCE_IDS = frozenset(
     {
-        "hub_reference",
         "usb20_fw",
         "usb20_se",
         "usb32",
         "superspeed_hub_lvs",
     }
 )
+RETRIEVAL_AID_SOURCE_IDS = frozenset({"hub_reference"})
+POC1_CORPUS_SOURCE_IDS = GOLD_EVIDENCE_SOURCE_IDS | RETRIEVAL_AID_SOURCE_IDS
+REQUIRED_POC1_SOURCE_IDS = GOLD_EVIDENCE_SOURCE_IDS
 
 BoundaryCode = Literal[
     "OUT_OF_SCOPE",
@@ -306,6 +308,14 @@ class POC1AcceptanceSet(BaseModel):
                 raise AcceptanceContractError(
                     f"question {question.question_id} priority must be "
                     f"{expected_priority} for layer {question.layer}"
+                )
+            retrieval_aids = sorted(
+                set(question.accepted_source_ids) & RETRIEVAL_AID_SOURCE_IDS
+            )
+            if retrieval_aids:
+                raise AcceptanceContractError(
+                    f"question {question.question_id} accepted_source_ids must not "
+                    "include retrieval-aid sources: " + ", ".join(retrieval_aids)
                 )
             if not set(question.accepted_source_ids).issubset(required_source_ids):
                 raise AcceptanceContractError(

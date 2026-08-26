@@ -174,7 +174,6 @@ def _valid_manifest() -> dict:
         "total_questions": 50,
         "required_layers": {"L1": 10, "L2": 10, "L3": 10, "L4": 10},
         "required_source_ids": [
-            "hub_reference",
             "usb20_fw",
             "usb20_se",
             "usb32",
@@ -212,7 +211,7 @@ def test_smoke_dataset_is_not_admitted_as_final_acceptance_set(tmp_path: Path):
 def test_valid_acceptance_set_contract_loads(tmp_path: Path):
     payload = _valid_manifest()
     for index, source_id in enumerate(
-        ["hub_reference", "usb20_fw", "usb20_se", "usb32", "superspeed_hub_lvs"]
+        ["usb20_fw", "usb20_se", "usb32", "superspeed_hub_lvs"]
     ):
         payload["questions"][index]["accepted_source_ids"] = [source_id]
     payload["questions"][26]["accepted_source_ids"] = ["usb20_fw", "usb32"]
@@ -237,6 +236,7 @@ def test_valid_acceptance_set_contract_loads(tmp_path: Path):
     [
         ("duplicate_id", "duplicate question_id"),
         ("foreign_source", "outside required_source_ids"),
+        ("retrieval_aid_source", "retrieval-aid sources"),
         ("extra_source", "exactly match POC-1 sources"),
         ("missing_layer", "layer L4"),
         ("usb4_answer", "must abstain"),
@@ -283,6 +283,8 @@ def test_acceptance_set_rejects_contract_violations(
         manifest["questions"][1]["question_id"] = manifest["questions"][0]["question_id"]
     elif mutation == "foreign_source":
         manifest["questions"][0]["accepted_source_ids"] = ["not_locked"]
+    elif mutation == "retrieval_aid_source":
+        manifest["questions"][0]["accepted_source_ids"] = ["hub_reference"]
     elif mutation == "extra_source":
         manifest["required_source_ids"].append("not_locked")
     elif mutation == "missing_layer":
