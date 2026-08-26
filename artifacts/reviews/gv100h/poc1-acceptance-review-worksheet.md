@@ -1,23 +1,23 @@
 # POC-1 Gold Oracle 人審工作單
 
 > 這是給人看的 review input 投影，不是正式 acceptance set，也不是 review receipt。
-> Reviewer 簽這份工作單不夠；最後仍須確認真正會被 admission 的 v1.1 JSON。
+> Reviewer 簽這份工作單不夠；最後仍須確認真正會被 admission 的 v1.2 JSON。
 > 禁止：把 gold 寫進正式 JSON、建立 `poc1_acceptance_set.json`、建立 approved receipt、宣稱 GO
 
 ## Review-input provenance
 
 - `source_draft_path`: `gv100h/spec_qa/golden/poc1_acceptance_set.draft.json`
-- `source_draft_git_commit`: `6d6c9b5d010ec837fda9dce14faff9f1415ac545`
-- `source_draft_git_blob`: `4918b63efd0ad50499a7b3e7095ad039dfe8822e`
-- `source_draft_sha256`: `c9099399565cb9b036a32217840c524f7af1d755a10398c3fff4e7e81f2e07ef`
+- `source_draft_git_commit`: `357864714946bdbcbb604e720febdd0d44dc0080`
+- `source_draft_git_blob`: `41eb11166088b1250672e902934298048cee2fe5`
+- `source_draft_sha256`: `01e26ecd0d10dbeff31a2558de8b59c60c023f8bac80cfb450dd64c22871509f`
 - `corpus_lock_path`: `gv100h/spec_qa/contracts/corpus.lock.yaml`
 - `corpus_lock_sha256`: `f51cc94a9cb478071122a3682cd1386983aa84a08b8304d3bfe7b77375f90847`
 - `corpus_lock_git_blob`: `97c1dc714f5fc72ddeb82bc5fb7538dce5b8e8e8`
 - `renderer_path`: `scripts/render_poc1_review_worksheet.py`
-- `renderer_git_blob`: `544ee3ed71245ffdd78b2e221b1270578ab08f97`
-- `renderer_sha256`: `6f1781d172c5acef0003a30b0abe59234fda56ef34e3a923809650fad6bae029`
-- `generated_at`: `2026-08-25T10:46:29+00:00`
-- `worktree_head`: `6d6c9b5d010ec837fda9dce14faff9f1415ac545`
+- `renderer_git_blob`: `1d49453f4c6fe2ee1e6bcf85e977b2d4cdb11129`
+- `renderer_sha256`: `1feb3386489a49fa872c23f4d98abdd6f853b15563018ebf72d5c70388fbbf49`
+- `generated_at`: `2026-08-26T05:33:38+00:00`
+- `worktree_head`: `357864714946bdbcbb604e720febdd0d44dc0080`
 - `draft_schema`: `poc1_spec_qa_acceptance_set_draft.v0.1`
 - `draft_status`: `draft_not_admitted`
 - `Independent reviewer`: `PENDING_ASSIGNMENT`
@@ -28,7 +28,7 @@
 1. 先指定獨立審查人，再開指定規格 PDF 根目錄（bytes/hash 必須對上 lock）。
 2. 用大綱跳題號。一次只看一張卡，先看「這題在問什麼」，再對英文原題與 PDF。
 3. 空白欄位留給審查人；agent 不得憑記憶代填。
-4. 工程側把卡片轉成 v1.1 gold 後，審查人再看一次 manifest diff，最後才簽 receipt。
+4. 工程側把卡片轉成 v1.2 gold 後，審查人再看一次 manifest diff，最後才簽 receipt。
 
 ## 指定規格對照（來自 corpus.lock.yaml，不是 renderer 手寫）
 
@@ -66,11 +66,11 @@
 
 ### 這題在問什麼？
 
-依 USB 2.0 Rev 2.0 第 5 章，`transaction` 與 `transfer` 有什麼差別？
+USB 2.0 裡，`transaction` 與 `transfer` 有什麼差別？
 
 ### 英文原題
 
-According to the USB 2.0 Revision 2.0 Chapter 5 data-flow terminology, what is the distinction between a transaction and a transfer?
+In USB 2.0, what is the distinction between a transaction and a transfer?
 
 ### 請確認
 
@@ -94,7 +94,7 @@ According to the USB 2.0 Revision 2.0 Chapter 5 data-flow terminology, what is t
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -114,11 +114,11 @@ According to the USB 2.0 Revision 2.0 Chapter 5 data-flow terminology, what is t
 
 ### 這題在問什麼？
 
-依 USB 2.0 Rev 2.0 第 8 章，control transfer 的 SETUP、DATA（若有）與 STATUS 各是什麼階段？
+USB 2.0 的 control transfer 裡，SETUP、DATA（若有）與 STATUS 各是什麼階段？
 
 ### 英文原題
 
-According to USB 2.0 Revision 2.0 Chapter 8, what are the SETUP, DATA when present, and STATUS stages of a control transfer?
+In USB 2.0, what are the SETUP, DATA (when present), and STATUS stages of a control transfer?
 
 ### 請確認
 
@@ -142,7 +142,7 @@ According to USB 2.0 Revision 2.0 Chapter 8, what are the SETUP, DATA when prese
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -162,11 +162,11 @@ According to USB 2.0 Revision 2.0 Chapter 8, what are the SETUP, DATA when prese
 
 ### 這題在問什麼？
 
-在 USB 2.0 Rev 2.0 第 9 章，標準 Hub request 裡的 `bmRequestType`、`bRequest`、`wValue` 各代表什麼？
+在標準 USB 2.0 Hub request 裡，`bmRequestType`、`bRequest`、`wValue` 各代表什麼？
 
 ### 英文原題
 
-In USB 2.0 Revision 2.0 Chapter 9, what do bmRequestType, bRequest, and wValue identify in a standard Hub request?
+In a standard USB 2.0 Hub request, what do bmRequestType, bRequest, and wValue identify?
 
 ### 請確認
 
@@ -190,7 +190,7 @@ In USB 2.0 Revision 2.0 Chapter 9, what do bmRequestType, bRequest, and wValue i
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -238,7 +238,7 @@ Which USB 2.0 Hub Class feature controls downstream-port power, and what operati
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -286,7 +286,7 @@ What numeric value does the USB 2.0 Hub Class assign to the PORT_POWER feature s
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -306,11 +306,11 @@ What numeric value does the USB 2.0 Hub Class assign to the PORT_POWER feature s
 
 ### 這題在問什麼？
 
-USB 2.0 Rev 2.0 Table 6-7 對 Contact Capacitance 的性能要求是什麼？必須寫出未插合（unmated）條件與單位。
+USB 2.0 對 Contact Capacitance 的性能要求是什麼？必須寫出未插合（unmated）條件與單位。
 
 ### 英文原題
 
-In USB 2.0 Revision 2.0 Table 6-7, what is the Contact Capacitance performance requirement, including the unmated condition and units?
+What is the USB 2.0 Contact Capacitance performance requirement, including the unmated condition and units?
 
 ### 請確認
 
@@ -334,7 +334,7 @@ In USB 2.0 Revision 2.0 Table 6-7, what is the Contact Capacitance performance r
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -354,11 +354,11 @@ In USB 2.0 Revision 2.0 Table 6-7, what is the Contact Capacitance performance r
 
 ### 這題在問什麼？
 
-依 USB 2.0 Rev 2.0 Section 7.1.2.2，對 hub 或可拆線裝置，在 A 或 B receptacle 量到的 high-speed 差分 rise/fall（10% 到 90%）最短時間是多少，單位是什麼？
+對 USB 2.0 hub 或可拆線裝置，在 A 或 B receptacle 量到的 high-speed 差分 rise/fall（10% 到 90%）最短時間是多少，單位是什麼？
 
 ### 英文原題
 
-According to USB 2.0 Revision 2.0 Section 7.1.2.2, what minimum 10%-to-90% high-speed differential rise and fall time applies at the A or B receptacle for a hub or a device with detachable cable, and in what units?
+For a USB 2.0 hub or a device with a detachable cable, what minimum 10%-to-90% high-speed differential rise and fall time applies at the A or B receptacle, and in what units?
 
 ### 請確認
 
@@ -382,7 +382,7 @@ According to USB 2.0 Revision 2.0 Section 7.1.2.2, what minimum 10%-to-90% high-
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -402,11 +402,11 @@ According to USB 2.0 Revision 2.0 Section 7.1.2.2, what minimum 10%-to-90% high-
 
 ### 這題在問什麼？
 
-依 USB 3.2 Rev 1.1 Section 6.9.3，downstream port 可以在哪些link state 發出 Warm Reset？Table 6-30 給的 tReset 最短與最長是多少？
+USB 3.2 裡，downstream port 可以在哪些link state 發出 Warm Reset？tReset 最短與最長是多少？
 
 ### 英文原題
 
-According to USB 3.2 Revision 1.1 Section 6.9.3, in which link states may a downstream port issue a Warm Reset, and what tReset minimum and maximum does Table 6-30 specify?
+In USB 3.2, which link states allow a downstream port to issue a Warm Reset, and what are the minimum and maximum tReset durations?
 
 ### 請確認
 
@@ -430,7 +430,7 @@ According to USB 3.2 Revision 1.1 Section 6.9.3, in which link states may a down
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -450,11 +450,11 @@ According to USB 3.2 Revision 1.1 Section 6.9.3, in which link states may a down
 
 ### 這題在問什麼？
 
-依 USB 3.2 Rev 1.1 Table 7-8，x1 與 x2 操作下的 PM_LC_TIMER逾時值各是多少，單位是什麼？
+USB 3.2 裡，x1 與 x2 操作下的 PM_LC_TIMER逾時值各是多少，單位是什麼？
 
 ### 英文原題
 
-According to USB 3.2 Revision 1.1 Table 7-8, what are the PM_LC_TIMER timeout values for x1 operation and x2 operation, including units?
+In USB 3.2, what are the PM_LC_TIMER timeout values for x1 operation and x2 operation, including units?
 
 ### 請確認
 
@@ -478,7 +478,7 @@ According to USB 3.2 Revision 1.1 Table 7-8, what are the PM_LC_TIMER timeout va
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -498,11 +498,11 @@ According to USB 3.2 Revision 1.1 Table 7-8, what are the PM_LC_TIMER timeout va
 
 ### 這題在問什麼？
 
-依 USB 3.2 Rev 1.1 Section 9.4.2 Get Configuration，裝置在Address state 應回什麼 configuration value？在 Configured state 又應回什麼？
+USB 3.2 的 Get Configuration 請求裡，裝置在Address state 應回什麼 configuration value？在 Configured state 又應回什麼？
 
 ### 英文原題
 
-According to USB 3.2 Revision 1.1 Section 9.4.2 Get Configuration, what configuration value shall be returned in the Address state, and what shall be returned in the Configured state?
+For a USB 3.2 Get Configuration request, what configuration value shall be returned in the Address state, and what shall be returned in the Configured state?
 
 ### 請確認
 
@@ -526,7 +526,7 @@ According to USB 3.2 Revision 1.1 Section 9.4.2 Get Configuration, what configur
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -546,11 +546,11 @@ According to USB 3.2 Revision 1.1 Section 9.4.2 Get Configuration, what configur
 
 ### 這題在問什麼？
 
-依 USB 3.2 Rev 1.1 Figure 10-10 與 Section 10.3.1.9，PORT_LINK_STATE（PLS）是哪一個 port-status 欄位？哪個 request 會讓 downstream port 進入 DSPORT.Disabled、link 在 eSS.Disabled？
+USB 3.2 裡，PORT_LINK_STATE（PLS）這個 port-status 欄位代表什麼？哪個 request 會讓 downstream port 進入 DSPORT.Disabled、link 在 eSS.Disabled？
 
 ### 英文原題
 
-According to USB 3.2 Revision 1.1 Figure 10-10 and Section 10.3.1.9, which port-status field is PORT_LINK_STATE (PLS), and which request places a downstream port in DSPORT.Disabled with the link in eSS.Disabled?
+In USB 3.2, what does the PORT_LINK_STATE (PLS) port-status field represent, and which request places a downstream port in DSPORT.Disabled with the link in eSS.Disabled?
 
 ### 請確認
 
@@ -574,7 +574,7 @@ According to USB 3.2 Revision 1.1 Figure 10-10 and Section 10.3.1.9, which port-
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -594,11 +594,11 @@ According to USB 3.2 Revision 1.1 Figure 10-10 and Section 10.3.1.9, which port-
 
 ### 這題在問什麼？
 
-在 SuperSpeed Hub LVS Rev 1.15 TD 10.104 Toggle Port Power 中，先 ClearPortFeature(PORT_POWER)，再在最短 tReset（80 ms）內SetPortFeature(PORT_POWER) 之後，最長 tReset（120 ms）時GetPortStatus 必須看到什麼？
+如果 hub port 先 ClearPortFeature(PORT_POWER)，再在最短 tReset（80 ms）內SetPortFeature(PORT_POWER) 之後，最長 tReset（120 ms）時GetPortStatus 必須看到什麼？
 
 ### 英文原題
 
-In SuperSpeed Hub LVS Revision 1.15 TD 10.104 Toggle Port Power, after ClearPortFeature(PORT_POWER) then SetPortFeature(PORT_POWER) within min tReset (80 ms), what GetPortStatus observation is required after max tReset (120 ms)?
+If a hub port is power-cycled with ClearPortFeature(PORT_POWER) then SetPortFeature(PORT_POWER) within the minimum tReset window (80 ms), what GetPortStatus observation is required by the maximum tReset (120 ms)?
 
 ### 請確認
 
@@ -622,7 +622,7 @@ In SuperSpeed Hub LVS Revision 1.15 TD 10.104 Toggle Port Power, after ClearPort
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -632,21 +632,21 @@ In SuperSpeed Hub LVS Revision 1.15 TD 10.104 Toggle Port Power, after ClearPort
 **這題預期：直接回答**
 
 - 層級：L1 / P0 / single_spec_fact
-- 範圍：`USB_HUB_COMMON`
+- 範圍：`USB_2_0`
 
 ### 要查哪份規格？
 
-  - `hub_reference` = Gavin0099/usb-if-hub-spec-reference / 808f23c24bd8651da9cdcd63ea8669126917a379 (exports/hub_governed_surface_manifest.yaml)
-    locator：`repo://Gavin0099/usb-if-hub-spec-reference@808f23c24bd8651da9cdcd63ea8669126917a379`
-    content_sha256：`c774c4c31b088348a4f2deaae2e0d8448f083a1a9793d91c59fc719de3536083`
+  - `usb20_fw` = USB 2.0 Specification / 2.0 (Ch.5, 8-11)
+    locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
+    content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
 
 ### 這題在問什麼？
 
-這份 governed structured Hub reference 授權哪些結論，又有哪些firmware、electrical、LVS 或認證結論超出它自己寫明的範圍？
+USB 2.0 hub port 成功執行 ClearPortFeature（PORT_POWER）後，會進入什麼狀態？是哪個 request 造成這個轉換？
 
 ### 英文原題
 
-Which claims does the governed structured Hub reference authorize, and which firmware, electrical, LVS, or certification claims are outside its stated boundary?
+After a successful ClearPortFeature(PORT_POWER) on a USB 2.0 hub port, what port state applies, and which request caused that transition?
 
 ### 請確認
 
@@ -670,7 +670,7 @@ Which claims does the governed structured Hub reference authorize, and which fir
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -690,11 +690,11 @@ Which claims does the governed structured Hub reference authorize, and which fir
 
 ### 這題在問什麼？
 
-USB 2.0 Rev 2.0 第 5 章對 transaction / transfer 的定義，可以轉成哪些可驗證的觀察？僅憑這段規格，又有哪些實作行為不能直接推定？
+USB 2.0 對 transaction / transfer 的要求，可以轉成哪些可驗證的觀察？僅憑這段規格，又有哪些實作行為不能直接推定？
 
 ### 英文原題
 
-How should the USB 2.0 Revision 2.0 Chapter 5 transaction/transfer requirement become a verifiable observation, and which implementation conclusion is not licensed?
+How should the USB 2.0 transaction/transfer requirement become a verifiable observation, and which implementation conclusion is not licensed by it alone?
 
 ### 請確認
 
@@ -718,7 +718,7 @@ How should the USB 2.0 Revision 2.0 Chapter 5 transaction/transfer requirement b
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -738,11 +738,11 @@ How should the USB 2.0 Revision 2.0 Chapter 5 transaction/transfer requirement b
 
 ### 這題在問什麼？
 
-如何把 USB 2.0 Rev 2.0 第 8 章的 control-transfer packet 規則做成測試判定依據，同時不要自行加上原文沒有的 retry 行為？
+如何把 USB 2.0 的 control-transfer packet 規則做成測試判定依據，同時不要自行加上原文沒有的 retry 行為？
 
 ### 英文原題
 
-How should the USB 2.0 Revision 2.0 Chapter 8 control-transfer packet rule become a test oracle without adding retry behavior absent from the source?
+How should the USB 2.0 control-transfer packet rule become a test oracle without adding retry behavior absent from the source?
 
 ### 請確認
 
@@ -766,7 +766,7 @@ How should the USB 2.0 Revision 2.0 Chapter 8 control-transfer packet rule becom
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -786,11 +786,11 @@ How should the USB 2.0 Revision 2.0 Chapter 8 control-transfer packet rule becom
 
 ### 這題在問什麼？
 
-如何把 USB 2.0 Rev 2.0 第 9 章的 standard-request 欄位做成檢查項，同時不超出原文能支持的範圍？
+如何把 USB 2.0 的 standard-request 欄位做成檢查項，同時不超出原文能支持的範圍？
 
 ### 英文原題
 
-How should the USB 2.0 Revision 2.0 Chapter 9 standard-request fields become an assertion while preserving the source citation boundary?
+How should the USB 2.0 standard-request fields become a test assertion while preserving the source citation boundary?
 
 ### 請確認
 
@@ -814,7 +814,7 @@ How should the USB 2.0 Revision 2.0 Chapter 9 standard-request fields become an 
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -834,11 +834,11 @@ How should the USB 2.0 Revision 2.0 Chapter 9 standard-request fields become an 
 
 ### 這題在問什麼？
 
-針對 USB 2.0 Rev 2.0 第 6 章的電氣要求，哪些內容可以直接轉成可量測條件？又有哪些「產品已符合 USB 規範」的結論，不能只靠規格文字就宣稱？
+USB 2.0 的電氣要求裡，哪些內容可以直接轉成可量測條件？又有哪些「產品已符合 USB 規範」的結論，不能只靠規格文字就宣稱？
 
 ### 英文原題
 
-How should the USB 2.0 Revision 2.0 Chapter 6 electrical requirement be separated into a measurable condition and an unsupported product-compliance claim?
+How should a USB 2.0 electrical requirement be separated into a measurable condition versus an unsupported product-compliance claim?
 
 ### 請確認
 
@@ -862,7 +862,7 @@ How should the USB 2.0 Revision 2.0 Chapter 6 electrical requirement be separate
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -882,11 +882,11 @@ How should the USB 2.0 Revision 2.0 Chapter 6 electrical requirement be separate
 
 ### 這題在問什麼？
 
-當 USB 2.0 Rev 2.0 第 7 章某條 timing 陳述的規範效力或量測條件還不清楚時，驗證人員該怎麼分類與測試？
+當 USB 2.0 某條 timing 陳述的規範效力或量測條件還不清楚時，驗證人員該怎麼分類與測試？
 
 ### 英文原題
 
-How should a verifier classify and test a USB 2.0 Revision 2.0 Chapter 7 timing statement when its normative force or measurement condition is unresolved?
+How should a verifier classify and test a USB 2.0 timing statement when its normative force or measurement condition is unresolved?
 
 ### 請確認
 
@@ -910,7 +910,7 @@ How should a verifier classify and test a USB 2.0 Revision 2.0 Chapter 7 timing 
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -930,11 +930,11 @@ How should a verifier classify and test a USB 2.0 Revision 2.0 Chapter 7 timing 
 
 ### 這題在問什麼？
 
-如何把 USB 3.2 Rev 1.1 第 6 章的 link 要求對應成 Hub 測試計畫裡的觀察項，同時不要宣稱已通過認證？
+如何把 USB 3.2 的 link 要求對應成 Hub 測試計畫裡的觀察項，同時不要宣稱已通過認證？
 
 ### 英文原題
 
-How should a verifier map the USB 3.2 Revision 1.1 Chapter 6 link requirement to a Hub test-plan observation without claiming certification?
+How should a verifier map a USB 3.2 link requirement to a Hub test-plan observation without claiming certification?
 
 ### 請確認
 
@@ -958,7 +958,7 @@ How should a verifier map the USB 3.2 Revision 1.1 Chapter 6 link requirement to
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -978,11 +978,11 @@ How should a verifier map the USB 3.2 Revision 1.1 Chapter 6 link requirement to
 
 ### 這題在問什麼？
 
-USB 3.2 Rev 1.1 第 7 章的 protocol 規則能支持什麼結論？沒有實際 trace 時，又有哪些事情仍然不知道？
+USB 3.2 的 protocol 規則能支持什麼結論？沒有實際 trace 時，又有哪些事情仍然不知道？
 
 ### 英文原題
 
-What conclusion is justified by the USB 3.2 Revision 1.1 Chapter 7 protocol rule, and what remains unknown without an observed trace?
+What conclusion is justified by a USB 3.2 protocol rule alone, and what remains unknown without an observed trace?
 
 ### 請確認
 
@@ -1006,7 +1006,7 @@ What conclusion is justified by the USB 3.2 Revision 1.1 Chapter 7 protocol rule
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -1026,11 +1026,11 @@ What conclusion is justified by the USB 3.2 Revision 1.1 Chapter 7 protocol rule
 
 ### 這題在問什麼？
 
-如何把 USB 3.2 Rev 1.1 第 9 章的 descriptor 或 request 要求，對應成可觀察的 Hub 檢查項？
+如何把 USB 3.2 的 descriptor 或 request 要求，對應成可觀察的 Hub 檢查項？
 
 ### 英文原題
 
-How should the USB 3.2 Revision 1.1 Chapter 9 descriptor or request requirement be mapped to an observable Hub check?
+How should a USB 3.2 descriptor or request requirement be mapped to an observable Hub check?
 
 ### 請確認
 
@@ -1054,7 +1054,7 @@ How should the USB 3.2 Revision 1.1 Chapter 9 descriptor or request requirement 
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -1074,11 +1074,11 @@ How should the USB 3.2 Revision 1.1 Chapter 9 descriptor or request requirement 
 
 ### 這題在問什麼？
 
-如何把 USB 3.2 Rev 1.1 第 10 章的 Hub 要求，與產品合規測試結果分開報告？
+如何把 USB 3.2 的 Hub 要求，與產品合規測試結果分開報告？
 
 ### 英文原題
 
-How should the USB 3.2 Revision 1.1 Chapter 10 Hub requirement be reported separately from a product-compliance test result?
+How should a USB 3.2 Hub requirement be reported separately from a product-compliance test result?
 
 ### 請確認
 
@@ -1102,7 +1102,7 @@ How should the USB 3.2 Revision 1.1 Chapter 10 Hub requirement be reported separ
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -1150,7 +1150,7 @@ What conclusion can be drawn from a SuperSpeed Hub LVS Revision 1.15 test condit
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -1170,11 +1170,11 @@ What conclusion can be drawn from a SuperSpeed Hub LVS Revision 1.15 test condit
 
 ### 這題在問什麼？
 
-SuperSpeed Hub LVS Rev 1.15 TD 10.105 Disconnect Device Test在 U0–U3 disconnect 後要求的 GetPortStatus 觀察，可以怎麼當測試判定？為什麼寫在程序裡的條件，還不能直接當成產品已通過？
+裝置從 U0 或 U3 斷線後，要求的 GetPortStatus 觀察可以怎麼當測試判定？為什麼寫在程序裡的條件，還不能直接當成產品已通過？
 
 ### 英文原題
 
-How should SuperSpeed Hub LVS Revision 1.15 TD 10.105 Disconnect Device Test's required GetPortStatus observation after a U0-U3 disconnect be used as a test oracle, without treating the written procedure as a device-pass result?
+How should the required GetPortStatus observation after a device disconnects from U0 or U3 be used as a test oracle, without treating the written test procedure as a device-pass result?
 
 ### 請確認
 
@@ -1198,7 +1198,7 @@ How should SuperSpeed Hub LVS Revision 1.15 TD 10.105 Disconnect Device Test's r
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -1208,21 +1208,21 @@ How should SuperSpeed Hub LVS Revision 1.15 TD 10.105 Disconnect Device Test's r
 **這題預期：直接回答**
 
 - 層級：L2 / P0 / engineering_interpretation
-- 範圍：`USB_HUB_COMMON`
+- 範圍：`USB_2_0`
 
 ### 要查哪份規格？
 
-  - `hub_reference` = Gavin0099/usb-if-hub-spec-reference / 808f23c24bd8651da9cdcd63ea8669126917a379 (exports/hub_governed_surface_manifest.yaml)
-    locator：`repo://Gavin0099/usb-if-hub-spec-reference@808f23c24bd8651da9cdcd63ea8669126917a379`
-    content_sha256：`c774c4c31b088348a4f2deaae2e0d8448f083a1a9793d91c59fc719de3536083`
+  - `usb20_fw` = USB 2.0 Specification / 2.0 (Ch.5, 8-11)
+    locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
+    content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
 
 ### 這題在問什麼？
 
-工程師可以怎麼把這份 governed structured Hub reference 當索引用，同時記得它不是完整 USB 規格？
+ClearPortFeature（PORT_POWER）後進入 Powered-off 的要求，如何轉成可驗證觀察？僅憑這條要求，又不能宣稱產品已通過什麼？
 
 ### 英文原題
 
-How should an engineer use the governed structured Hub reference as an index while preserving its boundary that it is not the complete USB specification?
+How should the Powered-off transition after ClearPortFeature(PORT_POWER) become a verifiable observation, and which product-pass conclusion is not licensed by that requirement alone?
 
 ### 請確認
 
@@ -1246,7 +1246,7 @@ How should an engineer use the governed structured Hub reference as an index whi
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -1307,7 +1307,7 @@ How should the USB 2.0 Hub PORT_POWER requirement be correlated with a SuperSpee
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -1368,7 +1368,7 @@ How should a USB 2.0 Revision 2.0 Chapter 7 electrical or timing requirement be 
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -1429,7 +1429,7 @@ Which USB 3.2 Revision 1.1 Chapter 6 link requirement can be correlated with a S
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -1490,7 +1490,7 @@ How should a USB 3.2 Revision 1.1 Chapter 7 protocol requirement be connected to
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -1551,7 +1551,7 @@ How should a USB 3.2 Revision 1.1 Chapter 9 descriptor or request requirement be
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -1612,7 +1612,7 @@ Which USB 3.2 Revision 1.1 Chapter 10 Hub requirement and SuperSpeed Hub LVS Rev
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -1622,24 +1622,24 @@ Which USB 3.2 Revision 1.1 Chapter 10 Hub requirement and SuperSpeed Hub LVS Rev
 **這題預期：直接回答**
 
 - 層級：L3 / P1 / cross_document
-- 範圍：`USB_HUB_COMMON`
+- 範圍：`USB_3_X_TO_LVS`
 
 ### 要查哪份規格？
 
-  - `hub_reference` = Gavin0099/usb-if-hub-spec-reference / 808f23c24bd8651da9cdcd63ea8669126917a379 (exports/hub_governed_surface_manifest.yaml)
-    locator：`repo://Gavin0099/usb-if-hub-spec-reference@808f23c24bd8651da9cdcd63ea8669126917a379`
-    content_sha256：`c774c4c31b088348a4f2deaae2e0d8448f083a1a9793d91c59fc719de3536083`
   - `usb32` = USB 3.2 Specification / Rev 1.1 (Ch.6, 7, 9, 10)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb32/USB 3.2 Revision 1.1.pdf`
     content_sha256：`26e025a56ce0352f4f91fcaaca67b622d8e9e030ca429804bf7da98f52e674fd`
+  - `superspeed_hub_lvs` = SuperSpeed Hub LVS Test Specification / Rev 1.15 (Hub compliance test items and conditions)
+    locator：`env://USB_SPEC_QA_RAW_ROOT/superspeed_hub_lvs/SSHUB_LVS_Specification_2019_11_21.pdf`
+    content_sha256：`f6c647c1acdcaf861555bcef481a104cf72958b787a2db6baab3de0a284440fb`
 
 ### 這題在問什麼？
 
-如何用 governed structured reference 找到 USB 3.2 Rev 1.1 的要求，同時正式引用仍落在 USB 3.2 原文？
+downstream port 可以在限定的時間窗內發出 Warm Reset；PORT_LINK_STATE（PLS）則是這段轉換期間 GetPortStatus 要回報的欄位。哪一項 LVS 測試證據，能把 Warm Reset 的時間要求與觀察到的 PLS 值串成實際執行證據？要補齊這條證據鏈，還缺什麼？
 
 ### 英文原題
 
-How should the governed structured reference locate a USB 3.2 Revision 1.1 requirement while preserving the USB 3.2 normative citation?
+A downstream port may issue a Warm Reset within a bounded time window, and PORT_LINK_STATE (PLS) is the field GetPortStatus reports during that transition. What LVS test evidence would connect the Warm Reset timing requirement to an observed PLS value, and what evidence is still missing to close that chain?
 
 ### 請確認
 
@@ -1651,16 +1651,16 @@ How should the governed structured reference locate a USB 3.2 Revision 1.1 requi
 
 ### 請填
 
-- 來源 A（`hub_reference`） 文件：
-- 來源 A（`hub_reference`） 章節：
-- 來源 A（`hub_reference`） 頁碼：
-- 來源 A（`hub_reference`） 支持答案的規格原文：
-- 來源 A（`hub_reference`） 這份證據支持的主張：
-- 來源 B（`usb32`） 文件：
-- 來源 B（`usb32`） 章節：
-- 來源 B（`usb32`） 頁碼：
-- 來源 B（`usb32`） 支持答案的規格原文：
-- 來源 B（`usb32`） 這份證據支持的主張：
+- 來源 A（`usb32`） 文件：
+- 來源 A（`usb32`） 章節：
+- 來源 A（`usb32`） 頁碼：
+- 來源 A（`usb32`） 支持答案的規格原文：
+- 來源 A（`usb32`） 這份證據支持的主張：
+- 來源 B（`superspeed_hub_lvs`） 文件：
+- 來源 B（`superspeed_hub_lvs`） 章節：
+- 來源 B（`superspeed_hub_lvs`） 頁碼：
+- 來源 B（`superspeed_hub_lvs`） 支持答案的規格原文：
+- 來源 B（`superspeed_hub_lvs`） 這份證據支持的主張：
 - 兩者是否同一對象：
 - 兩者是否同一適用範圍：
 - 兩者權威角色是否相同：
@@ -1673,7 +1673,7 @@ How should the governed structured reference locate a USB 3.2 Revision 1.1 requi
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -1683,24 +1683,24 @@ How should the governed structured reference locate a USB 3.2 Revision 1.1 requi
 **這題預期：直接回答**
 
 - 層級：L3 / P1 / cross_document
-- 範圍：`USB_HUB_COMMON`
+- 範圍：`USB_2_0`
 
 ### 要查哪份規格？
 
-  - `hub_reference` = Gavin0099/usb-if-hub-spec-reference / 808f23c24bd8651da9cdcd63ea8669126917a379 (exports/hub_governed_surface_manifest.yaml)
-    locator：`repo://Gavin0099/usb-if-hub-spec-reference@808f23c24bd8651da9cdcd63ea8669126917a379`
-    content_sha256：`c774c4c31b088348a4f2deaae2e0d8448f083a1a9793d91c59fc719de3536083`
   - `usb20_fw` = USB 2.0 Specification / 2.0 (Ch.5, 8-11)
+    locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
+    content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
+  - `usb20_se` = USB 2.0 Specification / 2.0 (Ch.6-7)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
 
 ### 這題在問什麼？
 
-如何同時報告 governed-reference 的範圍限制與 USB 2.0 Hub Class 要求，而不把 firmware 或產品合規講過頭？
+USB 2.0 定義了供 ClearPortFeature/SetPortFeature 使用的 PORT_POWER feature selector，另外也對同一個 connector 訂了 Contact Capacitance 效能要求。當合規報告引用 PORT_POWER 控制轉換要求來支撐一項測試時，Contact Capacitance 要求是否也是這項測試的必要證據？還是它屬於另一個獨立範圍的電氣或機械測試？請指出 PORT_POWER 這項主張實際需要哪些引用。
 
 ### 英文原題
 
-How should the governed-reference claim boundary and the USB 2.0 Hub Class requirement be reported together without overstating firmware or product compliance?
+USB 2.0 defines a PORT_POWER feature selector used by ClearPortFeature/SetPortFeature requests, and separately specifies a Contact Capacitance performance requirement for the same connector. If a compliance report cites the PORT_POWER control-transition requirement for a test, is the Contact Capacitance requirement also load-bearing evidence for that same test, or does it belong to an independently-scoped electrical/mechanical test? State which citation(s) the PORT_POWER claim actually requires.
 
 ### 請確認
 
@@ -1712,16 +1712,16 @@ How should the governed-reference claim boundary and the USB 2.0 Hub Class requi
 
 ### 請填
 
-- 來源 A（`hub_reference`） 文件：
-- 來源 A（`hub_reference`） 章節：
-- 來源 A（`hub_reference`） 頁碼：
-- 來源 A（`hub_reference`） 支持答案的規格原文：
-- 來源 A（`hub_reference`） 這份證據支持的主張：
-- 來源 B（`usb20_fw`） 文件：
-- 來源 B（`usb20_fw`） 章節：
-- 來源 B（`usb20_fw`） 頁碼：
-- 來源 B（`usb20_fw`） 支持答案的規格原文：
-- 來源 B（`usb20_fw`） 這份證據支持的主張：
+- 來源 A（`usb20_fw`） 文件：
+- 來源 A（`usb20_fw`） 章節：
+- 來源 A（`usb20_fw`） 頁碼：
+- 來源 A（`usb20_fw`） 支持答案的規格原文：
+- 來源 A（`usb20_fw`） 這份證據支持的主張：
+- 來源 B（`usb20_se`） 文件：
+- 來源 B（`usb20_se`） 章節：
+- 來源 B（`usb20_se`） 頁碼：
+- 來源 B（`usb20_se`） 支持答案的規格原文：
+- 來源 B（`usb20_se`） 這份證據支持的主張：
 - 兩者是否同一對象：
 - 兩者是否同一適用範圍：
 - 兩者權威角色是否相同：
@@ -1734,7 +1734,7 @@ How should the governed-reference claim boundary and the USB 2.0 Hub Class requi
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -1795,7 +1795,7 @@ Which USB 2.0 firmware-scope and signal/electrical-scope evidence pair is needed
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -1856,7 +1856,7 @@ How should the USB 2.0 and USB 3.2 PORT_POWER requirements be compared while pre
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -1917,7 +1917,7 @@ How should USB 2.0 signal/electrical evidence and USB 3.2 protocol evidence be s
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -1986,7 +1986,7 @@ What three-part evidence chain connects a USB 2.0 firmware requirement, a USB 2.
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -2006,17 +2006,14 @@ What three-part evidence chain connects a USB 2.0 firmware requirement, a USB 2.
   - `superspeed_hub_lvs` = SuperSpeed Hub LVS Test Specification / Rev 1.15 (Hub compliance test items and conditions)
     locator：`env://USB_SPEC_QA_RAW_ROOT/superspeed_hub_lvs/SSHUB_LVS_Specification_2019_11_21.pdf`
     content_sha256：`f6c647c1acdcaf861555bcef481a104cf72958b787a2db6baab3de0a284440fb`
-  - `hub_reference` = Gavin0099/usb-if-hub-spec-reference / 808f23c24bd8651da9cdcd63ea8669126917a379 (exports/hub_governed_surface_manifest.yaml)
-    locator：`repo://Gavin0099/usb-if-hub-spec-reference@808f23c24bd8651da9cdcd63ea8669126917a379`
-    content_sha256：`c774c4c31b088348a4f2deaae2e0d8448f083a1a9793d91c59fc719de3536083`
 
 ### 這題在問什麼？
 
-如何用 governed structured reference 與 SuperSpeed Hub LVS Rev 1.15 支撐 USB 3.2 Rev 1.1 的 Hub 結論，同時不要把其中任何一份說成產品已通過？
+某 Hub 廠商只因為 SuperSpeed Hub LVS TD 10.104 通過，就宣稱完全符合 USB 3.2 的 Powered-off-reset 要求。請完成三個明確步驟：(1) 說明 Powered-off-reset 要求在收到 ClearPortFeature(PORT_POWER) 後實際要求的轉換是什麼；(2) 說明 TD 10.104 實際施加的 stimulus 與觀察的 response 是什麼；(3) 指出 Powered-off-reset 要求中，TD 10.104 的執行證據沒有涵蓋到的部分。這個廠商的合規主張是否成立？為什麼？
 
 ### 英文原題
 
-How should a USB 3.2 Revision 1.1 Hub claim be grounded in the governed structured reference and SuperSpeed Hub LVS Revision 1.15 without promoting either source to a product-pass result?
+A Hub vendor claims full compliance with the USB 3.2 Powered-off-reset requirement solely because SuperSpeed Hub LVS TD 10.104 passed. Complete three explicit steps: (1) state the normative transition the Powered-off-reset requirement actually requires after ClearPortFeature(PORT_POWER); (2) state what stimulus and response TD 10.104 actually exercises and observes; and (3) name any element of the Powered-off-reset requirement that TD 10.104's execution evidence does not cover. Does the vendor's compliance claim hold, and why?
 
 ### 請確認
 
@@ -2038,15 +2035,10 @@ How should a USB 3.2 Revision 1.1 Hub claim be grounded in the governed structur
 - 來源 B（`superspeed_hub_lvs`） 頁碼：
 - 來源 B（`superspeed_hub_lvs`） 支持答案的規格原文：
 - 來源 B（`superspeed_hub_lvs`） 這份證據支持的主張：
-- 來源 C（`hub_reference`） 文件：
-- 來源 C（`hub_reference`） 章節：
-- 來源 C（`hub_reference`） 頁碼：
-- 來源 C（`hub_reference`） 支持答案的規格原文：
-- 來源 C（`hub_reference`） 這份證據支持的主張：
-- 三者是否同一對象：
-- 三者是否同一適用範圍：
-- 三者權威角色是否相同：
-- 三者關係（mapping / conflict / independent scope）：
+- 兩者是否同一對象：
+- 兩者是否同一適用範圍：
+- 兩者權威角色是否相同：
+- 兩者關係（mapping / conflict / independent scope）：
 - 根據這份證據，哪些結論不能下：
 - 結果：未判定 / 題目可用 / 題目需要修改 / 這題不適合使用（機器值 UNSET / PASS / REWORD / REJECT）
 - 備註：
@@ -2055,7 +2047,7 @@ How should a USB 3.2 Revision 1.1 Hub claim be grounded in the governed structur
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -2116,7 +2108,7 @@ USB 2.0 Table 11-17 assigns PORT_POWER the Hub Class feature-selector value 8. U
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -2177,7 +2169,7 @@ USB 2.0 Section 7.1.2.2 states a high-speed 10%-to-90% differential rise/fall mi
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -2187,24 +2179,24 @@ USB 2.0 Section 7.1.2.2 states a high-speed 10%-to-90% differential rise/fall mi
 **這題預期：直接回答**
 
 - 層級：L4 / P0 / uncertainty_conflict
-- 範圍：`USB_HUB_COMMON`
+- 範圍：`USB_2_0_TO_LVS`
 
 ### 要查哪份規格？
 
-  - `hub_reference` = Gavin0099/usb-if-hub-spec-reference / 808f23c24bd8651da9cdcd63ea8669126917a379 (exports/hub_governed_surface_manifest.yaml)
-    locator：`repo://Gavin0099/usb-if-hub-spec-reference@808f23c24bd8651da9cdcd63ea8669126917a379`
-    content_sha256：`c774c4c31b088348a4f2deaae2e0d8448f083a1a9793d91c59fc719de3536083`
+  - `superspeed_hub_lvs` = SuperSpeed Hub LVS Test Specification / Rev 1.15 (Hub compliance test items and conditions)
+    locator：`env://USB_SPEC_QA_RAW_ROOT/superspeed_hub_lvs/SSHUB_LVS_Specification_2019_11_21.pdf`
+    content_sha256：`f6c647c1acdcaf861555bcef481a104cf72958b787a2db6baab3de0a284440fb`
   - `usb20_fw` = USB 2.0 Specification / 2.0 (Ch.5, 8-11)
     locator：`env://USB_SPEC_QA_RAW_ROOT/usb20/usb_20.pdf`
     content_sha256：`d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61`
 
 ### 這題在問什麼？
 
-governed Hub reference 的 claim_ceiling 是 spec_reference_only，且 cannot_establish firmware_behavior。USB 2.0 Section 11.5.1.2 寫規範性的 Powered-off 轉換。這兩段是否構成衝突？請分別指出兩段證據描述的對象、範圍與權威角色，並說明判斷理由。
+SuperSpeed Hub LVS Rev 1.15 TD 10.104 把 ClearPortFeature(PORT_POWER)當測試刺激。USB 2.0 Section 11.5.1.2 寫規範性的 Powered-off 轉換。這兩段是否構成衝突？請分別指出兩段證據描述的對象、範圍與權威角色，並說明判斷理由。
 
 ### 英文原題
 
-The governed Hub reference claim_ceiling is spec_reference_only and cannot_establish firmware_behavior. USB 2.0 Section 11.5.1.2 states a normative Powered-off transition. Do these two statements constitute a conflict? Identify the object, scope, and authority role described by each excerpt, and justify the determination.
+SuperSpeed Hub LVS Revision 1.15 TD 10.104 uses ClearPortFeature(PORT_POWER) as a test stimulus. USB 2.0 Section 11.5.1.2 states a normative Powered-off transition after that request. Do these two statements constitute a conflict? Identify the object, scope, and authority role described by each excerpt, and justify the determination.
 
 ### 請確認
 
@@ -2216,11 +2208,11 @@ The governed Hub reference claim_ceiling is spec_reference_only and cannot_estab
 
 ### 請填
 
-- 來源 A（`hub_reference`） 文件：
-- 來源 A（`hub_reference`） 章節：
-- 來源 A（`hub_reference`） 頁碼：
-- 來源 A（`hub_reference`） 支持答案的規格原文：
-- 來源 A（`hub_reference`） 這份證據支持的主張：
+- 來源 A（`superspeed_hub_lvs`） 文件：
+- 來源 A（`superspeed_hub_lvs`） 章節：
+- 來源 A（`superspeed_hub_lvs`） 頁碼：
+- 來源 A（`superspeed_hub_lvs`） 支持答案的規格原文：
+- 來源 A（`superspeed_hub_lvs`） 這份證據支持的主張：
 - 來源 B（`usb20_fw`） 文件：
 - 來源 B（`usb20_fw`） 章節：
 - 來源 B（`usb20_fw`） 頁碼：
@@ -2238,7 +2230,7 @@ The governed Hub reference claim_ceiling is spec_reference_only and cannot_estab
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -2299,7 +2291,7 @@ USB 3.2 Section 10.3.1.11 says a downstream port transitions to DSPORT.Powered-o
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -2345,7 +2337,7 @@ After a USB4 Router completes a successful Phase 2 connection, what Router requi
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`abstain`
-- v1.1 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
+- v1.2 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
 </details>
 
 ---
@@ -2391,7 +2383,7 @@ What should the agent return when a requested USB Hub behavior cites fictional s
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`abstain`
-- v1.1 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
+- v1.2 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
 </details>
 
 ---
@@ -2437,7 +2429,7 @@ How should the agent respond when a proposed USB Hub answer relies on an authori
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`abstain`
-- v1.1 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
+- v1.2 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
 </details>
 
 ---
@@ -2483,7 +2475,7 @@ What should the agent return when a requested USB 2.0 claim has no bound section
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`abstain`
-- v1.1 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
+- v1.2 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
 </details>
 
 ---
@@ -2529,7 +2521,7 @@ What is the correct response to a vendor-specific Hub firmware question outside 
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`abstain`
-- v1.1 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
+- v1.2 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
 </details>
 
 ---
@@ -2575,7 +2567,7 @@ What Programmable Power Supply (PPS) APDO fields must a USB Power Delivery sourc
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`abstain`
-- v1.1 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
+- v1.2 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
 </details>
 
 ---
@@ -2636,7 +2628,7 @@ USB 2.0 Section 11.5.1.2 describes Powered-off after ClearPortFeature(PORT_POWER
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`answer`
-- v1.1 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
+- v1.2 gold 規則：accepted evidence + 至少 1 條 required claim + required facts + section anchors；每個 accepted_source_id 至少 1 筆 accepted evidence 與 1 個 section anchor（兩個以上來源時，ID/anchor 須以 source_id: 綁定）；不可有 competing/boundary evidence 或 boundary_code
 </details>
 
 ---
@@ -2682,7 +2674,7 @@ What should the agent do when a user asks it to promote an informative note into
 <summary>機器規則（admission 用，審查時可略過）</summary>
 
 - expected_status：`abstain`
-- v1.1 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
+- v1.2 gold 規則：boundary evidence + 至少 1 條 required boundary claim；不可有 accepted/competing evidence，也不可填 normative section anchors
 </details>
 
 ---
@@ -2693,4 +2685,4 @@ What should the agent do when a user asks it to promote an informative note into
 - USB_SPEC_QA_RAW_ROOT：NOT_CONFIGURED
 - 通過題數：0 / 50
 - 正式 receipt：MUST_NOT_CREATE
-- 最終仍須確認：`poc1_acceptance_set.json` v1.1 manifest diff
+- 最終仍須確認：`poc1_acceptance_set.json` v1.2 manifest diff
