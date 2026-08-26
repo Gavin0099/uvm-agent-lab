@@ -427,39 +427,80 @@ class GovernedSpecRetriever:
             hasher.update((repo_path / relative_path).read_bytes())
         return hasher.hexdigest(), len(tracked_paths)
 
+    # Tokens that appear across most/all EVIDENCE_REGISTRY entries (or are
+    # otherwise too generic within the USB Hub domain, e.g. "link" showing up
+    # in unrelated Link Training / Link Power Management contexts). A bare
+    # overlap on one of these words carries no discriminative topic signal,
+    # so it must never by itself justify treating an evidence entry as a
+    # relevant candidate.
+    _GENERIC_TOKENS = frozenset({
+        "usb", "hub", "port", "class", "spec", "specification", "specifications",
+        "feature", "features", "selector", "selectors", "link", "state", "states",
+        "descriptor", "descriptors", "value", "values", "chapter", "section",
+        "version", "revision", "the", "and", "for", "with", "in", "of", "is",
+        "are", "to", "on", "at", "not",
+    })
+
     def query(self, query_text: str, target_scope: Optional[str] = None) -> List[GovernedEvidence]:
         q_lower = query_text.lower()
         scored_results = []
 
         for ev in self.EVIDENCE_REGISTRY:
-            score = 0
-            if target_scope and ev.scope == target_scope:
-                score += 5
+            # `topic_score` captures genuine topic/term relevance signals only
+            # (specific keyword bonuses, exact section-number matches, and
+            # filtered generic-token overlap). `target_scope` is deliberately
+            # excluded here: it must act only as a reranking bonus applied on
+            # top of an already-established topic match, never as a
+            # standalone reason to treat an evidence entry as a candidate.
+            topic_score = 0
 
             if "descriptor" in q_lower or "描述符" in q_lower or "bdescriptortype" in q_lower:
                 if "DESC" in ev.evidence_id:
-                    score += 15
+                    topic_score += 15
             if "port_power" in q_lower or "電源" in q_lower:
                 if "PORT_POWER" in ev.evidence_id:
-                    score += 15
-            if "port_link_state" in q_lower or "link" in q_lower:
+                    topic_score += 15
+            if "port_link_state" in q_lower or "port link state" in q_lower:
                 if "PORT_LINK_STATE" in ev.evidence_id:
-                    score += 15
+                    topic_score += 15
             if "10.16.2.1" in q_lower and "10.16.2.1" in ev.section:
-                score += 20
+                topic_score += 20
             if "10.16.2.2" in q_lower and "10.16.2.2" in ev.section:
-                score += 20
+                topic_score += 20
             if "11.23" in q_lower and "11.23" in ev.section:
-                score += 20
+                topic_score += 20
             if "10.15" in q_lower and "10.15" in ev.section:
-                score += 20
+                topic_score += 20
 
             for token in q_lower.replace("？", " ").replace("。", " ").split():
-                if len(token) > 1 and (token in ev.title.lower() or token in ev.content.lower() or token in ev.section):
-                    score += 2
+                # Purely numeric/dotted tokens (version numbers like "3.2",
+                # section-like fragments) are excluded from generic overlap
+                # entirely: `ev.section` is an opaque identifier string
+                # (e.g. "11.23.2.1"), and naive substring containment on
+                # digits-and-dots tokens produces accidental collisions
+                # (e.g. "3.2" is a substring of "11.23.2.1") that carry no
+                # real topic relevance. Genuine section-number relevance is
+                # already covered by the explicit exact-match bonuses above.
+                if re.fullmatch(r"[\d.]+", token):
+                    continue
+                if (
+                    len(token) > 2
+                    and token not in self._GENERIC_TOKENS
+                    and (token in ev.title.lower() or token in ev.content.lower())
+                ):
+                    topic_score += 2
 
-            if score > 0:
-                scored_results.append((score, ev))
+            if topic_score <= 0:
+                # No genuine topic/term relevance was found. Scope match
+                # alone (or nothing at all) must never qualify an evidence
+                # entry as a candidate: abstain instead of guessing.
+                continue
+
+            score = topic_score
+            if target_scope and ev.scope == target_scope:
+                score += 5
+
+            scored_results.append((score, ev))
 
         scored_results.sort(key=lambda x: x[0], reverse=True)
         return [item[1] for item in scored_results]

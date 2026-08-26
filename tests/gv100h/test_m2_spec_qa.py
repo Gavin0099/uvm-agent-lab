@@ -32,6 +32,42 @@ def test_governed_retriever_query():
     assert results[0].scope == "USB_3_X"
 
 
+@pytest.mark.unit
+def test_governed_retriever_abstains_when_only_scope_and_generic_words_match():
+    # Regression for the "Warm Reset / tReset" danger: the query shares a
+    # matching target_scope with USB_3_X evidence and mentions the bare word
+    # "link" (from "link training"), but is not actually about
+    # PORT_LINK_STATE or any other registered evidence topic. Neither scope
+    # match alone nor a generic shared word may create a candidate; the
+    # retriever must return no results so the caller abstains instead of
+    # confidently citing irrelevant evidence.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "USB 3.2 Warm Reset tReset link training 完成後最短最長時間是多少？",
+        target_scope="USB_3_X",
+    )
+    assert results == []
+
+
+@pytest.mark.unit
+def test_governed_retriever_abstains_on_pure_scope_match_without_topic_signal():
+    # A matching target_scope with zero topic/term relevance must never by
+    # itself qualify any evidence entry as a candidate.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query("completely unrelated benign question", target_scope="USB_3_X")
+    assert results == []
+
+
+@pytest.mark.unit
+def test_governed_retriever_still_finds_genuine_port_link_state_match():
+    # Sanity check: tightening the generic-token/scope rules must not break
+    # legitimate PORT_LINK_STATE queries that use the specific feature name.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query("PORT_LINK_STATE feature selector value", target_scope="USB_3_X")
+    assert len(results) > 0
+    assert results[0].evidence_id == "USB3-FEAT-PORT_LINK_STATE"
+
+
 @pytest.mark.contract
 def test_poc1_corpus_lock_binds_governed_reference_and_blocks_incomplete_claims():
     retriever = GovernedSpecRetriever()
