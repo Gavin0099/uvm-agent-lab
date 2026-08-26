@@ -262,6 +262,36 @@ def test_governed_retriever_power_management_behavior_feature_question_still_abs
 
 
 @pytest.mark.unit
+def test_governed_retriever_setportfeature_port_reset_question_still_abstains():
+    # PR #29 review regression (6th pass): `SetPortFeature` is a generic Hub
+    # Class request that applies to every feature selector, not just
+    # PORT_POWER -- this question is explicitly about PORT_RESET, and must
+    # not be routed to PORT_POWER just because the word "setportfeature"
+    # appears in it.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "Which selector value is used with SetPortFeature(PORT_RESET) "
+        "on a USB 3.2 hub?",
+        target_scope="USB_3_X",
+    )
+    assert results == []
+
+
+@pytest.mark.unit
+def test_governed_retriever_vbus_current_limit_question_still_abstains():
+    # PR #29 review regression (6th pass), sibling of the above: bare
+    # "VBUS" is an electrical/power-delivery term, not a Hub Class
+    # PORT_POWER selector question, and must not establish a PORT_POWER
+    # candidate on its own.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "What is the VBUS current limit in USB 3.2?",
+        target_scope="USB_3_X",
+    )
+    assert results == []
+
+
+@pytest.mark.unit
 def test_governed_retriever_section_ref_does_not_collide_with_unrelated_section():
     # A bare version-like fragment ("3.2") must never match an unrelated
     # section id merely because "3.2" happens to be a substring of it (e.g.

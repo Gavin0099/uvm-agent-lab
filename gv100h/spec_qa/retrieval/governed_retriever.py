@@ -513,10 +513,22 @@ class GovernedSpecRetriever:
             # port/VBUS context (`port`/`downstream`/`vbus`) AND (b) a
             # feature-selector qualifier (`feature`/`selector`) -- "power"
             # alone, or "power"+qualifier without port/VBUS context, is not
-            # enough. `setportfeature`/`clearportfeature`/`vbus` are
-            # unambiguous technical identifiers and remain strong on their
-            # own. All matching is on tokenized words (`query_tokens`), not
-            # substrings of `q_lower`, so "powered"/"powerful" can't misfire.
+            # enough. All matching is on tokenized words (`query_tokens`),
+            # not substrings of `q_lower`, so "powered"/"powerful" can't
+            # misfire.
+            #
+            # PR #29 review regression (6th pass): `SetPortFeature` /
+            # `ClearPortFeature` / `VBUS` were previously treated as
+            # unambiguous PORT_POWER technical identifiers on their own, but
+            # none of them is actually PORT_POWER-specific: `SetPortFeature`
+            # and `ClearPortFeature` are generic Hub Class requests that also
+            # apply to PORT_RESET and every other feature selector, and
+            # `VBUS` alone is an electrical/power-delivery term, not a Hub
+            # Class PORT_POWER selector question (e.g. "What is the VBUS
+            # current limit in USB 3.2?"). None of the three may establish a
+            # PORT_POWER candidate by itself; they remain useful only as
+            # `lexical_bonus` rerank signal for a candidate already
+            # established by another strong signal.
             query_token_set = set(query_tokens)
             has_explicit_port_power_phrase = (
                 "port_power" in q_lower
@@ -525,19 +537,12 @@ class GovernedSpecRetriever:
                 or "vbus power" in q_lower
                 or "電源" in q_lower
             )
-            has_explicit_power_technical_identifier = bool(
-                query_token_set & {"setportfeature", "clearportfeature", "vbus"}
-            )
             has_power_with_port_context_and_qualifier = (
                 "power" in query_token_set
                 and bool(query_token_set & {"port", "downstream", "vbus"})
                 and bool(query_token_set & {"feature", "selector"})
             )
-            if (
-                has_explicit_port_power_phrase
-                or has_explicit_power_technical_identifier
-                or has_power_with_port_context_and_qualifier
-            ):
+            if has_explicit_port_power_phrase or has_power_with_port_context_and_qualifier:
                 if "PORT_POWER" in ev.evidence_id:
                     strong_score += 15
             has_explicit_link_state_phrase = (
