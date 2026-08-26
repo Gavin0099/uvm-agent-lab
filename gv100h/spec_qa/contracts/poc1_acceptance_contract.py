@@ -48,19 +48,25 @@ def _bound_source_ids(values: list[str]) -> set[str]:
         text = str(raw).strip()
         if ":" not in text:
             continue
-        source_id, _rest = text.split(":", 1)
+        source_id, rest = text.split(":", 1)
         source_id = source_id.strip()
-        if source_id:
+        rest = rest.strip()
+        if source_id and rest:
             bound.add(source_id)
     return bound
 
 
+# This is a deliberately separate, git-tracked snapshot of "which sources each
+# question was approved against" -- NOT the live draft file. Reading the live
+# draft here would make the freeze a no-op (every edit silently redefines its
+# own baseline). Regenerate it only via freeze_source_set_identity(), never as
+# an automatic side effect of loading or editing the draft.
 DEFAULT_POC1_SOURCE_SET_IDENTITY_PATH = (
     Path(__file__).resolve().parents[3]
     / "gv100h"
     / "spec_qa"
     / "golden"
-    / "poc1_acceptance_set.draft.json"
+    / "poc1_acceptance_set.frozen_source_identity.json"
 )
 
 
@@ -114,6 +120,53 @@ def load_frozen_source_sets(
     return frozen
 
 
+def freeze_source_set_identity(
+    source_path: str | Path,
+    output_path: str | Path | None = None,
+) -> Dict[str, frozenset[str]]:
+    """Deliberately (re-)generate the pinned source-set identity snapshot.
+
+    This must only be invoked as an explicit, reviewed action (e.g. when a
+    question's accepted_source_ids are re-approved after review) -- never
+    automatically as a side effect of loading or editing the draft. Reading
+    ``source_path`` (typically the live draft) and writing the same content
+    right back out as the "frozen" baseline on every edit would make the
+    freeze a tautology that can never detect drift.
+    """
+    source = Path(source_path)
+    try:
+        payload: Any = json.loads(source.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AcceptanceContractError(
+            f"source-set identity source is missing or invalid: {source}"
+        ) from exc
+    questions = payload.get("questions") if isinstance(payload, dict) else None
+    if not isinstance(questions, list) or not questions:
+        raise AcceptanceContractError(
+            "source-set identity source must declare questions"
+        )
+    frozen_payload = {
+        "questions": [
+            {
+                "question_id": _question_id(question),
+                "accepted_source_ids": _accepted_source_ids(question),
+            }
+            for question in questions
+        ]
+    }
+    destination = (
+        Path(output_path)
+        if output_path is not None
+        else DEFAULT_POC1_SOURCE_SET_IDENTITY_PATH
+    )
+    destination.write_text(
+        json.dumps(frozen_payload, ensure_ascii=True, sort_keys=True, indent=2)
+        + "\n",
+        encoding="utf-8",
+    )
+    return load_frozen_source_sets(destination)
+
+
 def verify_accepted_source_set_identity(
     questions: Any,
     frozen_source_sets: Dict[str, frozenset[str]] | None = None,
@@ -126,8 +179,7 @@ def verify_accepted_source_set_identity(
         else load_frozen_source_sets(draft_path)
     )
     admitted_ids = {_question_id(question) for question in questions}
-    overlapping = admitted_ids.intersection(identity)
-    if overlapping and admitted_ids != set(identity):
+    if admitted_ids != set(identity):
         missing = sorted(set(identity) - admitted_ids)
         extra = sorted(admitted_ids - set(identity))
         details = []
@@ -524,7 +576,15 @@ class POC1AcceptanceSet(BaseModel):
             raise AcceptanceContractError(
                 "acceptance set requires at least one USB4 negative control"
             )
-        verify_accepted_source_set_identity(self.questions)
+        # NOTE: frozen source-set identity is deliberately NOT checked here.
+        # This method validates structural/schema correctness for any
+        # manifest (including ad hoc test fixtures) and has no repo_root
+        # context to resolve a frozen baseline against. The identity/freeze
+        # check is an admission-time concern with a resolvable trust
+        # boundary; it is enforced by
+        # poc1_admission.verify_poc1_acceptance_admission(), which receives
+        # an explicit repo_root and threads it into
+        # verify_accepted_source_set_identity(..., frozen_source_sets=...).
         missing_coverage = sorted(REQUIRED_POC1_SOURCE_IDS - source_coverage)
         if missing_coverage:
             raise AcceptanceContractError(

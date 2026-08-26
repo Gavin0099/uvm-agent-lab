@@ -270,6 +270,10 @@ def test_valid_acceptance_set_contract_loads(tmp_path: Path):
             "cross_document_single_source",
             "cross_document question QA-027 requires at least two sources",
         ),
+        (
+            "empty_suffix_source_binding",
+            "accepted_source_id to have gold accepted evidence",
+        ),
         ("missing_source_coverage", "lacks question coverage for"),
         ("missing_usb4_control", "requires at least one USB4 negative control"),
         ("review_receipt_path", "durable artifacts/ path"),
@@ -351,6 +355,13 @@ def test_acceptance_set_rejects_contract_violations(
         manifest["questions"][26]["accepted_source_ids"] = ["usb32"]
         manifest["questions"][26]["gold"]["accepted_evidence_ids"] = ["EVIDENCE-27-A"]
         manifest["questions"][26]["gold"]["section_anchors"] = ["section-27"]
+    elif mutation == "empty_suffix_source_binding":
+        # A vacuous "source_id:" entry (no payload after the colon) must not
+        # count as bound evidence/anchor for that source.
+        manifest["questions"][26]["gold"]["accepted_evidence_ids"] = [
+            "usb20_fw:",
+            "usb32:EVIDENCE-27-B",
+        ]
     elif mutation == "missing_source_coverage":
         for question in manifest["questions"]:
             if question["expected_status"] == "answer":
@@ -423,3 +434,30 @@ def test_source_set_identity_requires_exact_equality(
     ):
         verify_accepted_source_set_identity(mutated, frozen)
     assert mutation
+
+
+def test_source_set_identity_rejects_completely_disjoint_question_ids():
+    """A submitted question set with zero overlapping question IDs against
+    the frozen identity must be rejected outright, not silently treated as
+    an unrelated/unchecked set (previously bypassed the check entirely)."""
+    frozen = _frozen_identity_from_questions(
+        [
+            {
+                "question_id": "DRAFT-L3-037",
+                "accepted_source_ids": ["usb20_fw", "usb20_se"],
+            },
+        ]
+    )
+    disjoint_questions = [
+        {
+            "question_id": "SOMETHING-ELSE-ENTIRELY",
+            "accepted_source_ids": ["usb20_fw", "usb20_se"],
+        },
+    ]
+
+    with pytest.raises(
+        AcceptanceContractError,
+        match="accepted_source_ids must exactly match the preregistered source set|"
+        "admitted question IDs must exactly match the preregistered",
+    ):
+        verify_accepted_source_set_identity(disjoint_questions, frozen)

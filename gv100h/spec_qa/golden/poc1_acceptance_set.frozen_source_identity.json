@@ -1,0 +1,309 @@
+{
+  "questions": [
+    {
+      "accepted_source_ids": [
+        "usb20_fw"
+      ],
+      "question_id": "DRAFT-L1-001"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_fw"
+      ],
+      "question_id": "DRAFT-L1-002"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_fw"
+      ],
+      "question_id": "DRAFT-L1-003"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_fw"
+      ],
+      "question_id": "DRAFT-L1-004"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_fw"
+      ],
+      "question_id": "DRAFT-L1-005"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_se"
+      ],
+      "question_id": "DRAFT-L1-006"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_se"
+      ],
+      "question_id": "DRAFT-L1-007"
+    },
+    {
+      "accepted_source_ids": [
+        "usb32"
+      ],
+      "question_id": "DRAFT-L1-008"
+    },
+    {
+      "accepted_source_ids": [
+        "usb32"
+      ],
+      "question_id": "DRAFT-L1-009"
+    },
+    {
+      "accepted_source_ids": [
+        "usb32"
+      ],
+      "question_id": "DRAFT-L1-010"
+    },
+    {
+      "accepted_source_ids": [
+        "usb32"
+      ],
+      "question_id": "DRAFT-L1-011"
+    },
+    {
+      "accepted_source_ids": [
+        "superspeed_hub_lvs"
+      ],
+      "question_id": "DRAFT-L1-012"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_fw"
+      ],
+      "question_id": "DRAFT-L1-013"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_fw"
+      ],
+      "question_id": "DRAFT-L2-014"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_fw"
+      ],
+      "question_id": "DRAFT-L2-015"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_fw"
+      ],
+      "question_id": "DRAFT-L2-016"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_se"
+      ],
+      "question_id": "DRAFT-L2-017"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_se"
+      ],
+      "question_id": "DRAFT-L2-018"
+    },
+    {
+      "accepted_source_ids": [
+        "usb32"
+      ],
+      "question_id": "DRAFT-L2-019"
+    },
+    {
+      "accepted_source_ids": [
+        "usb32"
+      ],
+      "question_id": "DRAFT-L2-020"
+    },
+    {
+      "accepted_source_ids": [
+        "usb32"
+      ],
+      "question_id": "DRAFT-L2-021"
+    },
+    {
+      "accepted_source_ids": [
+        "usb32"
+      ],
+      "question_id": "DRAFT-L2-022"
+    },
+    {
+      "accepted_source_ids": [
+        "superspeed_hub_lvs"
+      ],
+      "question_id": "DRAFT-L2-023"
+    },
+    {
+      "accepted_source_ids": [
+        "superspeed_hub_lvs"
+      ],
+      "question_id": "DRAFT-L2-024"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_fw"
+      ],
+      "question_id": "DRAFT-L2-025"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_fw",
+        "superspeed_hub_lvs"
+      ],
+      "question_id": "DRAFT-L3-026"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_se",
+        "superspeed_hub_lvs"
+      ],
+      "question_id": "DRAFT-L3-027"
+    },
+    {
+      "accepted_source_ids": [
+        "usb32",
+        "superspeed_hub_lvs"
+      ],
+      "question_id": "DRAFT-L3-028"
+    },
+    {
+      "accepted_source_ids": [
+        "usb32",
+        "superspeed_hub_lvs"
+      ],
+      "question_id": "DRAFT-L3-029"
+    },
+    {
+      "accepted_source_ids": [
+        "usb32",
+        "superspeed_hub_lvs"
+      ],
+      "question_id": "DRAFT-L3-030"
+    },
+    {
+      "accepted_source_ids": [
+        "usb32",
+        "superspeed_hub_lvs"
+      ],
+      "question_id": "DRAFT-L3-031"
+    },
+    {
+      "accepted_source_ids": [
+        "usb32",
+        "superspeed_hub_lvs"
+      ],
+      "question_id": "DRAFT-L3-032"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_fw",
+        "usb20_se"
+      ],
+      "question_id": "DRAFT-L3-033"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_fw",
+        "usb20_se"
+      ],
+      "question_id": "DRAFT-L3-034"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_fw",
+        "usb32"
+      ],
+      "question_id": "DRAFT-L3-035"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_se",
+        "usb32"
+      ],
+      "question_id": "DRAFT-L3-036"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_fw",
+        "usb20_se",
+        "superspeed_hub_lvs"
+      ],
+      "question_id": "DRAFT-L3-037"
+    },
+    {
+      "accepted_source_ids": [
+        "usb32",
+        "superspeed_hub_lvs"
+      ],
+      "question_id": "DRAFT-L3-038"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_fw",
+        "usb32"
+      ],
+      "question_id": "DRAFT-L4-039"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_se",
+        "usb32"
+      ],
+      "question_id": "DRAFT-L4-040"
+    },
+    {
+      "accepted_source_ids": [
+        "superspeed_hub_lvs",
+        "usb20_fw"
+      ],
+      "question_id": "DRAFT-L4-041"
+    },
+    {
+      "accepted_source_ids": [
+        "usb32",
+        "superspeed_hub_lvs"
+      ],
+      "question_id": "DRAFT-L4-042"
+    },
+    {
+      "accepted_source_ids": [],
+      "question_id": "DRAFT-L4-043"
+    },
+    {
+      "accepted_source_ids": [],
+      "question_id": "DRAFT-L4-044"
+    },
+    {
+      "accepted_source_ids": [],
+      "question_id": "DRAFT-L4-045"
+    },
+    {
+      "accepted_source_ids": [],
+      "question_id": "DRAFT-L4-046"
+    },
+    {
+      "accepted_source_ids": [],
+      "question_id": "DRAFT-L4-047"
+    },
+    {
+      "accepted_source_ids": [],
+      "question_id": "DRAFT-L4-048"
+    },
+    {
+      "accepted_source_ids": [
+        "usb20_fw",
+        "usb20_se"
+      ],
+      "question_id": "DRAFT-L4-049"
+    },
+    {
+      "accepted_source_ids": [],
+      "question_id": "DRAFT-L4-050"
+    }
+  ]
+}

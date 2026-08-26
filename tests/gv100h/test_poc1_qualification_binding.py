@@ -207,14 +207,39 @@ def _write_json(path: Path, payload: dict) -> bytes:
     return encoded
 
 
-def _build_reviewed_repo(tmp_path: Path):
+def _frozen_identity_payload(payload: dict) -> dict:
+    return {
+        "questions": [
+            {
+                "question_id": question["question_id"],
+                "accepted_source_ids": list(question["accepted_source_ids"]),
+            }
+            for question in payload["questions"]
+        ]
+    }
+
+
+def _build_reviewed_repo(tmp_path: Path, *, frozen_identity_payload: dict | None = None):
     repo = tmp_path / "reviewed-repo"
     manifest_path = repo / "gv100h" / "spec_qa" / "golden" / "poc1_acceptance_set.json"
     receipt_path = repo / "artifacts" / "reviews" / "poc1-acceptance-review.json"
+    identity_path = (
+        repo
+        / "gv100h"
+        / "spec_qa"
+        / "golden"
+        / "poc1_acceptance_set.frozen_source_identity.json"
+    )
     manifest_path.parent.mkdir(parents=True)
     receipt_path.parent.mkdir(parents=True)
     payload = _manifest_payload()
     _write_json(manifest_path, payload)
+    _write_json(
+        identity_path,
+        frozen_identity_payload
+        if frozen_identity_payload is not None
+        else _frozen_identity_payload(payload),
+    )
 
     subprocess.run(["git", "init", "--quiet", str(repo)], check=True)
     subprocess.run(["git", "-C", str(repo), "config", "user.name", "Test"], check=True)
@@ -222,7 +247,17 @@ def _build_reviewed_repo(tmp_path: Path):
         ["git", "-C", str(repo), "config", "user.email", "test@example.invalid"],
         check=True,
     )
-    subprocess.run(["git", "-C", str(repo), "add", str(manifest_path.relative_to(repo))], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "add",
+            str(manifest_path.relative_to(repo)),
+            str(identity_path.relative_to(repo)),
+        ],
+        check=True,
+    )
     subprocess.run(["git", "-C", str(repo), "commit", "--quiet", "-m", "review manifest"], check=True)
     reviewed_commit = _git(repo, "rev-parse", "HEAD")
 
@@ -463,6 +498,73 @@ def test_admission_rejects_invalid_review_receipt_metadata(
     receipt_path.write_bytes(receipt_bytes)
 
     with pytest.raises(POC1AdmissionError):
+        verify_poc1_acceptance_admission(
+            manifest_path=manifest_path,
+            result=result,
+            repo_root=repo,
+        )
+
+
+def test_admission_rejects_disjoint_source_set_identity(tmp_path: Path):
+    """A manifest whose admitted question IDs have zero overlap with the
+    frozen source-set identity must be rejected outright, not silently
+    treated as an unrelated/unchecked question set."""
+    payload = _manifest_payload()
+    disjoint_identity = {
+        "questions": [
+            {
+                "question_id": "SOMETHING-ELSE-ENTIRELY",
+                "accepted_source_ids": ["usb20_fw"],
+            }
+        ]
+    }
+    repo, manifest_path, result = _build_reviewed_repo(
+        tmp_path, frozen_identity_payload=disjoint_identity
+    )
+
+    with pytest.raises(POC1AdmissionError, match="source-set identity"):
+        verify_poc1_acceptance_admission(
+            manifest_path=manifest_path,
+            result=result,
+            repo_root=repo,
+        )
+
+
+def test_admission_rejects_tampered_source_set_identity(tmp_path: Path):
+    """Once frozen, silently narrowing/widening an already-approved
+    question's accepted_source_ids must be rejected even though the question
+    IDs still overlap the frozen identity."""
+    payload = _manifest_payload()
+    frozen = _frozen_identity_payload(payload)
+    frozen["questions"][0] = dict(frozen["questions"][0])
+    frozen["questions"][0]["accepted_source_ids"] = ["usb20_fw", "usb32"]
+    repo, manifest_path, result = _build_reviewed_repo(
+        tmp_path, frozen_identity_payload=frozen
+    )
+
+    with pytest.raises(POC1AdmissionError, match="source-set identity"):
+        verify_poc1_acceptance_admission(
+            manifest_path=manifest_path,
+            result=result,
+            repo_root=repo,
+        )
+
+
+def test_admission_requires_frozen_source_set_identity_artifact(tmp_path: Path):
+    """The frozen identity must be a real, git-tracked artifact under
+    repo_root -- if it is missing, admission must fail closed rather than
+    silently skip the identity check."""
+    repo, manifest_path, result = _build_reviewed_repo(tmp_path)
+    identity_path = (
+        repo
+        / "gv100h"
+        / "spec_qa"
+        / "golden"
+        / "poc1_acceptance_set.frozen_source_identity.json"
+    )
+    identity_path.unlink()
+
+    with pytest.raises(POC1AdmissionError, match="missing or invalid"):
         verify_poc1_acceptance_admission(
             manifest_path=manifest_path,
             result=result,

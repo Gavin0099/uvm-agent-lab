@@ -14,6 +14,7 @@ from gv100h.spec_qa.contracts.poc1_acceptance_contract import (
     AcceptanceContractError,
     POC1AcceptanceSet,
     compute_acceptance_set_hash,
+    load_frozen_source_sets,
     load_poc1_acceptance_set,
     verify_accepted_source_set_identity,
 )
@@ -222,8 +223,21 @@ def verify_poc1_acceptance_admission(
         )
 
     manifest = load_poc1_acceptance_set(manifest_file)
+    # Resolve the frozen source-set identity relative to the caller-supplied
+    # repo_root (not this module's own checkout location), so admission
+    # always verifies against the specific repository being admitted.
+    frozen_identity_path = (
+        root
+        / "gv100h"
+        / "spec_qa"
+        / "golden"
+        / "poc1_acceptance_set.frozen_source_identity.json"
+    )
     try:
-        verify_accepted_source_set_identity(manifest.questions)
+        frozen_source_sets = load_frozen_source_sets(frozen_identity_path)
+        verify_accepted_source_set_identity(
+            manifest.questions, frozen_source_sets=frozen_source_sets
+        )
     except AcceptanceContractError as exc:
         raise POC1AdmissionError(
             f"accepted source-set identity mismatch: {exc}",
