@@ -15,10 +15,17 @@ resolver.
 
 Every failure mode here is fail-closed: an unset or blank environment
 variable, a missing relative path segment, a non-existent file, an
-unsupported locator scheme, and a SHA-256 mismatch against the corpus lock's
+unsupported locator scheme, a resolved path that escapes its ``env://`` root
+(via ``..`` traversal, an absolute path segment, or a symlink pointing
+outside the root), and a SHA-256 mismatch against the corpus lock's
 ``content_sha256`` all raise ``CorpusSourceResolverError``. There is no
 best-effort or partial-success path -- ``resolve_all`` either returns a
 complete mapping of verified paths or raises with every failure listed.
+``resolve_all``'s default source set is derived from the corpus contract's
+own ``layer``/``phase``/``included`` fields (every required Phase 1
+official-raw source), not from the ``source_locator`` scheme, so a required
+source left pending, blank, or mis-typed still surfaces as a failure instead
+of being silently skipped.
 """
 
 from __future__ import annotations
@@ -35,6 +42,16 @@ ENV_LOCATOR_SCHEME = "env://"
 # here (rather than imported) so this module has no runtime dependency on
 # gv100h.spec_qa.retrieval.governed_retriever.
 _PENDING_LOCATOR_MARKERS = ("PENDING_ACQUISITION", "NOT_BOUND", "NOT_APPLICABLE")
+
+# The required-raw-source set for resolve_all()'s default is derived from
+# these corpus-contract fields, NOT from the source_locator scheme. Deriving
+# from the locator would silently drop a required source whose locator is
+# still a pending marker, blank, or written with the wrong scheme -- exactly
+# the sources that most need to surface as a failure. usb4 is excluded via
+# `included: false` / `phase: phase_2`; hub_reference is excluded via its
+# `governed_reference` layer (it is bound separately, via repo://).
+_REQUIRED_SOURCE_LAYER = "official_raw"
+_REQUIRED_SOURCE_PHASE = "phase_1"
 
 
 class CorpusSourceResolverError(ValueError):
@@ -90,9 +107,15 @@ class CorpusSourceResolver:
     def resolve_all(self, source_ids: Optional[Iterable[str]] = None) -> Dict[str, Path]:
         """Resolve multiple sources, fail-closed across the whole batch.
 
-        If ``source_ids`` is omitted, resolves every source in the corpus
-        lock whose ``source_locator`` uses the ``env://`` scheme (this
-        excludes ``hub_reference``, which uses ``repo://``).
+        If ``source_ids`` is omitted, resolves every *required* Phase 1
+        official-raw source declared in the corpus lock -- i.e. every
+        source whose ``layer`` is ``official_raw``, ``phase`` is
+        ``phase_1``, and ``included`` is not explicitly ``False``. This is
+        derived from the corpus contract's own fields, not from the
+        ``source_locator`` scheme, so a required source with a pending,
+        blank, or wrong-scheme locator still surfaces as a resolution
+        failure instead of being silently skipped. ``hub_reference`` is
+        excluded (different layer, bound separately via ``repo://``).
 
         Returns a complete ``{source_id: Path}`` mapping only if every
         requested source resolves and verifies successfully. If any source
@@ -100,13 +123,7 @@ class CorpusSourceResolver:
         failure instead of returning a partial result.
         """
         if source_ids is None:
-            sources = self._corpus_lock.get("sources") or {}
-            source_ids = [
-                candidate_id
-                for candidate_id, source in sources.items()
-                if isinstance(source, dict)
-                and str(source.get("source_locator", "")).startswith(ENV_LOCATOR_SCHEME)
-            ]
+            source_ids = self._required_source_ids()
 
         resolved: Dict[str, Path] = {}
         failures: list[str] = []
@@ -122,6 +139,21 @@ class CorpusSourceResolver:
                 + "\n".join(failures)
             )
         return resolved
+
+    def _required_source_ids(self) -> list[str]:
+        sources = self._corpus_lock.get("sources") or {}
+        required = []
+        for candidate_id, source in sources.items():
+            if not isinstance(source, dict):
+                continue
+            if source.get("layer") != _REQUIRED_SOURCE_LAYER:
+                continue
+            if source.get("phase") != _REQUIRED_SOURCE_PHASE:
+                continue
+            if source.get("included") is False:
+                continue
+            required.append(candidate_id)
+        return required
 
     def _resolve_locator(self, source_id: str, locator: Any) -> Path:
         if not isinstance(locator, str) or not locator.strip():
@@ -155,7 +187,22 @@ class CorpusSourceResolver:
                 f"{env_var_name!r} to be set to a non-blank raw corpus root"
             )
 
-        resolved_path = (Path(env_value) / relative_path).resolve()
+        root = Path(env_value).resolve()
+        if Path(relative_path).is_absolute():
+            raise CorpusSourceResolverError(
+                f"source {source_id!r} locator {locator!r} has an absolute relative "
+                f"path segment, which is not allowed: {relative_path!r}"
+            )
+
+        resolved_path = (root / relative_path).resolve()
+        try:
+            resolved_path.relative_to(root)
+        except ValueError:
+            raise CorpusSourceResolverError(
+                f"source {source_id!r} resolved path escapes its source root "
+                f"{root}: {resolved_path}"
+            ) from None
+
         if not resolved_path.is_file():
             raise CorpusSourceResolverError(
                 f"source {source_id!r} resolved path does not exist or is not a file: "
