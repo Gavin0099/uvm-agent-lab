@@ -429,13 +429,18 @@ class GovernedSpecRetriever:
 
     # Tokens that appear across most/all EVIDENCE_REGISTRY entries (or are
     # otherwise too generic within the USB Hub domain, e.g. "link" showing up
-    # in unrelated Link Training / Link Power Management contexts). A bare
-    # overlap on one of these words carries no discriminative topic signal,
-    # so it must never by itself justify treating an evidence entry as a
-    # relevant candidate.
+    # in unrelated Link Training / Link Power Management contexts, or
+    # "downstream"/"upstream" being a structural Hub port concept used when
+    # describing power, reset, and link-state topics alike -- observed
+    # concretely when a Warm Reset / link-states question incidentally
+    # matched USB3-FEAT-PORT_POWER purely because its content happens to
+    # mention "downstream port"). A bare overlap on one of these words
+    # carries no discriminative topic signal, so it must never by itself
+    # justify treating an evidence entry as a relevant candidate.
     _GENERIC_TOKENS = frozenset({
         "usb", "hub", "port", "class", "spec", "specification", "specifications",
         "feature", "features", "selector", "selectors", "link", "state", "states",
+        "downstream", "upstream",
         "descriptor", "descriptors", "value", "values", "chapter", "section",
         "version", "revision", "the", "and", "for", "with", "in", "of", "is",
         "are", "to", "on", "at", "not",
@@ -490,19 +495,29 @@ class GovernedSpecRetriever:
             if "port_power" in q_lower or "電源" in q_lower:
                 if "PORT_POWER" in ev.evidence_id:
                     topic_score += 15
-            if (
-                "port_link_state" in q_lower
-                or "port link state" in q_lower
-                or "link state" in q_lower
-            ):
-                # "link state" alone (without a leading "port") is a genuine
-                # compound-topic alias for PORT_LINK_STATE: a realistic
-                # question like "What is the link state feature selector
-                # value?" never says "port" explicitly, and both "link" and
-                # "state" are individually in `_GENERIC_TOKENS`, so without
-                # this explicit compound check the generic-token loop below
-                # would never contribute any signal and the query would
-                # incorrectly abstain.
+            has_explicit_link_state_phrase = (
+                "port_link_state" in q_lower or "port link state" in q_lower
+            )
+            # PR #29 review regression (2nd pass): a bare "link state"
+            # substring match reopened the exact Warm Reset false-positive
+            # this fix set out to close -- "which link states allow a
+            # downstream port to issue a Warm Reset" contains "link state"
+            # as a substring of "link states" and is NOT a PORT_LINK_STATE
+            # question. With only 5 embedded evidence entries, fail-closed:
+            # a bare "link state"/"link states" phrase is only treated as a
+            # genuine PORT_LINK_STATE alias when it co-occurs with an
+            # explicit feature-selector qualifier word. A plain regex word
+            # boundary (`\blink state\b`) is not sufficient either, since
+            # "link state machine"/"link state transition timing" would
+            # still be misidentified as a PORT_LINK_STATE feature-selector
+            # question without a qualifier. This is intentionally narrow;
+            # once a formal Query Normalizer layer exists, this kind of
+            # concept-alias detection should move out of the retriever.
+            has_bare_link_state_with_qualifier = "link state" in q_lower and any(
+                qualifier in q_lower
+                for qualifier in ("feature", "selector", "field", "pls", "value")
+            )
+            if has_explicit_link_state_phrase or has_bare_link_state_with_qualifier:
                 if "PORT_LINK_STATE" in ev.evidence_id:
                     topic_score += 15
 

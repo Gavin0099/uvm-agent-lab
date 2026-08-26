@@ -89,12 +89,14 @@ def test_governed_retriever_finds_natural_language_port_power_question():
 
 @pytest.mark.unit
 def test_governed_retriever_tokenizer_normalizes_hyphens_and_punctuation():
-    # Isolates the tokenizer fix: a hyphenated compound ("downstream-port")
-    # must be split into its constituent words so "downstream" alone can
-    # still match evidence content, and trailing punctuation must not be
-    # treated as part of the word.
+    # Isolates the tokenizer fix: a hyphenated compound ("port-power") must
+    # be split into its constituent words so "power" alone can still match
+    # evidence content, and trailing punctuation ("feature,") must not be
+    # treated as part of the word. Uses "power" (not "downstream", which is
+    # a generic Hub structural term stoplisted after the Warm Reset /
+    # "link states" false-positive regression) as the genuine discriminator.
     retriever = GovernedSpecRetriever()
-    results = retriever.query("Explain the downstream-port behavior, please.")
+    results = retriever.query("Explain the port-power feature, please.")
     result_ids = {r.evidence_id for r in results}
     assert "USB3-FEAT-PORT_POWER" in result_ids
 
@@ -142,6 +144,27 @@ def test_governed_retriever_finds_bare_link_state_natural_language_question():
     )
     assert len(results) > 0
     assert results[0].evidence_id == "USB3-FEAT-PORT_LINK_STATE"
+
+
+@pytest.mark.unit
+def test_governed_retriever_warm_reset_link_states_question_still_abstains():
+    # PR #29 review regression (2nd pass): the bare "link state" compound
+    # alias reopened the exact Warm Reset false-positive this whole fix set
+    # out to close, because "link state" is a substring of "link states".
+    # This is PR #23's actual user_realistic Warm Reset question, which is
+    # NOT a PORT_LINK_STATE feature-selector question and has no
+    # corresponding evidence in the (currently 5-entry) registry -- the
+    # retriever must abstain, not guess PORT_LINK_STATE just because "link
+    # state[s]" appears as a substring. This expectation should change only
+    # if/when real Warm Reset evidence is added to the registry.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "In USB 3.2, which link states allow a downstream port "
+        "to issue a Warm Reset, and what are the minimum and "
+        "maximum tReset durations?",
+        target_scope="USB_3_X",
+    )
+    assert results == []
 
 
 @pytest.mark.unit
