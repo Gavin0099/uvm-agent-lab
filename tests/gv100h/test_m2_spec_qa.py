@@ -203,6 +203,36 @@ def test_governed_retriever_warm_reset_enable_link_question_still_abstains():
 
 
 @pytest.mark.unit
+def test_governed_retriever_link_power_management_question_still_abstains():
+    # PR #29 review regression (4th pass): a bare "power" *substring* match
+    # was too permissive -- "USB 3.2 link power management states" is a
+    # Link Power Management (LPM) question, not a PORT_POWER question, but
+    # the word "power" appears in it. With no "port_power"/"port power"
+    # phrase, no feature-selector qualifier word, and no genuine
+    # PORT_LINK_STATE/section signal present, the retriever must abstain
+    # rather than surface PORT_POWER just because "power" is mentioned.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "What are the USB 3.2 link power management states?",
+        target_scope="USB_3_X",
+    )
+    assert results == []
+
+
+@pytest.mark.unit
+def test_governed_retriever_power_management_timeout_question_still_abstains():
+    # PR #29 review regression (4th pass), sibling of the above: "power" on
+    # its own (no "port_power"/"port power" phrase, no feature-selector
+    # qualifier) must not manufacture a false PORT_POWER candidate.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "What are the power management timeout rules in USB 3.2?",
+        target_scope="USB_3_X",
+    )
+    assert results == []
+
+
+@pytest.mark.unit
 def test_governed_retriever_section_ref_does_not_collide_with_unrelated_section():
     # A bare version-like fragment ("3.2") must never match an unrelated
     # section id merely because "3.2" happens to be a substring of it (e.g.

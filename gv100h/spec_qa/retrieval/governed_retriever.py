@@ -503,13 +503,31 @@ class GovernedSpecRetriever:
             if "descriptor" in q_lower or "描述符" in q_lower or "bdescriptortype" in q_lower:
                 if "DESC" in ev.evidence_id:
                     strong_score += 15
-            if "port_power" in q_lower or "電源" in q_lower or "power" in q_lower:
-                # Bare "power" is a deliberate, curated concept alias for
-                # PORT_POWER (like "link state" below for PORT_LINK_STATE),
-                # not a generic lexical-overlap fallback: it lets realistic
-                # natural-language questions ("...controls downstream-port
-                # power...") establish a genuine candidate without relying
-                # on the low-precision generic content-word loop.
+            # PR #29 review regression (4th pass): a bare "power" *substring*
+            # match was too permissive -- "What are the USB 3.2 link power
+            # management states?" is not a PORT_POWER question, but contains
+            # "power" as a substring and would wrongly establish a candidate.
+            # Mirror the "link state" design below: an explicit, unambiguous
+            # phrase ("port_power" / "port power" / "downstream port power" /
+            # "電源") is always a strong signal; a *bare* "power" token is only
+            # a strong signal when it co-occurs with an explicit
+            # feature-selector qualifier word. Match on the tokenized "power"
+            # (not a substring of `q_lower`) so "powered"/"powerful" can't
+            # accidentally trigger it.
+            has_explicit_port_power_phrase = (
+                "port_power" in q_lower or "port power" in q_lower or "電源" in q_lower
+            )
+            has_bare_power_with_qualifier = "power" in query_tokens and any(
+                qualifier in q_lower
+                for qualifier in (
+                    "feature",
+                    "selector",
+                    "setportfeature",
+                    "clearportfeature",
+                    "vbus",
+                )
+            )
+            if has_explicit_port_power_phrase or has_bare_power_with_qualifier:
                 if "PORT_POWER" in ev.evidence_id:
                     strong_score += 15
             has_explicit_link_state_phrase = (
