@@ -899,6 +899,38 @@ def test_governed_qa_service_abstention():
     assert len(resp.cited_evidences) == 0
 
 
+@pytest.mark.unit
+def test_governed_qa_service_rejects_allowed_evidence_scopes_without_answer_scope():
+    # Codex review regression (PR #31, P1): QARequest permits declaring
+    # allowed_evidence_scopes without answer_scope, but RetrievalPolicy
+    # requires answer_scope to build a policy at all. Silently falling
+    # through to an unscoped query would let the retriever cite evidence
+    # outside the caller's explicitly declared hard boundary -- this
+    # combination must be rejected, not silently widened.
+    service = GovernedQAService()
+    with pytest.raises(ValueError, match="allowed_evidence_scopes was provided without answer_scope"):
+        service.answer_question(
+            "PORT_POWER feature selector value",
+            allowed_evidence_scopes=["USB_2_0"],
+        )
+
+
+@pytest.mark.unit
+def test_governed_qa_service_routes_domain_into_retrieval_policy():
+    # Codex review regression (PR #31, P2): QARequest accepts a `domain`
+    # field, but answer_question() had no corresponding parameter, so every
+    # request was silently treated as USB_HUB regardless of the declared
+    # domain. Passing an unknown domain must now surface RetrievalPolicy's
+    # own domain validation instead of being silently dropped.
+    service = GovernedQAService()
+    with pytest.raises(RetrievalPolicyError, match="unknown retrieval domain"):
+        service.answer_question(
+            "PORT_POWER feature selector value",
+            "USB_2_0",
+            domain="HID",
+        )
+
+
 @pytest.mark.contract
 def test_golden_30_deterministic_benchmark():
     evaluator = DeterministicSpecQAEvaluator()

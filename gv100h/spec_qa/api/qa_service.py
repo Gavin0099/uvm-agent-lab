@@ -36,6 +36,7 @@ class GovernedQAService:
         query_text: str,
         answer_scope: Optional[str] = None,
         *,
+        domain: str = "USB_HUB",
         retrieval_mode: RetrievalMode = "single_scope",
         allowed_evidence_scopes: Optional[Sequence[str]] = None,
     ) -> QAResponse:
@@ -57,12 +58,29 @@ class GovernedQAService:
                     is_abstain=True
                 )
 
+        # allowed_evidence_scopes is only meaningful paired with an
+        # answer_scope: RetrievalPolicy requires answer_scope to construct
+        # the policy at all, and single_scope/explicit_cross_scope both
+        # derive their eligibility from it. Silently dropping an explicitly
+        # declared allowed_evidence_scopes restriction (by falling through to
+        # an unscoped RetrievalPolicy=None query) would let the retriever
+        # cite evidence outside the caller's declared hard boundary -- reject
+        # the combination instead of silently widening retrieval.
+        if answer_scope is None and allowed_evidence_scopes:
+            raise ValueError(
+                "allowed_evidence_scopes was provided without answer_scope; "
+                "GovernedQAService requires answer_scope to build a scope-restricting "
+                "RetrievalPolicy. Provide answer_scope, or omit allowed_evidence_scopes "
+                "to run a fully unscoped query."
+            )
+
         # RetrievalPolicy is only constructed when the caller declares an
-        # answer_scope. `retrieval_mode`/`allowed_evidence_scopes` are the
-        # caller's explicit policy declaration -- this service never infers
-        # them from `query_text`.
+        # answer_scope. `domain`/`retrieval_mode`/`allowed_evidence_scopes` are
+        # the caller's explicit policy declaration -- this service never
+        # infers them from `query_text`.
         retrieval_policy = (
             RetrievalPolicy(
+                domain=domain,
                 answer_scope=answer_scope,
                 retrieval_mode=retrieval_mode,
                 allowed_evidence_scopes=(
