@@ -94,6 +94,26 @@ Upon completion of any task, the agent must submit an **Evidence Packet**:
 2. **Deterministic Diff**: Diffs must apply cleanly and produce the intended behavioral changes.
 3. **Verified Execution**: `compile_log` and `simulation_log` are verified against the simulator sandbox hashes.
 
+## Mandatory Subagent Review Before Finalizing
+
+For every implementation task in this repository (a PR, a feature slice, a
+contract/schema change, a bugfix — anything beyond a trivial one-line edit),
+the agent must dispatch an independent subagent review of the change **before**
+reporting the work as done, and again before merging any PR.
+
+- The review subagent must be given the actual diff/changed files and the
+  original task requirements, and must check correctness, regression risk, and
+  whether the stated contract/acceptance criteria are actually met — not just
+  that tests were added.
+- Do not self-certify a change as complete based only on the implementing
+  agent's own test run. The subagent review is a separate, independent pass.
+- If the subagent review finds issues, they must be fixed and the affected
+  parts re-reviewed before the work is reported as done.
+- This applies in addition to (not instead of) running the actual test suite
+  and reporting real command output as evidence.
+- Do not merge a PR without both a passing independent subagent review and the
+  user's explicit merge instruction.
+
 ## AI Governance Update Intent Rule
 
 When the user asks to "Update AI Governance to latest" or 「把 AI Governance
