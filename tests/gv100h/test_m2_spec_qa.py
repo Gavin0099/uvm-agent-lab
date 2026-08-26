@@ -12,6 +12,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from gv100h.spec_qa.retrieval.governed_retriever import GovernedSpecRetriever
 from gv100h.spec_qa.api.qa_service import GovernedQAService
+from gv100h.spec_qa.contracts.retrieval_policy import RetrievalPolicy, RetrievalPolicyError
 from gv100h.spec_qa.evaluation.deterministic_evaluator import DeterministicSpecQAEvaluator
 from gv100h.coding_eval.governance_ab_runner import ABExperimentSummary
 from gv100h.qualification.evaluator import QualificationPolicyEvaluator
@@ -26,7 +27,9 @@ from gv100h.spec_qa.contracts.corpus_binding_receipt import (
 @pytest.mark.unit
 def test_governed_retriever_query():
     retriever = GovernedSpecRetriever()
-    results = retriever.query("PORT_POWER", target_scope="USB_3_X")
+    results = retriever.query(
+        "PORT_POWER", retrieval_policy=RetrievalPolicy(answer_scope="USB_3_X")
+    )
     assert len(results) > 0
     assert results[0].evidence_id == "USB3-FEAT-PORT_POWER"
     assert results[0].scope == "USB_3_X"
@@ -44,7 +47,7 @@ def test_governed_retriever_abstains_when_only_scope_and_generic_words_match():
     retriever = GovernedSpecRetriever()
     results = retriever.query(
         "USB 3.2 Warm Reset tReset link training 完成後最短最長時間是多少？",
-        target_scope="USB_3_X",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB_3_X"),
     )
     assert results == []
 
@@ -54,7 +57,10 @@ def test_governed_retriever_abstains_on_pure_scope_match_without_topic_signal():
     # A matching target_scope with zero topic/term relevance must never by
     # itself qualify any evidence entry as a candidate.
     retriever = GovernedSpecRetriever()
-    results = retriever.query("completely unrelated benign question", target_scope="USB_3_X")
+    results = retriever.query(
+        "completely unrelated benign question",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB_3_X"),
+    )
     assert results == []
 
 
@@ -63,7 +69,10 @@ def test_governed_retriever_still_finds_genuine_port_link_state_match():
     # Sanity check: tightening the generic-token/scope rules must not break
     # legitimate PORT_LINK_STATE queries that use the specific feature name.
     retriever = GovernedSpecRetriever()
-    results = retriever.query("PORT_LINK_STATE feature selector value", target_scope="USB_3_X")
+    results = retriever.query(
+        "PORT_LINK_STATE feature selector value",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB_3_X"),
+    )
     assert len(results) > 0
     assert results[0].evidence_id == "USB3-FEAT-PORT_LINK_STATE"
 
@@ -81,7 +90,7 @@ def test_governed_retriever_finds_natural_language_port_power_question():
     results = retriever.query(
         "Which USB 2.0 Hub Class feature controls downstream-port power, "
         "and what operation invokes that feature?",
-        target_scope="USB_2_0",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB_2_0"),
     )
     assert len(results) > 0
     assert results[0].evidence_id == "USB2-FEAT-PORT_POWER"
@@ -140,7 +149,8 @@ def test_governed_retriever_finds_bare_link_state_natural_language_question():
     # value?") must not be driven to topic_score=0 and abstained.
     retriever = GovernedSpecRetriever()
     results = retriever.query(
-        "What is the link state feature selector value?", target_scope="USB_3_X"
+        "What is the link state feature selector value?",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB_3_X"),
     )
     assert len(results) > 0
     assert results[0].evidence_id == "USB3-FEAT-PORT_LINK_STATE"
@@ -162,7 +172,7 @@ def test_governed_retriever_warm_reset_link_states_question_still_abstains():
         "In USB 3.2, which link states allow a downstream port "
         "to issue a Warm Reset, and what are the minimum and "
         "maximum tReset durations?",
-        target_scope="USB_3_X",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB_3_X"),
     )
     assert results == []
 
@@ -182,7 +192,7 @@ def test_governed_retriever_warm_reset_operation_question_still_abstains():
     results = retriever.query(
         "What operation is used to initiate a Warm Reset "
         "on a USB 3.2 downstream port?",
-        target_scope="USB_3_X",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB_3_X"),
     )
     assert results == []
 
@@ -197,7 +207,7 @@ def test_governed_retriever_warm_reset_enable_link_question_still_abstains():
     retriever = GovernedSpecRetriever()
     results = retriever.query(
         "Does Warm Reset enable the link on a USB 3.2 downstream port?",
-        target_scope="USB_3_X",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB_3_X"),
     )
     assert results == []
 
@@ -214,7 +224,7 @@ def test_governed_retriever_link_power_management_question_still_abstains():
     retriever = GovernedSpecRetriever()
     results = retriever.query(
         "What are the USB 3.2 link power management states?",
-        target_scope="USB_3_X",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB_3_X"),
     )
     assert results == []
 
@@ -227,7 +237,7 @@ def test_governed_retriever_power_management_timeout_question_still_abstains():
     retriever = GovernedSpecRetriever()
     results = retriever.query(
         "What are the power management timeout rules in USB 3.2?",
-        target_scope="USB_3_X",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB_3_X"),
     )
     assert results == []
 
@@ -245,7 +255,7 @@ def test_governed_retriever_link_power_management_feature_question_still_abstain
     retriever = GovernedSpecRetriever()
     results = retriever.query(
         "Which feature controls link power management in USB 3.2?",
-        target_scope="USB_3_X",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB_3_X"),
     )
     assert results == []
 
@@ -256,7 +266,7 @@ def test_governed_retriever_power_management_behavior_feature_question_still_abs
     retriever = GovernedSpecRetriever()
     results = retriever.query(
         "What feature defines power management behavior in USB 3.2?",
-        target_scope="USB_3_X",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB_3_X"),
     )
     assert results == []
 
@@ -272,7 +282,7 @@ def test_governed_retriever_setportfeature_port_reset_question_still_abstains():
     results = retriever.query(
         "Which selector value is used with SetPortFeature(PORT_RESET) "
         "on a USB 3.2 hub?",
-        target_scope="USB_3_X",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB_3_X"),
     )
     assert results == []
 
@@ -286,7 +296,7 @@ def test_governed_retriever_vbus_current_limit_question_still_abstains():
     retriever = GovernedSpecRetriever()
     results = retriever.query(
         "What is the VBUS current limit in USB 3.2?",
-        target_scope="USB_3_X",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB_3_X"),
     )
     assert results == []
 
@@ -303,25 +313,84 @@ def test_governed_retriever_section_ref_does_not_collide_with_unrelated_section(
 
 
 @pytest.mark.unit
-def test_governed_retriever_scope_bonus_is_reranking_only_not_a_hard_filter():
-    # KNOWN LIMITATION, intentionally documented rather than silently
-    # assumed solved (see PR #29 review discussion): target_scope is only a
-    # reranking bonus, not a hard evidence-scope boundary. A topically
-    # relevant query still surfaces the out-of-scope evidence entry
-    # alongside the in-scope one. A hard `if ev.scope != target_scope:
-    # continue` filter is NOT a safe substitute here, because some
-    # legitimate questions (e.g. "is PORT_LINK_STATE supported in USB 2.0?")
-    # must cite out-of-scope evidence to correctly answer a question about
-    # the target scope. Properly closing this requires splitting the
-    # retrieval contract into `answer_scope` vs `allowed_evidence_scopes`,
-    # tracked as follow-up work, not a change to this bonus.
+def test_governed_retriever_single_scope_is_a_hard_filter_not_a_bonus():
+    # This closes the PR #29-carried-forward KNOWN LIMITATION: under the
+    # RetrievalPolicy contract, `single_scope` (the default retrieval_mode)
+    # is a hard evidence-scope eligibility gate, not a reranking bonus. A
+    # topically relevant query must NOT surface out-of-scope evidence when
+    # the caller has not explicitly asked for it.
     retriever = GovernedSpecRetriever()
-    results = retriever.query("PORT_POWER feature selector value", target_scope="USB_2_0")
+    results = retriever.query(
+        "PORT_POWER feature selector value",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB_2_0"),
+    )
+    result_ids = {r.evidence_id for r in results}
+    assert result_ids == {"USB2-FEAT-PORT_POWER"}
+
+
+@pytest.mark.unit
+def test_governed_retriever_explicit_cross_scope_allows_declared_out_of_scope_evidence():
+    # The caller (never the retriever) decides when a question legitimately
+    # needs cross-scope evidence, by explicitly declaring
+    # retrieval_mode="explicit_cross_scope" with a non-empty
+    # allowed_evidence_scopes. This is the escape hatch that keeps questions
+    # like "is PORT_LINK_STATE supported in USB 2.0?" answerable without
+    # reopening the hard-filter gate for every other query.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "PORT_POWER feature selector value",
+        retrieval_policy=RetrievalPolicy(
+            answer_scope="USB_2_0",
+            retrieval_mode="explicit_cross_scope",
+            allowed_evidence_scopes=("USB_2_0", "USB_3_X"),
+        ),
+    )
     result_ids = {r.evidence_id for r in results}
     assert "USB2-FEAT-PORT_POWER" in result_ids
     assert "USB3-FEAT-PORT_POWER" in result_ids
-    # The in-scope evidence must still be ranked first via the scope bonus.
+    # The evidence matching answer_scope must still be ranked first.
     assert results[0].evidence_id == "USB2-FEAT-PORT_POWER"
+
+
+@pytest.mark.unit
+def test_governed_retriever_unscoped_query_is_unaffected_by_retrieval_policy():
+    # Omitting retrieval_policy entirely must preserve the pre-existing
+    # unscoped behavior: any evidence scope is eligible, only topic
+    # relevance decides candidacy.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query("PORT_POWER feature selector value")
+    result_ids = {r.evidence_id for r in results}
+    assert "USB2-FEAT-PORT_POWER" in result_ids
+    assert "USB3-FEAT-PORT_POWER" in result_ids
+
+
+@pytest.mark.unit
+def test_retrieval_policy_single_scope_defaults_allowed_evidence_scopes():
+    policy = RetrievalPolicy(answer_scope="USB_2_0")
+    assert policy.allowed_evidence_scopes == ("USB_2_0",)
+    assert policy.domain == "USB_HUB"
+
+
+@pytest.mark.unit
+def test_retrieval_policy_single_scope_rejects_mismatched_allowed_scopes():
+    with pytest.raises(RetrievalPolicyError, match="single_scope retrieval_mode requires"):
+        RetrievalPolicy(
+            answer_scope="USB_2_0",
+            retrieval_mode="single_scope",
+            allowed_evidence_scopes=("USB_2_0", "USB_3_X"),
+        )
+
+
+@pytest.mark.unit
+def test_retrieval_policy_explicit_cross_scope_requires_non_empty_allowed_scopes():
+    with pytest.raises(RetrievalPolicyError, match="explicit_cross_scope retrieval_mode requires"):
+        RetrievalPolicy(answer_scope="USB_2_0", retrieval_mode="explicit_cross_scope")
+
+
+@pytest.mark.unit
+def test_retrieval_policy_rejects_unknown_domain():
+    with pytest.raises(RetrievalPolicyError, match="unknown retrieval domain"):
+        RetrievalPolicy(domain="HID", answer_scope="USB_2_0")
 
 
 @pytest.mark.contract
@@ -497,7 +566,7 @@ def test_qa_evaluator_propagates_corpus_receipt_and_dataset_hash(tmp_path):
         corpus_binding_receipt_path=str(receipt_path),
         retriever=retriever,
     )
-    result = evaluator.run_benchmark(lambda _query, _scope: ("", []))
+    result = evaluator.run_benchmark(lambda _query, _scope, **_kwargs: ("", []))
 
     assert result.corpus_receipt_status == "verified"
     assert result.corpus_binding_receipt_hash == receipt.receipt_hash
@@ -524,7 +593,7 @@ def test_policy_revalidates_corpus_receipt_after_qa_evaluation(tmp_path):
     qa_result = DeterministicSpecQAEvaluator(
         corpus_binding_receipt_path=str(receipt_path),
         retriever=retriever,
-    ).run_benchmark(lambda _query, _scope: ("", []))
+    ).run_benchmark(lambda _query, _scope, **_kwargs: ("", []))
     coding_summary = ABExperimentSummary(
         total_runs_per_arm=30,
         is_synthetic_simulation=True,
@@ -579,7 +648,7 @@ def test_qa_evaluator_marks_missing_receipt(tmp_path):
     evaluator = DeterministicSpecQAEvaluator(
         corpus_binding_receipt_path=str(tmp_path / "missing-receipt.json")
     )
-    result = evaluator.run_benchmark(lambda _query, _scope: ("", []))
+    result = evaluator.run_benchmark(lambda _query, _scope, **_kwargs: ("", []))
 
     assert result.corpus_receipt_status == "missing"
     assert result.corpus_binding_receipt_hash is None
@@ -610,7 +679,7 @@ def test_qa_evaluator_marks_tampered_receipt_as_mismatch(tmp_path):
         corpus_binding_receipt_path=str(tampered_path),
         retriever=retriever,
     )
-    result = evaluator.run_benchmark(lambda _query, _scope: ("", []))
+    result = evaluator.run_benchmark(lambda _query, _scope, **_kwargs: ("", []))
 
     assert result.corpus_receipt_status == "mismatch"
     assert result.corpus_binding_receipt_hash is None
@@ -830,13 +899,56 @@ def test_governed_qa_service_abstention():
     assert len(resp.cited_evidences) == 0
 
 
+@pytest.mark.unit
+def test_governed_qa_service_rejects_allowed_evidence_scopes_without_answer_scope():
+    # Codex review regression (PR #31, P1): QARequest permits declaring
+    # allowed_evidence_scopes without answer_scope, but RetrievalPolicy
+    # requires answer_scope to build a policy at all. Silently falling
+    # through to an unscoped query would let the retriever cite evidence
+    # outside the caller's explicitly declared hard boundary -- this
+    # combination must be rejected, not silently widened.
+    service = GovernedQAService()
+    with pytest.raises(ValueError, match="allowed_evidence_scopes was provided without answer_scope"):
+        service.answer_question(
+            "PORT_POWER feature selector value",
+            allowed_evidence_scopes=["USB_2_0"],
+        )
+
+
+@pytest.mark.unit
+def test_governed_qa_service_routes_domain_into_retrieval_policy():
+    # Codex review regression (PR #31, P2): QARequest accepts a `domain`
+    # field, but answer_question() had no corresponding parameter, so every
+    # request was silently treated as USB_HUB regardless of the declared
+    # domain. Passing an unknown domain must now surface RetrievalPolicy's
+    # own domain validation instead of being silently dropped.
+    service = GovernedQAService()
+    with pytest.raises(RetrievalPolicyError, match="unknown retrieval domain"):
+        service.answer_question(
+            "PORT_POWER feature selector value",
+            "USB_2_0",
+            domain="HID",
+        )
+
+
 @pytest.mark.contract
 def test_golden_30_deterministic_benchmark():
     evaluator = DeterministicSpecQAEvaluator()
     service = GovernedQAService()
 
-    def mock_agent_call(query_text: str, target_scope: str):
-        resp = service.answer_question(query_text, target_scope)
+    def mock_agent_call(
+        query_text: str,
+        expected_scope: str,
+        *,
+        retrieval_mode: str = "single_scope",
+        allowed_evidence_scopes=None,
+    ):
+        resp = service.answer_question(
+            query_text,
+            expected_scope,
+            retrieval_mode=retrieval_mode,
+            allowed_evidence_scopes=allowed_evidence_scopes,
+        )
         cited_ids = [ev.evidence_id for ev in resp.cited_evidences]
         return resp.answer, cited_ids
 

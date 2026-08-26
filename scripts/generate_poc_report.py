@@ -148,7 +148,10 @@ def generate_report(
     qa_evaluator = DeterministicSpecQAEvaluator()
     qa_service = GovernedQAService()
     qa_res = qa_evaluator.run_benchmark(
-        lambda q, s: (qa_service.answer_question(q, s).answer, [e.evidence_id for e in qa_service.answer_question(q, s).cited_evidences])
+        lambda q, s, **kwargs: (
+            qa_service.answer_question(q, s, **kwargs).answer,
+            [e.evidence_id for e in qa_service.answer_question(q, s, **kwargs).cited_evidences],
+        )
     )
 
     live_manifest_dir = PROJECT_ROOT / "results" / "live_eval"

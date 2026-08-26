@@ -114,6 +114,8 @@
       "question": "USB 2.0 Hub 是否支援 PORT_LINK_STATE (0x0005) 特徵選擇器？",
       "expected_behavior": "answer",
       "expected_scope": "USB_2_0",
+      "retrieval_mode": "explicit_cross_scope",
+      "allowed_evidence_scopes": ["USB_3_X"],
       "accepted_evidence_ids": ["USB3-FEAT-PORT_LINK_STATE"],
       "expected_keywords": ["不適用", "不支援", "Not applicable", "USB 3.x 專屬"]
     },
@@ -123,6 +125,8 @@
       "question": "USB 2.0 與 USB 3.x 的 Hub Descriptor bDescriptorType 是否相同？",
       "expected_behavior": "answer",
       "expected_scope": "USB_HUB_COMMON",
+      "retrieval_mode": "explicit_cross_scope",
+      "allowed_evidence_scopes": ["USB_2_0", "USB_3_X"],
       "accepted_evidence_ids": ["USB3-HUB-DESC-FORMAT", "USB2-HUB-DESC-FORMAT"],
       "expected_keywords": ["不同", "0x29", "0x2A"]
     },
@@ -132,6 +136,8 @@
       "question": "在 USB 2.0 Hub 上收到 0x2A 的描述符類型是否正確？",
       "expected_behavior": "answer",
       "expected_scope": "USB_2_0",
+      "retrieval_mode": "explicit_cross_scope",
+      "allowed_evidence_scopes": ["USB_2_0", "USB_3_X"],
       "accepted_evidence_ids": ["USB3-HUB-DESC-FORMAT", "USB2-HUB-DESC-FORMAT"],
       "expected_keywords": ["不正確", "0x29", "0x2A 為 USB 3.x"]
     },
@@ -150,6 +156,8 @@
       "question": "PORT_POWER 的選擇器在 USB 2.0 與 USB 3.x 是否皆為 8？",
       "expected_behavior": "answer",
       "expected_scope": "USB_HUB_COMMON",
+      "retrieval_mode": "explicit_cross_scope",
+      "allowed_evidence_scopes": ["USB_2_0", "USB_3_X"],
       "accepted_evidence_ids": ["USB3-FEAT-PORT_POWER", "USB2-FEAT-PORT_POWER"],
       "expected_keywords": ["皆為 8", "相同", "0x0008"]
     },
@@ -159,6 +167,8 @@
       "question": "章節 10.16.2.2 的 PORT_LINK_STATE 在 USB 2.0 架構下有效嗎？",
       "expected_behavior": "answer",
       "expected_scope": "USB_2_0",
+      "retrieval_mode": "explicit_cross_scope",
+      "allowed_evidence_scopes": ["USB_3_X"],
       "accepted_evidence_ids": ["USB3-FEAT-PORT_LINK_STATE"],
       "expected_keywords": ["無效", "USB 3.x"]
     },
@@ -168,6 +178,8 @@
       "question": "如何區分收到的 Hub Descriptor 是 USB 2.0 還是 USB 3.x？",
       "expected_behavior": "answer",
       "expected_scope": "USB_HUB_COMMON",
+      "retrieval_mode": "explicit_cross_scope",
+      "allowed_evidence_scopes": ["USB_2_0", "USB_3_X"],
       "accepted_evidence_ids": ["USB3-HUB-DESC-FORMAT", "USB2-HUB-DESC-FORMAT"],
       "expected_keywords": ["bDescriptorType", "0x29", "0x2A"]
     },
@@ -177,6 +189,8 @@
       "question": "USB 2.0 的章節 11.24.2.1 定義的 PORT_POWER 與 3.x 有何數值差異？",
       "expected_behavior": "answer",
       "expected_scope": "USB_HUB_COMMON",
+      "retrieval_mode": "explicit_cross_scope",
+      "allowed_evidence_scopes": ["USB_2_0", "USB_3_X"],
       "accepted_evidence_ids": ["USB3-FEAT-PORT_POWER", "USB2-FEAT-PORT_POWER"],
       "expected_keywords": ["無差異", "皆為 8", "0x0008"]
     },
