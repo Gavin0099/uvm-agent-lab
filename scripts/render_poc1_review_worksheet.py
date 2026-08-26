@@ -220,12 +220,19 @@ QUESTION_ZH = {
         " 第 10 章的哪一條 Hub 要求，以及 SuperSpeed Hub LVS Rev 1.15 的哪一項條件？"
     ),
     "DRAFT-L3-032": (
-        "如何把 USB 3.2 Rev 1.1 的 Hub 或 link 要求，對上 SuperSpeed Hub LVS"
-        " Rev 1.15 的測試條件，同時正式引用仍落在 USB 3.2 原文？"
+        "USB 3.2 Rev 1.1 第 6.9.3 節規定 downstream port 可以在 Table 6-30 的"
+        " tReset 區間內發出 Warm Reset；第 10.3.1.9 節把 PORT_LINK_STATE（PLS）"
+        "定義成該轉換期間 GetPortStatus 要回報的欄位。哪一項 SuperSpeed Hub LVS"
+        " Rev 1.15 測試條件，能把 Warm Reset 要求與觀察到的 PLS 值串成實際執行"
+        "證據？要補齊這條證據鏈，還缺什麼？"
     ),
     "DRAFT-L3-033": (
-        "如何同時報告 USB 2.0 firmware-scope 的 Hub Class 要求與 USB 2.0"
-        " signal/electrical 要求，而不把 firmware 或產品合規講過頭？"
+        "USB 2.0 Rev 2.0 Table 11-17 把 Hub Class PORT_POWER feature-selector"
+        " 訂成 8，供 ClearPortFeature/SetPortFeature 使用；Table 6-7 則是同一個"
+        " connector 的 Contact Capacitance 效能要求。當合規報告用 Table 11-17"
+        " 支撐一項 PORT_POWER 控制轉換測試時，Table 6-7 的電容要求是否也是這項"
+        "測試的必要證據？還是它屬於另一個獨立範圍的電氣或機械測試？請指出"
+        " PORT_POWER 這項主張實際需要哪些引用。"
     ),
     "DRAFT-L3-034": (
         "一項同時涵蓋控制行為與 signaling 的要求，需要哪一對 USB 2.0"
@@ -244,8 +251,13 @@ QUESTION_ZH = {
         " SuperSpeed Hub LVS Rev 1.15 測試條件連起來，需要哪三截證據？"
     ),
     "DRAFT-L3-038": (
-        "如何用 USB 3.2 Rev 1.1 與 SuperSpeed Hub LVS Rev 1.15 支撐"
-        " USB 3.2 Hub 結論，同時不要把其中任何一份說成產品已通過？"
+        "某 Hub 廠商只因為 SuperSpeed Hub LVS Rev 1.15 TD 10.104 通過，就宣稱"
+        "完全符合 USB 3.2 Rev 1.1 第 10.3.1.11 節的 Powered-off-reset 要求。"
+        "請完成三個明確步驟：(1) 說明第 10.3.1.11 節在收到 ClearPortFeature"
+        "(PORT_POWER) 後實際要求的轉換是什麼；(2) 說明 TD 10.104 實際施加的"
+        " stimulus 與觀察的 response 是什麼；(3) 指出第 10.3.1.11 節要求中，"
+        "TD 10.104 的執行證據沒有涵蓋到的部分。這個廠商的合規主張是否成立？"
+        "為什麼？"
     ),
     "DRAFT-L4-039": (
         "USB 2.0 Table 11-17 把 PORT_POWER 的 Hub Class feature-selector 訂成 8。"
