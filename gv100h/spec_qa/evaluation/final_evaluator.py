@@ -11,6 +11,7 @@ from gv100h.spec_qa.contracts.poc1_acceptance_contract import (
     AcceptanceQuestion,
     BoundaryCode,
     POC1AcceptanceSet,
+    _bound_source_ids,
     compute_acceptance_set_hash,
     load_poc1_acceptance_set,
 )
@@ -234,7 +235,23 @@ class FinalPOC1Evaluator:
         citation_complete = self._required_citation_fields_present(response, question)
 
         if question.expected_status == "answer":
-            evidence_shape_correct = bool(cited_ids) and set(cited_ids).issubset(expected_ids)
+            base_evidence_shape_correct = bool(cited_ids) and set(cited_ids).issubset(
+                expected_ids
+            )
+            if base_evidence_shape_correct and len(question.accepted_source_ids) >= 2:
+                # Multi-source (e.g. cross_document) gold: citing a subset of
+                # the allowed evidence pool is not enough on its own -- a
+                # response that only cites evidence bound to one required
+                # source must not pass. Require at least one cited,
+                # `source_id:`-bound evidence item per accepted_source_id,
+                # not that every expected_evidence_id be cited (alternates
+                # for the same source are allowed).
+                cited_source_coverage = _bound_source_ids(cited_ids)
+                evidence_shape_correct = set(
+                    question.accepted_source_ids
+                ).issubset(cited_source_coverage)
+            else:
+                evidence_shape_correct = base_evidence_shape_correct
         elif question.expected_status == "conflict":
             evidence_shape_correct = expected_ids.issubset(set(cited_ids))
         else:

@@ -489,3 +489,131 @@ def test_constructed_same_object_conflict_path_is_detected(tmp_path: Path):
     assert collapsed_result.passed is False
     assert collapsed_result.observed_status == "answer"
     assert collapsed_result.forbidden_claim_detected is True
+
+
+def _constructed_multi_source_answer_question() -> dict:
+    """L3-shaped gold with two required sources and two interchangeable
+    evidence alternates for one of them. Regression fixture for the
+    per-required-source citation coverage check."""
+    return {
+        "question_id": "FIXTURE-MULTISRC-001",
+        "layer": "L3",
+        "priority": "P1",
+        "category": "cross_document",
+        "question": "Constructed cross-document coverage question.",
+        "expected_status": "answer",
+        "expected_scope": "USB_HUB_COMMON",
+        "accepted_source_ids": ["usb20_fw", "usb32"],
+        "required_citation_fields": {
+            "document": True,
+            "revision": True,
+            "section": True,
+            "page_or_anchor": True,
+            "excerpt_or_evidence_id": True,
+            "scope": True,
+            "boundary_code": False,
+            "mode": "normative_source",
+        },
+        "gold": {
+            "accepted_evidence_ids": [
+                "usb20_fw:E1",
+                "usb20_fw:E2",
+                "usb32:E3",
+            ],
+            "competing_evidence_ids": [],
+            "boundary_evidence_ids": [],
+            "required_claims": [
+                {
+                    "claim_id": "CLAIM-MULTISRC",
+                    "assertion": "multi-source fact",
+                }
+            ],
+            "section_anchors": [
+                "usb20_fw:section-e1",
+                "usb20_fw:section-e2",
+                "usb32:section-e3",
+            ],
+            "required_facts": ["multi-source fact"],
+            "forbidden_claims": ["unsupported-multisrc"],
+            "acceptable_variants": [],
+            "boundary_code": None,
+        },
+        "grading": {
+            "factual_correctness": 0.40,
+            "citation_correctness": 0.25,
+            "source_authority": 0.15,
+            "scope_control": 0.10,
+            "uncertainty_behavior": 0.10,
+        },
+        "independently_reviewed": True,
+        "usb4_negative_control": False,
+        "question_style": "user_realistic",
+    }
+
+
+def _multi_source_response(evidence_ids: list[str]) -> dict:
+    return {
+        "status": "answer",
+        "claims": ["multi-source fact"],
+        "citations": [
+            {
+                "evidence_id": evidence_id,
+                "document": "USB synthetic source",
+                "revision": "synthetic revision",
+                "section": evidence_id,
+                "page_or_anchor": evidence_id,
+                "excerpt_or_evidence_id": evidence_id,
+                "scope": "USB_HUB_COMMON",
+            }
+            for evidence_id in evidence_ids
+        ],
+        "scope": "USB_HUB_COMMON",
+        "boundary_code": None,
+    }
+
+
+def test_multi_source_answer_citing_only_one_required_source_fails(tmp_path: Path):
+    """L3 gold requires usb20_fw + usb32 coverage. Citing only usb20_fw's
+    evidence must not pass, even though that one citation is individually
+    legitimate (closes the P1 gap: subset-only checks let a model answer
+    a multi-source question from a single source)."""
+    manifest = _manifest()
+    manifest["questions"][26] = _constructed_multi_source_answer_question()
+    path = tmp_path / "constructed-multisource.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    evaluator = FinalPOC1Evaluator(
+        str(path),
+        evidence_resolver=SyntheticEvidenceResolver(manifest),
+    )
+    question = evaluator.manifest.questions[26]
+
+    result = evaluator.evaluate_response(
+        question, _multi_source_response(["usb20_fw:E1"])
+    )
+
+    assert result.citation_valid is False
+    assert result.grounded is False
+    assert result.passed is False
+
+
+def test_multi_source_answer_accepts_alternate_evidence_per_source(tmp_path: Path):
+    """Citing a different, still-valid evidence id for one of the required
+    sources (an alternate, not the first-listed gold id) must still pass,
+    as long as every required source is covered by at least one citation."""
+    manifest = _manifest()
+    manifest["questions"][26] = _constructed_multi_source_answer_question()
+    path = tmp_path / "constructed-multisource.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    evaluator = FinalPOC1Evaluator(
+        str(path),
+        evidence_resolver=SyntheticEvidenceResolver(manifest),
+    )
+    question = evaluator.manifest.questions[26]
+
+    result = evaluator.evaluate_response(
+        question, _multi_source_response(["usb20_fw:E2", "usb32:E3"])
+    )
+
+    assert result.citation_valid is True
+    assert result.grounded is True
+    assert result.passed is True
