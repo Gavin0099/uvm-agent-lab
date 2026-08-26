@@ -427,39 +427,195 @@ class GovernedSpecRetriever:
             hasher.update((repo_path / relative_path).read_bytes())
         return hasher.hexdigest(), len(tracked_paths)
 
+    # Tokens that appear across most/all EVIDENCE_REGISTRY entries (or are
+    # otherwise too generic within the USB Hub domain, e.g. "link" showing up
+    # in unrelated Link Training / Link Power Management contexts, or
+    # "downstream"/"upstream" being a structural Hub port concept used when
+    # describing power, reset, and link-state topics alike -- observed
+    # concretely when a Warm Reset / link-states question incidentally
+    # matched USB3-FEAT-PORT_POWER purely because its content happens to
+    # mention "downstream port"). A bare overlap on one of these words
+    # carries no discriminative topic signal, so it must never by itself
+    # justify treating an evidence entry as a relevant candidate.
+    _GENERIC_TOKENS = frozenset({
+        "usb", "hub", "port", "class", "spec", "specification", "specifications",
+        "feature", "features", "selector", "selectors", "link", "state", "states",
+        "downstream", "upstream",
+        "descriptor", "descriptors", "value", "values", "chapter", "section",
+        "version", "revision", "the", "and", "for", "with", "in", "of", "is",
+        "are", "to", "on", "at", "not",
+    })
+
+    # Deterministic word tokenizer: alphanumeric/underscore identifiers (so
+    # "port_link_state" stays one token) or runs of CJK characters. This is
+    # used instead of naive `.split()` so natural-language punctuation and
+    # hyphenation ("downstream-port", "power,", "feature?") don't prevent a
+    # genuine word match, and so purely numeric/version-like tokens (e.g.
+    # "3.2") are never fed into the generic title/content overlap check --
+    # they can only ever contribute relevance through the structured
+    # section-reference matcher below.
+    _WORD_TOKEN_PATTERN = re.compile(r"[a-z_][a-z0-9_]*|[\u4e00-\u9fff]+")
+
+    # A "section reference" in a query is any dotted numeric fragment (e.g.
+    # "11.24.2.1", "11.23", "3.2"). It is matched against an evidence's
+    # (opaque) `section` identifier by per-segment prefix comparison, not by
+    # substring containment: "11.23" is a legitimate prefix of "11.23.2.1",
+    # but "3.2" must NOT match "11.23.2.1" just because the digits "3.2"
+    # happen to appear inside it. This generalizes cleanly to any section
+    # number without hardcoding a new `if "<section>" in q_lower` rule per
+    # entry as the corpus grows.
+    _SECTION_REF_PATTERN = re.compile(r"\d+(?:\.\d+)+")
+
+    @staticmethod
+    def _section_ref_matches(query_section: str, ev_section: str) -> bool:
+        query_parts = query_section.split(".")
+        ev_parts = ev_section.split(".")
+        if len(query_parts) > len(ev_parts):
+            return False
+        return query_parts == ev_parts[: len(query_parts)]
+
     def query(self, query_text: str, target_scope: Optional[str] = None) -> List[GovernedEvidence]:
         q_lower = query_text.lower()
+        query_tokens = self._WORD_TOKEN_PATTERN.findall(q_lower)
+        query_section_refs = self._SECTION_REF_PATTERN.findall(q_lower)
         scored_results = []
 
         for ev in self.EVIDENCE_REGISTRY:
-            score = 0
-            if target_scope and ev.scope == target_scope:
-                score += 5
+            # `strong_score` captures only high-precision topic signals that
+            # are sufficient, on their own, to establish `ev` as a candidate:
+            # explicit concept/technical-phrase aliases and structured
+            # section-reference matches. `lexical_bonus` (below) captures
+            # low-precision generic word overlap between the query and the
+            # evidence title/content; it may only ever *rerank* an evidence
+            # entry that a strong signal has already qualified as a
+            # candidate -- it must never by itself create one. Without this
+            # separation, any ordinary content word that happens to appear
+            # in an evidence's description (e.g. "used", "enable") would be
+            # enough to manufacture a false candidate, an unbounded stoplist
+            # "whack-a-mole" problem (concretely observed with
+            # "link"/"downstream"/"upstream" before this split existed).
+            # `target_scope` is excluded from both: it must remain only a
+            # reranking bonus applied on top of an already-established
+            # candidate, never a standalone reason to treat an evidence
+            # entry as relevant.
+            strong_score = 0
 
             if "descriptor" in q_lower or "描述符" in q_lower or "bdescriptortype" in q_lower:
                 if "DESC" in ev.evidence_id:
-                    score += 15
-            if "port_power" in q_lower or "電源" in q_lower:
+                    strong_score += 15
+            # PR #29 review regression (5th pass): "power" + a mere
+            # feature-selector qualifier (e.g. "Which feature controls link
+            # power management in USB 3.2?") is STILL not high-precision
+            # enough -- that question is about USB 3.2 Link Power Management,
+            # not the Hub Class PORT_POWER feature selector, yet it contains
+            # both "power" and "feature". A bare "power" token may only be
+            # treated as strong when it co-occurs with BOTH (a) explicit
+            # port/VBUS context (`port`/`downstream`/`vbus`) AND (b) a
+            # feature-selector qualifier (`feature`/`selector`) -- "power"
+            # alone, or "power"+qualifier without port/VBUS context, is not
+            # enough. All matching is on tokenized words (`query_tokens`),
+            # not substrings of `q_lower`, so "powered"/"powerful" can't
+            # misfire.
+            #
+            # PR #29 review regression (6th pass): `SetPortFeature` /
+            # `ClearPortFeature` / `VBUS` were previously treated as
+            # unambiguous PORT_POWER technical identifiers on their own, but
+            # none of them is actually PORT_POWER-specific: `SetPortFeature`
+            # and `ClearPortFeature` are generic Hub Class requests that also
+            # apply to PORT_RESET and every other feature selector, and
+            # `VBUS` alone is an electrical/power-delivery term, not a Hub
+            # Class PORT_POWER selector question (e.g. "What is the VBUS
+            # current limit in USB 3.2?"). None of the three may establish a
+            # PORT_POWER candidate by itself; they remain useful only as
+            # `lexical_bonus` rerank signal for a candidate already
+            # established by another strong signal.
+            query_token_set = set(query_tokens)
+            has_explicit_port_power_phrase = (
+                "port_power" in q_lower
+                or "port power" in q_lower
+                or "downstream port power" in q_lower
+                or "vbus power" in q_lower
+                or "電源" in q_lower
+            )
+            has_power_with_port_context_and_qualifier = (
+                "power" in query_token_set
+                and bool(query_token_set & {"port", "downstream", "vbus"})
+                and bool(query_token_set & {"feature", "selector"})
+            )
+            if has_explicit_port_power_phrase or has_power_with_port_context_and_qualifier:
                 if "PORT_POWER" in ev.evidence_id:
-                    score += 15
-            if "port_link_state" in q_lower or "link" in q_lower:
+                    strong_score += 15
+            has_explicit_link_state_phrase = (
+                "port_link_state" in q_lower or "port link state" in q_lower
+            )
+            # PR #29 review regression (2nd pass): a bare "link state"
+            # substring match reopened the exact Warm Reset false-positive
+            # this fix set out to close -- "which link states allow a
+            # downstream port to issue a Warm Reset" contains "link state"
+            # as a substring of "link states" and is NOT a PORT_LINK_STATE
+            # question. With only 5 embedded evidence entries, fail-closed:
+            # a bare "link state"/"link states" phrase is only treated as a
+            # genuine PORT_LINK_STATE alias when it co-occurs with an
+            # explicit feature-selector qualifier word. A plain regex word
+            # boundary (`\blink state\b`) is not sufficient either, since
+            # "link state machine"/"link state transition timing" would
+            # still be misidentified as a PORT_LINK_STATE feature-selector
+            # question without a qualifier. This is intentionally narrow;
+            # once a formal Query Normalizer layer exists, this kind of
+            # concept-alias detection should move out of the retriever.
+            has_bare_link_state_with_qualifier = "link state" in q_lower and any(
+                qualifier in q_lower
+                for qualifier in ("feature", "selector", "field", "pls", "value")
+            )
+            if has_explicit_link_state_phrase or has_bare_link_state_with_qualifier:
                 if "PORT_LINK_STATE" in ev.evidence_id:
-                    score += 15
-            if "10.16.2.1" in q_lower and "10.16.2.1" in ev.section:
-                score += 20
-            if "10.16.2.2" in q_lower and "10.16.2.2" in ev.section:
-                score += 20
-            if "11.23" in q_lower and "11.23" in ev.section:
-                score += 20
-            if "10.15" in q_lower and "10.15" in ev.section:
-                score += 20
+                    strong_score += 15
 
-            for token in q_lower.replace("？", " ").replace("。", " ").split():
-                if len(token) > 1 and (token in ev.title.lower() or token in ev.content.lower() or token in ev.section):
-                    score += 2
+            for section_ref in query_section_refs:
+                if self._section_ref_matches(section_ref, ev.section):
+                    strong_score += 20
 
-            if score > 0:
-                scored_results.append((score, ev))
+            if strong_score <= 0:
+                # No high-precision topic signal was found. Generic lexical
+                # overlap, scope match, or nothing at all must never qualify
+                # an evidence entry as a candidate on their own: abstain
+                # instead of guessing.
+                continue
+
+            # PR #29 review regression (3rd pass): with strong-signal-only
+            # gating in place, low-precision generic word overlap is now
+            # safe to compute as a rerank-only bonus, since it can no longer
+            # by itself create a candidate for evidence with zero genuine
+            # topic relevance.
+            lexical_bonus = 0
+            for token in query_tokens:
+                if (
+                    len(token) > 2
+                    and token not in self._GENERIC_TOKENS
+                    and (token in ev.title.lower() or token in ev.content.lower())
+                ):
+                    lexical_bonus += 2
+
+            score = strong_score + lexical_bonus
+            if target_scope and ev.scope == target_scope:
+                score += 5
+            # KNOWN LIMITATION (tracked for a future retrieval-contract PR):
+            # target_scope is only a reranking bonus here, not a hard
+            # evidence-scope boundary -- an evidence entry from a *different*
+            # scope with genuine topic relevance can still be returned
+            # alongside the in-scope evidence. A hard
+            # `if ev.scope != target_scope: continue` filter is NOT a safe
+            # substitute: some questions (e.g. "is PORT_LINK_STATE supported
+            # in USB 2.0?") legitimately need to cite out-of-scope evidence
+            # to answer a question about the target scope. Closing this
+            # properly requires splitting the retrieval contract into
+            # `answer_scope` vs `allowed_evidence_scopes` rather than
+            # tightening this bonus. See
+            # test_governed_retriever_scope_bonus_is_reranking_only_not_a_hard_filter
+            # for the current (intentionally uncorrected) behavior this
+            # produces.
+
+            scored_results.append((score, ev))
 
         scored_results.sort(key=lambda x: x[0], reverse=True)
         return [item[1] for item in scored_results]

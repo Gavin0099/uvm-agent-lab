@@ -32,6 +32,298 @@ def test_governed_retriever_query():
     assert results[0].scope == "USB_3_X"
 
 
+@pytest.mark.unit
+def test_governed_retriever_abstains_when_only_scope_and_generic_words_match():
+    # Regression for the "Warm Reset / tReset" danger: the query shares a
+    # matching target_scope with USB_3_X evidence and mentions the bare word
+    # "link" (from "link training"), but is not actually about
+    # PORT_LINK_STATE or any other registered evidence topic. Neither scope
+    # match alone nor a generic shared word may create a candidate; the
+    # retriever must return no results so the caller abstains instead of
+    # confidently citing irrelevant evidence.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "USB 3.2 Warm Reset tReset link training 完成後最短最長時間是多少？",
+        target_scope="USB_3_X",
+    )
+    assert results == []
+
+
+@pytest.mark.unit
+def test_governed_retriever_abstains_on_pure_scope_match_without_topic_signal():
+    # A matching target_scope with zero topic/term relevance must never by
+    # itself qualify any evidence entry as a candidate.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query("completely unrelated benign question", target_scope="USB_3_X")
+    assert results == []
+
+
+@pytest.mark.unit
+def test_governed_retriever_still_finds_genuine_port_link_state_match():
+    # Sanity check: tightening the generic-token/scope rules must not break
+    # legitimate PORT_LINK_STATE queries that use the specific feature name.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query("PORT_LINK_STATE feature selector value", target_scope="USB_3_X")
+    assert len(results) > 0
+    assert results[0].evidence_id == "USB3-FEAT-PORT_LINK_STATE"
+
+
+@pytest.mark.unit
+def test_governed_retriever_finds_natural_language_port_power_question():
+    # PR #29 review regression: a realistic user-phrased question (matching
+    # the style of PR #23's user_realistic acceptance questions) must not be
+    # abstained away just because it doesn't use the exact "PORT_POWER" /
+    # "port_power" token. Naive `.split()` tokenization previously turned
+    # every content word into a stopword, punctuation-suffixed token, or a
+    # hyphen-glued compound that never matched anything, driving
+    # topic_score to 0 for a question that is clearly about PORT_POWER.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "Which USB 2.0 Hub Class feature controls downstream-port power, "
+        "and what operation invokes that feature?",
+        target_scope="USB_2_0",
+    )
+    assert len(results) > 0
+    assert results[0].evidence_id == "USB2-FEAT-PORT_POWER"
+
+
+@pytest.mark.unit
+def test_governed_retriever_tokenizer_normalizes_hyphens_and_punctuation():
+    # Isolates the tokenizer fix: a hyphenated compound ("port-power") must
+    # be split into its constituent words so "power" alone can still match
+    # evidence content, and trailing punctuation ("feature,") must not be
+    # treated as part of the word. Uses "power" (not "downstream", which is
+    # a generic Hub structural term stoplisted after the Warm Reset /
+    # "link states" false-positive regression) as the genuine discriminator.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query("Explain the port-power feature, please.")
+    result_ids = {r.evidence_id for r in results}
+    assert "USB3-FEAT-PORT_POWER" in result_ids
+
+
+@pytest.mark.unit
+def test_governed_retriever_matches_section_ref_by_exact_and_prefix():
+    # Generalized section-reference matching (segment-wise prefix
+    # comparison) must work for section numbers with no hardcoded rule,
+    # such as USB2-FEAT-PORT_POWER's "11.24.2.1" section.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query("What does USB 2.0 section 11.24.2.1 define?")
+    result_ids = {r.evidence_id for r in results}
+    assert "USB2-FEAT-PORT_POWER" in result_ids
+
+    # A shorter section prefix ("11.23") must still match the longer,
+    # fully-qualified section id ("11.23.2.1") it is a genuine prefix of.
+    prefix_results = retriever.query("What is defined in USB 2.0 section 11.23?")
+    prefix_result_ids = {r.evidence_id for r in prefix_results}
+    assert "USB2-HUB-DESC-FORMAT" in prefix_result_ids
+
+
+@pytest.mark.unit
+def test_governed_retriever_bare_section_reference_query_finds_evidence():
+    # PR #29 review regression: a bare section-number query (no surrounding
+    # sentence) must resolve via the generalized section-reference matcher,
+    # not depend on any hardcoded per-section rule. USB2-FEAT-PORT_POWER's
+    # real section ("11.24.2.1") was previously missing from the old
+    # hardcoded 4-section rule set entirely.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query("11.24.2.1")
+    assert len(results) > 0
+    assert results[0].evidence_id == "USB2-FEAT-PORT_POWER"
+
+
+@pytest.mark.unit
+def test_governed_retriever_finds_bare_link_state_natural_language_question():
+    # PR #29 review regression: "link state" (without a leading "port")
+    # must still resolve to PORT_LINK_STATE. Both "link" and "state" are
+    # individually in `_GENERIC_TOKENS`, so a realistic question that never
+    # says the word "port" (e.g. "What is the link state feature selector
+    # value?") must not be driven to topic_score=0 and abstained.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "What is the link state feature selector value?", target_scope="USB_3_X"
+    )
+    assert len(results) > 0
+    assert results[0].evidence_id == "USB3-FEAT-PORT_LINK_STATE"
+
+
+@pytest.mark.unit
+def test_governed_retriever_warm_reset_link_states_question_still_abstains():
+    # PR #29 review regression (2nd pass): the bare "link state" compound
+    # alias reopened the exact Warm Reset false-positive this whole fix set
+    # out to close, because "link state" is a substring of "link states".
+    # This is PR #23's actual user_realistic Warm Reset question, which is
+    # NOT a PORT_LINK_STATE feature-selector question and has no
+    # corresponding evidence in the (currently 5-entry) registry -- the
+    # retriever must abstain, not guess PORT_LINK_STATE just because "link
+    # state[s]" appears as a substring. This expectation should change only
+    # if/when real Warm Reset evidence is added to the registry.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "In USB 3.2, which link states allow a downstream port "
+        "to issue a Warm Reset, and what are the minimum and "
+        "maximum tReset durations?",
+        target_scope="USB_3_X",
+    )
+    assert results == []
+
+
+@pytest.mark.unit
+def test_governed_retriever_warm_reset_operation_question_still_abstains():
+    # PR #29 review regression (3rd pass): before the strong-signal /
+    # lexical-bonus split, an ordinary content word with no curated concept
+    # meaning ("used", from PORT_POWER's "Used with SetPortFeature...")
+    # happening to appear in an unrelated Warm Reset question was, on its
+    # own, enough to manufacture a false PORT_POWER candidate via the
+    # generic-token overlap loop -- an unbounded stoplist whack-a-mole
+    # problem. With only 5 embedded evidence entries and no genuine
+    # PORT_POWER/section/PORT_LINK_STATE concept signal present, the
+    # retriever must abstain.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "What operation is used to initiate a Warm Reset "
+        "on a USB 3.2 downstream port?",
+        target_scope="USB_3_X",
+    )
+    assert results == []
+
+
+@pytest.mark.unit
+def test_governed_retriever_warm_reset_enable_link_question_still_abstains():
+    # PR #29 review regression (3rd pass), sibling of the above: "enable"
+    # is another ordinary content word (from PORT_POWER's "enable VBUS
+    # power...") with no curated concept meaning; a bare mention of "link"
+    # (without "link state" plus a qualifier) must not resurrect the
+    # original PORT_LINK_STATE false positive either.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "Does Warm Reset enable the link on a USB 3.2 downstream port?",
+        target_scope="USB_3_X",
+    )
+    assert results == []
+
+
+@pytest.mark.unit
+def test_governed_retriever_link_power_management_question_still_abstains():
+    # PR #29 review regression (4th pass): a bare "power" *substring* match
+    # was too permissive -- "USB 3.2 link power management states" is a
+    # Link Power Management (LPM) question, not a PORT_POWER question, but
+    # the word "power" appears in it. With no "port_power"/"port power"
+    # phrase, no feature-selector qualifier word, and no genuine
+    # PORT_LINK_STATE/section signal present, the retriever must abstain
+    # rather than surface PORT_POWER just because "power" is mentioned.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "What are the USB 3.2 link power management states?",
+        target_scope="USB_3_X",
+    )
+    assert results == []
+
+
+@pytest.mark.unit
+def test_governed_retriever_power_management_timeout_question_still_abstains():
+    # PR #29 review regression (4th pass), sibling of the above: "power" on
+    # its own (no "port_power"/"port power" phrase, no feature-selector
+    # qualifier) must not manufacture a false PORT_POWER candidate.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "What are the power management timeout rules in USB 3.2?",
+        target_scope="USB_3_X",
+    )
+    assert results == []
+
+
+@pytest.mark.unit
+def test_governed_retriever_link_power_management_feature_question_still_abstains():
+    # PR #29 review regression (5th pass): "power" + a feature-selector
+    # qualifier word is STILL not high-precision enough on its own -- this
+    # question is about USB 3.2 Link Power Management, not the Hub Class
+    # PORT_POWER feature selector, yet it contains both "power" and
+    # "feature". A bare "power" token must co-occur with BOTH explicit
+    # port/VBUS context (port/downstream/vbus) AND a feature-selector
+    # qualifier to count as a strong PORT_POWER signal; "power"+"feature"
+    # alone, with no port/VBUS context, must not.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "Which feature controls link power management in USB 3.2?",
+        target_scope="USB_3_X",
+    )
+    assert results == []
+
+
+@pytest.mark.unit
+def test_governed_retriever_power_management_behavior_feature_question_still_abstains():
+    # PR #29 review regression (5th pass), sibling of the above.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "What feature defines power management behavior in USB 3.2?",
+        target_scope="USB_3_X",
+    )
+    assert results == []
+
+
+@pytest.mark.unit
+def test_governed_retriever_setportfeature_port_reset_question_still_abstains():
+    # PR #29 review regression (6th pass): `SetPortFeature` is a generic Hub
+    # Class request that applies to every feature selector, not just
+    # PORT_POWER -- this question is explicitly about PORT_RESET, and must
+    # not be routed to PORT_POWER just because the word "setportfeature"
+    # appears in it.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "Which selector value is used with SetPortFeature(PORT_RESET) "
+        "on a USB 3.2 hub?",
+        target_scope="USB_3_X",
+    )
+    assert results == []
+
+
+@pytest.mark.unit
+def test_governed_retriever_vbus_current_limit_question_still_abstains():
+    # PR #29 review regression (6th pass), sibling of the above: bare
+    # "VBUS" is an electrical/power-delivery term, not a Hub Class
+    # PORT_POWER selector question, and must not establish a PORT_POWER
+    # candidate on its own.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "What is the VBUS current limit in USB 3.2?",
+        target_scope="USB_3_X",
+    )
+    assert results == []
+
+
+@pytest.mark.unit
+def test_governed_retriever_section_ref_does_not_collide_with_unrelated_section():
+    # A bare version-like fragment ("3.2") must never match an unrelated
+    # section id merely because "3.2" happens to be a substring of it (e.g.
+    # "11.23.2.1"). Segment-wise prefix comparison (not substring
+    # containment) is required to avoid this collision.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query("USB 3.2 random unrelated benign question")
+    assert results == []
+
+
+@pytest.mark.unit
+def test_governed_retriever_scope_bonus_is_reranking_only_not_a_hard_filter():
+    # KNOWN LIMITATION, intentionally documented rather than silently
+    # assumed solved (see PR #29 review discussion): target_scope is only a
+    # reranking bonus, not a hard evidence-scope boundary. A topically
+    # relevant query still surfaces the out-of-scope evidence entry
+    # alongside the in-scope one. A hard `if ev.scope != target_scope:
+    # continue` filter is NOT a safe substitute here, because some
+    # legitimate questions (e.g. "is PORT_LINK_STATE supported in USB 2.0?")
+    # must cite out-of-scope evidence to correctly answer a question about
+    # the target scope. Properly closing this requires splitting the
+    # retrieval contract into `answer_scope` vs `allowed_evidence_scopes`,
+    # tracked as follow-up work, not a change to this bonus.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query("PORT_POWER feature selector value", target_scope="USB_2_0")
+    result_ids = {r.evidence_id for r in results}
+    assert "USB2-FEAT-PORT_POWER" in result_ids
+    assert "USB3-FEAT-PORT_POWER" in result_ids
+    # The in-scope evidence must still be ranked first via the scope bonus.
+    assert results[0].evidence_id == "USB2-FEAT-PORT_POWER"
+
+
 @pytest.mark.contract
 def test_poc1_corpus_lock_binds_governed_reference_and_blocks_incomplete_claims():
     retriever = GovernedSpecRetriever()

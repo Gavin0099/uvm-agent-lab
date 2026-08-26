@@ -18,6 +18,35 @@
 
 ## 📝 Milestone History
 
+## PR #29 — GovernedSpecRetriever relevance gate
+
+- Review date: 2026-08-26
+- Reviewed HEAD: `3004d540cb95ec43ee70a8dc67a11688db6b0292`
+- Verdict: APPROVED
+- Risk: Low
+- Scope: `gv100h/spec_qa/retrieval/governed_retriever.py`,
+  `tests/gv100h/test_m2_spec_qa.py`
+
+### Verified
+- Strong topic signal is required before an evidence candidate is admitted.
+- Generic lexical overlap is rerank-only and cannot establish a candidate.
+- Section-reference matching is segment-aware and avoids version/section substring collisions.
+- Warm Reset, Link Power Management, SetPortFeature(PORT_RESET), and VBUS-current adversarial regressions abstain as required.
+- Natural-language PORT_POWER and PORT_LINK_STATE positive regressions remain supported.
+- `tests/gv100h` passed at reviewed HEAD.
+
+### Carried forward
+- `target_scope` remains a reranking bonus, not an evidence-scope boundary.
+  Follow-up must split `answer_scope` / `allowed_evidence_scopes`.
+- Empty/invalid-input never-raises behavior is not currently a declared contract;
+  additional boundary tests are optional follow-up.
+
+### Review conclusion
+No blocking findings remain for PR #29.
+Do not extend this 5-entry prototype with additional hand-written
+natural-language aliases; future retrieval work moves to Query Normalizer
++ BM25 + Vector + Reranker.
+
 ### 2026-08-18 — Milestone M0.5: Evidence Pipeline E2E Admission [HUMAN REJECT — advisory approved receipt is not binding]
 - **Milestone**: `M0.5`
 - **Review ID**: `REV-GV100H-M0.5-ADMISSION`
