@@ -168,6 +168,41 @@ def test_governed_retriever_warm_reset_link_states_question_still_abstains():
 
 
 @pytest.mark.unit
+def test_governed_retriever_warm_reset_operation_question_still_abstains():
+    # PR #29 review regression (3rd pass): before the strong-signal /
+    # lexical-bonus split, an ordinary content word with no curated concept
+    # meaning ("used", from PORT_POWER's "Used with SetPortFeature...")
+    # happening to appear in an unrelated Warm Reset question was, on its
+    # own, enough to manufacture a false PORT_POWER candidate via the
+    # generic-token overlap loop -- an unbounded stoplist whack-a-mole
+    # problem. With only 5 embedded evidence entries and no genuine
+    # PORT_POWER/section/PORT_LINK_STATE concept signal present, the
+    # retriever must abstain.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "What operation is used to initiate a Warm Reset "
+        "on a USB 3.2 downstream port?",
+        target_scope="USB_3_X",
+    )
+    assert results == []
+
+
+@pytest.mark.unit
+def test_governed_retriever_warm_reset_enable_link_question_still_abstains():
+    # PR #29 review regression (3rd pass), sibling of the above: "enable"
+    # is another ordinary content word (from PORT_POWER's "enable VBUS
+    # power...") with no curated concept meaning; a bare mention of "link"
+    # (without "link state" plus a qualifier) must not resurrect the
+    # original PORT_LINK_STATE false positive either.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "Does Warm Reset enable the link on a USB 3.2 downstream port?",
+        target_scope="USB_3_X",
+    )
+    assert results == []
+
+
+@pytest.mark.unit
 def test_governed_retriever_section_ref_does_not_collide_with_unrelated_section():
     # A bare version-like fragment ("3.2") must never match an unrelated
     # section id merely because "3.2" happens to be a substring of it (e.g.

@@ -481,20 +481,37 @@ class GovernedSpecRetriever:
         scored_results = []
 
         for ev in self.EVIDENCE_REGISTRY:
-            # `topic_score` captures genuine topic/term relevance signals only
-            # (specific keyword bonuses, section-reference matches, and
-            # filtered generic-token overlap). `target_scope` is deliberately
-            # excluded here: it must act only as a reranking bonus applied on
-            # top of an already-established topic match, never as a
-            # standalone reason to treat an evidence entry as a candidate.
-            topic_score = 0
+            # `strong_score` captures only high-precision topic signals that
+            # are sufficient, on their own, to establish `ev` as a candidate:
+            # explicit concept/technical-phrase aliases and structured
+            # section-reference matches. `lexical_bonus` (below) captures
+            # low-precision generic word overlap between the query and the
+            # evidence title/content; it may only ever *rerank* an evidence
+            # entry that a strong signal has already qualified as a
+            # candidate -- it must never by itself create one. Without this
+            # separation, any ordinary content word that happens to appear
+            # in an evidence's description (e.g. "used", "enable") would be
+            # enough to manufacture a false candidate, an unbounded stoplist
+            # "whack-a-mole" problem (concretely observed with
+            # "link"/"downstream"/"upstream" before this split existed).
+            # `target_scope` is excluded from both: it must remain only a
+            # reranking bonus applied on top of an already-established
+            # candidate, never a standalone reason to treat an evidence
+            # entry as relevant.
+            strong_score = 0
 
             if "descriptor" in q_lower or "描述符" in q_lower or "bdescriptortype" in q_lower:
                 if "DESC" in ev.evidence_id:
-                    topic_score += 15
-            if "port_power" in q_lower or "電源" in q_lower:
+                    strong_score += 15
+            if "port_power" in q_lower or "電源" in q_lower or "power" in q_lower:
+                # Bare "power" is a deliberate, curated concept alias for
+                # PORT_POWER (like "link state" below for PORT_LINK_STATE),
+                # not a generic lexical-overlap fallback: it lets realistic
+                # natural-language questions ("...controls downstream-port
+                # power...") establish a genuine candidate without relying
+                # on the low-precision generic content-word loop.
                 if "PORT_POWER" in ev.evidence_id:
-                    topic_score += 15
+                    strong_score += 15
             has_explicit_link_state_phrase = (
                 "port_link_state" in q_lower or "port link state" in q_lower
             )
@@ -519,27 +536,34 @@ class GovernedSpecRetriever:
             )
             if has_explicit_link_state_phrase or has_bare_link_state_with_qualifier:
                 if "PORT_LINK_STATE" in ev.evidence_id:
-                    topic_score += 15
+                    strong_score += 15
 
             for section_ref in query_section_refs:
                 if self._section_ref_matches(section_ref, ev.section):
-                    topic_score += 20
+                    strong_score += 20
 
+            if strong_score <= 0:
+                # No high-precision topic signal was found. Generic lexical
+                # overlap, scope match, or nothing at all must never qualify
+                # an evidence entry as a candidate on their own: abstain
+                # instead of guessing.
+                continue
+
+            # PR #29 review regression (3rd pass): with strong-signal-only
+            # gating in place, low-precision generic word overlap is now
+            # safe to compute as a rerank-only bonus, since it can no longer
+            # by itself create a candidate for evidence with zero genuine
+            # topic relevance.
+            lexical_bonus = 0
             for token in query_tokens:
                 if (
                     len(token) > 2
                     and token not in self._GENERIC_TOKENS
                     and (token in ev.title.lower() or token in ev.content.lower())
                 ):
-                    topic_score += 2
+                    lexical_bonus += 2
 
-            if topic_score <= 0:
-                # No genuine topic/term relevance was found. Scope match
-                # alone (or nothing at all) must never qualify an evidence
-                # entry as a candidate: abstain instead of guessing.
-                continue
-
-            score = topic_score
+            score = strong_score + lexical_bonus
             if target_scope and ev.scope == target_scope:
                 score += 5
             # KNOWN LIMITATION (tracked for a future retrieval-contract PR):
