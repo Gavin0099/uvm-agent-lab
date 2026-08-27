@@ -757,3 +757,51 @@ def test_final_evaluator_non_conflict_response_skips_conflict_provenance_check(t
     result = evaluator.evaluate_response(evaluator.manifest.questions[0], _response(1))
 
     assert result.citation_valid is True
+
+
+def test_final_evaluator_rejects_conflict_with_single_claim_bound_to_both_evidence_ids(
+    tmp_path: Path,
+):
+    # Codex review, PR #33, P1, fresh finding on e3de202: a benchmark
+    # agent_fn response can pack BOTH required conflict assertions into a
+    # single claim string and bind that one claim to both competing
+    # evidence_ids. len(claims) == len(claim_evidence_ids) == 1 and the
+    # bound ids are a subset of the citations, so the traceability
+    # length/subset checks alone accept it, and _contains_expected() finds
+    # both required facts in the joined claim text -- but this is not the
+    # >=2 distinct competing claims a real conflict requires
+    # (GroundedAnswer already enforces this; the direct FinalQAResponse
+    # path must too).
+    manifest, path = _write_manifest(tmp_path)
+    resolver = SyntheticEvidenceResolver(manifest)
+    evaluator = FinalPOC1Evaluator(str(path), evidence_resolver=resolver)
+
+    response = copy.deepcopy(_response(49))
+    response["claims"] = ["claim-a-49 and also claim-b-49"]
+    response["claim_evidence_ids"] = [["EVIDENCE-49-A", "EVIDENCE-49-B"]]
+
+    result = evaluator.evaluate_response(evaluator.manifest.questions[48], response)
+
+    assert result.claim_traceability_ok is False
+    assert result.grounded is False
+    assert result.passed is False
+
+
+def test_final_evaluator_rejects_whitespace_only_excerpt(tmp_path: Path):
+    # Codex review, PR #33, P2, fresh finding on e3de202: a whitespace-only
+    # excerpt_or_evidence_id (e.g. " ") is not None and is a substring of
+    # virtually any trusted source text containing a space, so the old
+    # containment check alone would accept it. It must be rejected before
+    # ever reaching the containment test.
+    manifest, path = _write_manifest(tmp_path)
+    resolver = SyntheticEvidenceResolver(manifest)
+    resolver._canonical_citations["EVIDENCE-1"].excerpt = "the real canonical excerpt text"
+    evaluator = FinalPOC1Evaluator(str(path), evidence_resolver=resolver)
+
+    response = _response(1)
+    response["citations"][0]["excerpt_or_evidence_id"] = "   "
+
+    result = evaluator.evaluate_response(evaluator.manifest.questions[0], response)
+
+    assert result.citation_valid is False
+    assert result.passed is False

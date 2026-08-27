@@ -177,8 +177,7 @@ class FinalPOC1Evaluator:
         candidates = [expected, *variants]
         return any(cls._normalize(candidate) in haystack for candidate in candidates)
 
-    @staticmethod
-    def _claim_traceability_ok(response: FinalQAResponse) -> bool:
+    def _claim_traceability_ok(self, response: FinalQAResponse) -> bool:
         """
         Verify that every claim in ``response.claims`` declares which
         evidence_id(s) support it (``response.claim_evidence_ids``), and
@@ -206,6 +205,15 @@ class FinalPOC1Evaluator:
         directly by a caller that never passed through GroundedAnswer's own
         claim_evidence_ids validation, this check fails closed independently
         rather than assuming the response is already well-formed.
+
+        For ``status == "conflict"``, also mirrors GroundedAnswer's own
+        >=2-distinct-normalized-claims rule: a benchmark agent_fn response
+        could otherwise pack both competing assertions into a SINGLE claim
+        string and bind that one claim to both competing evidence_ids,
+        which the length/subset checks above accept (1 claim, 1
+        claim_evidence_ids entry, both ids cited) even though the manifest's
+        two-distinct-competing-claims requirement was never actually met
+        (Codex review, PR #33, P1, fresh finding on e3de202).
         """
         if len(response.claims) != len(response.claim_evidence_ids):
             return False
@@ -214,6 +222,10 @@ class FinalPOC1Evaluator:
             if not evidence_ids:
                 return False
             if not set(evidence_ids).issubset(cited_ids):
+                return False
+        if response.status == "conflict":
+            normalized_claims = {self._normalize(claim) for claim in response.claims}
+            if len(response.claims) < 2 or len(normalized_claims) < 2:
                 return False
         return True
 
@@ -369,9 +381,17 @@ class FinalPOC1Evaluator:
         mismatches = set()
         excerpt_value = citation.excerpt_or_evidence_id
         if excerpt_value != citation.evidence_id:
-            trusted_text = self._trusted_source_text(citation.evidence_id)
-            if trusted_text is None or excerpt_value is None or excerpt_value not in trusted_text:
+            # A whitespace-only excerpt (" ") is not None, and " " is a
+            # substring of virtually every trusted source text, so it must
+            # be rejected explicitly rather than falling through to the
+            # containment check (Codex review, PR #33, P2, fresh finding
+            # on e3de202).
+            if excerpt_value is None or not excerpt_value.strip():
                 mismatches.add("excerpt_or_evidence_id")
+            else:
+                trusted_text = self._trusted_source_text(citation.evidence_id)
+                if trusted_text is None or excerpt_value not in trusted_text:
+                    mismatches.add("excerpt_or_evidence_id")
 
         if not submitted_normative:
             return frozenset(mismatches)
