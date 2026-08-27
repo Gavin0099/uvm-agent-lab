@@ -3,11 +3,11 @@ import hashlib
 import re
 import subprocess
 from pathlib import Path
-from typing import List, Dict, Any, Mapping, Optional
+from typing import List, Dict, Any, Mapping, Optional, Tuple
 from pydantic import BaseModel
 import yaml
-
 from gv100h.spec_qa.contracts.retrieval_policy import RetrievalPolicy
+from gv100h.spec_qa.retrieval.query_normalizer import normalize_feature_selector_query
 
 
 class GovernedEvidence(BaseModel):
@@ -18,6 +18,9 @@ class GovernedEvidence(BaseModel):
     section: str
     title: str
     content: str
+    entity_type: Optional[str] = None
+    selector_name: Optional[str] = None
+    selector_value: Optional[int] = None
 
 
 class GovernedSpecRetriever:
@@ -54,7 +57,10 @@ class GovernedSpecRetriever:
             claim_level="normative_requirement",
             section="10.16.2.1",
             title="Hub Class Feature Selectors (USB 3.x)",
-            content="In USB 3.x Hub specifications, PORT_POWER feature selector value is 8 (0x0008). Used with SetPortFeature to enable VBUS power to the downstream port."
+            content="In USB 3.x Hub specifications, PORT_POWER feature selector value is 8 (0x0008). Used with SetPortFeature to enable VBUS power to the downstream port.",
+            entity_type="feature_selector",
+            selector_name="PORT_POWER",
+            selector_value=8,
         ),
         GovernedEvidence(
             evidence_id="USB2-FEAT-PORT_POWER",
@@ -63,7 +69,10 @@ class GovernedSpecRetriever:
             claim_level="normative_requirement",
             section="11.24.2.1",
             title="Hub Class Feature Selectors (USB 2.0)",
-            content="In USB 2.0 Hub specifications, PORT_POWER feature selector value is 8 (0x0008)."
+            content="In USB 2.0 Hub specifications, PORT_POWER feature selector value is 8 (0x0008).",
+            entity_type="feature_selector",
+            selector_name="PORT_POWER",
+            selector_value=8,
         ),
         GovernedEvidence(
             evidence_id="USB3-FEAT-PORT_LINK_STATE",
@@ -72,7 +81,10 @@ class GovernedSpecRetriever:
             claim_level="normative_requirement",
             section="10.16.2.2",
             title="Port Link State Feature Selector (USB 3.x)",
-            content="PORT_LINK_STATE feature selector value is 5 (0x0005) in USB 3.x. Not applicable to USB 2.0 (USB 3.x 專屬，在 USB 2.0 架構下無效，不支援且不適用)."
+            content="PORT_LINK_STATE feature selector value is 5 (0x0005) in USB 3.x. Not applicable to USB 2.0 (USB 3.x 專屬，在 USB 2.0 架構下無效，不支援且不適用).",
+            entity_type="feature_selector",
+            selector_name="PORT_LINK_STATE",
+            selector_value=5,
         ),
         GovernedEvidence(
             evidence_id="USB3-HUB-DESC-FORMAT",
@@ -81,7 +93,7 @@ class GovernedSpecRetriever:
             claim_level="normative_requirement",
             section="10.15.2.1",
             title="USB 3.x SuperSpeed Hub Descriptor",
-            content="bDescriptorType is 0x2A for SuperSpeed Hub Descriptor (USB 3.x), distinguishing it from USB 2.0 Hub Descriptor (0x29). USB 3.x Hub 不能直接使用 0x29."
+            content="bDescriptorType is 0x2A for SuperSpeed Hub Descriptor (USB 3.x), distinguishing it from USB 2.0 Hub Descriptor (0x29). USB 3.x Hub 不能直接使用 0x29.",
         ),
         GovernedEvidence(
             evidence_id="USB2-HUB-DESC-FORMAT",
@@ -90,7 +102,7 @@ class GovernedSpecRetriever:
             claim_level="normative_requirement",
             section="11.23.2.1",
             title="USB 2.0 Hub Descriptor",
-            content="bDescriptorType is 0x29 for USB 2.0 Hub Descriptor. 收到 0x2A 在 USB 2.0 為未定義錯誤。"
+            content="bDescriptorType is 0x29 for USB 2.0 Hub Descriptor. 收到 0x2A 在 USB 2.0 為未定義錯誤。",
         )
     ]
 
@@ -476,6 +488,25 @@ class GovernedSpecRetriever:
             return False
         return query_parts == ev_parts[: len(query_parts)]
 
+    def _lookup_feature_selectors(
+        self,
+        value: int,
+        allowed_evidence_scopes: Optional[set] = None,
+        answer_scope: Optional[str] = None,
+    ) -> List[Tuple[int, GovernedEvidence]]:
+        scored: List[Tuple[int, GovernedEvidence]] = []
+        for ev in self.EVIDENCE_REGISTRY:
+            if ev.entity_type != "feature_selector" or ev.selector_value != value:
+                continue
+            if allowed_evidence_scopes is not None and ev.scope not in allowed_evidence_scopes:
+                continue
+            score = 40
+            if answer_scope and ev.scope == answer_scope:
+                score += 5
+            scored.append((score, ev))
+        scored.sort(key=lambda item: item[0], reverse=True)
+        return scored
+
     def query(
         self,
         query_text: str,
@@ -484,8 +515,6 @@ class GovernedSpecRetriever:
         q_lower = query_text.lower()
         query_tokens = self._WORD_TOKEN_PATTERN.findall(q_lower)
         query_section_refs = self._SECTION_REF_PATTERN.findall(q_lower)
-        scored_results = []
-
         # RetrievalPolicy.allowed_evidence_scopes is a caller-declared hard
         # eligibility boundary, not a reranking signal (unlike the old
         # `target_scope` bonus it replaces). When no policy is supplied,
@@ -497,6 +526,24 @@ class GovernedSpecRetriever:
             set(retrieval_policy.allowed_evidence_scopes) if retrieval_policy else None
         )
         answer_scope = retrieval_policy.answer_scope if retrieval_policy else None
+        structured = normalize_feature_selector_query(query_text, answer_scope)
+        scored_by_id: Dict[str, Tuple[int, GovernedEvidence]] = {}
+
+        def add_scored(score: int, ev: GovernedEvidence) -> None:
+            prev = scored_by_id.get(ev.evidence_id)
+            if prev is None or score > prev[0]:
+                scored_by_id[ev.evidence_id] = (score, ev)
+
+        if structured is not None:
+            structured_hits = self._lookup_feature_selectors(
+                structured["value"],
+                allowed_evidence_scopes=allowed_evidence_scopes,
+                answer_scope=answer_scope,
+            )
+            if not structured_hits:
+                return []
+            for score, ev in structured_hits:
+                add_scored(score, ev)
 
         for ev in self.EVIDENCE_REGISTRY:
             if allowed_evidence_scopes is not None and ev.scope not in allowed_evidence_scopes:
@@ -631,8 +678,9 @@ class GovernedSpecRetriever:
                 # USB_2_0 evidence first).
                 score += 5
 
-            scored_results.append((score, ev))
+            add_scored(score, ev)
 
+        scored_results = list(scored_by_id.values())
         scored_results.sort(key=lambda x: x[0], reverse=True)
         return [item[1] for item in scored_results]
 
