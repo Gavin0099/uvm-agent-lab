@@ -1028,6 +1028,29 @@ def test_governed_retriever_to_citation_derives_chapter_for_all_registry_entries
 
 
 @pytest.mark.unit
+def test_governed_retriever_to_citation_rejects_non_numeric_chapter_section():
+    # Independent review follow-up: _derive_chapter's fail-closed branch
+    # (a section that does not start with a numeric chapter segment, e.g.
+    # an annex-style reference) must actually be exercised, not just
+    # assumed correct because every current registry entry is numeric.
+    from gv100h.spec_qa.retrieval.governed_retriever import GovernedEvidence
+
+    retriever = GovernedSpecRetriever()
+    bad_evidence = GovernedEvidence(
+        evidence_id="FAKE-ANNEX-EVIDENCE",
+        authority_level="authoritative",
+        scope="USB_3_X",
+        claim_level="normative_requirement",
+        section="Annex.A.1",
+        title="fake annex section",
+        content="irrelevant",
+        source_id="hub_reference",
+    )
+    with pytest.raises(EvidenceContractError, match="does not start with a numeric chapter segment"):
+        retriever.to_citation(bad_evidence)
+
+
+@pytest.mark.unit
 def test_governed_retriever_to_citation_truncates_long_excerpts():
     retriever = GovernedSpecRetriever()
     ev = retriever.get_evidence_by_id("USB3-FEAT-PORT_POWER")
