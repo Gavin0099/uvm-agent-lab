@@ -960,3 +960,121 @@ def test_golden_30_deterministic_benchmark():
     assert result.fabricated_citations_count == 0
     assert result.authority_violations_count == 0
     assert result.all_gates_passed is True
+
+
+@pytest.mark.unit
+def test_governed_retriever_concept_to_value_still_finds_port_link_state():
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "What is the PORT_LINK_STATE feature selector value?",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB_3_X"),
+    )
+    assert results[0].evidence_id == "USB3-FEAT-PORT_LINK_STATE"
+    assert results[0].selector_value == 5
+
+
+@pytest.mark.unit
+def test_governed_retriever_known_value_looks_up_port_link_state():
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "Which USB 3.x Hub Class feature selector has value 5?",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB_3_X"),
+    )
+    assert [ev.evidence_id for ev in results] == ["USB3-FEAT-PORT_LINK_STATE"]
+
+
+@pytest.mark.unit
+def test_governed_retriever_value_5_wording_variant_looks_up_port_link_state():
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "What feature selector corresponds to value 5 in USB 3.x?",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB_3_X"),
+    )
+    assert [ev.evidence_id for ev in results] == ["USB3-FEAT-PORT_LINK_STATE"]
+
+
+@pytest.mark.unit
+def test_governed_retriever_unknown_selector_value_999_abstains():
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "Which USB 3.x Hub Class feature selector has value 999?",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB_3_X"),
+    )
+    assert results == []
+
+
+@pytest.mark.unit
+def test_qa_service_unknown_selector_value_999_abstains():
+    service = GovernedQAService()
+    resp = service.answer_question(
+        "Which USB 3.x Hub Class feature selector has value 999?",
+        answer_scope="USB_3_X",
+    )
+    assert resp.is_abstain is True
+    assert resp.cited_evidences == []
+
+
+@pytest.mark.unit
+def test_governed_retriever_selector_5_on_usb2_requires_explicit_cross_scope():
+    retriever = GovernedSpecRetriever()
+    single = retriever.query(
+        "If software uses feature selector 5 on a USB 2.0 hub, "
+        "should it be treated like PORT_POWER? Explain why.",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB_2_0"),
+    )
+    assert "USB3-FEAT-PORT_LINK_STATE" not in {ev.evidence_id for ev in single}
+
+    results = retriever.query(
+        "If software uses feature selector 5 on a USB 2.0 hub, "
+        "should it be treated like PORT_POWER? Explain why.",
+        retrieval_policy=RetrievalPolicy(
+            answer_scope="USB_2_0",
+            retrieval_mode="explicit_cross_scope",
+            allowed_evidence_scopes=("USB_2_0", "USB_3_X"),
+        ),
+    )
+    result_ids = {ev.evidence_id for ev in results}
+    assert "USB3-FEAT-PORT_LINK_STATE" in result_ids
+    assert "USB2-FEAT-PORT_POWER" in result_ids
+
+
+@pytest.mark.unit
+def test_numeric_tokens_without_selector_cue_do_not_lookup():
+    retriever = GovernedSpecRetriever()
+    usb3 = RetrievalPolicy(answer_scope="USB_3_X")
+    assert retriever.query("Wait 5 ms after Warm Reset", retrieval_policy=usb3) == []
+    assert retriever.query("The hub has 5 ports", retrieval_policy=usb3) == []
+    assert retriever.query("See section 5 for overview", retrieval_policy=usb3) == []
+
+
+@pytest.mark.unit
+def test_governed_retriever_single_scope_usb3_does_not_cite_usb2_descriptor():
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "What is the USB 2.0 Hub Descriptor bDescriptorType?",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB_3_X"),
+    )
+    assert all(ev.scope != "USB_2_0" for ev in results)
+
+
+@pytest.mark.unit
+def test_normalize_feature_selector_query_requires_selector_cue():
+    from gv100h.spec_qa.retrieval.query_normalizer import (
+        normalize_feature_selector_query,
+    )
+
+    parsed = normalize_feature_selector_query(
+        "Which USB 3.x Hub Class feature selector has value 5?",
+        "USB_3_X",
+    )
+    assert parsed == {
+        "entity_type": "feature_selector",
+        "value": 5,
+        "scope": "USB_3_X",
+    }
+    assert normalize_feature_selector_query("Wait 5 ms", "USB_3_X") is None
+    assert normalize_feature_selector_query("value 5 → which selector?") == {
+        "entity_type": "feature_selector",
+        "value": 5,
+        "scope": None,
+    }
