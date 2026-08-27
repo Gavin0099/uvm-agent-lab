@@ -485,3 +485,79 @@ def test_final_evaluator_fails_closed_when_resolver_lacks_canonical_lookup(tmp_p
 
     assert result.citation_valid is False
     assert result.passed is False
+
+
+def test_final_evaluator_accepts_excerpt_matching_canonical_record(tmp_path: Path):
+    # Codex review, PR #33, fresh finding on 88200c5: excerpt_or_evidence_id
+    # must be checked against the resolver's canonical excerpt, not just
+    # checked for non-blank presence at the completeness layer. A response
+    # that reports the real canonical excerpt text (not merely falling
+    # back to its own evidence_id) must still pass.
+    manifest, path = _write_manifest(tmp_path)
+    resolver = SyntheticEvidenceResolver(manifest)
+    resolver._canonical_citations["EVIDENCE-1"].excerpt = "the real canonical excerpt text"
+    evaluator = FinalPOC1Evaluator(str(path), evidence_resolver=resolver)
+
+    response = _response(1)
+    response["citations"][0]["excerpt_or_evidence_id"] = "the real canonical excerpt text"
+
+    result = evaluator.evaluate_response(evaluator.manifest.questions[0], response)
+
+    assert result.citation_valid is True
+    assert result.passed is True
+
+
+def test_final_evaluator_accepts_evidence_id_fallback_excerpt(tmp_path: Path):
+    # The evidence_id fallback (QAResponse.to_final_qa_response()'s
+    # `citation.excerpt or citation.evidence_id`) must remain valid even
+    # when the canonical record separately carries a different excerpt --
+    # this is a deliberate second accepted value, not the only one.
+    manifest, path = _write_manifest(tmp_path)
+    resolver = SyntheticEvidenceResolver(manifest)
+    resolver._canonical_citations["EVIDENCE-1"].excerpt = "a different canonical excerpt"
+    evaluator = FinalPOC1Evaluator(str(path), evidence_resolver=resolver)
+
+    response = _response(1)
+    response["citations"][0]["excerpt_or_evidence_id"] = "EVIDENCE-1"
+
+    result = evaluator.evaluate_response(evaluator.manifest.questions[0], response)
+
+    assert result.citation_valid is True
+    assert result.passed is True
+
+
+def test_final_evaluator_rejects_fabricated_excerpt_for_normative_citation(tmp_path: Path):
+    # Codex review, PR #33, fresh finding on 88200c5: a response can submit
+    # a real, correctly-provenanced evidence_id but a fabricated excerpt/
+    # quote and previously still pass citation_valid/citation_complete,
+    # letting unsupported evidence text through the P0 grounding gate.
+    manifest, path = _write_manifest(tmp_path)
+    resolver = SyntheticEvidenceResolver(manifest)
+    resolver._canonical_citations["EVIDENCE-1"].excerpt = "the real canonical excerpt text"
+    evaluator = FinalPOC1Evaluator(str(path), evidence_resolver=resolver)
+
+    response = _response(1)
+    response["citations"][0]["excerpt_or_evidence_id"] = "a completely fabricated quote"
+
+    result = evaluator.evaluate_response(evaluator.manifest.questions[0], response)
+
+    assert result.citation_valid is False
+    assert result.passed is False
+
+
+def test_final_evaluator_rejects_fabricated_excerpt_for_boundary_citation(tmp_path: Path):
+    # Boundary citations get the same excerpt/evidence_id identity check --
+    # a fabricated excerpt is a grounding problem regardless of citation
+    # shape, not just for normative citations.
+    manifest, path = _write_manifest(tmp_path)
+    resolver = SyntheticEvidenceResolver(manifest)
+    resolver._canonical_citations["BOUNDARY-50"].excerpt = "the real boundary canonical excerpt"
+    evaluator = FinalPOC1Evaluator(str(path), evidence_resolver=resolver)
+
+    response = _response(50)
+    response["citations"][0]["excerpt_or_evidence_id"] = "a fabricated boundary quote"
+
+    result = evaluator.evaluate_response(evaluator.manifest.questions[49], response)
+
+    assert result.citation_valid is False
+    assert result.passed is False

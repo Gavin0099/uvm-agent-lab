@@ -251,18 +251,39 @@ class FinalPOC1Evaluator:
         "unverifiable == correct" gap already closed for normative
         provenance (Codex review, PR #33, P1).
 
+        "excerpt_or_evidence_id" is verified for *every* citation,
+        normative or boundary, independent of the document/revision/etc.
+        comparison above: QAResponse.to_final_qa_response() only ever
+        populates this field with either the resolver's own canonical
+        excerpt (Citation.excerpt, e.g. from to_citation()/
+        to_boundary_citation()) or a fallback to the citation's own
+        evidence_id, so those are the only two values a genuine response
+        can produce. Accepting anything else means a response could pair a
+        real, correctly-provenanced evidence_id with a fabricated quote and
+        still pass both citation_complete and citation_valid, letting
+        unsupported evidence text through the grounding gate (Codex
+        review, PR #33, fresh finding on 88200c5). This is a precise
+        equality check against the canonical excerpt or the evidence_id --
+        deliberately not fuzzy/substring/similarity matching, since the
+        canonical excerpt is already a well-defined, deterministic value.
+
         Returns:
         - a frozenset containing "citation_kind" when the submitted
           citation's normative/non-normative shape does not match the
           canonical record's shape (e.g. a boundary-shaped citation for an
           evidence_id whose canonical record is normative, or vice versa);
+        - a frozenset containing "excerpt_or_evidence_id" (alone, or
+          alongside other mismatched field names) when the submitted value
+          is neither the citation's own evidence_id nor the canonical
+          record's excerpt;
         - a non-empty frozenset of the field names that disagree, when both
           the submitted citation and its canonical record are normative but
           some field was submitted incorrectly (e.g. chapter="999" for an
           evidence_id whose real chapter is "10");
         - an empty frozenset() only when the submitted citation and its
-          canonical record agree on evidence-shape, and (for normative
-          citations) every compared field matches;
+          canonical record agree on evidence-shape, the excerpt/evidence_id
+          identity check passes, and (for normative citations) every
+          compared field matches;
         - None when evidence-shape could not be verified at all -- the
           resolver has no get_canonical_citation_by_id(), or the
           evidence_id does not resolve to any canonical record. Callers
@@ -281,14 +302,21 @@ class FinalPOC1Evaluator:
         canonical_normative = getattr(canonical, "document", None) is not None
         if submitted_normative != canonical_normative:
             return frozenset({"citation_kind"})
-        if not submitted_normative:
-            return frozenset()
 
-        return frozenset(
+        mismatches = set()
+        canonical_excerpt = getattr(canonical, "excerpt", None)
+        if citation.excerpt_or_evidence_id not in (citation.evidence_id, canonical_excerpt):
+            mismatches.add("excerpt_or_evidence_id")
+
+        if not submitted_normative:
+            return frozenset(mismatches)
+
+        mismatches.update(
             field_name
             for field_name in self._CANONICAL_PROVENANCE_FIELDS
             if getattr(citation, field_name) != getattr(canonical, field_name)
         )
+        return frozenset(mismatches)
 
     def _coerce_response(self, raw_response: Any) -> Optional[FinalQAResponse]:
         if isinstance(raw_response, FinalQAResponse):

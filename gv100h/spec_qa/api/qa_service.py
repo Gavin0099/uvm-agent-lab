@@ -88,6 +88,43 @@ class GovernedQAService:
     def __init__(self):
         self.retriever = GovernedSpecRetriever()
 
+    @staticmethod
+    def _resolve_boundary_scope(
+        answer_scope: Optional[str],
+        boundary_evidence: Any,
+    ) -> str:
+        """
+        Reconcile a caller-declared answer_scope with a registered
+        BoundaryEvidence's own governed scope, for the USB4
+        corpus-membership governance-answer branch and the USB4 abstain
+        branch below.
+
+        answer_scope is the caller's explicit Retrieval Policy declaration,
+        not a hint this service is free to reinterpret: silently replacing
+        an unrelated caller-declared answer_scope (e.g. "USB_2_0") with
+        boundary_evidence.scope (e.g. "USB4_SPEC") used to make a USB4
+        governance claim/abstention pass GroundedAnswer while still
+        mislabeling its scope, and it rewrote the caller's declared intent
+        without their knowledge (Codex review, PR #33, fresh finding on
+        88200c5). This fails closed instead of guessing: an absent
+        answer_scope defers to the evidence's governed scope, a matching
+        answer_scope proceeds normally, and a conflicting answer_scope is
+        rejected with a deterministic ValueError rather than silently
+        coerced -- evidence may prove a caller's declared scope is wrong,
+        but it must not silently rewrite it.
+        """
+        if answer_scope is None:
+            return boundary_evidence.scope
+        if answer_scope != boundary_evidence.scope:
+            raise ValueError(
+                f"answer_scope {answer_scope!r} conflicts with the governed "
+                f"scope {boundary_evidence.scope!r} of boundary evidence "
+                f"{boundary_evidence.evidence_id!r}; GovernedQAService does "
+                "not silently override a caller-declared answer_scope with "
+                "the evidence's own scope."
+            )
+        return answer_scope
+
     def answer_question(
         self,
         query_text: str,
@@ -226,7 +263,7 @@ class GovernedQAService:
             )
             return self._build_response(
                 answer=claim,
-                scope=answer_scope or boundary_evidence.scope,
+                scope=self._resolve_boundary_scope(answer_scope, boundary_evidence),
                 cited_evidences=[],
                 claim_level="governance_fact_answer",
                 boundary=(
@@ -262,7 +299,7 @@ class GovernedQAService:
                     "現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論"
                     f"，超出範圍 (Abstain)：{boundary_evidence.claim}"
                 ),
-                scope=answer_scope or boundary_evidence.scope,
+                scope=self._resolve_boundary_scope(answer_scope, boundary_evidence),
                 cited_evidences=[],
                 claim_level="abstain_boundary_claim",
                 boundary=(

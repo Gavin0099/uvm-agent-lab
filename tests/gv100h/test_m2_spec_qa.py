@@ -1276,7 +1276,17 @@ class _StubEvidenceResolverWithCanonicalBoundary(_StubEvidenceResolver):
     test_final_evaluator_fails_closed_on_normative_citation_without_canonical_resolver
     uses to prove the opposite behavior (fail closed when canonical lookup
     is unavailable).
+
+    ``excerpts`` optionally maps evidence_id -> the resolver's canonical
+    excerpt text, so callers can prove the excerpt_or_evidence_id identity
+    check (Codex review, PR #33, fresh finding on 88200c5) actually
+    verifies a real canonical excerpt, not just a None default that would
+    only ever satisfy the evidence_id-fallback branch of that check.
     """
+
+    def __init__(self, known_ids, excerpts=None):
+        super().__init__(known_ids)
+        self._excerpts = dict(excerpts or {})
 
     def get_canonical_citation_by_id(self, evidence_id):
         if evidence_id not in self._known_ids:
@@ -1288,6 +1298,7 @@ class _StubEvidenceResolverWithCanonicalBoundary(_StubEvidenceResolver):
             section=None,
             page_or_anchor=None,
             authority_level=None,
+            excerpt=self._excerpts.get(evidence_id),
         )
 
 
@@ -1433,7 +1444,10 @@ def test_full_contract_chain_boundary_abstain_round_trip_through_final_evaluator
     )
 
     evaluator = _evaluator_with_resolver(_StubEvidenceResolverWithCanonicalBoundary(
-        ["USB4-OUT-OF-SCOPE"]
+        ["USB4-OUT-OF-SCOPE"],
+        excerpts={
+            "USB4-OUT-OF-SCOPE": "Phase 1 corpus does not include the USB4 specification.",
+        },
     ))
     result = evaluator.evaluate_response(question, final_response)
     assert result.passed is True
@@ -2420,6 +2434,69 @@ def test_qa_service_usb4_corpus_membership_answer_is_a_valid_grounded_answer():
     final_response = resp.to_final_qa_response()
     assert final_response.status == "answer"
     assert final_response.citations[0].evidence_id == "POC1-BOUNDARY-USB4-EXCLUDED"
+
+
+@pytest.mark.unit
+def test_qa_service_usb4_corpus_membership_scope_defaults_to_governed_scope():
+    # Codex review, PR #33, fresh finding on 88200c5: when the caller does
+    # not declare an answer_scope, the response must use the boundary
+    # evidence's own governed scope (USB4_SPEC) for this governance-fact
+    # answer, not be left unset or copied from somewhere else.
+    service = GovernedQAService()
+    resp = service.answer_question("Is USB4 included in the Phase 1 corpus?")
+    assert resp.scope == "USB4_SPEC"
+
+
+@pytest.mark.unit
+def test_qa_service_usb4_corpus_membership_scope_accepts_matching_answer_scope():
+    service = GovernedQAService()
+    resp = service.answer_question(
+        "Is USB4 included in the Phase 1 corpus?", answer_scope="USB4_SPEC"
+    )
+    assert resp.scope == "USB4_SPEC"
+
+
+@pytest.mark.unit
+def test_qa_service_usb4_corpus_membership_rejects_conflicting_answer_scope():
+    # Codex review, PR #33, fresh finding on 88200c5: `scope=answer_scope or
+    # boundary_evidence.scope` used to silently accept an unrelated
+    # caller-declared answer_scope (e.g. "USB_2_0") onto this USB4
+    # governance-fact answer, mislabeling its true USB4_SPEC scope. This
+    # service does not silently override -- nor silently accept -- a
+    # conflicting caller-declared answer_scope; it fails closed instead.
+    service = GovernedQAService()
+    with pytest.raises(ValueError, match="answer_scope"):
+        service.answer_question(
+            "Is USB4 included in the Phase 1 corpus?", answer_scope="USB_2_0"
+        )
+
+
+@pytest.mark.unit
+def test_qa_service_usb4_abstain_scope_defaults_to_governed_scope():
+    service = GovernedQAService()
+    resp = service.answer_question("USB4 Hub 的 Warm Reset 規範為何？")
+    assert resp.scope == "USB4_SPEC"
+
+
+@pytest.mark.unit
+def test_qa_service_usb4_abstain_scope_accepts_matching_answer_scope():
+    service = GovernedQAService()
+    resp = service.answer_question(
+        "USB4 Hub 的 Warm Reset 規範為何？", answer_scope="USB4_SPEC"
+    )
+    assert resp.scope == "USB4_SPEC"
+
+
+@pytest.mark.unit
+def test_qa_service_usb4_abstain_rejects_conflicting_answer_scope():
+    # Same fail-closed rule for the analogous USB4 abstain branch (Codex
+    # review, PR #33, fresh finding on 88200c5): the membership path had a
+    # protective check while the abstain path did not.
+    service = GovernedQAService()
+    with pytest.raises(ValueError, match="answer_scope"):
+        service.answer_question(
+            "USB4 Hub 的 Warm Reset 規範為何？", answer_scope="USB_2_0"
+        )
 
 
 @pytest.mark.unit
