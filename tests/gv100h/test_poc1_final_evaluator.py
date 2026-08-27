@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -279,7 +280,16 @@ def _response(index: int) -> dict:
                 {
                     "evidence_id": evidence_id,
                     "document": "USB synthetic source",
-                    "revision": "synthetic revision",
+                    # Deliberately distinct revisions (Codex review, PR #33,
+                    # fresh finding on d5b82ba): a genuine UNRESOLVED_CONFLICT
+                    # requires >=2 distinct competing provenance identities
+                    # (document, revision, authority_level). The two
+                    # citations previously shared the SAME revision and
+                    # authority_level, differing only in section/
+                    # page_or_anchor -- which is not a real conflict under
+                    # validate_conflict_provenance() and would now correctly
+                    # fail FinalPOC1Evaluator._conflict_provenance_ok().
+                    "revision": revision,
                     "chapter": "10",
                     "section": section,
                     "page_or_anchor": section,
@@ -287,9 +297,9 @@ def _response(index: int) -> dict:
                     "authority_level": "authoritative",
                     "scope": question["expected_scope"],
                 }
-                for evidence_id, section in (
-                    ("EVIDENCE-49-A", "section-49-a"),
-                    ("EVIDENCE-49-B", "section-49-b"),
+                for evidence_id, section, revision in (
+                    ("EVIDENCE-49-A", "section-49-a", "synthetic revision A"),
+                    ("EVIDENCE-49-B", "section-49-b", "synthetic revision B"),
                 )
             ],
             "scope": question["expected_scope"],
@@ -620,3 +630,130 @@ def test_final_evaluator_rejects_trusted_text_contained_within_fabricated_excerp
 
     assert result.citation_valid is False
     assert result.passed is False
+
+
+def test_final_evaluator_rejects_version_conflict_with_same_canonical_revision(tmp_path: Path):
+    # Codex review, PR #33, fresh finding on d5b82ba: "the front door
+    # (GroundedAnswer) has a guard, the back door (FinalPOC1Evaluator's
+    # benchmark agent_fn path) doesn't." A declared VERSION_CONFLICT whose
+    # two citations resolve to the SAME canonical revision is not a real
+    # version conflict -- it must be rejected even though every cited
+    # evidence_id is individually valid, resolvable, and canonically
+    # consistent (this is a CROSS-citation check, not a per-citation one).
+    manifest, path = _write_manifest(tmp_path)
+    resolver = SyntheticEvidenceResolver(manifest)
+    resolver._canonical_citations["EVIDENCE-49-A"].revision = "same-revision"
+    resolver._canonical_citations["EVIDENCE-49-B"].revision = "same-revision"
+    evaluator = FinalPOC1Evaluator(str(path), evidence_resolver=resolver)
+
+    response = copy.deepcopy(_response(49))
+    for citation in response["citations"]:
+        citation["revision"] = "same-revision"
+    response["boundary_code"] = "VERSION_CONFLICT"
+
+    result = evaluator.evaluate_response(evaluator.manifest.questions[48], response)
+
+    assert result.citation_valid is False
+    assert result.passed is False
+
+
+def test_final_evaluator_accepts_version_conflict_with_distinct_canonical_revisions(tmp_path: Path):
+    # Positive control: a VERSION_CONFLICT whose two citations resolve to
+    # genuinely distinct canonical revisions (1.0 vs 1.1) is a real version
+    # conflict and must pass citation_valid.
+    manifest, path = _write_manifest(tmp_path)
+    resolver = SyntheticEvidenceResolver(manifest)
+    resolver._canonical_citations["EVIDENCE-49-A"].revision = "1.0"
+    resolver._canonical_citations["EVIDENCE-49-B"].revision = "1.1"
+    evaluator = FinalPOC1Evaluator(str(path), evidence_resolver=resolver)
+
+    response = copy.deepcopy(_response(49))
+    response["citations"][0]["revision"] = "1.0"
+    response["citations"][1]["revision"] = "1.1"
+    response["boundary_code"] = "VERSION_CONFLICT"
+
+    result = evaluator.evaluate_response(evaluator.manifest.questions[48], response)
+
+    assert result.citation_valid is True
+
+
+def test_final_evaluator_rejects_authority_mismatch_with_same_canonical_authority_level(tmp_path: Path):
+    # Same gap, other half: an AUTHORITY_MISMATCH whose two citations
+    # resolve to the SAME canonical authority_level is not a real
+    # authority mismatch.
+    manifest, path = _write_manifest(tmp_path)
+    resolver = SyntheticEvidenceResolver(manifest)
+    resolver._canonical_citations["EVIDENCE-49-A"].authority_level = "authoritative"
+    resolver._canonical_citations["EVIDENCE-49-B"].authority_level = "authoritative"
+    evaluator = FinalPOC1Evaluator(str(path), evidence_resolver=resolver)
+
+    response = copy.deepcopy(_response(49))
+    for citation in response["citations"]:
+        citation["authority_level"] = "authoritative"
+    response["boundary_code"] = "AUTHORITY_MISMATCH"
+
+    result = evaluator.evaluate_response(evaluator.manifest.questions[48], response)
+
+    assert result.citation_valid is False
+    assert result.passed is False
+
+
+def test_final_evaluator_accepts_authority_mismatch_with_distinct_canonical_authority_levels(tmp_path: Path):
+    # Positive control: authoritative vs informative is a real authority
+    # mismatch and must pass citation_valid.
+    manifest, path = _write_manifest(tmp_path)
+    resolver = SyntheticEvidenceResolver(manifest)
+    resolver._canonical_citations["EVIDENCE-49-A"].authority_level = "authoritative"
+    resolver._canonical_citations["EVIDENCE-49-B"].authority_level = "informative"
+    evaluator = FinalPOC1Evaluator(str(path), evidence_resolver=resolver)
+
+    response = copy.deepcopy(_response(49))
+    response["citations"][0]["authority_level"] = "authoritative"
+    response["citations"][1]["authority_level"] = "informative"
+    response["boundary_code"] = "AUTHORITY_MISMATCH"
+
+    result = evaluator.evaluate_response(evaluator.manifest.questions[48], response)
+
+    assert result.citation_valid is True
+
+
+def test_final_evaluator_rejects_unresolved_conflict_with_identical_canonical_provenance(tmp_path: Path):
+    # UNRESOLVED_CONFLICT's own requirement: >=2 distinct provenance
+    # identities (document, revision, authority_level) -- two citations
+    # that resolve to an IDENTICAL canonical identity (same document, same
+    # revision, same authority_level; differing only in section/
+    # page_or_anchor) are the same source cited twice, not a genuine
+    # conflict, even though the declared boundary_code names no specific
+    # dimension.
+    manifest, path = _write_manifest(tmp_path)
+    resolver = SyntheticEvidenceResolver(manifest)
+    resolver._canonical_citations["EVIDENCE-49-A"].revision = "identical-revision"
+    resolver._canonical_citations["EVIDENCE-49-B"].revision = "identical-revision"
+    resolver._canonical_citations["EVIDENCE-49-A"].authority_level = "authoritative"
+    resolver._canonical_citations["EVIDENCE-49-B"].authority_level = "authoritative"
+    evaluator = FinalPOC1Evaluator(str(path), evidence_resolver=resolver)
+
+    response = copy.deepcopy(_response(49))
+    for citation in response["citations"]:
+        citation["revision"] = "identical-revision"
+        citation["authority_level"] = "authoritative"
+    response["boundary_code"] = "UNRESOLVED_CONFLICT"
+
+    result = evaluator.evaluate_response(evaluator.manifest.questions[48], response)
+
+    assert result.citation_valid is False
+    assert result.passed is False
+
+
+def test_final_evaluator_non_conflict_response_skips_conflict_provenance_check(tmp_path: Path):
+    # _conflict_provenance_ok() must be a no-op for non-conflict responses
+    # -- an ordinary "answer" response has no competing citations to
+    # validate distinctness across, and must not be penalized by a check
+    # that only makes sense for status=="conflict".
+    manifest, path = _write_manifest(tmp_path)
+    resolver = SyntheticEvidenceResolver(manifest)
+    evaluator = FinalPOC1Evaluator(str(path), evidence_resolver=resolver)
+
+    result = evaluator.evaluate_response(evaluator.manifest.questions[0], _response(1))
+
+    assert result.citation_valid is True

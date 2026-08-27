@@ -34,7 +34,7 @@ a pure schema/validation layer. It must not import from ``retrieval/`` or
 this contract, not the other way around, the same layering already used by
 ``retrieval_policy.py``.
 """
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Sequence, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
@@ -89,6 +89,92 @@ CONFLICT_BOUNDARY_CODES = (
     "VERSION_CONFLICT",
     "UNRESOLVED_CONFLICT",
 )
+
+# (document, revision, authority_level) -- the provenance identity a
+# 'conflict' status's citations must disagree on. Kept as a bare tuple
+# (rather than a Citation/FinalQACitation) so validate_conflict_provenance()
+# stays a pure function usable from both a submitted Citation (GroundedAnswer)
+# and a resolver's CANONICAL citation record (FinalPOC1Evaluator) without
+# either side depending on the other's class.
+ConflictProvenanceIdentity = Tuple[Optional[str], Optional[str], Optional[str]]
+
+
+def validate_conflict_provenance(
+    boundary_code: Optional[str],
+    provenance_identities: Sequence[ConflictProvenanceIdentity],
+) -> Optional[str]:
+    """
+    Pure, deterministic conflict-provenance validation shared by
+    GroundedAnswer (validates the caller-submitted Citation metadata at
+    construction time) and FinalPOC1Evaluator (validates the resolver's
+    CANONICAL citation metadata for a benchmark agent_fn response that
+    never passes through GroundedAnswer at all) -- one rule set, not two
+    copies that can silently drift apart (Codex review, PR #33, fresh
+    finding on d5b82ba: GroundedAnswer enforced these rules, but
+    FinalPOC1Evaluator's benchmark path only checked that the expected
+    evidence_ids were present, so an agent_fn response declaring
+    VERSION_CONFLICT with two citations of the SAME revision -- not a real
+    version conflict at all -- could still be scored citation_valid=True
+    and pass the formal conflict gate).
+
+    ``provenance_identities`` must be one (document, revision,
+    authority_level) tuple per citation, in the same order as the
+    citations. Callers decide where each tuple's values come from --
+    GroundedAnswer uses the citation's own submitted fields (there is no
+    separate canonical resolver at that layer); FinalPOC1Evaluator MUST use
+    canonical resolved provenance (never the caller-submitted
+    document/revision/authority_level on the response's own citation),
+    since a benchmark agent_fn's submitted metadata is exactly the
+    unverified input this check exists to catch.
+
+    Returns None when ``provenance_identities`` satisfies
+    ``boundary_code``'s requirement, or a human-readable error string
+    describing the failure (the exact wording GroundedAnswer has always
+    raised as an EvidenceContractError, preserved here for backward
+    compatibility with existing callers/tests).
+    """
+    # A conflict is only real when the citations come from distinct
+    # competing provenance -- two citations that happen to share the same
+    # (document, revision, authority_level) are not "competing sources or
+    # authority levels", they are the same source cited twice. Counting
+    # citations alone would let two unrelated sections of the SAME source
+    # falsely qualify as a conflict.
+    distinct_identities = set(provenance_identities)
+    if len(distinct_identities) < 2:
+        return (
+            "a 'conflict' status requires citations from at least two "
+            "distinct competing provenance identities (document, "
+            "revision, authority_level); got "
+            f"{len(distinct_identities)} distinct identity(ies) across "
+            f"{len(provenance_identities)} citation(s)"
+        )
+    # The declared boundary code must itself name *which* provenance
+    # dimension disagrees -- the generic ">=2 distinct identities" check
+    # above would let VERSION_CONFLICT pass when only the document or
+    # authority_level differed (revisions identical), and let
+    # AUTHORITY_MISMATCH pass when only the revision differed
+    # (authority_level identical). A conflict declaring the wrong boundary
+    # code makes an unsupportable claim about *why* the sources disagree
+    # (Codex review, PR #33, P2).
+    if boundary_code == "VERSION_CONFLICT":
+        revisions = {revision for _document, revision, _authority in provenance_identities}
+        if len(revisions) < 2:
+            return (
+                "a 'VERSION_CONFLICT' status requires citations with at "
+                f"least two distinct revisions; got {sorted(r for r in revisions if r is not None)!r}"
+            )
+    elif boundary_code == "AUTHORITY_MISMATCH":
+        authority_levels = {authority for _document, _revision, authority in provenance_identities}
+        if len(authority_levels) < 2:
+            return (
+                "an 'AUTHORITY_MISMATCH' status requires citations with "
+                "at least two distinct authority levels; got "
+                f"{sorted(a for a in authority_levels if a is not None)!r}"
+            )
+    # UNRESOLVED_CONFLICT keeps the generic >=2-distinct-identities check
+    # above as its only requirement -- no single field is mandated to
+    # differ.
+    return None
 
 
 class EvidenceContractError(ValueError):
@@ -339,50 +425,19 @@ class GroundedAnswer(BaseModel):
                     "a 'conflict' status requires at least two distinct "
                     f"competing claims; got {self.claims!r}"
                 )
-            # A conflict is only real when the citations come from distinct
-            # competing provenance -- two citations that happen to share the
-            # same (document, revision, authority_level) are not "competing
-            # sources or authority levels", they are the same source cited
-            # twice. Counting citations alone (the previous rule) let two
-            # unrelated sections of the SAME source falsely qualify as a
-            # conflict.
-            provenance_identities = {
+            # Conflict-provenance semantics (distinct competing identities,
+            # plus the VERSION_CONFLICT/AUTHORITY_MISMATCH-specific rules)
+            # are enforced by the shared, deterministic
+            # validate_conflict_provenance() helper -- FinalPOC1Evaluator
+            # reuses the exact same function (against canonically resolved
+            # provenance) so the two call sites cannot drift out of sync
+            # (Codex review, PR #33, fresh finding on d5b82ba).
+            provenance_identities = [
                 (c.document, c.revision, c.authority_level) for c in self.citations
-            }
-            if len(provenance_identities) < 2:
-                raise EvidenceContractError(
-                    "a 'conflict' status requires citations from at least two "
-                    "distinct competing provenance identities (document, "
-                    "revision, authority_level); got "
-                    f"{len(provenance_identities)} distinct identity(ies) across "
-                    f"{len(self.citations)} citation(s)"
-                )
-            # The declared boundary code must itself name *which* provenance
-            # dimension disagrees -- the generic ">=2 distinct identities"
-            # check above let VERSION_CONFLICT pass when only the document or
-            # authority_level differed (revisions identical), and let
-            # AUTHORITY_MISMATCH pass when only the revision differed
-            # (authority_level identical). A conflict declaring the wrong
-            # boundary code makes an unsupportable claim about *why* the
-            # sources disagree (Codex review, PR #33, P2).
-            if self.boundary == "VERSION_CONFLICT":
-                revisions = {c.revision for c in self.citations}
-                if len(revisions) < 2:
-                    raise EvidenceContractError(
-                        "a 'VERSION_CONFLICT' status requires citations with at "
-                        f"least two distinct revisions; got {sorted(r for r in revisions if r is not None)!r}"
-                    )
-            elif self.boundary == "AUTHORITY_MISMATCH":
-                authority_levels = {c.authority_level for c in self.citations}
-                if len(authority_levels) < 2:
-                    raise EvidenceContractError(
-                        "an 'AUTHORITY_MISMATCH' status requires citations with "
-                        "at least two distinct authority levels; got "
-                        f"{sorted(a for a in authority_levels if a is not None)!r}"
-                    )
-            # UNRESOLVED_CONFLICT keeps the generic >=2-distinct-identities
-            # check above as its only requirement -- no single field is
-            # mandated to differ.
+            ]
+            provenance_error = validate_conflict_provenance(self.boundary, provenance_identities)
+            if provenance_error is not None:
+                raise EvidenceContractError(provenance_error)
             self._require_normative_citations("conflict")
 
         return self

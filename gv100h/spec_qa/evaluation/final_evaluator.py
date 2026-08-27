@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from gv100h.spec_qa.contracts.evidence_contract import validate_conflict_provenance
 from gv100h.spec_qa.contracts.poc1_acceptance_contract import (
     AcceptanceQuestion,
     BoundaryCode,
@@ -411,6 +412,60 @@ class FinalPOC1Evaluator:
             return content
         return getattr(raw, "excerpt", None)
 
+    def _conflict_provenance_ok(self, response: FinalQAResponse) -> bool:
+        """
+        Codex review, PR #33, fresh finding on d5b82ba: GroundedAnswer
+        already enforces that a declared 'conflict' have genuinely
+        distinct competing provenance (evidence_contract.py's
+        validate_conflict_provenance(), covering UNRESOLVED_CONFLICT's
+        >=2-distinct-identities rule and the VERSION_CONFLICT/
+        AUTHORITY_MISMATCH-specific rules) -- but a benchmark ``agent_fn``
+        response reaches FinalPOC1Evaluator as a bare FinalQAResponse that
+        never passes through GroundedAnswer at all. Before this check, the
+        evaluator's conflict handling only verified that the expected
+        evidence_ids were present (``evidence_shape_correct``), so an
+        agent_fn response declaring VERSION_CONFLICT with two citations of
+        the SAME revision -- not a real version conflict -- could still be
+        scored citation_valid=True and pass the formal conflict gate. "The
+        front door has a guard, the back door doesn't."
+
+        This is a no-op (True) for non-conflict responses.
+
+        Deliberately validates against each citation's CANONICAL resolved
+        provenance (document/revision/authority_level from
+        get_canonical_citation_by_id()), never the response's own
+        submitted Citation fields -- an agent_fn is exactly the untrusted
+        input this check exists to catch, so trusting its self-reported
+        metadata here would defeat the point (mirrors
+        _canonical_field_mismatches()'s existing canonical-vs-submitted
+        verification for citation completeness).
+
+        Fails closed (returns False) when the resolver cannot verify every
+        citation's canonical provenance at all -- no
+        get_canonical_citation_by_id(), or any cited evidence_id does not
+        resolve -- consistent with _canonical_field_mismatches() treating
+        an unverifiable citation as invalid rather than as "no mismatch
+        found."
+        """
+        if response.status != "conflict":
+            return True
+        get_canonical = getattr(self.evidence_resolver, "get_canonical_citation_by_id", None)
+        if get_canonical is None:
+            return False
+        provenance_identities = []
+        for citation in response.citations:
+            canonical = get_canonical(citation.evidence_id)
+            if canonical is None:
+                return False
+            provenance_identities.append(
+                (
+                    getattr(canonical, "document", None),
+                    getattr(canonical, "revision", None),
+                    getattr(canonical, "authority_level", None),
+                )
+            )
+        return validate_conflict_provenance(response.boundary_code, provenance_identities) is None
+
     def _coerce_response(self, raw_response: Any) -> Optional[FinalQAResponse]:
         if isinstance(raw_response, FinalQAResponse):
             return raw_response
@@ -506,6 +561,7 @@ class FinalPOC1Evaluator:
         status_correct = response.status == question.expected_status
         citation_complete = self._required_citation_fields_present(response, question)
         claim_traceability_ok = self._claim_traceability_ok(response)
+        conflict_provenance_ok = self._conflict_provenance_ok(response)
 
         if question.expected_status == "answer":
             evidence_shape_correct = bool(cited_ids) and set(cited_ids).issubset(expected_ids)
@@ -518,6 +574,7 @@ class FinalPOC1Evaluator:
             and not fabricated
             and not authority_violation
             and canonical_provenance_ok
+            and conflict_provenance_ok
         )
         grounded = (
             status_correct
