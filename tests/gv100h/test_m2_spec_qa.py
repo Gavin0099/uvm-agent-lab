@@ -1078,3 +1078,27 @@ def test_normalize_feature_selector_query_requires_selector_cue():
         "value": 5,
         "scope": None,
     }
+
+
+@pytest.mark.unit
+def test_named_selector_plus_unrelated_value_is_not_selector_id_lookup():
+    from gv100h.spec_qa.retrieval.query_normalizer import (
+        normalize_feature_selector_query,
+    )
+
+    retriever = GovernedSpecRetriever()
+    usb3 = RetrievalPolicy(answer_scope="USB_3_X")
+    query_unknown = (
+        "For the PORT_LINK_STATE feature selector, is link-state value 3 valid?"
+    )
+    query_collision = (
+        "For the PORT_LINK_STATE feature selector, is value 8 valid?"
+    )
+
+    assert normalize_feature_selector_query(query_unknown, "USB_3_X") is None
+    assert normalize_feature_selector_query(query_collision, "USB_3_X") is None
+
+    unknown_ids = [ev.evidence_id for ev in retriever.query(query_unknown, retrieval_policy=usb3)]
+    collision_ids = [ev.evidence_id for ev in retriever.query(query_collision, retrieval_policy=usb3)]
+    assert unknown_ids == ["USB3-FEAT-PORT_LINK_STATE"]
+    assert collision_ids == ["USB3-FEAT-PORT_LINK_STATE"]
