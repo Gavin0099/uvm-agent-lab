@@ -275,7 +275,16 @@ class GroundedAnswer(BaseModel):
             # is not a conflict, and two identical claim strings are not
             # "competing" either (Codex review, PR #33, P2, mirrors
             # poc1_acceptance_contract.py's >=2 required_claims rule).
-            if len(self.claims) < 2 or len(set(self.claims)) < 2:
+            # Distinctness is judged on normalized (whitespace-collapsed,
+            # casefolded) text, not raw strings -- otherwise
+            # claims=["Device supports X", " device supports x "] would pass
+            # as two competing claims even though both assertions normalize
+            # to the same text, certifying a conflict with no actual
+            # disagreement (Codex review, PR #33, fresh finding on 98960c5).
+            normalized_claims = {
+                " ".join(claim.split()).casefold() for claim in self.claims
+            }
+            if len(self.claims) < 2 or len(normalized_claims) < 2:
                 raise EvidenceContractError(
                     "a 'conflict' status requires at least two distinct "
                     f"competing claims; got {self.claims!r}"

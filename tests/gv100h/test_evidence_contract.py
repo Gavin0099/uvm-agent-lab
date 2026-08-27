@@ -419,6 +419,28 @@ def test_grounded_answer_conflict_requires_two_distinct_competing_claims():
 
 
 @pytest.mark.unit
+def test_grounded_answer_conflict_rejects_claims_that_only_differ_by_case_or_whitespace():
+    # Codex review, PR #33, fresh finding on 98960c5: distinctness was
+    # previously checked on raw claim strings, so
+    # claims=["Device supports X", " device supports x "] passed as two
+    # "competing" claims even though both normalize (whitespace-collapsed,
+    # casefolded) to the same text -- certifying a conflict with no actual
+    # disagreement.
+    with pytest.raises(EvidenceContractError, match="at least two distinct competing claims"):
+        GroundedAnswer(
+            status="conflict",
+            claims=["Device supports X", " device supports x "],
+            citations=[
+                _citation("USB3-FEAT-PORT_POWER", revision="1.0"),
+                _citation("USB2-FEAT-PORT_POWER", revision="1.1"),
+            ],
+            evidence_ids=["USB3-FEAT-PORT_POWER", "USB2-FEAT-PORT_POWER"],
+            boundary="VERSION_CONFLICT",
+            scope="USB_3_X",
+        )
+
+
+@pytest.mark.unit
 def test_grounded_answer_conflict_accepts_distinct_provenance_by_revision():
     answer = GroundedAnswer(
         status="conflict",
