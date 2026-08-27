@@ -56,6 +56,18 @@ NORMATIVE_CITATION_FIELDS = (
     "authority_level",
 )
 
+# The subset of BoundaryCode reserved for a 'conflict' status, mirroring
+# poc1_acceptance_contract.py's own conflict boundary_code whitelist
+# ("OUT_OF_SCOPE"/"FICTIONAL_SECTION"/"MISSING_EVIDENCE" describe *why no
+# answer was given*, not a conflict between competing sources -- a live
+# conflict answer declaring one of those would be contradicting its own
+# status) (Codex review, PR #33, P2).
+CONFLICT_BOUNDARY_CODES = (
+    "AUTHORITY_MISMATCH",
+    "VERSION_CONFLICT",
+    "UNRESOLVED_CONFLICT",
+)
+
 
 class EvidenceContractError(ValueError):
     """Raised when a Citation or GroundedAnswer violates the Evidence Contract."""
@@ -106,6 +118,17 @@ class Citation(BaseModel):
     def _normative_field_not_blank_if_present(cls, value: Optional[str]) -> Optional[str]:
         if value is not None and not value.strip():
             raise ValueError("must not be blank/whitespace-only when provided")
+        return value
+
+    @field_validator("evidence_id", mode="after")
+    @classmethod
+    def _evidence_id_must_not_be_blank(cls, value: str) -> str:
+        # Field(min_length=1) alone accepts "   " -- a whitespace-only
+        # evidence_id would still pass GroundedAnswer's cited_ids/evidence_ids
+        # match check yet resolve to no real registry entry (Codex review,
+        # PR #33, P2).
+        if not value.strip():
+            raise ValueError("evidence_id must not be blank/whitespace-only")
         return value
 
 
@@ -217,6 +240,27 @@ class GroundedAnswer(BaseModel):
             if self.boundary is None:
                 raise EvidenceContractError(
                     "a 'conflict' status requires a boundary code"
+                )
+            # A conflict's boundary code must itself describe a conflict
+            # (mirrors poc1_acceptance_contract.py's own conflict boundary_code
+            # whitelist). "OUT_OF_SCOPE"/"FICTIONAL_SECTION"/"MISSING_EVIDENCE"
+            # describe why no answer was given at all, not a disagreement
+            # between competing sources -- a live conflict declaring one of
+            # those would contradict its own status (Codex review, PR #33, P2).
+            if self.boundary not in CONFLICT_BOUNDARY_CODES:
+                raise EvidenceContractError(
+                    "a 'conflict' status requires a conflict boundary code "
+                    f"({CONFLICT_BOUNDARY_CODES!r}); got {self.boundary!r}"
+                )
+            # A conflict is only real when there are at least two distinct
+            # competing claims -- one claim (however many citations back it)
+            # is not a conflict, and two identical claim strings are not
+            # "competing" either (Codex review, PR #33, P2, mirrors
+            # poc1_acceptance_contract.py's >=2 required_claims rule).
+            if len(self.claims) < 2 or len(set(self.claims)) < 2:
+                raise EvidenceContractError(
+                    "a 'conflict' status requires at least two distinct "
+                    f"competing claims; got {self.claims!r}"
                 )
             # A conflict is only real when the citations come from distinct
             # competing provenance -- two citations that happen to share the

@@ -1006,6 +1006,36 @@ def test_governed_retriever_rejects_evidence_with_unregistered_source_id():
 
 
 @pytest.mark.unit
+def test_governed_retriever_rejects_answer_evidence_from_excluded_source():
+    # Codex review (PR #33, P1): "usb4" IS a known/registered corpus.lock.yaml
+    # source_id (its exclusion is itself traceable), but it is phase_2 and
+    # included=false -- registered does not mean eligible as answer evidence.
+    # An evidence entry that references it must be rejected at load time,
+    # not silently surfaced by query()/to_citation() as ordinary evidence.
+    retriever = GovernedSpecRetriever()
+    assert retriever.corpus_lock["sources"]["usb4"]["included"] is False
+    bad_evidence = copy.deepcopy(retriever.EVIDENCE_REGISTRY[0])
+    bad_evidence.source_id = "usb4"
+    retriever.EVIDENCE_REGISTRY = retriever.EVIDENCE_REGISTRY + [bad_evidence]
+    with pytest.raises(ValueError, match="not eligible as answer evidence"):
+        retriever._validate_evidence_registry_provenance(retriever.corpus_lock)
+
+
+@pytest.mark.unit
+def test_governed_retriever_rejects_answer_evidence_from_evaluation_only_layer():
+    # Codex review (PR #33, P1): even a phase_1, included source is not
+    # eligible as answer evidence if its declared layer is not marked
+    # allowed_as_answer_evidence=true in corpus.lock.yaml (e.g. an
+    # "evaluation_only" layer source, per corpus.lock.yaml's own
+    # layers.evaluation_only.allowed_as_answer_evidence: false).
+    retriever = GovernedSpecRetriever()
+    corpus_lock = copy.deepcopy(retriever.corpus_lock)
+    corpus_lock["sources"]["hub_reference"]["layer"] = "evaluation_only"
+    with pytest.raises(ValueError, match="not eligible as answer evidence"):
+        retriever._validate_evidence_registry_provenance(corpus_lock)
+
+
+@pytest.mark.unit
 def test_governed_retriever_to_citation_resolves_hub_reference_provenance():
     # hub_reference has no document/revision keys in corpus.lock.yaml, only
     # repo/commit -- to_citation() must fall back to those. chapter is

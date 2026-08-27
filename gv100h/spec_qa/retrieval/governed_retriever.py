@@ -200,6 +200,37 @@ class GovernedSpecRetriever:
                 + ", ".join(unknown)
             )
 
+        # Being a *known* source_id is not the same as being *eligible as
+        # answer evidence*: corpus.lock.yaml deliberately registers excluded
+        # sources too (e.g. "usb4", phase_2/included=false) so their
+        # exclusion is itself traceable. Without this check, an
+        # EVIDENCE_REGISTRY entry could reference such a source and both
+        # query() and to_citation() would happily surface it as ordinary
+        # answer evidence -- letting an explicit negative-control source
+        # leak into answers (Codex review, PR #33, P1). A source is eligible
+        # only when it is bound to the current phase, not excluded, and its
+        # declared layer is itself marked allowed_as_answer_evidence in
+        # corpus.lock.yaml.
+        layers = corpus_lock.get("layers", {})
+        ineligible = []
+        for ev in self.EVIDENCE_REGISTRY:
+            source = corpus_lock["sources"].get(ev.source_id, {})
+            layer = layers.get(source.get("layer"), {})
+            is_eligible = (
+                source.get("phase") == "phase_1"
+                and source.get("included", True) is not False
+                and layer.get("allowed_as_answer_evidence") is True
+            )
+            if not is_eligible:
+                ineligible.append(f"{ev.evidence_id!r} (source_id={ev.source_id!r})")
+        if ineligible:
+            raise ValueError(
+                "EVIDENCE_REGISTRY contains entries whose source is not "
+                "eligible as answer evidence (must be phase_1, not excluded, "
+                "and declared on a layer with allowed_as_answer_evidence=true "
+                "in corpus.lock.yaml): " + ", ".join(ineligible)
+            )
+
     def to_citation(self, ev: GovernedEvidence, *, excerpt_max_len: int = 240) -> Citation:
         """
         Resolve a GovernedEvidence into a Citation per the Evidence Contract

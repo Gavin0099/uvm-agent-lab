@@ -85,6 +85,15 @@ def test_citation_rejects_blank_normative_field_when_provided():
 
 
 @pytest.mark.unit
+def test_citation_rejects_whitespace_only_evidence_id():
+    # Codex review follow-up (PR #33, P2): Field(min_length=1) alone accepts
+    # "   ", which would still satisfy GroundedAnswer's cited_ids/evidence_ids
+    # match check yet resolve to no real registry entry.
+    with pytest.raises(EvidenceContractError, match="evidence_id must not be blank"):
+        Citation(evidence_id="   ", excerpt="boundary citation")
+
+
+@pytest.mark.unit
 def test_grounded_answer_answer_status_requires_citation_and_claim():
     with pytest.raises(EvidenceContractError, match="requires at least one supporting citation"):
         GroundedAnswer(
@@ -285,6 +294,7 @@ def test_grounded_answer_conflict_requires_boundary_and_two_distinct_sources():
     with pytest.raises(EvidenceContractError, match="distinct competing provenance identities"):
         GroundedAnswer(
             status="conflict",
+            claims=["claim A", "claim B"],
             citations=[_citation()],
             evidence_ids=["USB3-FEAT-PORT_POWER"],
             boundary="VERSION_CONFLICT",
@@ -300,6 +310,7 @@ def test_grounded_answer_conflict_rejects_same_source_citations():
     with pytest.raises(EvidenceContractError, match="distinct competing provenance identities"):
         GroundedAnswer(
             status="conflict",
+            claims=["claim A", "claim B"],
             citations=[
                 _citation("USB3-FEAT-PORT_POWER"),
                 _citation("USB3-FEAT-PORT_LINK_STATE"),
@@ -311,9 +322,64 @@ def test_grounded_answer_conflict_rejects_same_source_citations():
 
 
 @pytest.mark.unit
+def test_grounded_answer_conflict_rejects_invalid_boundary_code():
+    # Codex review (PR #33, P2): OUT_OF_SCOPE/FICTIONAL_SECTION/MISSING_EVIDENCE
+    # describe why no answer was given at all, not a disagreement between
+    # competing sources -- a live conflict declaring one of those would
+    # contradict its own status. Mirrors poc1_acceptance_contract.py's own
+    # conflict boundary_code whitelist.
+    with pytest.raises(EvidenceContractError, match="requires a conflict boundary code"):
+        GroundedAnswer(
+            status="conflict",
+            claims=["claim A", "claim B"],
+            citations=[
+                _citation("USB3-FEAT-PORT_POWER", revision="1.0"),
+                _citation("USB2-FEAT-PORT_POWER", revision="1.1"),
+            ],
+            evidence_ids=["USB3-FEAT-PORT_POWER", "USB2-FEAT-PORT_POWER"],
+            boundary="OUT_OF_SCOPE",
+            scope="USB_3_X",
+        )
+
+
+@pytest.mark.unit
+def test_grounded_answer_conflict_requires_two_distinct_competing_claims():
+    # Codex review (PR #33, P2): a single claim (however many citations back
+    # it) is not a "conflict", and two identical claim strings are not
+    # "competing" either. Mirrors poc1_acceptance_contract.py's >=2
+    # required_claims rule for conflict questions.
+    with pytest.raises(EvidenceContractError, match="at least two distinct competing claims"):
+        GroundedAnswer(
+            status="conflict",
+            claims=["only one claim"],
+            citations=[
+                _citation("USB3-FEAT-PORT_POWER", revision="1.0"),
+                _citation("USB2-FEAT-PORT_POWER", revision="1.1"),
+            ],
+            evidence_ids=["USB3-FEAT-PORT_POWER", "USB2-FEAT-PORT_POWER"],
+            boundary="VERSION_CONFLICT",
+            scope="USB_3_X",
+        )
+
+    with pytest.raises(EvidenceContractError, match="at least two distinct competing claims"):
+        GroundedAnswer(
+            status="conflict",
+            claims=["the same claim", "the same claim"],
+            citations=[
+                _citation("USB3-FEAT-PORT_POWER", revision="1.0"),
+                _citation("USB2-FEAT-PORT_POWER", revision="1.1"),
+            ],
+            evidence_ids=["USB3-FEAT-PORT_POWER", "USB2-FEAT-PORT_POWER"],
+            boundary="VERSION_CONFLICT",
+            scope="USB_3_X",
+        )
+
+
+@pytest.mark.unit
 def test_grounded_answer_conflict_accepts_distinct_provenance_by_revision():
     answer = GroundedAnswer(
         status="conflict",
+        claims=["USB 3.x revision 1.0 says X", "USB 3.x revision 1.1 says Y"],
         citations=[
             _citation("USB3-FEAT-PORT_POWER", revision="1.0"),
             _citation("USB2-FEAT-PORT_POWER", revision="1.1"),
@@ -329,6 +395,7 @@ def test_grounded_answer_conflict_accepts_distinct_provenance_by_revision():
 def test_grounded_answer_conflict_accepts_distinct_provenance_by_authority_level():
     answer = GroundedAnswer(
         status="conflict",
+        claims=["the authoritative source says X", "the derived source says Y"],
         citations=[
             _citation("USB3-FEAT-PORT_POWER", authority_level="authoritative"),
             _citation("USB2-FEAT-PORT_POWER", authority_level="derived"),
