@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 from gv100h.spec_qa.retrieval.governed_retriever import GovernedSpecRetriever, GovernedEvidence
 from gv100h.spec_qa.contracts.retrieval_policy import RetrievalMode, RetrievalPolicy
+from gv100h.spec_qa.contracts.evidence_contract import AnswerStatus, Citation, GroundedAnswer
 
 
 class QARequest(BaseModel):
@@ -20,6 +21,13 @@ class QAResponse(BaseModel):
     claim_level: str
     boundary: str
     is_abstain: bool
+    # Additive Evidence Contract fields (docs/USB_SPEC_QA_POC1_SCOPE.md §5).
+    # These are populated in parallel with the legacy free-text fields above
+    # so existing callers/tests keep working unchanged; new callers should
+    # prefer these structured fields over parsing `answer`/`boundary` prose.
+    status: AnswerStatus = "abstain"
+    citations: List[Citation] = []
+    evidence_ids: List[str] = []
 
 
 class GovernedQAService:
@@ -49,13 +57,15 @@ class GovernedQAService:
         ]
         for uk in unsupported_keywords:
             if uk in q_lower:
-                return QAResponse(
+                return self._build_response(
                     answer="現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論與權威違規 (Abstain)。",
                     scope=answer_scope or "OUT_OF_SCOPE",
                     cited_evidences=[],
                     claim_level="abstain_no_evidence",
                     boundary="Exceeds governed knowledge surface of usb-if-hub-spec-reference.",
-                    is_abstain=True
+                    is_abstain=True,
+                    status="abstain",
+                    boundary_code="OUT_OF_SCOPE",
                 )
 
         # allowed_evidence_scopes is only meaningful paired with an
@@ -94,13 +104,15 @@ class GovernedQAService:
 
         # Abstention if no evidence found
         if not evidences:
-            return QAResponse(
+            return self._build_response(
                 answer="現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論 (Abstain)。",
                 scope=answer_scope or "OUT_OF_SCOPE",
                 cited_evidences=[],
                 claim_level="abstain_no_evidence",
                 boundary="Exceeds governed knowledge surface of usb-if-hub-spec-reference.",
-                is_abstain=True
+                is_abstain=True,
+                status="abstain",
+                boundary_code="MISSING_EVIDENCE",
             )
 
         # Synthesize multi-evidence or single evidence answer
@@ -122,12 +134,64 @@ class GovernedQAService:
 
         full_answer = "\n".join(answer_parts)
 
-        return QAResponse(
+        cited = evidences[:2]
+        citations = [self.retriever.to_citation(ev) for ev in cited]
+
+        return self._build_response(
             answer=full_answer,
             scope=primary_ev.scope if not answer_scope else answer_scope,
-            cited_evidences=evidences[:2],
+            cited_evidences=cited,
             claim_level=primary_ev.claim_level,
             boundary="Strictly bounded by in-scope governed evidence.",
-            is_abstain=False
+            is_abstain=False,
+            status="answer",
+            claims=answer_parts,
+            citations=citations,
+        )
+
+    def _build_response(
+        self,
+        *,
+        answer: str,
+        scope: str,
+        cited_evidences: List[GovernedEvidence],
+        claim_level: str,
+        boundary: str,
+        is_abstain: bool,
+        status: AnswerStatus,
+        claims: Optional[List[str]] = None,
+        citations: Optional[List[Citation]] = None,
+        boundary_code: Optional[str] = None,
+    ) -> QAResponse:
+        """
+        Construct a QAResponse and self-validate its structured Evidence
+        Contract fields (status/claims/citations/evidence_ids/boundary)
+        against GroundedAnswer before returning -- this is a fail-closed
+        check: if this service ever builds a response that violates the
+        Answer and Evidence Contract (docs/USB_SPEC_QA_POC1_SCOPE.md §5),
+        it raises instead of silently returning a non-compliant response.
+        """
+        citations = citations or []
+        evidence_ids = [c.evidence_id for c in citations]
+
+        GroundedAnswer(
+            status=status,
+            claims=claims or [],
+            citations=citations,
+            scope=scope,
+            boundary=boundary_code,
+            evidence_ids=evidence_ids,
+        )
+
+        return QAResponse(
+            answer=answer,
+            scope=scope,
+            cited_evidences=cited_evidences,
+            claim_level=claim_level,
+            boundary=boundary,
+            is_abstain=is_abstain,
+            status=status,
+            citations=citations,
+            evidence_ids=evidence_ids,
         )
 

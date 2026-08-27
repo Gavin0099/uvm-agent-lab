@@ -8,6 +8,7 @@ from pydantic import BaseModel
 import yaml
 
 from gv100h.spec_qa.contracts.retrieval_policy import RetrievalPolicy
+from gv100h.spec_qa.contracts.evidence_contract import Citation, EvidenceContractError
 
 
 class GovernedEvidence(BaseModel):
@@ -18,6 +19,11 @@ class GovernedEvidence(BaseModel):
     section: str
     title: str
     content: str
+    # Which corpus.lock.yaml source this evidence was derived from (e.g.
+    # "hub_reference"). This is the provenance link the Evidence Contract
+    # (evidence_contract.py) requires to build a Citation's document/revision
+    # fields -- an evidence entry with no traceable source cannot be cited.
+    source_id: str
 
 
 class GovernedSpecRetriever:
@@ -54,7 +60,8 @@ class GovernedSpecRetriever:
             claim_level="normative_requirement",
             section="10.16.2.1",
             title="Hub Class Feature Selectors (USB 3.x)",
-            content="In USB 3.x Hub specifications, PORT_POWER feature selector value is 8 (0x0008). Used with SetPortFeature to enable VBUS power to the downstream port."
+            content="In USB 3.x Hub specifications, PORT_POWER feature selector value is 8 (0x0008). Used with SetPortFeature to enable VBUS power to the downstream port.",
+            source_id="hub_reference",
         ),
         GovernedEvidence(
             evidence_id="USB2-FEAT-PORT_POWER",
@@ -63,7 +70,8 @@ class GovernedSpecRetriever:
             claim_level="normative_requirement",
             section="11.24.2.1",
             title="Hub Class Feature Selectors (USB 2.0)",
-            content="In USB 2.0 Hub specifications, PORT_POWER feature selector value is 8 (0x0008)."
+            content="In USB 2.0 Hub specifications, PORT_POWER feature selector value is 8 (0x0008).",
+            source_id="hub_reference",
         ),
         GovernedEvidence(
             evidence_id="USB3-FEAT-PORT_LINK_STATE",
@@ -72,7 +80,8 @@ class GovernedSpecRetriever:
             claim_level="normative_requirement",
             section="10.16.2.2",
             title="Port Link State Feature Selector (USB 3.x)",
-            content="PORT_LINK_STATE feature selector value is 5 (0x0005) in USB 3.x. Not applicable to USB 2.0 (USB 3.x 專屬，在 USB 2.0 架構下無效，不支援且不適用)."
+            content="PORT_LINK_STATE feature selector value is 5 (0x0005) in USB 3.x. Not applicable to USB 2.0 (USB 3.x 專屬，在 USB 2.0 架構下無效，不支援且不適用).",
+            source_id="hub_reference",
         ),
         GovernedEvidence(
             evidence_id="USB3-HUB-DESC-FORMAT",
@@ -81,7 +90,8 @@ class GovernedSpecRetriever:
             claim_level="normative_requirement",
             section="10.15.2.1",
             title="USB 3.x SuperSpeed Hub Descriptor",
-            content="bDescriptorType is 0x2A for SuperSpeed Hub Descriptor (USB 3.x), distinguishing it from USB 2.0 Hub Descriptor (0x29). USB 3.x Hub 不能直接使用 0x29."
+            content="bDescriptorType is 0x2A for SuperSpeed Hub Descriptor (USB 3.x), distinguishing it from USB 2.0 Hub Descriptor (0x29). USB 3.x Hub 不能直接使用 0x29.",
+            source_id="hub_reference",
         ),
         GovernedEvidence(
             evidence_id="USB2-HUB-DESC-FORMAT",
@@ -90,7 +100,8 @@ class GovernedSpecRetriever:
             claim_level="normative_requirement",
             section="11.23.2.1",
             title="USB 2.0 Hub Descriptor",
-            content="bDescriptorType is 0x29 for USB 2.0 Hub Descriptor. 收到 0x2A 在 USB 2.0 為未定義錯誤。"
+            content="bDescriptorType is 0x29 for USB 2.0 Hub Descriptor. 收到 0x2A 在 USB 2.0 為未定義錯誤。",
+            source_id="hub_reference",
         )
     ]
 
@@ -108,6 +119,7 @@ class GovernedSpecRetriever:
         )
         self.corpus_lock = self._load_corpus_lock(self.corpus_lock_path)
         self.corpus_lock_validation = self.validate_corpus_lock(self.corpus_lock)
+        self._validate_evidence_registry_provenance(self.corpus_lock)
         self.require_physical_binding = require_physical_binding
         self.lock_binding_status = self.corpus_lock["status"]
         self.runtime_binding_status = "unverified"
@@ -166,6 +178,64 @@ class GovernedSpecRetriever:
             )
 
         self._refresh_qualification_state()
+
+    def _validate_evidence_registry_provenance(self, corpus_lock: Mapping[str, Any]) -> None:
+        """
+        Every EVIDENCE_REGISTRY entry must declare a source_id that is a known
+        key in corpus.lock.yaml's sources table. An evidence entry with an
+        unregistered source_id cannot be traced back to a document/revision,
+        so it can never be resolved into a Citation -- fail closed at load
+        time rather than at citation-build time.
+        """
+        known_source_ids = set(corpus_lock["sources"])
+        unknown = [
+            ev.evidence_id
+            for ev in self.EVIDENCE_REGISTRY
+            if ev.source_id not in known_source_ids
+        ]
+        if unknown:
+            raise ValueError(
+                "EVIDENCE_REGISTRY contains entries with unregistered source_id "
+                "(not present in corpus.lock.yaml sources): "
+                + ", ".join(unknown)
+            )
+
+    def to_citation(self, ev: GovernedEvidence, *, excerpt_max_len: int = 240) -> Citation:
+        """
+        Resolve a GovernedEvidence into a Citation per the Evidence Contract
+        (evidence_contract.py), using corpus.lock.yaml as the source of truth
+        for document/revision provenance.
+
+        corpus.lock.yaml sources come in two shapes:
+        - official_raw sources (usb20_fw, usb20_se, usb32,
+          superspeed_hub_lvs) declare document + revision directly.
+        - the hub_reference governed_reference source instead declares
+          repo + commit (no document/revision keys), so those are used as
+          the document/revision fallback.
+        """
+        source = self.corpus_lock["sources"].get(ev.source_id)
+        if source is None:
+            raise EvidenceContractError(
+                f"evidence {ev.evidence_id!r} declares unregistered source_id "
+                f"{ev.source_id!r}; cannot resolve document/revision"
+            )
+
+        document = source.get("document", source.get("repo", ev.source_id))
+        revision = source.get("revision", source.get("commit", "unknown"))
+
+        excerpt = ev.content
+        if excerpt_max_len and len(excerpt) > excerpt_max_len:
+            excerpt = excerpt[: excerpt_max_len - 1].rstrip() + "\u2026"
+
+        return Citation(
+            evidence_id=ev.evidence_id,
+            document=document,
+            revision=revision,
+            section=ev.section,
+            page_or_anchor=ev.section,
+            authority_level=ev.authority_level,
+            excerpt=excerpt,
+        )
 
     def _refresh_qualification_state(self) -> None:
         block_reasons = list(self.corpus_lock_validation["block_reasons"])

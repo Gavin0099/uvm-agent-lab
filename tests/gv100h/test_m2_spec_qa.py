@@ -12,6 +12,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from gv100h.spec_qa.retrieval.governed_retriever import GovernedSpecRetriever
 from gv100h.spec_qa.api.qa_service import GovernedQAService
+from gv100h.spec_qa.contracts.evidence_contract import Citation, EvidenceContractError
 from gv100h.spec_qa.contracts.retrieval_policy import RetrievalPolicy, RetrievalPolicyError
 from gv100h.spec_qa.evaluation.deterministic_evaluator import DeterministicSpecQAEvaluator
 from gv100h.coding_eval.governance_ab_runner import ABExperimentSummary
@@ -897,6 +898,11 @@ def test_governed_qa_service_abstention():
     assert resp.is_abstain is True
     assert "無法支持" in resp.answer
     assert len(resp.cited_evidences) == 0
+    # Evidence Contract fields (docs/USB_SPEC_QA_POC1_SCOPE.md §5): an
+    # abstain response must declare a boundary code and no claims/citations.
+    assert resp.status == "abstain"
+    assert resp.citations == []
+    assert resp.evidence_ids == []
 
 
 @pytest.mark.unit
@@ -960,3 +966,71 @@ def test_golden_30_deterministic_benchmark():
     assert result.fabricated_citations_count == 0
     assert result.authority_violations_count == 0
     assert result.all_gates_passed is True
+
+
+@pytest.mark.unit
+def test_governed_evidence_registry_entries_declare_source_id():
+    # Every embedded evidence entry must carry a source_id so it can be
+    # traced back to corpus.lock.yaml and resolved into a Citation.
+    retriever = GovernedSpecRetriever()
+    assert len(retriever.EVIDENCE_REGISTRY) == 5
+    for ev in retriever.EVIDENCE_REGISTRY:
+        assert ev.source_id == "hub_reference"
+        assert ev.source_id in retriever.corpus_lock["sources"]
+
+
+@pytest.mark.unit
+def test_governed_retriever_rejects_evidence_with_unregistered_source_id():
+    # Fail closed at load time: an evidence entry whose source_id is not a
+    # known corpus.lock.yaml source can never be resolved into a Citation,
+    # so it must never be allowed into the registry in the first place.
+    retriever = GovernedSpecRetriever()
+    bad_evidence = copy.deepcopy(retriever.EVIDENCE_REGISTRY[0])
+    bad_evidence.source_id = "not_a_real_source"
+    retriever.EVIDENCE_REGISTRY = retriever.EVIDENCE_REGISTRY + [bad_evidence]
+    with pytest.raises(ValueError, match="unregistered source_id"):
+        retriever._validate_evidence_registry_provenance(retriever.corpus_lock)
+
+
+@pytest.mark.unit
+def test_governed_retriever_to_citation_resolves_hub_reference_provenance():
+    # hub_reference has no document/revision keys in corpus.lock.yaml, only
+    # repo/commit -- to_citation() must fall back to those.
+    retriever = GovernedSpecRetriever()
+    ev = retriever.get_evidence_by_id("USB3-FEAT-PORT_POWER")
+    citation = retriever.to_citation(ev)
+    assert isinstance(citation, Citation)
+    assert citation.evidence_id == "USB3-FEAT-PORT_POWER"
+    assert citation.document == "Gavin0099/usb-if-hub-spec-reference"
+    assert citation.revision == "808f23c24bd8651da9cdcd63ea8669126917a379"
+    assert citation.section == ev.section
+    assert citation.authority_level == ev.authority_level
+    assert citation.excerpt is not None
+
+
+@pytest.mark.unit
+def test_governed_retriever_to_citation_truncates_long_excerpts():
+    retriever = GovernedSpecRetriever()
+    ev = retriever.get_evidence_by_id("USB3-FEAT-PORT_POWER")
+    citation = retriever.to_citation(ev, excerpt_max_len=10)
+    assert citation.excerpt is not None
+    assert len(citation.excerpt) <= 10
+
+
+@pytest.mark.unit
+def test_governed_qa_service_answer_populates_evidence_contract_fields():
+    # An "answer" response must expose status/citations/evidence_ids per the
+    # Evidence Contract, in addition to the legacy free-text fields.
+    service = GovernedQAService()
+    resp = service.answer_question(
+        "PORT_POWER feature selector value", "USB_3_X"
+    )
+    assert resp.is_abstain is False
+    assert resp.status == "answer"
+    assert len(resp.citations) > 0
+    assert resp.evidence_ids == [c.evidence_id for c in resp.citations]
+    assert set(resp.evidence_ids) == {ev.evidence_id for ev in resp.cited_evidences}
+    for citation in resp.citations:
+        assert citation.document
+        assert citation.revision
+        assert citation.section
