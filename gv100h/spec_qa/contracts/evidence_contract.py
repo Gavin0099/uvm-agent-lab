@@ -10,6 +10,11 @@ user-facing rendering is natural language prose:
 
 - ``status``: ``answer``, ``abstain``, or ``conflict``.
 - ``claims``: material claims made by the answer.
+- ``claim_evidence_ids``: one entry per ``claims`` entry, each a nonempty
+  list of evidence_id values from ``citations``/``evidence_ids`` that back
+  that specific claim -- claim-to-evidence TRACEABILITY, not semantic
+  entailment (a bound evidence_id is not verified to actually support the
+  claim's text; only that it is a real citation on this response).
 - ``citations``: document, revision, section, page-or-anchor, authority
   level, and evidence ID for every piece of cited evidence.
 - ``scope``: the corpus scope used for the answer.
@@ -161,6 +166,20 @@ class GroundedAnswer(BaseModel):
     status: AnswerStatus
     claims: List[str] = Field(default_factory=list)
     citations: List[Citation] = Field(default_factory=list)
+    # Per-claim evidence TRACEABILITY (not semantic entailment): one entry
+    # per ``claims`` entry, each a nonempty list of evidence_id values that
+    # must all be present among this answer's own citations/evidence_ids.
+    # Without this, ``claims`` and ``citations`` were only independently
+    # required to be nonempty -- a response could pair one real citation
+    # with an extra, wholly unrelated hallucinated claim and still pass,
+    # because nothing established WHICH citation (if any) backs WHICH claim
+    # (Codex review, PR #33, P1, fresh finding on d4f3bf7). This field only
+    # answers "does every claim declare its supporting evidence_id(s), and
+    # do those IDs actually appear in this response's own citations?" -- it
+    # deliberately does NOT verify that the cited evidence semantically
+    # entails the claim's text (no NLI/embedding/LLM-judge check here); that
+    # is a separate, harder problem left to a future evaluator layer.
+    claim_evidence_ids: List[List[str]] = Field(default_factory=list)
     # Required and nonempty: every evaluated answer -- including abstain and
     # conflict -- must expose which corpus scope it was evaluated under
     # (docs/USB_SPEC_QA_POC1_SCOPE.md §5). This is part of the Wrong-Version/
@@ -213,6 +232,37 @@ class GroundedAnswer(BaseModel):
             raise EvidenceContractError(
                 "citations must not cite the same evidence_id more than once"
             )
+
+        # Per-claim evidence traceability (Codex review, PR #33, P1, fresh
+        # finding on d4f3bf7): every material claim must declare which
+        # evidence_id(s) support it, and every declared evidence_id must be
+        # one this response actually cites -- otherwise a claim could bind
+        # to a fabricated or unrelated ID and still be counted as "backed".
+        # This is checked unconditionally (any status with claims), not
+        # only for "answer", so an abstain/conflict boundary claim is held
+        # to the same traceability standard. This establishes traceability
+        # only; it is not a semantic-entailment check (see
+        # ``claim_evidence_ids``'s field docstring above).
+        if len(self.claims) != len(self.claim_evidence_ids):
+            raise EvidenceContractError(
+                "claim_evidence_ids must have exactly one entry per claim; "
+                f"got {len(self.claims)} claim(s) and "
+                f"{len(self.claim_evidence_ids)} claim_evidence_ids entry(ies)"
+            )
+        cited_id_set = set(cited_ids)
+        for claim_text, evidence_ids_for_claim in zip(self.claims, self.claim_evidence_ids):
+            if not evidence_ids_for_claim:
+                raise EvidenceContractError(
+                    f"claim {claim_text!r} has no bound evidence_ids; every "
+                    "material claim must bind to at least one evidence_id"
+                )
+            unbound = [eid for eid in evidence_ids_for_claim if eid not in cited_id_set]
+            if unbound:
+                raise EvidenceContractError(
+                    f"claim {claim_text!r} binds to evidence_id(s) {unbound!r} "
+                    "that are not present among this response's own "
+                    "citations/evidence_ids"
+                )
 
         if self.status == "answer":
             if not self.citations:

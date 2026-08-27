@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 import yaml
+from pydantic import ValidationError
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -1236,12 +1237,13 @@ def test_governed_qa_service_response_projects_onto_grounded_answer():
     service = GovernedQAService()
     resp = service.answer_question("PORT_POWER feature selector value", "USB_3_X")
     dumped = resp.model_dump()
-    for key in ("status", "claims", "citations", "scope", "boundary_code", "evidence_ids"):
+    for key in ("status", "claims", "claim_evidence_ids", "citations", "scope", "boundary_code", "evidence_ids"):
         assert key in dumped
 
     reconstructed = GroundedAnswer(
         status=dumped["status"],
         claims=dumped["claims"],
+        claim_evidence_ids=dumped["claim_evidence_ids"],
         citations=dumped["citations"],
         scope=dumped["scope"],
         boundary=dumped["boundary_code"],
@@ -1287,6 +1289,17 @@ class _StubEvidenceResolverWithCanonicalBoundary(_StubEvidenceResolver):
     def __init__(self, known_ids, excerpts=None):
         super().__init__(known_ids)
         self._excerpts = dict(excerpts or {})
+
+    def get_evidence_by_id(self, evidence_id):
+        # Overrides the parent's bare-string return: _trusted_source_text()
+        # (final_evaluator.py) needs a raw record exposing ``.excerpt``/
+        # ``.content`` to verify a genuine, non-fallback excerpt against the
+        # trusted source text (Codex review, PR #33, fresh finding on
+        # d4f3bf7). A bare string has neither attribute, which would make
+        # every non-evidence_id-fallback excerpt unverifiable here.
+        if evidence_id not in self._known_ids:
+            return None
+        return SimpleNamespace(excerpt=self._excerpts.get(evidence_id))
 
     def get_canonical_citation_by_id(self, evidence_id):
         if evidence_id not in self._known_ids:
@@ -1397,6 +1410,7 @@ def test_full_contract_chain_boundary_abstain_round_trip_through_final_evaluator
         is_abstain=True,
         status="abstain",
         claims=[claim_text],
+        claim_evidence_ids=[["USB4-OUT-OF-SCOPE"]],
         citations=[boundary_citation],
         boundary_code="OUT_OF_SCOPE",
         evidence_ids=["USB4-OUT-OF-SCOPE"],
@@ -1407,6 +1421,7 @@ def test_full_contract_chain_boundary_abstain_round_trip_through_final_evaluator
     GroundedAnswer(
         status=resp.status,
         claims=resp.claims,
+        claim_evidence_ids=resp.claim_evidence_ids,
         citations=resp.citations,
         scope=resp.scope,
         boundary=resp.boundary_code,
@@ -1834,6 +1849,7 @@ def test_grounded_answer_answer_status_allows_governance_citation_without_normat
     answer = GroundedAnswer(
         status="answer",
         claims=["USB4 is not included in the Phase 1 corpus."],
+        claim_evidence_ids=[["POC1-BOUNDARY-USB4-EXCLUDED"]],
         citations=[citation],
         evidence_ids=["POC1-BOUNDARY-USB4-EXCLUDED"],
         scope="USB4_SPEC",
@@ -1847,6 +1863,7 @@ def test_grounded_answer_governance_citation_rejects_normative_fields():
         GroundedAnswer(
             status="answer",
             claims=["USB4 is not included in the Phase 1 corpus."],
+            claim_evidence_ids=[["POC1-BOUNDARY-USB4-EXCLUDED"]],
             citations=[
                 Citation(
                     evidence_id="POC1-BOUNDARY-USB4-EXCLUDED",
@@ -1869,6 +1886,7 @@ def test_grounded_answer_rejects_boundary_kind_citation_for_answer_status():
         GroundedAnswer(
             status="answer",
             claims=["some claim"],
+            claim_evidence_ids=[["POC1-BOUNDARY-USB4-EXCLUDED"]],
             citations=[
                 Citation(
                     evidence_id="POC1-BOUNDARY-USB4-EXCLUDED",
@@ -1887,6 +1905,7 @@ def test_grounded_answer_rejects_boundary_kind_citation_for_conflict_status():
         GroundedAnswer(
             status="conflict",
             claims=["claim A", "claim B"],
+            claim_evidence_ids=[["POC1-BOUNDARY-USB4-EXCLUDED"], ["USB2-FEAT-PORT_POWER"]],
             citations=[
                 Citation(
                     evidence_id="POC1-BOUNDARY-USB4-EXCLUDED",
@@ -1920,6 +1939,7 @@ def test_grounded_answer_version_conflict_rejects_same_revision_different_docume
         GroundedAnswer(
             status="conflict",
             claims=["claim A", "claim B"],
+            claim_evidence_ids=[["USB3-FEAT-PORT_POWER"], ["USB2-FEAT-PORT_POWER"]],
             citations=[
                 Citation(
                     evidence_id="USB3-FEAT-PORT_POWER",
@@ -1955,6 +1975,7 @@ def test_grounded_answer_authority_mismatch_rejects_same_authority_different_rev
         GroundedAnswer(
             status="conflict",
             claims=["claim A", "claim B"],
+            claim_evidence_ids=[["USB3-FEAT-PORT_POWER"], ["USB2-FEAT-PORT_POWER"]],
             citations=[
                 Citation(
                     evidence_id="USB3-FEAT-PORT_POWER",
@@ -2424,6 +2445,7 @@ def test_qa_service_usb4_corpus_membership_answer_is_a_valid_grounded_answer():
     GroundedAnswer(
         status=resp.status,
         claims=resp.claims,
+        claim_evidence_ids=resp.claim_evidence_ids,
         citations=resp.citations,
         scope=resp.scope,
         boundary=resp.boundary_code,
@@ -2564,3 +2586,145 @@ def test_qa_service_missing_evidence_abstain_cannot_be_admitted_without_a_bounda
     # evidence_id.
     assert result.passed is False
     assert result.citation_complete is False
+
+
+def _qa_response_kwargs(**overrides) -> dict:
+    # Minimal-but-valid QAResponse construction kwargs for the
+    # is_abstain/status/boundary_code consistency tests below -- claims/
+    # citations/claim_evidence_ids/evidence_ids are deliberately left at
+    # their empty defaults since QAResponse's own model_validator does not
+    # itself re-derive GroundedAnswer's claim-shape rules (that only
+    # happens when _build_response() separately constructs a
+    # GroundedAnswer); these tests isolate the
+    # is_abstain/status/boundary_code projection check alone.
+    base = dict(
+        answer="an answer",
+        scope="USB_3_X",
+        cited_evidences=[],
+        claim_level="answer",
+        boundary="",
+        is_abstain=False,
+        status="answer",
+        boundary_code=None,
+    )
+    base.update(overrides)
+    return base
+
+
+@pytest.mark.unit
+def test_qa_response_answer_status_with_consistent_fields_passes():
+    # Positive control: status="answer" with is_abstain=False and no
+    # boundary_code is a valid, consistent QAResponse.
+    response = QAResponse(**_qa_response_kwargs())
+    assert response.status == "answer"
+    assert response.is_abstain is False
+    assert response.boundary_code is None
+
+
+@pytest.mark.unit
+def test_qa_response_conflict_status_with_consistent_fields_passes():
+    # Positive control: status="conflict" with is_abstain=True and a
+    # boundary_code is also a valid, consistent QAResponse (conflict is not
+    # an abstention, but it's also not a plain answer -- see the
+    # docstring on QAResponse._is_abstain_matches_status()).
+    response = QAResponse(
+        **_qa_response_kwargs(
+            is_abstain=True,
+            status="conflict",
+            boundary_code="VERSION_CONFLICT",
+            boundary="Two sources disagree.",
+        )
+    )
+    assert response.status == "conflict"
+    assert response.is_abstain is True
+    assert response.boundary_code == "VERSION_CONFLICT"
+
+
+@pytest.mark.unit
+def test_qa_response_rejects_is_abstain_false_for_abstain_status():
+    # Codex review, PR #33, P2, fresh finding on d4f3bf7: is_abstain is a
+    # legacy fail-safe PROJECTION of status, not an independently settable
+    # field -- a caller must not be able to construct
+    # status="abstain"/is_abstain=False, which would let a legacy
+    # boolean-only downstream consumer treat an abstention as a confident
+    # answer.
+    with pytest.raises(
+        ValidationError,
+        match="is_abstain must be the legacy fail-safe projection",
+    ):
+        QAResponse(
+            **_qa_response_kwargs(
+                is_abstain=False,
+                status="abstain",
+                boundary_code="OUT_OF_SCOPE",
+                boundary="Exceeds governed knowledge surface.",
+            )
+        )
+
+
+@pytest.mark.unit
+def test_qa_response_rejects_is_abstain_true_for_answer_status():
+    # The reverse inconsistency: status="answer" must always project to
+    # is_abstain=False.
+    with pytest.raises(
+        ValidationError,
+        match="is_abstain must be the legacy fail-safe projection",
+    ):
+        QAResponse(**_qa_response_kwargs(is_abstain=True, status="answer"))
+
+
+@pytest.mark.unit
+def test_qa_response_rejects_is_abstain_false_for_conflict_status():
+    # "conflict" is not an abstention semantically, but it must still
+    # project is_abstain=True for legacy boolean-only callers -- treating a
+    # live source conflict as a plain confident answer would be worse than
+    # treating it as "not a normal answer."
+    with pytest.raises(
+        ValidationError,
+        match="is_abstain must be the legacy fail-safe projection",
+    ):
+        QAResponse(
+            **_qa_response_kwargs(
+                is_abstain=False,
+                status="conflict",
+                boundary_code="VERSION_CONFLICT",
+                boundary="Two sources disagree.",
+            )
+        )
+
+
+@pytest.mark.unit
+def test_qa_response_rejects_boundary_code_present_for_answer_status():
+    # boundary_code must be absent exactly when status == "answer" -- a
+    # confident answer must not simultaneously carry a boundary_code
+    # signaling abstention/conflict.
+    with pytest.raises(
+        ValidationError,
+        match="boundary_code must be populated exactly when status is",
+    ):
+        QAResponse(
+            **_qa_response_kwargs(
+                is_abstain=False,
+                status="answer",
+                boundary_code="OUT_OF_SCOPE",
+            )
+        )
+
+
+@pytest.mark.unit
+def test_qa_response_rejects_missing_boundary_code_for_abstain_status():
+    # The reverse: status="abstain" (with is_abstain correctly True) must
+    # still populate a boundary_code -- an abstention with no boundary_code
+    # gives a caller no machine-readable reason for the abstention.
+    with pytest.raises(
+        ValidationError,
+        match="boundary_code must be populated exactly when status is",
+    ):
+        QAResponse(
+            **_qa_response_kwargs(
+                is_abstain=True,
+                status="abstain",
+                boundary_code=None,
+                boundary="Exceeds governed knowledge surface.",
+            )
+        )

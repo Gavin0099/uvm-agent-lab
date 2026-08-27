@@ -75,6 +75,17 @@ class FinalQAResponse(BaseModel):
 
     status: Literal["answer", "abstain", "conflict"]
     claims: List[str] = Field(default_factory=list)
+    # One entry per ``claims`` entry, mirroring
+    # evidence_contract.GroundedAnswer.claim_evidence_ids -- see that
+    # field's docstring for why this is claim-to-evidence TRACEABILITY, not
+    # semantic entailment (Codex review, PR #33, P1, fresh finding on
+    # d4f3bf7). This schema deliberately does not enforce the
+    # length/binding invariants itself (unlike GroundedAnswer): a
+    # FinalQAResponse can be built directly by a caller that never passed
+    # through GroundedAnswer's own validation, so FinalPOC1Evaluator
+    # verifies traceability independently (see _claim_traceability_ok) and
+    # fails closed rather than assuming an already-valid shape.
+    claim_evidence_ids: List[List[str]] = Field(default_factory=list)
     citations: List[FinalQACitation] = Field(default_factory=list)
     scope: str = Field(min_length=1)
     boundary_code: Optional[BoundaryCode] = None
@@ -97,6 +108,7 @@ class FinalQuestionResult(BaseModel):
     boundary_correct: bool
     required_claims_present: bool
     forbidden_claim_detected: bool
+    claim_traceability_ok: bool
     cited_evidence_ids: List[str]
 
 
@@ -163,6 +175,46 @@ class FinalPOC1Evaluator:
         haystack = cls._normalize(" ".join(values))
         candidates = [expected, *variants]
         return any(cls._normalize(candidate) in haystack for candidate in candidates)
+
+    @staticmethod
+    def _claim_traceability_ok(response: FinalQAResponse) -> bool:
+        """
+        Verify that every claim in ``response.claims`` declares which
+        evidence_id(s) support it (``response.claim_evidence_ids``), and
+        that every declared evidence_id is actually present among this
+        response's own citations.
+
+        This closes the "extra unrelated claim" gap: previously the P0
+        grounding gate only checked that ``required_claims``/
+        ``required_facts`` were present and ``forbidden_claims`` were
+        absent, so an answer could smuggle in one additional hallucinated
+        claim the manifest never anticipated (and so never listed under
+        forbidden_claims) alongside one real, valid citation, and still
+        pass -- nothing ever established WHICH citation (if any) backs
+        WHICH claim (Codex review, PR #33, P1, fresh finding on d4f3bf7).
+
+        This is a TRACEABILITY check only, not semantic entailment: a
+        response could still bind a real, correctly-provenanced evidence_id
+        to a claim it does not actually support, and this check alone
+        cannot catch that. Closing that remaining gap needs a
+        semantic/entailment layer (deterministic structured-fact
+        comparison, NLI, or an LLM judge) -- a deliberate follow-up, not
+        implemented here.
+
+        Because FinalQAResponse (unlike GroundedAnswer) can be constructed
+        directly by a caller that never passed through GroundedAnswer's own
+        claim_evidence_ids validation, this check fails closed independently
+        rather than assuming the response is already well-formed.
+        """
+        if len(response.claims) != len(response.claim_evidence_ids):
+            return False
+        cited_ids = {citation.evidence_id for citation in response.citations}
+        for evidence_ids in response.claim_evidence_ids:
+            if not evidence_ids:
+                return False
+            if not set(evidence_ids).issubset(cited_ids):
+                return False
+        return True
 
     @staticmethod
     def _required_citation_fields_present(
@@ -253,19 +305,29 @@ class FinalPOC1Evaluator:
 
         "excerpt_or_evidence_id" is verified for *every* citation,
         normative or boundary, independent of the document/revision/etc.
-        comparison above: QAResponse.to_final_qa_response() only ever
-        populates this field with either the resolver's own canonical
-        excerpt (Citation.excerpt, e.g. from to_citation()/
-        to_boundary_citation()) or a fallback to the citation's own
-        evidence_id, so those are the only two values a genuine response
-        can produce. Accepting anything else means a response could pair a
-        real, correctly-provenanced evidence_id with a fabricated quote and
-        still pass both citation_complete and citation_valid, letting
-        unsupported evidence text through the grounding gate (Codex
-        review, PR #33, fresh finding on 88200c5). This is a precise
-        equality check against the canonical excerpt or the evidence_id --
-        deliberately not fuzzy/substring/similarity matching, since the
-        canonical excerpt is already a well-defined, deterministic value.
+        comparison above. It is valid iff it equals the citation's own
+        evidence_id, OR it is a strict contiguous verbatim substring of the
+        TRUSTED, UNTRUNCATED source text for that evidence_id (see
+        _trusted_source_text) -- never fuzzy/similarity matching, and never
+        the reverse containment ("the canonical text is contained inside
+        the submitted text"), which would let a real quote be padded with
+        arbitrary unsupported prose and still pass.
+
+        An earlier version of this check required exact equality against
+        the resolver's canonical Citation.excerpt -- but that field is
+        itself a DISPLAY rendering: GovernedSpecRetriever.to_citation()
+        truncates normative evidence content to at most 240 characters. A
+        response quoting a different, shorter genuine passage from later in
+        the source, or quoting the full untruncated passage when the
+        canonical record happened to store the truncated form, was
+        therefore incorrectly rejected (Codex review, PR #33, fresh finding
+        on d4f3bf7). Verifying against the untruncated trusted source text
+        instead of one preselected rendering fixes this while remaining a
+        strict, deterministic, non-fuzzy check: accepting anything means a
+        response could pair a real, correctly-provenanced evidence_id with
+        a fabricated quote and still pass both citation_complete and
+        citation_valid, letting unsupported evidence text through the
+        grounding gate (Codex review, PR #33, fresh finding on 88200c5).
 
         Returns:
         - a frozenset containing "citation_kind" when the submitted
@@ -274,8 +336,8 @@ class FinalPOC1Evaluator:
           evidence_id whose canonical record is normative, or vice versa);
         - a frozenset containing "excerpt_or_evidence_id" (alone, or
           alongside other mismatched field names) when the submitted value
-          is neither the citation's own evidence_id nor the canonical
-          record's excerpt;
+          is neither the citation's own evidence_id nor a verbatim
+          substring of the trusted source text;
         - a non-empty frozenset of the field names that disagree, when both
           the submitted citation and its canonical record are normative but
           some field was submitted incorrectly (e.g. chapter="999" for an
@@ -304,9 +366,11 @@ class FinalPOC1Evaluator:
             return frozenset({"citation_kind"})
 
         mismatches = set()
-        canonical_excerpt = getattr(canonical, "excerpt", None)
-        if citation.excerpt_or_evidence_id not in (citation.evidence_id, canonical_excerpt):
-            mismatches.add("excerpt_or_evidence_id")
+        excerpt_value = citation.excerpt_or_evidence_id
+        if excerpt_value != citation.evidence_id:
+            trusted_text = self._trusted_source_text(citation.evidence_id)
+            if trusted_text is None or excerpt_value is None or excerpt_value not in trusted_text:
+                mismatches.add("excerpt_or_evidence_id")
 
         if not submitted_normative:
             return frozenset(mismatches)
@@ -317,6 +381,35 @@ class FinalPOC1Evaluator:
             if getattr(citation, field_name) != getattr(canonical, field_name)
         )
         return frozenset(mismatches)
+
+    def _trusted_source_text(self, evidence_id: str) -> Optional[str]:
+        """
+        Resolve the trusted, UNTRUNCATED source text that a submitted
+        excerpt must be a strict contiguous verbatim substring of.
+
+        get_canonical_citation_by_id() returns a Citation whose own
+        ``excerpt`` is, for normative evidence, already truncated to at
+        most 240 characters (GovernedSpecRetriever.to_citation's
+        excerpt_max_len) -- a display rendering, not the full trusted
+        source text. This resolves the raw registry record instead, via
+        the same get_evidence_by_id() the fabrication check already uses:
+        - normative evidence: GovernedEvidence.content (the full source
+          text to_citation() truncates from);
+        - boundary/governance evidence: BoundaryEvidence.excerpt (already
+          the full trusted text -- to_boundary_citation()/
+          to_governance_citation() never truncate it).
+
+        Returns None when the resolver cannot produce this raw record --
+        callers must treat that as fail-closed, the same as an unresolvable
+        canonical citation.
+        """
+        raw = self.evidence_resolver.get_evidence_by_id(evidence_id)
+        if raw is None:
+            return None
+        content = getattr(raw, "content", None)
+        if content is not None:
+            return content
+        return getattr(raw, "excerpt", None)
 
     def _coerce_response(self, raw_response: Any) -> Optional[FinalQAResponse]:
         if isinstance(raw_response, FinalQAResponse):
@@ -348,6 +441,7 @@ class FinalPOC1Evaluator:
                 boundary_correct=False,
                 required_claims_present=False,
                 forbidden_claim_detected=False,
+                claim_traceability_ok=False,
                 cited_evidence_ids=[],
             )
 
@@ -411,6 +505,7 @@ class FinalPOC1Evaluator:
         boundary_correct = response.boundary_code == question.gold.boundary_code
         status_correct = response.status == question.expected_status
         citation_complete = self._required_citation_fields_present(response, question)
+        claim_traceability_ok = self._claim_traceability_ok(response)
 
         if question.expected_status == "answer":
             evidence_shape_correct = bool(cited_ids) and set(cited_ids).issubset(expected_ids)
@@ -431,6 +526,7 @@ class FinalPOC1Evaluator:
             and not forbidden_claim_detected
             and boundary_correct
             and scope_correct
+            and claim_traceability_ok
         )
         passed = grounded and citation_complete
         return FinalQuestionResult(
@@ -448,6 +544,7 @@ class FinalPOC1Evaluator:
             boundary_correct=boundary_correct,
             required_claims_present=required_claims_present,
             forbidden_claim_detected=forbidden_claim_detected,
+            claim_traceability_ok=claim_traceability_ok,
             cited_evidence_ids=cited_ids,
         )
 

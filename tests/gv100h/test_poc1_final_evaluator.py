@@ -208,7 +208,14 @@ class SyntheticEvidenceResolver:
         }
 
     def get_evidence_by_id(self, evidence_id: str):
-        return object() if evidence_id in self._ids else None
+        # Returns the SAME canonical record get_canonical_citation_by_id()
+        # uses, so _trusted_source_text() (final_evaluator.py) can resolve
+        # its `.excerpt` for the excerpt-substring check (Codex review, PR
+        # #33, fresh finding on d4f3bf7). This resolver has no separate
+        # "raw untruncated content" concept -- the canonical record IS the
+        # trusted text here -- which is fine: _trusted_source_text() falls
+        # back to `.excerpt` when `.content` is absent.
+        return self._canonical_citations.get(evidence_id)
 
     def get_canonical_citation_by_id(self, evidence_id: str):
         return self._canonical_citations.get(evidence_id)
@@ -246,6 +253,7 @@ def _response(index: int) -> dict:
         return {
             "status": status,
             "claims": [f"fact-{index}"],
+            "claim_evidence_ids": [[f"EVIDENCE-{index}"]],
             "citations": [
                 {
                     "evidence_id": f"EVIDENCE-{index}",
@@ -266,6 +274,7 @@ def _response(index: int) -> dict:
         return {
             "status": status,
             "claims": ["claim-a-49", "claim-b-49"],
+            "claim_evidence_ids": [["EVIDENCE-49-A"], ["EVIDENCE-49-B"]],
             "citations": [
                 {
                     "evidence_id": evidence_id,
@@ -289,6 +298,7 @@ def _response(index: int) -> dict:
     return {
         "status": status,
         "claims": ["out-of-scope-boundary"],
+        "claim_evidence_ids": [["BOUNDARY-50"]],
         "citations": [
             {
                 "evidence_id": "BOUNDARY-50",
@@ -558,6 +568,55 @@ def test_final_evaluator_rejects_fabricated_excerpt_for_boundary_citation(tmp_pa
     response["citations"][0]["excerpt_or_evidence_id"] = "a fabricated boundary quote"
 
     result = evaluator.evaluate_response(evaluator.manifest.questions[49], response)
+
+    assert result.citation_valid is False
+    assert result.passed is False
+
+
+def test_final_evaluator_accepts_genuine_substring_of_untruncated_trusted_source(tmp_path: Path):
+    # Codex review, PR #33, fresh finding: excerpt verification must resolve
+    # against the resolver's UNTRUNCATED trusted source text (`.content`
+    # when present), not just an exact-equality comparison against whatever
+    # shorter `.excerpt` string happens to be stored. A response quoting a
+    # genuine, shorter verbatim substring of the full source passes even
+    # though it differs from the (deliberately truncated) canonical
+    # `.excerpt` field.
+    manifest, path = _write_manifest(tmp_path)
+    resolver = SyntheticEvidenceResolver(manifest)
+    resolver._canonical_citations["EVIDENCE-1"].content = (
+        "Section 10.16.2.1 states: the real canonical excerpt text, "
+        "followed by additional untruncated context that is not part of "
+        "any single stored excerpt."
+    )
+    resolver._canonical_citations["EVIDENCE-1"].excerpt = "the real canonical excerpt text (truncated)"
+    evaluator = FinalPOC1Evaluator(str(path), evidence_resolver=resolver)
+
+    response = _response(1)
+    response["citations"][0]["excerpt_or_evidence_id"] = "the real canonical excerpt text"
+
+    result = evaluator.evaluate_response(evaluator.manifest.questions[0], response)
+
+    assert result.citation_valid is True
+    assert result.passed is True
+
+
+def test_final_evaluator_rejects_trusted_text_contained_within_fabricated_excerpt(tmp_path: Path):
+    # The substring check must only accept the submitted excerpt as a
+    # substring OF the trusted source -- not the reverse. A submitted
+    # excerpt that merely contains the genuine trusted text padded with
+    # extra fabricated content must still be rejected as unverifiable.
+    manifest, path = _write_manifest(tmp_path)
+    resolver = SyntheticEvidenceResolver(manifest)
+    resolver._canonical_citations["EVIDENCE-1"].content = "the real canonical excerpt text"
+    evaluator = FinalPOC1Evaluator(str(path), evidence_resolver=resolver)
+
+    response = _response(1)
+    response["citations"][0]["excerpt_or_evidence_id"] = (
+        "the real canonical excerpt text, plus a fabricated addendum "
+        "that was never in the trusted source"
+    )
+
+    result = evaluator.evaluate_response(evaluator.manifest.questions[0], response)
 
     assert result.citation_valid is False
     assert result.passed is False

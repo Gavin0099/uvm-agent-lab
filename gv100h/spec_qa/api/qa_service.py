@@ -1,5 +1,5 @@
 from typing import Dict, Any, List, Optional, Sequence, Tuple
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from gv100h.spec_qa.retrieval.governed_retriever import GovernedSpecRetriever, GovernedEvidence
 from gv100h.spec_qa.contracts.retrieval_policy import RetrievalMode, RetrievalPolicy, validate_policy_inputs
@@ -33,9 +33,53 @@ class QAResponse(BaseModel):
     # from the free-text `answer`/`boundary` fields.
     status: AnswerStatus = "abstain"
     claims: List[str] = Field(default_factory=list)
+    # One entry per ``claims`` entry -- see
+    # evidence_contract.GroundedAnswer.claim_evidence_ids for the full
+    # rationale (claim-to-evidence TRACEABILITY, not semantic entailment).
+    claim_evidence_ids: List[List[str]] = Field(default_factory=list)
     citations: List[Citation] = Field(default_factory=list)
     boundary_code: Optional[BoundaryCode] = None
     evidence_ids: List[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _is_abstain_matches_status(self) -> "QAResponse":
+        """
+        ``is_abstain`` is a legacy boolean fail-safe PROJECTION of the
+        three-state ``status`` field, not an independent signal a caller is
+        free to set: these additive structured fields default to
+        status="abstain"/boundary_code=None, so a caller constructing
+        QAResponse from only the pre-existing legacy fields (e.g.
+        is_abstain=False, leaving status at its default) could previously
+        produce a self-contradictory payload -- status="abstain" alongside
+        is_abstain=False -- with nothing validating the combination the way
+        GroundedAnswer validates its own status/boundary shape (Codex
+        review, PR #33, P2, fresh finding on d4f3bf7).
+
+        The projection is deliberately conservative: "conflict" is not an
+        abstention, but it is also not a normal confident answer, so a
+        legacy boolean-only caller must still see is_abstain=True for it --
+        treating a live source conflict as a plain answer would be worse
+        than treating it as "not a normal answer". New callers must branch
+        on the three-state ``status`` field, not on ``is_abstain``.
+        """
+        expected_is_abstain = self.status != "answer"
+        if self.is_abstain != expected_is_abstain:
+            raise ValueError(
+                "is_abstain must be the legacy fail-safe projection of "
+                "status (False only when status == 'answer'; True for "
+                "'abstain' and 'conflict'); got status="
+                f"{self.status!r} with is_abstain={self.is_abstain!r}"
+            )
+        expects_boundary_code = self.status != "answer"
+        has_boundary_code = self.boundary_code is not None
+        if expects_boundary_code != has_boundary_code:
+            raise ValueError(
+                "boundary_code must be populated exactly when status is "
+                "'abstain' or 'conflict', and absent when status == "
+                f"'answer'; got status={self.status!r} with "
+                f"boundary_code={self.boundary_code!r}"
+            )
+        return self
 
     def to_final_qa_response(self) -> FinalQAResponse:
         """
@@ -60,6 +104,7 @@ class QAResponse(BaseModel):
         return FinalQAResponse(
             status=self.status,
             claims=list(self.claims),
+            claim_evidence_ids=[list(ids) for ids in self.claim_evidence_ids],
             citations=[
                 FinalQACitation(
                     evidence_id=citation.evidence_id,
@@ -273,6 +318,7 @@ class GovernedQAService:
                 is_abstain=False,
                 status="answer",
                 claims=[claim],
+                claim_evidence_ids=[[governance_citation.evidence_id]],
                 citations=[governance_citation],
             )
 
@@ -309,6 +355,7 @@ class GovernedQAService:
                 is_abstain=True,
                 status="abstain",
                 claims=[boundary_evidence.claim],
+                claim_evidence_ids=[[boundary_citation.evidence_id]],
                 citations=[boundary_citation],
                 boundary_code=boundary_evidence.boundary_code,
             )
@@ -372,25 +419,35 @@ class GovernedQAService:
 
         # Synthesize multi-evidence or single evidence answer
         primary_ev = evidences[0]
-        answer_parts = []
-        for ev in evidences[:2]:
-            answer_parts.append(f"【條款 {ev.section} ({ev.title})】：{ev.content}")
+        cited = evidences[:2]
+        citations = [self.retriever.to_citation(ev) for ev in cited]
+        cited_evidence_ids = [ev.evidence_id for ev in cited]
 
-        # Add comparative notes for version confusion queries
+        answer_parts = []
+        claim_evidence_ids: List[List[str]] = []
+        for ev in cited:
+            answer_parts.append(f"【條款 {ev.section} ({ev.title})】：{ev.content}")
+            claim_evidence_ids.append([ev.evidence_id])
+
+        # Add comparative notes for version confusion queries. Each summary
+        # claim below is derived from (and only from) the evidence already
+        # cited above, so it is bound to every evidence_id in
+        # cited_evidence_ids -- never to a fabricated or unrelated
+        # evidence_id (Codex review, PR #33, P1, fresh finding on d4f3bf7).
         if "支援" in q_lower or "有效" in q_lower:
             if "port_link_state" in q_lower and ("2.0" in q_lower or answer_scope == "USB_2_0"):
                 answer_parts.append("總結：USB 2.0 Hub 不支援且不適用 PORT_LINK_STATE (0x0005)，此為 USB 3.x 專屬特徵選擇器，在 USB 2.0 下無效。")
+                claim_evidence_ids.append(list(cited_evidence_ids))
 
         if "相同" in q_lower or "區分" in q_lower or "差異" in q_lower or "是否" in q_lower:
             if "descriptor" in q_lower or "0x2a" in q_lower or "0x29" in q_lower or "描述符" in q_lower:
                 answer_parts.append("總結：USB 2.0 (0x29) 與 USB 3.x (0x2A) 描述符不同，兩者不能混用；USB 2.0 收到 0x2A 為未定義。")
+                claim_evidence_ids.append(list(cited_evidence_ids))
             if "port_power" in q_lower:
                 answer_parts.append("總結：PORT_POWER 特徵選擇器在 USB 2.0 與 USB 3.x 皆為 8 (0x0008)，兩者相同無差異。")
+                claim_evidence_ids.append(list(cited_evidence_ids))
 
         full_answer = "\n".join(answer_parts)
-
-        cited = evidences[:2]
-        citations = [self.retriever.to_citation(ev) for ev in cited]
 
         return self._build_response(
             answer=full_answer,
@@ -401,6 +458,7 @@ class GovernedQAService:
             is_abstain=False,
             status="answer",
             claims=answer_parts,
+            claim_evidence_ids=claim_evidence_ids,
             citations=citations,
         )
 
@@ -415,6 +473,7 @@ class GovernedQAService:
         is_abstain: bool,
         status: AnswerStatus,
         claims: Optional[List[str]] = None,
+        claim_evidence_ids: Optional[List[List[str]]] = None,
         citations: Optional[List[Citation]] = None,
         boundary_code: Optional[BoundaryCode] = None,
     ) -> QAResponse:
@@ -432,12 +491,14 @@ class GovernedQAService:
         to be convenient to expose.
         """
         claims = claims or []
+        claim_evidence_ids = claim_evidence_ids or []
         citations = citations or []
         evidence_ids = [c.evidence_id for c in citations]
 
         GroundedAnswer(
             status=status,
             claims=claims,
+            claim_evidence_ids=claim_evidence_ids,
             citations=citations,
             scope=scope,
             boundary=boundary_code,
@@ -453,6 +514,7 @@ class GovernedQAService:
             is_abstain=is_abstain,
             status=status,
             claims=claims,
+            claim_evidence_ids=claim_evidence_ids,
             citations=citations,
             boundary_code=boundary_code,
             evidence_ids=evidence_ids,

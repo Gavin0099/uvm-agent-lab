@@ -269,6 +269,7 @@ def _build_reviewed_repo(tmp_path: Path):
             boundary_correct=True,
             required_claims_present=True,
             forbidden_claim_detected=False,
+            claim_traceability_ok=True,
             cited_evidence_ids=[],
         )
         for question in manifest.questions

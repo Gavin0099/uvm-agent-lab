@@ -98,7 +98,13 @@ def test_citation_rejects_whitespace_only_evidence_id():
 
 @pytest.mark.unit
 def test_grounded_answer_answer_status_requires_citation_and_claim():
-    with pytest.raises(EvidenceContractError, match="requires at least one supporting citation"):
+    # With citations=[], no claim_evidence_ids entry can ever be traceable
+    # (there is no cited evidence to bind to), so the new unconditional
+    # claim_evidence_ids invariant now fires before the status="answer"
+    # citation-requirement check below -- both express the same underlying
+    # rule (an "answer" claim needs real supporting evidence), just at a
+    # different validation layer (Codex review, PR #33, P1).
+    with pytest.raises(EvidenceContractError, match="claim_evidence_ids must have exactly one entry per claim"):
         GroundedAnswer(
             status="answer",
             claims=["some claim"],
@@ -123,6 +129,7 @@ def test_grounded_answer_answer_status_rejects_boundary_code():
         GroundedAnswer(
             status="answer",
             claims=["some claim"],
+            claim_evidence_ids=[["USB3-FEAT-PORT_POWER"]],
             citations=[_citation()],
             evidence_ids=["USB3-FEAT-PORT_POWER"],
             boundary="MISSING_EVIDENCE",
@@ -143,6 +150,7 @@ def test_grounded_answer_answer_status_requires_normative_citation_fields():
         GroundedAnswer(
             status="answer",
             claims=["some claim"],
+            claim_evidence_ids=[["USB3-FEAT-PORT_POWER"]],
             citations=[Citation(evidence_id="USB3-FEAT-PORT_POWER", excerpt="x")],
             evidence_ids=["USB3-FEAT-PORT_POWER"],
             scope="USB_3_X",
@@ -154,6 +162,7 @@ def test_grounded_answer_answer_status_valid_case_passes():
     answer = GroundedAnswer(
         status="answer",
         claims=["PORT_POWER is 8 (0x0008)."],
+        claim_evidence_ids=[["USB3-FEAT-PORT_POWER"]],
         citations=[_citation()],
         scope="USB_3_X",
         evidence_ids=["USB3-FEAT-PORT_POWER"],
@@ -235,6 +244,7 @@ def test_grounded_answer_abstain_allows_boundary_claim_with_boundary_citation():
     answer = GroundedAnswer(
         status="abstain",
         claims=["Phase 1 corpus does not include the USB4 specification."],
+        claim_evidence_ids=[["USB4-OUT-OF-SCOPE"]],
         citations=[_boundary_citation()],
         evidence_ids=["USB4-OUT-OF-SCOPE"],
         boundary="OUT_OF_SCOPE",
@@ -245,7 +255,11 @@ def test_grounded_answer_abstain_allows_boundary_claim_with_boundary_citation():
 
 @pytest.mark.unit
 def test_grounded_answer_abstain_rejects_claim_without_boundary_citation():
-    with pytest.raises(EvidenceContractError, match="requires at least one supporting boundary citation"):
+    # With citations=[], no claim_evidence_ids entry can ever be traceable,
+    # so the new unconditional claim_evidence_ids invariant now fires before
+    # the abstain-specific boundary-citation check below (Codex review, PR
+    # #33, P1).
+    with pytest.raises(EvidenceContractError, match="claim_evidence_ids must have exactly one entry per claim"):
         GroundedAnswer(
             status="abstain",
             claims=["Phase 1 corpus does not include the USB4 specification."],
@@ -265,6 +279,7 @@ def test_grounded_answer_abstain_rejects_normative_shaped_citation():
         GroundedAnswer(
             status="abstain",
             claims=["a boundary claim"],
+            claim_evidence_ids=[["USB3-FEAT-PORT_POWER"]],
             citations=[_citation()],
             evidence_ids=["USB3-FEAT-PORT_POWER"],
             boundary="OUT_OF_SCOPE",
@@ -286,6 +301,7 @@ def test_grounded_answer_abstain_rejects_citation_kind_not_boundary():
         GroundedAnswer(
             status="abstain",
             claims=["a boundary claim"],
+            claim_evidence_ids=[["USB4-OUT-OF-SCOPE"]],
             citations=[Citation(evidence_id="USB4-OUT-OF-SCOPE", excerpt="x")],
             evidence_ids=["USB4-OUT-OF-SCOPE"],
             boundary="OUT_OF_SCOPE",
@@ -295,6 +311,7 @@ def test_grounded_answer_abstain_rejects_citation_kind_not_boundary():
         GroundedAnswer(
             status="abstain",
             claims=["a boundary claim"],
+            claim_evidence_ids=[["USB4-OUT-OF-SCOPE"]],
             citations=[
                 Citation(
                     evidence_id="USB4-OUT-OF-SCOPE",
@@ -338,6 +355,7 @@ def test_grounded_answer_conflict_requires_boundary_and_two_distinct_sources():
         GroundedAnswer(
             status="conflict",
             claims=["claim A", "claim B"],
+            claim_evidence_ids=[["USB3-FEAT-PORT_POWER"], ["USB3-FEAT-PORT_POWER"]],
             citations=[_citation()],
             evidence_ids=["USB3-FEAT-PORT_POWER"],
             boundary="VERSION_CONFLICT",
@@ -354,6 +372,7 @@ def test_grounded_answer_conflict_rejects_same_source_citations():
         GroundedAnswer(
             status="conflict",
             claims=["claim A", "claim B"],
+            claim_evidence_ids=[["USB3-FEAT-PORT_POWER"], ["USB3-FEAT-PORT_LINK_STATE"]],
             citations=[
                 _citation("USB3-FEAT-PORT_POWER"),
                 _citation("USB3-FEAT-PORT_LINK_STATE"),
@@ -375,6 +394,7 @@ def test_grounded_answer_conflict_rejects_invalid_boundary_code():
         GroundedAnswer(
             status="conflict",
             claims=["claim A", "claim B"],
+            claim_evidence_ids=[["USB3-FEAT-PORT_POWER"], ["USB2-FEAT-PORT_POWER"]],
             citations=[
                 _citation("USB3-FEAT-PORT_POWER", revision="1.0"),
                 _citation("USB2-FEAT-PORT_POWER", revision="1.1"),
@@ -395,6 +415,7 @@ def test_grounded_answer_conflict_requires_two_distinct_competing_claims():
         GroundedAnswer(
             status="conflict",
             claims=["only one claim"],
+            claim_evidence_ids=[["USB3-FEAT-PORT_POWER", "USB2-FEAT-PORT_POWER"]],
             citations=[
                 _citation("USB3-FEAT-PORT_POWER", revision="1.0"),
                 _citation("USB2-FEAT-PORT_POWER", revision="1.1"),
@@ -408,6 +429,7 @@ def test_grounded_answer_conflict_requires_two_distinct_competing_claims():
         GroundedAnswer(
             status="conflict",
             claims=["the same claim", "the same claim"],
+            claim_evidence_ids=[["USB3-FEAT-PORT_POWER"], ["USB2-FEAT-PORT_POWER"]],
             citations=[
                 _citation("USB3-FEAT-PORT_POWER", revision="1.0"),
                 _citation("USB2-FEAT-PORT_POWER", revision="1.1"),
@@ -430,6 +452,7 @@ def test_grounded_answer_conflict_rejects_claims_that_only_differ_by_case_or_whi
         GroundedAnswer(
             status="conflict",
             claims=["Device supports X", " device supports x "],
+            claim_evidence_ids=[["USB3-FEAT-PORT_POWER"], ["USB2-FEAT-PORT_POWER"]],
             citations=[
                 _citation("USB3-FEAT-PORT_POWER", revision="1.0"),
                 _citation("USB2-FEAT-PORT_POWER", revision="1.1"),
@@ -445,6 +468,7 @@ def test_grounded_answer_conflict_accepts_distinct_provenance_by_revision():
     answer = GroundedAnswer(
         status="conflict",
         claims=["USB 3.x revision 1.0 says X", "USB 3.x revision 1.1 says Y"],
+        claim_evidence_ids=[["USB3-FEAT-PORT_POWER"], ["USB2-FEAT-PORT_POWER"]],
         citations=[
             _citation("USB3-FEAT-PORT_POWER", revision="1.0"),
             _citation("USB2-FEAT-PORT_POWER", revision="1.1"),
@@ -461,6 +485,7 @@ def test_grounded_answer_conflict_accepts_distinct_provenance_by_authority_level
     answer = GroundedAnswer(
         status="conflict",
         claims=["the authoritative source says X", "the derived source says Y"],
+        claim_evidence_ids=[["USB3-FEAT-PORT_POWER"], ["USB2-FEAT-PORT_POWER"]],
         citations=[
             _citation("USB3-FEAT-PORT_POWER", authority_level="authoritative"),
             _citation("USB2-FEAT-PORT_POWER", authority_level="derived"),
@@ -494,3 +519,78 @@ def test_grounded_answer_rejects_duplicate_citation_evidence_ids():
             boundary="VERSION_CONFLICT",
             scope="USB_3_X",
         )
+
+
+@pytest.mark.unit
+def test_grounded_answer_claim_evidence_ids_length_must_match_claims():
+    # Codex review, PR #33, P1 finding: a claim must be traceable to at
+    # least one of this response's own citations, not merely presumed
+    # grounded because *some* citation exists somewhere on the response.
+    # The first line of defense is a length check: exactly one
+    # claim_evidence_ids entry per claim.
+    with pytest.raises(
+        EvidenceContractError,
+        match="claim_evidence_ids must have exactly one entry per claim",
+    ):
+        GroundedAnswer(
+            status="answer",
+            claims=["claim A", "claim B"],
+            claim_evidence_ids=[["USB3-FEAT-PORT_POWER"]],
+            citations=[_citation()],
+            evidence_ids=["USB3-FEAT-PORT_POWER"],
+            scope="USB_3_X",
+        )
+
+
+@pytest.mark.unit
+def test_grounded_answer_rejects_claim_with_no_bound_evidence_ids():
+    # A claim bound to an empty evidence_ids list is exactly as untraceable
+    # as no binding at all -- it must be rejected, not silently accepted as
+    # "no claim about this claim's grounding."
+    with pytest.raises(
+        EvidenceContractError,
+        match="has no bound evidence_ids",
+    ):
+        GroundedAnswer(
+            status="answer",
+            claims=["a claim"],
+            claim_evidence_ids=[[]],
+            citations=[_citation()],
+            evidence_ids=["USB3-FEAT-PORT_POWER"],
+            scope="USB_3_X",
+        )
+
+
+@pytest.mark.unit
+def test_grounded_answer_rejects_claim_bound_to_fabricated_evidence_id():
+    # A claim's bound evidence_id(s) must actually be among this response's
+    # own citations/evidence_ids -- binding a claim to a fabricated or
+    # unrelated evidence_id (one this response never cited) must not pass
+    # as "traceable."
+    with pytest.raises(
+        EvidenceContractError,
+        match="that are not present among this response's own",
+    ):
+        GroundedAnswer(
+            status="answer",
+            claims=["a claim"],
+            claim_evidence_ids=[["FABRICATED-EVIDENCE-ID"]],
+            citations=[_citation()],
+            evidence_ids=["USB3-FEAT-PORT_POWER"],
+            scope="USB_3_X",
+        )
+
+
+@pytest.mark.unit
+def test_grounded_answer_accepts_claim_bound_to_its_own_citation():
+    # The positive case: a claim bound to an evidence_id that IS present
+    # among this response's own citations passes the traceability check.
+    answer = GroundedAnswer(
+        status="answer",
+        claims=["a claim"],
+        claim_evidence_ids=[["USB3-FEAT-PORT_POWER"]],
+        citations=[_citation()],
+        evidence_ids=["USB3-FEAT-PORT_POWER"],
+        scope="USB_3_X",
+    )
+    assert answer.claim_evidence_ids == [["USB3-FEAT-PORT_POWER"]]
