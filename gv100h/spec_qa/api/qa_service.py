@@ -97,6 +97,43 @@ class GovernedQAService:
     ) -> QAResponse:
         q_lower = query_text.lower()
 
+        # USB4 is a registered Phase 2 exclusion (corpus.lock.yaml
+        # sources.usb4: phase=phase_2, included=false) -- a query about USB4
+        # must abstain with a real, registered boundary claim/citation
+        # resolved from GovernedSpecRetriever.BOUNDARY_EVIDENCE_REGISTRY, not
+        # an empty claims/citations abstain (Codex review, PR #33, P1). This
+        # is checked before the generic unsupported_keywords list below
+        # because it has real, registered boundary evidence backing it; the
+        # generic list (still) does not.
+        if "usb4" in q_lower:
+            boundary_evidence = self.retriever.get_boundary_evidence_by_id(
+                "POC1-BOUNDARY-USB4-EXCLUDED"
+            )
+            if boundary_evidence is None:
+                raise RuntimeError(
+                    "expected boundary evidence 'POC1-BOUNDARY-USB4-EXCLUDED' "
+                    "is not registered in BOUNDARY_EVIDENCE_REGISTRY"
+                )
+            boundary_citation = self.retriever.to_boundary_citation(boundary_evidence)
+            return self._build_response(
+                answer=(
+                    "現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論"
+                    f"，超出範圍 (Abstain)：{boundary_evidence.claim}"
+                ),
+                scope=answer_scope or boundary_evidence.scope,
+                cited_evidences=[],
+                claim_level="abstain_boundary_claim",
+                boundary=(
+                    "Exceeds governed knowledge surface of "
+                    "usb-if-hub-spec-reference (USB4 excluded from Phase 1 corpus)."
+                ),
+                is_abstain=True,
+                status="abstain",
+                claims=[boundary_evidence.claim],
+                citations=[boundary_citation],
+                boundary_code=boundary_evidence.boundary_code,
+            )
+
         # Check for explicitly unsupported / out-of-scope queries
         unsupported_keywords = [
             "xhci", "eeprom", "眼圖", "抖動", "usbcore", "pcie", "穿透通道",
@@ -149,7 +186,19 @@ class GovernedQAService:
         )
         evidences = self.retriever.query(query_text, retrieval_policy=retrieval_policy)
 
-        # Abstention if no evidence found
+        # Abstention if no evidence found. Deliberately claims=[]/citations=[]
+        # (both defaulted by _build_response): "no eligible evidence was
+        # found for this query" is a runtime retrieval observation (a given
+        # query + scope + retrieval policy + corpus revision produced zero
+        # results), not a static corpus/governance fact -- unlike the USB4
+        # branch above, there is no registered BoundaryEvidence to cite here,
+        # and fabricating one would misrepresent a runtime observation as a
+        # corpus fact. GroundedAnswer already permits an abstain with no
+        # claims/citations, so this remains contract-valid as-is. Backing
+        # this with a real citation needs a runtime retrieval-boundary
+        # receipt (query/scope/policy/corpus_lock_hash/result_count=0),
+        # which is a follow-up, not implemented here (Codex review, PR #33,
+        # P1 -- tracked as a prerequisite, not silently worked around).
         if not evidences:
             return self._build_response(
                 answer="現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論 (Abstain)。",

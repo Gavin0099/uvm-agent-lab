@@ -919,6 +919,29 @@ def test_governed_qa_service_abstention():
 
 
 @pytest.mark.unit
+def test_governed_qa_service_usb4_abstains_with_real_registered_boundary_evidence():
+    # Codex review (PR #33, P1): unlike the generic OUT_OF_SCOPE abstain
+    # above (empty claims/citations), a USB4 query has a real, registered
+    # BoundaryEvidence backing it (GovernedSpecRetriever.
+    # BOUNDARY_EVIDENCE_REGISTRY) -- the runtime response must cite it, not
+    # abstain silently.
+    service = GovernedQAService()
+    resp = service.answer_question("USB4 Hub 的 Warm Reset 規範為何？")
+    assert resp.status == "abstain"
+    assert resp.boundary_code == "OUT_OF_SCOPE"
+    assert resp.claims == [
+        service.retriever.get_boundary_evidence_by_id(
+            "POC1-BOUNDARY-USB4-EXCLUDED"
+        ).claim
+    ]
+    assert len(resp.citations) == 1
+    assert resp.citations[0].evidence_id == "POC1-BOUNDARY-USB4-EXCLUDED"
+    assert resp.citations[0].document is None  # boundary shape, not normative
+    assert resp.evidence_ids == ["POC1-BOUNDARY-USB4-EXCLUDED"]
+    assert resp.scope == "USB4_SPEC"
+
+
+@pytest.mark.unit
 def test_governed_qa_service_rejects_allowed_evidence_scopes_without_answer_scope():
     # Codex review regression (PR #31, P1): QARequest permits declaring
     # allowed_evidence_scopes without answer_scope, but RetrievalPolicy
@@ -1033,6 +1056,77 @@ def test_governed_retriever_rejects_answer_evidence_from_evaluation_only_layer()
     corpus_lock["sources"]["hub_reference"]["layer"] = "evaluation_only"
     with pytest.raises(ValueError, match="not eligible as answer evidence"):
         retriever._validate_evidence_registry_provenance(corpus_lock)
+
+
+@pytest.mark.unit
+def test_governed_retriever_boundary_evidence_registry_seeded_with_usb4_exclusion():
+    # Codex review (PR #33, P1): the Boundary Evidence Registry is a
+    # first-class, separate registry from EVIDENCE_REGISTRY -- seeded only
+    # with a boundary fact already proven by governed metadata (USB4's
+    # Phase 1 exclusion), not an invented placeholder.
+    retriever = GovernedSpecRetriever()
+    boundary_evidence = retriever.get_boundary_evidence_by_id("POC1-BOUNDARY-USB4-EXCLUDED")
+    assert boundary_evidence is not None
+    assert boundary_evidence.source_id == "usb4"
+    assert boundary_evidence.boundary_code == "OUT_OF_SCOPE"
+    assert retriever.corpus_lock["sources"]["usb4"]["included"] is False
+    assert retriever.corpus_lock["sources"]["usb4"]["phase"] == "phase_2"
+
+    assert retriever.get_boundary_evidence_by_id("NOT-A-REAL-ID") is None
+
+
+@pytest.mark.unit
+def test_governed_retriever_to_boundary_citation_is_boundary_shaped():
+    # A boundary citation must carry only evidence_id/excerpt -- no normative
+    # document/revision/chapter/section/page_or_anchor/authority_level, per
+    # poc1_acceptance_contract.py's "boundary_evidence" citation mode.
+    retriever = GovernedSpecRetriever()
+    boundary_evidence = retriever.get_boundary_evidence_by_id("POC1-BOUNDARY-USB4-EXCLUDED")
+    citation = retriever.to_boundary_citation(boundary_evidence)
+    assert citation.evidence_id == "POC1-BOUNDARY-USB4-EXCLUDED"
+    assert citation.excerpt
+    assert citation.document is None
+    assert citation.revision is None
+    assert citation.chapter is None
+    assert citation.section is None
+    assert citation.page_or_anchor is None
+    assert citation.authority_level is None
+
+
+@pytest.mark.unit
+def test_governed_retriever_rejects_boundary_evidence_with_unregistered_source_id():
+    from gv100h.spec_qa.retrieval.governed_retriever import BoundaryEvidence
+
+    retriever = GovernedSpecRetriever()
+    bad_boundary_evidence = BoundaryEvidence(
+        evidence_id="FAKE-BOUNDARY",
+        boundary_code="OUT_OF_SCOPE",
+        claim="irrelevant",
+        scope="USB4_SPEC",
+        source_id="not_a_real_source",
+        excerpt="irrelevant",
+    )
+    retriever.BOUNDARY_EVIDENCE_REGISTRY = retriever.BOUNDARY_EVIDENCE_REGISTRY + [bad_boundary_evidence]
+    with pytest.raises(ValueError, match="unregistered source_id"):
+        retriever._validate_boundary_evidence_registry_provenance(retriever.corpus_lock)
+
+
+@pytest.mark.unit
+def test_governed_retriever_rejects_boundary_evidence_id_colliding_with_answer_evidence():
+    from gv100h.spec_qa.retrieval.governed_retriever import BoundaryEvidence
+
+    retriever = GovernedSpecRetriever()
+    colliding_boundary_evidence = BoundaryEvidence(
+        evidence_id="USB3-FEAT-PORT_POWER",
+        boundary_code="OUT_OF_SCOPE",
+        claim="irrelevant",
+        scope="USB4_SPEC",
+        source_id="usb4",
+        excerpt="irrelevant",
+    )
+    retriever.BOUNDARY_EVIDENCE_REGISTRY = retriever.BOUNDARY_EVIDENCE_REGISTRY + [colliding_boundary_evidence]
+    with pytest.raises(ValueError, match="must not collide"):
+        retriever._validate_boundary_evidence_registry_provenance(retriever.corpus_lock)
 
 
 @pytest.mark.unit
@@ -1299,3 +1393,131 @@ def test_full_contract_chain_boundary_abstain_round_trip_through_final_evaluator
     assert result.passed is True
     assert result.citation_complete is True
     assert result.fabricated_citation is False
+
+
+class _RetrieverBackedEvidenceResolver:
+    """
+    Wraps a real GovernedSpecRetriever so evaluate_response() checks
+    resolvability against the actual answer-evidence AND boundary-evidence
+    registries -- unlike _StubEvidenceResolver above (which accepts
+    whatever ID it is told about), this resolver can actually fail to
+    resolve an evidence_id, the same way a production resolver would.
+    """
+
+    def __init__(self, retriever: GovernedSpecRetriever):
+        self._retriever = retriever
+
+    def get_evidence_by_id(self, evidence_id: str):
+        return self._retriever.get_evidence_by_id(
+            evidence_id
+        ) or self._retriever.get_boundary_evidence_by_id(evidence_id)
+
+
+@pytest.mark.contract
+def test_full_contract_chain_usb4_boundary_abstain_uses_real_registered_evidence():
+    # Codex review (PR #33, P1): the chain test above proves the SHAPE is
+    # admissible using a hand-built QAResponse and a stub resolver that
+    # accepts any ID it's told about -- it does not prove the *runtime*
+    # produces this shape, nor that the citation resolves against the real
+    # Boundary Evidence Registry rather than an ad-hoc string. This test
+    # proves the full, real chain: GovernedQAService.answer_question()
+    # (real retriever, real BOUNDARY_EVIDENCE_REGISTRY) -> QAResponse ->
+    # to_final_qa_response() -> FinalPOC1Evaluator, resolved by a resolver
+    # backed by the same real GovernedSpecRetriever instance -- no stub, no
+    # fabricated evidence_id.
+    service = GovernedQAService()
+    resp = service.answer_question("USB4 Hub 的 Warm Reset 規範為何？")
+
+    assert resp.status == "abstain"
+    assert resp.boundary_code == "OUT_OF_SCOPE"
+    assert resp.claims
+    assert resp.citations
+    assert resp.citations[0].evidence_id == "POC1-BOUNDARY-USB4-EXCLUDED"
+
+    final_response = resp.to_final_qa_response()
+
+    question = AcceptanceQuestion(
+        question_id="CHAIN-TEST-ABSTAIN-USB4-REAL",
+        layer="L4",
+        priority="P0",
+        category="uncertainty_conflict",
+        question="USB4 Hub 的 Warm Reset 規範為何？",
+        expected_status="abstain",
+        expected_scope=resp.scope,
+        accepted_source_ids=[],
+        required_citation_fields=CitationRequirements(
+            document=False,
+            revision=False,
+            section=False,
+            page_or_anchor=False,
+            excerpt_or_evidence_id=True,
+            scope=True,
+            boundary_code=True,
+            mode="boundary_evidence",
+        ),
+        gold=GoldOracle(
+            boundary_evidence_ids=list(resp.evidence_ids),
+            required_claims=[GoldClaim(claim_id="b1", assertion=resp.claims[0], required=True)],
+            boundary_code="OUT_OF_SCOPE",
+        ),
+        grading=_CHAIN_GRADING_WEIGHTS,
+        independently_reviewed=True,
+    )
+
+    evaluator = _evaluator_with_resolver(_RetrieverBackedEvidenceResolver(service.retriever))
+    result = evaluator.evaluate_response(question, final_response)
+    assert result.passed is True
+    assert result.citation_complete is True
+    assert result.fabricated_citation is False
+
+
+@pytest.mark.contract
+def test_full_contract_chain_usb4_boundary_abstain_flags_fabricated_citation():
+    # Negative control for the test above: a resolver backed by the real
+    # registries must actually be able to fail -- proving the previous
+    # test's `fabricated_citation is False` is a real resolution outcome,
+    # not a resolver that trivially accepts everything.
+    service = GovernedQAService()
+    resp = service.answer_question("USB4 Hub 的 Warm Reset 規範為何？")
+    final_response = resp.to_final_qa_response()
+    # Corrupt the resolvable evidence_id into one that was never registered.
+    final_response = final_response.model_copy(
+        update={
+            "citations": [
+                citation.model_copy(update={"evidence_id": "NOT-A-REGISTERED-BOUNDARY-ID"})
+                for citation in final_response.citations
+            ]
+        }
+    )
+
+    question = AcceptanceQuestion(
+        question_id="CHAIN-TEST-ABSTAIN-USB4-FABRICATED",
+        layer="L4",
+        priority="P0",
+        category="uncertainty_conflict",
+        question="USB4 Hub 的 Warm Reset 規範為何？",
+        expected_status="abstain",
+        expected_scope=resp.scope,
+        accepted_source_ids=[],
+        required_citation_fields=CitationRequirements(
+            document=False,
+            revision=False,
+            section=False,
+            page_or_anchor=False,
+            excerpt_or_evidence_id=True,
+            scope=True,
+            boundary_code=True,
+            mode="boundary_evidence",
+        ),
+        gold=GoldOracle(
+            boundary_evidence_ids=["NOT-A-REGISTERED-BOUNDARY-ID"],
+            required_claims=[GoldClaim(claim_id="b1", assertion=resp.claims[0], required=True)],
+            boundary_code="OUT_OF_SCOPE",
+        ),
+        grading=_CHAIN_GRADING_WEIGHTS,
+        independently_reviewed=True,
+    )
+
+    evaluator = _evaluator_with_resolver(_RetrieverBackedEvidenceResolver(service.retriever))
+    result = evaluator.evaluate_response(question, final_response)
+    assert result.fabricated_citation is True

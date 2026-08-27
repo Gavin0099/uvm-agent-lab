@@ -9,6 +9,7 @@ import yaml
 
 from gv100h.spec_qa.contracts.retrieval_policy import RetrievalPolicy
 from gv100h.spec_qa.contracts.evidence_contract import Citation, EvidenceContractError
+from gv100h.spec_qa.contracts.poc1_acceptance_contract import BoundaryCode
 
 
 class GovernedEvidence(BaseModel):
@@ -24,6 +25,39 @@ class GovernedEvidence(BaseModel):
     # (evidence_contract.py) requires to build a Citation's document/revision
     # fields -- an evidence entry with no traceable source cannot be cited.
     source_id: str
+
+
+class BoundaryEvidence(BaseModel):
+    """
+    A registered governance/corpus fact used to back an 'abstain' status's
+    *boundary* claim (docs/USB_SPEC_QA_POC1_SCOPE.md Section 5) -- e.g. "USB4
+    is excluded from the Phase 1 corpus". This is a distinct concept from
+    GovernedEvidence/EVIDENCE_REGISTRY: it is resolvable by the same resolver
+    surface (get_boundary_evidence_by_id / to_boundary_citation) but is NEVER
+    eligible as normative *answer* evidence (Codex review, PR #33, P1).
+    "registered" and "answer_eligible" are deliberately different properties
+    -- see _validate_evidence_registry_provenance's own "registered !=
+    answer_eligible" principle for EVIDENCE_REGISTRY, which this mirrors from
+    the opposite direction: a BoundaryEvidence entry is registered precisely
+    *because* its underlying source is excluded/ineligible as answer
+    evidence, not despite it.
+
+    A live QAService abstain path must cite a real BoundaryEvidence entry
+    registered here -- never fabricate an ad-hoc Citation(evidence_id=...) at
+    the call site, since FinalPOC1Evaluator would then correctly flag it as
+    an unresolvable/fabricated citation.
+    """
+
+    evidence_id: str
+    boundary_code: BoundaryCode
+    claim: str
+    scope: str
+    # Which corpus.lock.yaml source this boundary fact is derived from (e.g.
+    # "usb4") -- the same provenance-traceability requirement EVIDENCE_REGISTRY
+    # entries have, just pointing at an excluded/ineligible source instead of
+    # an answer-eligible one.
+    source_id: str
+    excerpt: str
 
 
 class GovernedSpecRetriever:
@@ -105,6 +139,40 @@ class GovernedSpecRetriever:
         )
     ]
 
+    # First-class Boundary Evidence Registry (Codex review, PR #33, P1).
+    # Seeded only with boundary facts already proven by governed metadata --
+    # never an invented/ad-hoc ID. USB4's Phase 1 exclusion is already a
+    # declared fact in corpus.lock.yaml (sources.usb4: phase=phase_2,
+    # included=false, retrieval_status=excluded_from_phase_1); this registry
+    # entry just makes that fact resolvable as a citation.
+    #
+    # Deliberately NOT seeded here: a MISSING_EVIDENCE boundary fact. "No
+    # eligible evidence was found" is a runtime retrieval observation (a
+    # given query + scope + retrieval policy + corpus revision produced zero
+    # results), not a static corpus/governance fact -- it cannot be
+    # represented as a fixed BoundaryEvidence entry without misrepresenting a
+    # runtime observation as a corpus fact. Representing it correctly needs a
+    # runtime retrieval-boundary receipt (query/scope/policy/corpus_lock_hash/
+    # result_count=0), which is out of scope for this registry and is tracked
+    # as a follow-up rather than faked here.
+    BOUNDARY_EVIDENCE_REGISTRY: List[BoundaryEvidence] = [
+        BoundaryEvidence(
+            evidence_id="POC1-BOUNDARY-USB4-EXCLUDED",
+            boundary_code="OUT_OF_SCOPE",
+            claim=(
+                "USB4 is excluded from the Phase 1 corpus (corpus.lock.yaml "
+                "sources.usb4: phase=phase_2, included=false, "
+                "retrieval_status=excluded_from_phase_1)."
+            ),
+            scope="USB4_SPEC",
+            source_id="usb4",
+            excerpt=(
+                "corpus.lock.yaml sources.usb4: phase=phase_2, included=false, "
+                "retrieval_status=excluded_from_phase_1."
+            ),
+        ),
+    ]
+
     def __init__(
         self,
         knowledge_repo_path: Optional[str] = None,
@@ -120,6 +188,7 @@ class GovernedSpecRetriever:
         self.corpus_lock = self._load_corpus_lock(self.corpus_lock_path)
         self.corpus_lock_validation = self.validate_corpus_lock(self.corpus_lock)
         self._validate_evidence_registry_provenance(self.corpus_lock)
+        self._validate_boundary_evidence_registry_provenance(self.corpus_lock)
         self.require_physical_binding = require_physical_binding
         self.lock_binding_status = self.corpus_lock["status"]
         self.runtime_binding_status = "unverified"
@@ -229,6 +298,41 @@ class GovernedSpecRetriever:
                 "eligible as answer evidence (must be phase_1, not excluded, "
                 "and declared on a layer with allowed_as_answer_evidence=true "
                 "in corpus.lock.yaml): " + ", ".join(ineligible)
+            )
+
+    def _validate_boundary_evidence_registry_provenance(self, corpus_lock: Mapping[str, Any]) -> None:
+        """
+        Every BOUNDARY_EVIDENCE_REGISTRY entry must declare a source_id that
+        is a known key in corpus.lock.yaml's sources table (the same
+        traceability requirement EVIDENCE_REGISTRY has), and entries must
+        have unique evidence_id values that never collide with
+        EVIDENCE_REGISTRY's own evidence_ids -- a resolver caller must always
+        be able to tell, from the ID alone, which registry (and therefore
+        which eligibility) a resolved evidence entry belongs to.
+        """
+        known_source_ids = set(corpus_lock["sources"])
+        unknown = [
+            be.evidence_id
+            for be in self.BOUNDARY_EVIDENCE_REGISTRY
+            if be.source_id not in known_source_ids
+        ]
+        if unknown:
+            raise ValueError(
+                "BOUNDARY_EVIDENCE_REGISTRY contains entries with unregistered "
+                "source_id (not present in corpus.lock.yaml sources): "
+                + ", ".join(unknown)
+            )
+
+        boundary_ids = [be.evidence_id for be in self.BOUNDARY_EVIDENCE_REGISTRY]
+        if len(boundary_ids) != len(set(boundary_ids)):
+            raise ValueError("BOUNDARY_EVIDENCE_REGISTRY contains duplicate evidence_id values")
+
+        answer_evidence_ids = {ev.evidence_id for ev in self.EVIDENCE_REGISTRY}
+        colliding = sorted(answer_evidence_ids.intersection(boundary_ids))
+        if colliding:
+            raise ValueError(
+                "BOUNDARY_EVIDENCE_REGISTRY evidence_id values must not collide "
+                "with EVIDENCE_REGISTRY evidence_id values: " + ", ".join(colliding)
             )
 
     def to_citation(self, ev: GovernedEvidence, *, excerpt_max_len: int = 240) -> Citation:
@@ -762,3 +866,20 @@ class GovernedSpecRetriever:
             if ev.evidence_id == evidence_id:
                 return ev
         return None
+
+    def get_boundary_evidence_by_id(self, evidence_id: str) -> Optional[BoundaryEvidence]:
+        for be in self.BOUNDARY_EVIDENCE_REGISTRY:
+            if be.evidence_id == evidence_id:
+                return be
+        return None
+
+    def to_boundary_citation(self, be: BoundaryEvidence) -> Citation:
+        """
+        Resolve a registered BoundaryEvidence into a Citation for an
+        'abstain' response's boundary claim -- a *boundary* citation shape
+        (evidence_id + excerpt only, no normative document/revision/chapter/
+        section/page_or_anchor/authority_level fields), per
+        poc1_acceptance_contract.py's "boundary_evidence" citation mode and
+        GroundedAnswer._require_boundary_citations().
+        """
+        return Citation(evidence_id=be.evidence_id, excerpt=be.excerpt)
