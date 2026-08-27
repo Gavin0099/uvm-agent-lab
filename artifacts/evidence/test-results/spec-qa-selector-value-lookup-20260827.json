@@ -1,0 +1,17 @@
+{
+  "receipt_schema": "test_evidence_receipt.v0.1",
+  "status": "report_only",
+  "command": "/tmp/uvm-spec-qa-cli-venv/bin/python -m pytest -q tests/gv100h/test_m2_spec_qa.py --tb=short",
+  "exit_code": 0,
+  "started_at": "2026-08-27T03:14:48Z",
+  "finished_at": "2026-08-27T03:14:49Z",
+  "runner": "governance_tools.test_evidence_receipt_writer",
+  "linked_commit": "20b342bd52c40a5feb0ebdafba3a2e5fb2774aac",
+  "output_artifacts": [
+    "artifacts/evidence/test-results/spec-qa-selector-value-lookup-20260827.txt"
+  ],
+  "cannot_claim": [
+    "semantic correctness of the tested behavior",
+    "receipt authenticity: every field is fabricatable by a direct writer"
+  ]
+}
