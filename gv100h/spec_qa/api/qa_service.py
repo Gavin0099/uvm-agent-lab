@@ -69,6 +69,8 @@ class QAResponse(BaseModel):
                     page_or_anchor=citation.page_or_anchor,
                     excerpt_or_evidence_id=citation.excerpt or citation.evidence_id,
                     scope=None,
+                    chapter=citation.chapter,
+                    authority_level=citation.authority_level,
                 )
                 for citation in self.citations
             ],
@@ -96,6 +98,91 @@ class GovernedQAService:
         allowed_evidence_scopes: Optional[Sequence[str]] = None,
     ) -> QAResponse:
         q_lower = query_text.lower()
+
+        # Policy validation runs before ANY shortcut/early-return branch
+        # below (USB4, unsupported_keywords) -- previously an invalid policy
+        # declaration (e.g. domain="HID", or allowed_evidence_scopes without
+        # answer_scope) submitted alongside a USB4 query would silently skip
+        # both checks below because the USB4 branch returned first. Policy
+        # validation must never depend on which shortcut a query happens to
+        # match (Codex review, PR #33, P2).
+        #
+        # allowed_evidence_scopes is only meaningful paired with an
+        # answer_scope: RetrievalPolicy requires answer_scope to construct
+        # the policy at all, and single_scope/explicit_cross_scope both
+        # derive their eligibility from it. Silently dropping an explicitly
+        # declared allowed_evidence_scopes restriction (by falling through to
+        # an unscoped RetrievalPolicy=None query) would let the retriever
+        # cite evidence outside the caller's declared hard boundary -- reject
+        # the combination instead of silently widening retrieval.
+        if answer_scope is None and allowed_evidence_scopes:
+            raise ValueError(
+                "allowed_evidence_scopes was provided without answer_scope; "
+                "GovernedQAService requires answer_scope to build a scope-restricting "
+                "RetrievalPolicy. Provide answer_scope, or omit allowed_evidence_scopes "
+                "to run a fully unscoped query."
+            )
+
+        # RetrievalPolicy is only constructed when the caller declares an
+        # answer_scope. `domain`/`retrieval_mode`/`allowed_evidence_scopes` are
+        # the caller's explicit policy declaration -- this service never
+        # infers them from `query_text`.
+        retrieval_policy = (
+            RetrievalPolicy(
+                domain=domain,
+                answer_scope=answer_scope,
+                retrieval_mode=retrieval_mode,
+                allowed_evidence_scopes=(
+                    tuple(allowed_evidence_scopes) if allowed_evidence_scopes else None
+                ),
+            )
+            if answer_scope is not None
+            else None
+        )
+
+        # USB4 is a Phase 2 exclusion, BUT docs/USB_SPEC_QA_POC1_SCOPE.md
+        # lines 86-88 carve out one explicit exception: a question that is
+        # *only* asking whether USB4 is included in the current corpus is a
+        # genuine, answerable governance/corpus-membership fact, not an
+        # out-of-scope USB4 topic question. This must not be modeled as a
+        # fake USB4 normative-spec citation -- it is grounded in
+        # corpus.lock.yaml's own membership metadata, cited with
+        # citation_kind="governance" (Codex review, PR #33, P1).
+        usb4_corpus_membership_markers = (
+            "corpus", "phase 1", "phase1", "included", "包含", "屬於", "涵蓋",
+        )
+        is_usb4_corpus_membership_question = "usb4" in q_lower and any(
+            marker in q_lower for marker in usb4_corpus_membership_markers
+        )
+        if is_usb4_corpus_membership_question:
+            boundary_evidence = self.retriever.get_boundary_evidence_by_id(
+                "POC1-BOUNDARY-USB4-EXCLUDED"
+            )
+            if boundary_evidence is None:
+                raise RuntimeError(
+                    "expected boundary evidence 'POC1-BOUNDARY-USB4-EXCLUDED' "
+                    "is not registered in BOUNDARY_EVIDENCE_REGISTRY"
+                )
+            governance_citation = self.retriever.to_governance_citation(boundary_evidence)
+            claim = (
+                "USB4 is not included in the Phase 1 corpus; it is a declared "
+                "Phase 2 source (corpus.lock.yaml sources.usb4: phase=phase_2, "
+                "included=false, retrieval_status=excluded_from_phase_1)."
+            )
+            return self._build_response(
+                answer=claim,
+                scope=answer_scope or boundary_evidence.scope,
+                cited_evidences=[],
+                claim_level="governance_fact_answer",
+                boundary=(
+                    "Governance fact answer: corpus.lock.yaml sources.usb4 "
+                    "membership metadata (not a USB4 normative-spec citation)."
+                ),
+                is_abstain=False,
+                status="answer",
+                claims=[claim],
+                citations=[governance_citation],
+            )
 
         # USB4 is a registered Phase 2 exclusion (corpus.lock.yaml
         # sources.usb4: phase=phase_2, included=false) -- a query about USB4
@@ -152,38 +239,6 @@ class GovernedQAService:
                     boundary_code="OUT_OF_SCOPE",
                 )
 
-        # allowed_evidence_scopes is only meaningful paired with an
-        # answer_scope: RetrievalPolicy requires answer_scope to construct
-        # the policy at all, and single_scope/explicit_cross_scope both
-        # derive their eligibility from it. Silently dropping an explicitly
-        # declared allowed_evidence_scopes restriction (by falling through to
-        # an unscoped RetrievalPolicy=None query) would let the retriever
-        # cite evidence outside the caller's declared hard boundary -- reject
-        # the combination instead of silently widening retrieval.
-        if answer_scope is None and allowed_evidence_scopes:
-            raise ValueError(
-                "allowed_evidence_scopes was provided without answer_scope; "
-                "GovernedQAService requires answer_scope to build a scope-restricting "
-                "RetrievalPolicy. Provide answer_scope, or omit allowed_evidence_scopes "
-                "to run a fully unscoped query."
-            )
-
-        # RetrievalPolicy is only constructed when the caller declares an
-        # answer_scope. `domain`/`retrieval_mode`/`allowed_evidence_scopes` are
-        # the caller's explicit policy declaration -- this service never
-        # infers them from `query_text`.
-        retrieval_policy = (
-            RetrievalPolicy(
-                domain=domain,
-                answer_scope=answer_scope,
-                retrieval_mode=retrieval_mode,
-                allowed_evidence_scopes=(
-                    tuple(allowed_evidence_scopes) if allowed_evidence_scopes else None
-                ),
-            )
-            if answer_scope is not None
-            else None
-        )
         evidences = self.retriever.query(query_text, retrieval_policy=retrieval_policy)
 
         # Abstention if no evidence found. Deliberately claims=[]/citations=[]

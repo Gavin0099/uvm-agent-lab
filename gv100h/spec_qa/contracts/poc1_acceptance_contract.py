@@ -42,6 +42,15 @@ class CitationRequirements(BaseModel):
     excerpt_or_evidence_id: bool = False
     scope: bool = False
     boundary_code: bool = False
+    # Additive P0 provenance flags (docs/USB_SPEC_QA_POC1_SCOPE.md Section 5).
+    # Default False for backward compatibility with the existing reviewed
+    # acceptance manifest, which never declared them; a question may opt in
+    # by setting either flag True (final_evaluator.py's
+    # _required_citation_fields_present() enforces them one-directionally:
+    # required -> must be present, not a symmetric absent/present shape
+    # check like the fields above) (Codex review, PR #33, P1).
+    chapter: bool = False
+    authority_level: bool = False
     mode: Literal[
         "normative_source",
         "competing_sources",

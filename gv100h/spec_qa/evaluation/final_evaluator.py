@@ -31,6 +31,14 @@ class FinalQACitation(BaseModel):
     page_or_anchor: Optional[str] = None
     excerpt_or_evidence_id: Optional[str] = None
     scope: Optional[str] = None
+    # Additive P0 provenance fields (docs/USB_SPEC_QA_POC1_SCOPE.md Section 5
+    # lists chapter and authority_level as mandatory citation fields
+    # alongside document/revision/section/page_or_anchor). qa_service.py's
+    # runtime Citation already carries both; previously
+    # QAResponse.to_final_qa_response() silently dropped them when
+    # projecting onto this schema (Codex review, PR #33, P1).
+    chapter: Optional[str] = None
+    authority_level: Optional[str] = None
 
 
 class FinalQAResponse(BaseModel):
@@ -151,6 +159,19 @@ class FinalPOC1Evaluator:
                     and getattr(citation, field_name)
                 ):
                     return False
+            # chapter/authority_level are checked one-directionally (required
+            # -> must be present), unlike the symmetric fields above: those
+            # symmetric checks exist to keep a *boundary* citation shape from
+            # posing as a *normative* one (all-present vs. all-absent).
+            # chapter/authority_level are additional P0 provenance detail, not
+            # a shape discriminator -- a citation that already carries them
+            # (as qa_service.py's runtime Citations do) must not be penalized
+            # just because an older reviewed acceptance-manifest question
+            # never opted into requiring them (Codex review, PR #33, P1).
+            if requirements.chapter and not citation.chapter:
+                return False
+            if requirements.authority_level and not citation.authority_level:
+                return False
         if requirements.scope and not response.scope:
             return False
         if requirements.boundary_code and not response.boundary_code:

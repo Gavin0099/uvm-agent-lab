@@ -39,6 +39,23 @@ AnswerStatus = Literal["answer", "abstain", "conflict"]
 
 AuthorityLevel = Literal["authoritative", "informative", "derived"]
 
+# A citation's provenance kind, distinguishing three genuinely different
+# evidence shapes that GroundedAnswer must not conflate:
+#
+# - "normative": a USB spec citation (document/revision/chapter/section/
+#   page_or_anchor/authority_level all populated) backing an "answer"/
+#   "conflict" claim.
+# - "boundary": registered boundary evidence (no normative fields) backing
+#   an "abstain" claim -- e.g. "USB4 is excluded from the Phase 1 corpus".
+# - "governance": a fact about the corpus/governance metadata itself (e.g.
+#   corpus.lock.yaml's sources.usb4 entry), used to answer a genuine
+#   *corpus-membership* question ("is USB4 included in the Phase 1 corpus?",
+#   docs/USB_SPEC_QA_POC1_SCOPE.md lines 86-88) with status="answer" -- it is
+#   NOT a normative USB-spec citation and must not be faked as one, but it is
+#   also not a boundary citation because the response is a real "answer",
+#   not an abstention.
+CitationKind = Literal["normative", "boundary", "governance"]
+
 # Fields that identify a *normative* citation (backing an "answer"/"conflict"
 # claim against a specific document/revision/section). A *boundary* citation
 # (backing an "abstain") must not declare any of these -- per
@@ -103,6 +120,7 @@ class Citation(BaseModel):
     page_or_anchor: Optional[str] = Field(default=None, min_length=1)
     authority_level: Optional[AuthorityLevel] = None
     excerpt: Optional[str] = None
+    citation_kind: CitationKind = "normative"
 
     def __init__(self, **data):
         # See GroundedAnswer.__init__ for why this re-raises as a plain
@@ -280,12 +298,68 @@ class GroundedAnswer(BaseModel):
                     f"{len(provenance_identities)} distinct identity(ies) across "
                     f"{len(self.citations)} citation(s)"
                 )
+            # The declared boundary code must itself name *which* provenance
+            # dimension disagrees -- the generic ">=2 distinct identities"
+            # check above let VERSION_CONFLICT pass when only the document or
+            # authority_level differed (revisions identical), and let
+            # AUTHORITY_MISMATCH pass when only the revision differed
+            # (authority_level identical). A conflict declaring the wrong
+            # boundary code makes an unsupportable claim about *why* the
+            # sources disagree (Codex review, PR #33, P2).
+            if self.boundary == "VERSION_CONFLICT":
+                revisions = {c.revision for c in self.citations}
+                if len(revisions) < 2:
+                    raise EvidenceContractError(
+                        "a 'VERSION_CONFLICT' status requires citations with at "
+                        f"least two distinct revisions; got {sorted(r for r in revisions if r is not None)!r}"
+                    )
+            elif self.boundary == "AUTHORITY_MISMATCH":
+                authority_levels = {c.authority_level for c in self.citations}
+                if len(authority_levels) < 2:
+                    raise EvidenceContractError(
+                        "an 'AUTHORITY_MISMATCH' status requires citations with "
+                        "at least two distinct authority levels; got "
+                        f"{sorted(a for a in authority_levels if a is not None)!r}"
+                    )
+            # UNRESOLVED_CONFLICT keeps the generic >=2-distinct-identities
+            # check above as its only requirement -- no single field is
+            # mandated to differ.
             self._require_normative_citations("conflict")
 
         return self
 
     def _require_normative_citations(self, status: str) -> None:
         for citation in self.citations:
+            if citation.citation_kind == "boundary":
+                # Boundary evidence is registered to explain an *abstention*;
+                # reusing it to back an "answer"/"conflict" would let a
+                # non-answer fact masquerade as grounding for a real claim
+                # (Codex review, PR #33 -- "resolvable != retrievable_as_answer").
+                raise EvidenceContractError(
+                    f"a {status!r} status must not cite boundary-only evidence "
+                    f"(citation {citation.evidence_id!r} has citation_kind='boundary'); "
+                    "boundary citations back 'abstain' only"
+                )
+            if status == "answer" and citation.citation_kind == "governance":
+                # A governance-fact citation (e.g. corpus.lock.yaml's usb4
+                # membership metadata) answers a real question about the
+                # corpus/governance state itself. It must NOT declare
+                # normative USB-spec document-identity fields -- it is not a
+                # spec citation and must not be dressed up as one -- but it
+                # is also not a 'conflict'-eligible shape, so this allowance
+                # is answer-only.
+                present = [
+                    field_name
+                    for field_name in NORMATIVE_CITATION_FIELDS
+                    if getattr(citation, field_name) is not None
+                ]
+                if present:
+                    raise EvidenceContractError(
+                        "a governance-fact citation must not declare normative "
+                        f"document-identity fields; citation {citation.evidence_id!r} "
+                        f"declares {present}"
+                    )
+                continue
             missing = [
                 field_name
                 for field_name in NORMATIVE_CITATION_FIELDS

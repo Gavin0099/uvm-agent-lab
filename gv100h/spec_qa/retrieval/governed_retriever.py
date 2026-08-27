@@ -909,10 +909,32 @@ class GovernedSpecRetriever:
         scored_results.sort(key=lambda x: x[0], reverse=True)
         return [item[1] for item in scored_results]
 
-    def get_evidence_by_id(self, evidence_id: str) -> Optional[GovernedEvidence]:
+    def get_evidence_by_id(
+        self, evidence_id: str
+    ) -> Optional[GovernedEvidence | BoundaryEvidence]:
+        """
+        Resolve ``evidence_id`` against BOTH the answer-eligible
+        EVIDENCE_REGISTRY and the BOUNDARY_EVIDENCE_REGISTRY.
+
+        This is the resolver an evaluator uses to ask "does this evidence_id
+        correspond to a genuinely registered piece of evidence?" (fabrication
+        detection) -- a *different* question from "is this evidence eligible
+        to be retrieved and cited as answer support?", which remains query()'s
+        exclusive concern (query() only ever searches EVIDENCE_REGISTRY).
+        Conflating the two would either (a) make boundary evidence
+        unresolvable, so any evaluator that only calls get_evidence_by_id
+        cannot distinguish a real boundary citation (e.g. backing a USB4
+        abstain) from a fabricated one, or (b) make query() return boundary
+        evidence as if it could support an answer. Keeping them separate
+        methods preserves: resolvable != retrievable_as_answer (Codex review,
+        PR #33, P1).
+        """
         for ev in self.EVIDENCE_REGISTRY:
             if ev.evidence_id == evidence_id:
                 return ev
+        for be in self.BOUNDARY_EVIDENCE_REGISTRY:
+            if be.evidence_id == evidence_id:
+                return be
         return None
 
     def get_boundary_evidence_by_id(self, evidence_id: str) -> Optional[BoundaryEvidence]:
@@ -930,4 +952,21 @@ class GovernedSpecRetriever:
         poc1_acceptance_contract.py's "boundary_evidence" citation mode and
         GroundedAnswer._require_boundary_citations().
         """
-        return Citation(evidence_id=be.evidence_id, excerpt=be.excerpt)
+        return Citation(
+            evidence_id=be.evidence_id, excerpt=be.excerpt, citation_kind="boundary"
+        )
+
+    def to_governance_citation(self, be: BoundaryEvidence) -> Citation:
+        """
+        Resolve a registered BoundaryEvidence into a *governance-fact*
+        Citation for a genuine "answer" about corpus/governance metadata
+        (e.g. "is USB4 included in the Phase 1 corpus?",
+        docs/USB_SPEC_QA_POC1_SCOPE.md lines 86-88) -- distinct from
+        to_boundary_citation() because the response status is "answer", not
+        "abstain": the same underlying registered fact (e.g. corpus.lock.yaml
+        sources.usb4) can license two different, non-overlapping response
+        shapes without duplicating the registry entry.
+        """
+        return Citation(
+            evidence_id=be.evidence_id, excerpt=be.excerpt, citation_kind="governance"
+        )

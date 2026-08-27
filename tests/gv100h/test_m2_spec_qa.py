@@ -1395,24 +1395,6 @@ def test_full_contract_chain_boundary_abstain_round_trip_through_final_evaluator
     assert result.fabricated_citation is False
 
 
-class _RetrieverBackedEvidenceResolver:
-    """
-    Wraps a real GovernedSpecRetriever so evaluate_response() checks
-    resolvability against the actual answer-evidence AND boundary-evidence
-    registries -- unlike _StubEvidenceResolver above (which accepts
-    whatever ID it is told about), this resolver can actually fail to
-    resolve an evidence_id, the same way a production resolver would.
-    """
-
-    def __init__(self, retriever: GovernedSpecRetriever):
-        self._retriever = retriever
-
-    def get_evidence_by_id(self, evidence_id: str):
-        return self._retriever.get_evidence_by_id(
-            evidence_id
-        ) or self._retriever.get_boundary_evidence_by_id(evidence_id)
-
-
 @pytest.mark.contract
 def test_full_contract_chain_usb4_boundary_abstain_uses_real_registered_evidence():
     # Codex review (PR #33, P1): the chain test above proves the SHAPE is
@@ -1422,9 +1404,12 @@ def test_full_contract_chain_usb4_boundary_abstain_uses_real_registered_evidence
     # Boundary Evidence Registry rather than an ad-hoc string. This test
     # proves the full, real chain: GovernedQAService.answer_question()
     # (real retriever, real BOUNDARY_EVIDENCE_REGISTRY) -> QAResponse ->
-    # to_final_qa_response() -> FinalPOC1Evaluator, resolved by a resolver
-    # backed by the same real GovernedSpecRetriever instance -- no stub, no
-    # fabricated evidence_id.
+    # to_final_qa_response() -> FinalPOC1Evaluator, resolved DIRECTLY by the
+    # production GovernedSpecRetriever -- no test-only wrapper, no stub, no
+    # fabricated evidence_id. GovernedSpecRetriever.get_evidence_by_id()
+    # itself resolves both EVIDENCE_REGISTRY and BOUNDARY_EVIDENCE_REGISTRY
+    # (resolvable != retrievable_as_answer), so the evaluator-facing
+    # EvidenceResolver protocol is satisfied by the retriever alone.
     service = GovernedQAService()
     resp = service.answer_question("USB4 Hub 的 Warm Reset 規範為何？")
 
@@ -1464,7 +1449,7 @@ def test_full_contract_chain_usb4_boundary_abstain_uses_real_registered_evidence
         independently_reviewed=True,
     )
 
-    evaluator = _evaluator_with_resolver(_RetrieverBackedEvidenceResolver(service.retriever))
+    evaluator = _evaluator_with_resolver(service.retriever)
     result = evaluator.evaluate_response(question, final_response)
     assert result.passed is True
     assert result.citation_complete is True
@@ -1518,7 +1503,7 @@ def test_full_contract_chain_usb4_boundary_abstain_flags_fabricated_citation():
         independently_reviewed=True,
     )
 
-    evaluator = _evaluator_with_resolver(_RetrieverBackedEvidenceResolver(service.retriever))
+    evaluator = _evaluator_with_resolver(service.retriever)
     result = evaluator.evaluate_response(question, final_response)
     assert result.fabricated_citation is True
 
@@ -1663,3 +1648,390 @@ def test_named_selector_plus_unrelated_value_is_not_selector_id_lookup():
     collision_ids = [ev.evidence_id for ev in retriever.query(query_collision, retrieval_policy=usb3)]
     assert unknown_ids == ["USB3-FEAT-PORT_LINK_STATE"]
     assert collision_ids == ["USB3-FEAT-PORT_LINK_STATE"]
+
+
+# ---------------------------------------------------------------------------
+# Commit C / Commit D (Codex review, PR #33, follow-up to the 6-thread
+# resolution pass): resolvable != retrievable_as_answer, policy validation
+# ordering, chapter/authority_level provenance, conflict-boundary-code ->
+# provenance-dimension binding, USB4 corpus-membership governance answers,
+# and generic OUT_OF_SCOPE boundary evidence for service abstentions.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_get_evidence_by_id_resolves_boundary_registry_directly():
+    # Commit C item 1: the production resolver alone (no test-only wrapper)
+    # must resolve BOTH EVIDENCE_REGISTRY and BOUNDARY_EVIDENCE_REGISTRY --
+    # this is exactly what FinalPOC1Evaluator.evaluate_response() calls
+    # (EvidenceResolver.get_evidence_by_id), so a production
+    # GovernedSpecRetriever must satisfy that protocol on its own.
+    retriever = GovernedSpecRetriever()
+    assert retriever.get_evidence_by_id("USB3-FEAT-PORT_POWER") is not None
+    assert retriever.get_evidence_by_id("POC1-BOUNDARY-USB4-EXCLUDED") is not None
+    assert retriever.get_evidence_by_id("NOT-A-REGISTERED-ID") is None
+
+
+@pytest.mark.unit
+def test_query_does_not_retrieve_boundary_evidence_as_answer_support():
+    # Commit C item 1's other half: resolvable != retrievable_as_answer --
+    # query() must keep searching only the answer-eligible EVIDENCE_REGISTRY,
+    # never BOUNDARY_EVIDENCE_REGISTRY, even though get_evidence_by_id() now
+    # resolves both.
+    retriever = GovernedSpecRetriever()
+    results = retriever.query(
+        "USB4 is excluded from the Phase 1 corpus",
+        retrieval_policy=RetrievalPolicy(answer_scope="USB4_SPEC"),
+    )
+    assert all(ev.evidence_id != "POC1-BOUNDARY-USB4-EXCLUDED" for ev in results)
+
+
+@pytest.mark.unit
+def test_qa_service_policy_validation_runs_before_usb4_early_return():
+    # Commit C item 2 (Codex review, PR #33, P2): an invalid domain must be
+    # rejected even for a USB4 query, which previously returned its abstain
+    # response before RetrievalPolicy was ever constructed.
+    service = GovernedQAService()
+    with pytest.raises(RetrievalPolicyError, match="unknown retrieval domain"):
+        service.answer_question(
+            "USB4 Hub 的 Warm Reset 規範為何？",
+            answer_scope="USB4_SPEC",
+            domain="HID",
+        )
+
+
+@pytest.mark.unit
+def test_qa_service_rejects_allowed_evidence_scopes_without_answer_scope_for_usb4_query():
+    # Commit C item 2, other half: allowed_evidence_scopes without
+    # answer_scope must be rejected even for a query that would otherwise
+    # match the USB4 early-return branch.
+    service = GovernedQAService()
+    with pytest.raises(ValueError, match="allowed_evidence_scopes was provided without answer_scope"):
+        service.answer_question(
+            "USB4 Hub 的 Warm Reset 規範為何？",
+            allowed_evidence_scopes=["USB4_SPEC"],
+        )
+
+
+@pytest.mark.unit
+def test_qa_service_policy_validation_runs_before_unsupported_keyword_early_return():
+    # Same ordering fix, exercised through the generic unsupported_keywords
+    # branch instead of the USB4 branch.
+    service = GovernedQAService()
+    with pytest.raises(RetrievalPolicyError, match="unknown retrieval domain"):
+        service.answer_question(
+            "Windows xHCI driver internals",
+            answer_scope="USB_HUB",
+            domain="HID",
+        )
+
+
+@pytest.mark.unit
+def test_grounded_answer_answer_status_allows_governance_citation_without_normative_fields():
+    # Commit C item 5: a governance-fact citation_kind must NOT be forced to
+    # carry normative document-identity fields, unlike an ordinary normative
+    # answer citation.
+    citation = Citation(
+        evidence_id="POC1-BOUNDARY-USB4-EXCLUDED",
+        excerpt="corpus.lock.yaml sources.usb4: included=false.",
+        citation_kind="governance",
+    )
+    answer = GroundedAnswer(
+        status="answer",
+        claims=["USB4 is not included in the Phase 1 corpus."],
+        citations=[citation],
+        evidence_ids=["POC1-BOUNDARY-USB4-EXCLUDED"],
+        scope="USB4_SPEC",
+    )
+    assert answer.status == "answer"
+
+
+@pytest.mark.unit
+def test_grounded_answer_governance_citation_rejects_normative_fields():
+    with pytest.raises(EvidenceContractError, match="must not declare normative"):
+        GroundedAnswer(
+            status="answer",
+            claims=["USB4 is not included in the Phase 1 corpus."],
+            citations=[
+                Citation(
+                    evidence_id="POC1-BOUNDARY-USB4-EXCLUDED",
+                    document="usb4-spec",
+                    excerpt="x",
+                    citation_kind="governance",
+                )
+            ],
+            evidence_ids=["POC1-BOUNDARY-USB4-EXCLUDED"],
+            scope="USB4_SPEC",
+        )
+
+
+@pytest.mark.unit
+def test_grounded_answer_rejects_boundary_kind_citation_for_answer_status():
+    # A boundary citation is registered to explain an abstention -- reusing
+    # it to back an "answer" would let non-answer evidence masquerade as
+    # grounding for a real claim.
+    with pytest.raises(EvidenceContractError, match="must not cite boundary-only evidence"):
+        GroundedAnswer(
+            status="answer",
+            claims=["some claim"],
+            citations=[
+                Citation(
+                    evidence_id="POC1-BOUNDARY-USB4-EXCLUDED",
+                    excerpt="x",
+                    citation_kind="boundary",
+                )
+            ],
+            evidence_ids=["POC1-BOUNDARY-USB4-EXCLUDED"],
+            scope="USB4_SPEC",
+        )
+
+
+@pytest.mark.unit
+def test_grounded_answer_rejects_boundary_kind_citation_for_conflict_status():
+    with pytest.raises(EvidenceContractError, match="must not cite boundary-only evidence"):
+        GroundedAnswer(
+            status="conflict",
+            claims=["claim A", "claim B"],
+            citations=[
+                Citation(
+                    evidence_id="POC1-BOUNDARY-USB4-EXCLUDED",
+                    excerpt="x",
+                    citation_kind="boundary",
+                ),
+                Citation(
+                    evidence_id="USB2-FEAT-PORT_POWER",
+                    document="usb32-rev1.1",
+                    revision="1.0",
+                    chapter="10",
+                    section="10.16.2.1",
+                    page_or_anchor="10.16.2.1",
+                    authority_level="authoritative",
+                ),
+            ],
+            evidence_ids=["POC1-BOUNDARY-USB4-EXCLUDED", "USB2-FEAT-PORT_POWER"],
+            boundary="UNRESOLVED_CONFLICT",
+            scope="USB_3_X",
+        )
+
+
+@pytest.mark.unit
+def test_grounded_answer_version_conflict_rejects_same_revision_different_document():
+    # Commit C item 4 (Codex review, PR #33, P2): VERSION_CONFLICT must
+    # specifically mean the *revision* differs -- two citations from
+    # different documents but the SAME revision string are not a version
+    # conflict, even though they are technically ">= 2 distinct provenance
+    # identities" (the previous, generic check).
+    with pytest.raises(EvidenceContractError, match="VERSION_CONFLICT.*distinct revisions"):
+        GroundedAnswer(
+            status="conflict",
+            claims=["claim A", "claim B"],
+            citations=[
+                Citation(
+                    evidence_id="USB3-FEAT-PORT_POWER",
+                    document="usb32-rev1.1",
+                    revision="1.0",
+                    chapter="10",
+                    section="10.16.2.1",
+                    page_or_anchor="10.16.2.1",
+                    authority_level="authoritative",
+                ),
+                Citation(
+                    evidence_id="USB2-FEAT-PORT_POWER",
+                    document="usb20-fw",
+                    revision="1.0",
+                    chapter="10",
+                    section="10.16.2.1",
+                    page_or_anchor="10.16.2.1",
+                    authority_level="authoritative",
+                ),
+            ],
+            evidence_ids=["USB3-FEAT-PORT_POWER", "USB2-FEAT-PORT_POWER"],
+            boundary="VERSION_CONFLICT",
+            scope="USB_3_X",
+        )
+
+
+@pytest.mark.unit
+def test_grounded_answer_authority_mismatch_rejects_same_authority_different_revision():
+    # Commit C item 4, other half: AUTHORITY_MISMATCH must specifically mean
+    # the *authority_level* differs -- two citations with the same
+    # authority_level but different revisions are not an authority mismatch.
+    with pytest.raises(EvidenceContractError, match="AUTHORITY_MISMATCH.*distinct authority levels"):
+        GroundedAnswer(
+            status="conflict",
+            claims=["claim A", "claim B"],
+            citations=[
+                Citation(
+                    evidence_id="USB3-FEAT-PORT_POWER",
+                    document="usb32-rev1.1",
+                    revision="1.0",
+                    chapter="10",
+                    section="10.16.2.1",
+                    page_or_anchor="10.16.2.1",
+                    authority_level="authoritative",
+                ),
+                Citation(
+                    evidence_id="USB2-FEAT-PORT_POWER",
+                    document="usb32-rev1.1",
+                    revision="1.1",
+                    chapter="10",
+                    section="10.16.2.1",
+                    page_or_anchor="10.16.2.1",
+                    authority_level="authoritative",
+                ),
+            ],
+            evidence_ids=["USB3-FEAT-PORT_POWER", "USB2-FEAT-PORT_POWER"],
+            boundary="AUTHORITY_MISMATCH",
+            scope="USB_3_X",
+        )
+
+
+@pytest.mark.unit
+def test_final_qa_citation_preserves_chapter_and_authority_level():
+    # Commit C item 3: to_final_qa_response() must no longer silently drop
+    # chapter/authority_level -- the P0 provenance fields
+    # (docs/USB_SPEC_QA_POC1_SCOPE.md Section 5) must survive the projection
+    # onto the evaluator's schema.
+    service = GovernedQAService()
+    resp = service.answer_question("PORT_POWER feature selector value", "USB_3_X")
+    final_response = resp.to_final_qa_response()
+    assert final_response.citations
+    for citation, final_citation in zip(resp.citations, final_response.citations):
+        assert final_citation.chapter == citation.chapter
+        assert final_citation.authority_level == citation.authority_level
+        assert citation.chapter is not None
+        assert citation.authority_level is not None
+
+
+@pytest.mark.contract
+def test_final_evaluator_enforces_chapter_and_authority_level_when_required():
+    # Commit C item 3: a question that opts into requiring chapter/
+    # authority_level (required_citation_fields.chapter=True,
+    # authority_level=True) must fail citation_complete when either is
+    # missing, and pass when both are present -- proving the new fields are
+    # load-bearing, not merely accepted-and-ignored schema additions.
+    service = GovernedQAService()
+    resp = service.answer_question("PORT_POWER feature selector value", "USB_3_X")
+    final_response = resp.to_final_qa_response()
+
+    question = AcceptanceQuestion(
+        question_id="CHAIN-TEST-CHAPTER-AUTHORITY",
+        layer="L1",
+        priority="P0",
+        category="single_spec_fact",
+        question="PORT_POWER feature selector value",
+        expected_status="answer",
+        expected_scope="USB_3_X",
+        accepted_source_ids=["hub_reference"],
+        required_citation_fields=CitationRequirements(
+            document=True,
+            revision=True,
+            section=True,
+            page_or_anchor=True,
+            excerpt_or_evidence_id=True,
+            scope=True,
+            boundary_code=False,
+            chapter=True,
+            authority_level=True,
+            mode="normative_source",
+        ),
+        gold=GoldOracle(
+            accepted_evidence_ids=list(resp.evidence_ids),
+            required_claims=[GoldClaim(claim_id="c1", assertion=resp.claims[0], required=True)],
+            section_anchors=[c.section for c in resp.citations],
+            required_facts=[],
+        ),
+        grading=_CHAIN_GRADING_WEIGHTS,
+        independently_reviewed=True,
+    )
+
+    evaluator = _evaluator_with_resolver(service.retriever)
+    result = evaluator.evaluate_response(question, final_response)
+    assert result.citation_complete is True
+
+    # Strip chapter/authority_level to prove the requirement is enforced,
+    # not silently ignored.
+    stripped = final_response.model_copy(
+        update={
+            "citations": [
+                citation.model_copy(update={"chapter": None, "authority_level": None})
+                for citation in final_response.citations
+            ]
+        }
+    )
+    stripped_result = evaluator.evaluate_response(question, stripped)
+    assert stripped_result.citation_complete is False
+
+
+@pytest.mark.unit
+def test_qa_service_usb4_corpus_membership_question_is_answered_not_abstained():
+    # Commit C item 5 (docs/USB_SPEC_QA_POC1_SCOPE.md lines 86-88): a
+    # question that is only asking whether USB4 is included in the current
+    # corpus must be answered, not abstained -- backed by a governance-fact
+    # citation, not a fake USB4 normative-spec citation.
+    service = GovernedQAService()
+    resp = service.answer_question("Is USB4 included in the Phase 1 corpus?")
+    assert resp.status == "answer"
+    assert resp.is_abstain is False
+    assert resp.boundary_code is None
+    assert resp.claims
+    assert len(resp.citations) == 1
+    assert resp.citations[0].evidence_id == "POC1-BOUNDARY-USB4-EXCLUDED"
+    assert resp.citations[0].citation_kind == "governance"
+    assert resp.citations[0].document is None  # not a fake normative citation
+
+
+@pytest.mark.unit
+def test_qa_service_generic_usb4_topic_question_still_abstains():
+    # Negative control for the test above: a generic USB4 topic question
+    # (not a corpus-membership question) must still abstain, proving the
+    # membership carve-out is narrow and does not swallow the general USB4
+    # exclusion.
+    service = GovernedQAService()
+    resp = service.answer_question("USB4 Hub 的 Warm Reset 規範為何？")
+    assert resp.status == "abstain"
+    assert resp.boundary_code == "OUT_OF_SCOPE"
+
+
+@pytest.mark.contract
+def test_full_contract_chain_usb4_corpus_membership_answer_passes_evaluator():
+    # Full chain proof for Commit C item 5: GovernedQAService.answer_question()
+    # -> QAResponse -> to_final_qa_response() -> FinalPOC1Evaluator, resolved
+    # by the production retriever alone.
+    service = GovernedQAService()
+    resp = service.answer_question("Is USB4 included in the Phase 1 corpus?")
+    final_response = resp.to_final_qa_response()
+
+    question = AcceptanceQuestion(
+        question_id="CHAIN-TEST-USB4-GOVERNANCE-ANSWER",
+        layer="L1",
+        priority="P0",
+        category="single_spec_fact",
+        question="Is USB4 included in the Phase 1 corpus?",
+        expected_status="answer",
+        expected_scope=resp.scope,
+        accepted_source_ids=["usb4"],
+        required_citation_fields=CitationRequirements(
+            document=False,
+            revision=False,
+            section=False,
+            page_or_anchor=False,
+            excerpt_or_evidence_id=True,
+            scope=True,
+            boundary_code=False,
+            mode="normative_source",
+        ),
+        gold=GoldOracle(
+            accepted_evidence_ids=list(resp.evidence_ids),
+            required_claims=[GoldClaim(claim_id="c1", assertion=resp.claims[0], required=True)],
+            section_anchors=[],
+            required_facts=[],
+        ),
+        grading=_CHAIN_GRADING_WEIGHTS,
+        independently_reviewed=True,
+    )
+
+    evaluator = _evaluator_with_resolver(service.retriever)
+    result = evaluator.evaluate_response(question, final_response)
+    assert result.fabricated_citation is False
+    assert result.grounded is True
