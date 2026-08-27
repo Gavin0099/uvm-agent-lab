@@ -36,9 +36,11 @@ def _question(index: int) -> dict:
         citation = {
             "document": True,
             "revision": True,
+            "chapter": True,
             "section": True,
             "page_or_anchor": True,
             "excerpt_or_evidence_id": True,
+            "authority_level": True,
             "scope": True,
             "boundary_code": True,
             "mode": "competing_sources",
@@ -110,9 +112,11 @@ def _question(index: int) -> dict:
         citation = {
             "document": True,
             "revision": True,
+            "chapter": True,
             "section": True,
             "page_or_anchor": True,
             "excerpt_or_evidence_id": True,
+            "authority_level": True,
             "scope": True,
             "boundary_code": False,
             "mode": "normative_source",
@@ -192,9 +196,11 @@ def _response(index: int) -> dict:
                     "evidence_id": f"EVIDENCE-{index}",
                     "document": "USB synthetic source",
                     "revision": "synthetic revision",
+                    "chapter": "10",
                     "section": f"section-{index}",
                     "page_or_anchor": f"page-{index}",
                     "excerpt_or_evidence_id": f"EVIDENCE-{index}",
+                    "authority_level": "authoritative",
                     "scope": question["expected_scope"],
                 }
             ],
@@ -210,9 +216,11 @@ def _response(index: int) -> dict:
                     "evidence_id": evidence_id,
                     "document": "USB synthetic source",
                     "revision": "synthetic revision",
+                    "chapter": "10",
                     "section": section,
                     "page_or_anchor": section,
                     "excerpt_or_evidence_id": evidence_id,
+                    "authority_level": "authoritative",
                     "scope": question["expected_scope"],
                 }
                 for evidence_id, section in (

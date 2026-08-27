@@ -158,15 +158,32 @@ class GovernedSpecRetriever:
     # included=false, retrieval_status=excluded_from_phase_1); this registry
     # entry just makes that fact resolvable as a citation.
     #
-    # Deliberately NOT seeded here: a MISSING_EVIDENCE boundary fact. "No
-    # eligible evidence was found" is a runtime retrieval observation (a
-    # given query + scope + retrieval policy + corpus revision produced zero
-    # results), not a static corpus/governance fact -- it cannot be
-    # represented as a fixed BoundaryEvidence entry without misrepresenting a
-    # runtime observation as a corpus fact. Representing it correctly needs a
-    # runtime retrieval-boundary receipt (query/scope/policy/corpus_lock_hash/
-    # result_count=0), which is out of scope for this registry and is tracked
-    # as a follow-up rather than faked here.
+    # Deliberately NOT seeded here: a generic catch-all "out of scope"
+    # boundary fact, and a MISSING_EVIDENCE boundary fact.
+    #
+    # A generic entry was tried and removed (Codex review, PR #33, P1,
+    # 2nd pass): a single source's known_limits (e.g.
+    # hub_reference.known_limits: not_electrical_or_lvs_compliance_proof)
+    # only proves that ONE source doesn't cover a topic -- it does not prove
+    # the entire Phase 1 corpus lacks coverage, since Phase 1 also includes
+    # several official_raw sources (usb20_fw, usb20_se, usb32,
+    # superspeed_hub_lvs) with their own, different coverage. Citing
+    # hub_reference's ceiling as if it were a corpus-wide boundary fact would
+    # itself be an unsupported claim -- "one source's ceiling != whole
+    # corpus boundary". Until topic-specific boundary evidence (or a
+    # corpus-wide, per-topic exclusion actually declared in corpus.lock.yaml)
+    # exists, a generic unsupported-keyword query must abstain with no
+    # citation rather than fabricate one just to look complete.
+    #
+    # "No eligible evidence was found" (MISSING_EVIDENCE) is a runtime
+    # retrieval observation (a given query + scope + retrieval policy +
+    # corpus revision produced zero results), not a static corpus/governance
+    # fact -- it cannot be represented as a fixed BoundaryEvidence entry
+    # without misrepresenting a runtime observation as a corpus fact.
+    # Representing it correctly needs a runtime retrieval-boundary receipt
+    # (query/scope/policy/corpus_lock_hash/result_count=0), which is out of
+    # scope for this registry and is tracked as a follow-up rather than
+    # faked here.
     BOUNDARY_EVIDENCE_REGISTRY: List[BoundaryEvidence] = [
         BoundaryEvidence(
             evidence_id="POC1-BOUNDARY-USB4-EXCLUDED",
@@ -181,34 +198,6 @@ class GovernedSpecRetriever:
             excerpt=(
                 "corpus.lock.yaml sources.usb4: phase=phase_2, included=false, "
                 "retrieval_status=excluded_from_phase_1."
-            ),
-        ),
-        # Generic Phase 1 scope exclusion (Codex review, PR #33, P1 --
-        # "populate boundary evidence for service abstentions"). Backed by
-        # the *actual* declared known_limits of the governed_reference source
-        # (corpus.lock.yaml sources.hub_reference.known_limits), not an
-        # invented per-keyword claim: host-controller-internal topics
-        # (xHCI/usbcore), firmware-compliance topics (EEPROM programming),
-        # and PHY/electrical-compliance topics (eye diagram, jitter, PAM3,
-        # 40 Gbps signaling) all fall outside what that source's known_limits
-        # already declares it does NOT cover. This is a static corpus/scope
-        # fact, unlike a MISSING_EVIDENCE runtime retrieval miss (see the note
-        # above) -- it is genuinely registrable.
-        BoundaryEvidence(
-            evidence_id="POC1-BOUNDARY-GENERIC-OUT-OF-SCOPE",
-            boundary_code="OUT_OF_SCOPE",
-            claim=(
-                "This question falls outside the Phase 1 governed corpus scope "
-                "(corpus.lock.yaml sources.hub_reference.known_limits declares "
-                "not_full_usb_spec_coverage, not_firmware_compliance_proof, and "
-                "not_electrical_or_lvs_compliance_proof)."
-            ),
-            scope="USB_HUB",
-            source_id="hub_reference",
-            excerpt=(
-                "corpus.lock.yaml sources.hub_reference.known_limits: "
-                "not_full_usb_spec_coverage, not_firmware_compliance_proof, "
-                "not_electrical_or_lvs_compliance_proof, not_usb4_corpus."
             ),
         ),
     ]
@@ -969,6 +958,37 @@ class GovernedSpecRetriever:
         for be in self.BOUNDARY_EVIDENCE_REGISTRY:
             if be.evidence_id == evidence_id:
                 return be
+        return None
+
+    def get_canonical_citation_by_id(self, evidence_id: str) -> Optional[Citation]:
+        """
+        Resolve ``evidence_id`` to its canonical, source-of-truth Citation
+        shape -- the same document/revision/chapter/section/page_or_anchor/
+        authority_level a caller *should* have reported, independent of
+        whatever a service response or model actually submitted.
+
+        This is what FinalPOC1Evaluator uses to verify citation
+        *correctness* (submitted provenance matches the resolver's own
+        record), not just citation *completeness* (the fields were merely
+        present/non-blank). Without this, a response could submit
+        chapter="999" for a citation whose real chapter is "10" and still be
+        scored citation_complete -- completeness alone cannot catch a
+        plausible-looking but false value (Codex review, PR #33, P1).
+
+        Returns None if ``evidence_id`` is not registered at all (fabrication
+        is caught separately by the evaluator's existing resolvability
+        check). For a registered BoundaryEvidence, the canonical shape has no
+        normative fields populated (document is None) -- there is nothing to
+        verify beyond evidence_id/excerpt identity for a boundary/governance
+        citation, since GroundedAnswer already forbids normative fields on
+        those citation kinds.
+        """
+        for ev in self.EVIDENCE_REGISTRY:
+            if ev.evidence_id == evidence_id:
+                return self.to_citation(ev)
+        for be in self.BOUNDARY_EVIDENCE_REGISTRY:
+            if be.evidence_id == evidence_id:
+                return self.to_boundary_citation(be)
         return None
 
     def to_boundary_citation(self, be: BoundaryEvidence) -> Citation:

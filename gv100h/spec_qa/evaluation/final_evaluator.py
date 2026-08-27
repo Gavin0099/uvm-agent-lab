@@ -20,6 +20,27 @@ class EvidenceResolver(Protocol):
     def get_evidence_by_id(self, evidence_id: str) -> Any:
         ...
 
+    def get_canonical_citation_by_id(self, evidence_id: str) -> Optional[Any]:
+        """
+        Resolve evidence_id to its canonical, source-of-truth citation shape
+        (an object exposing document/revision/chapter/section/page_or_anchor/
+        authority_level attributes, e.g. evidence_contract.Citation), or
+        None if not registered. Used by FinalPOC1Evaluator to verify
+        submitted citation *correctness* against real provenance, not just
+        *completeness* (fields merely present) -- without this, a response
+        could submit a plausible-looking but false value (e.g. the wrong
+        chapter) for a resolvable evidence_id and still be scored
+        citation_complete (Codex review, PR #33, P1).
+
+        This is optional at runtime: a resolver that only implements
+        get_evidence_by_id() (e.g. a test stub) still works with
+        FinalPOC1Evaluator, it just does not get the extra correctness
+        check -- the evaluator looks this method up with getattr() rather
+        than assuming every EvidenceResolver implements it, so existing
+        minimal resolvers are not broken by this addition.
+        """
+        ...
+
 
 class FinalQACitation(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -180,6 +201,49 @@ class FinalPOC1Evaluator:
             return False
         return True
 
+    def _canonical_provenance_matches(
+        self,
+        citation: FinalQACitation,
+    ) -> bool:
+        """
+        Compare a submitted citation's document/revision/chapter/section/
+        page_or_anchor/authority_level against the resolver's own canonical
+        record for that evidence_id, when the resolver can supply one.
+
+        Returns True (nothing to flag) when:
+        - the resolver does not implement get_canonical_citation_by_id at
+          all (an older/minimal resolver stub; fabrication is still caught
+          separately by the existing evidence_id-resolvability check), or
+        - evidence_id does not resolve to a canonical citation (unresolvable
+          IDs are already flagged as fabricated elsewhere), or
+        - the canonical shape is a boundary/governance citation (its
+          `document` is None) -- those carry no normative fields to compare,
+          by design (GroundedAnswer forbids normative fields on non-normative
+          citation kinds).
+
+        Returns False when a normative canonical citation exists and any of
+        the compared fields disagree with what was submitted -- e.g. a
+        response citing chapter="999" for an evidence_id whose real chapter
+        is "10" (Codex review, PR #33, P1).
+        """
+        get_canonical = getattr(self.evidence_resolver, "get_canonical_citation_by_id", None)
+        if get_canonical is None:
+            return True
+        canonical = get_canonical(citation.evidence_id)
+        if canonical is None or getattr(canonical, "document", None) is None:
+            return True
+        for field_name in (
+            "document",
+            "revision",
+            "chapter",
+            "section",
+            "page_or_anchor",
+            "authority_level",
+        ):
+            if getattr(citation, field_name) != getattr(canonical, field_name):
+                return False
+        return True
+
     def _coerce_response(self, raw_response: Any) -> Optional[FinalQAResponse]:
         if isinstance(raw_response, FinalQAResponse):
             return raw_response
@@ -264,6 +328,10 @@ class FinalPOC1Evaluator:
             evidence_shape_correct
             and not fabricated
             and not authority_violation
+            and all(
+                self._canonical_provenance_matches(citation)
+                for citation in response.citations
+            )
         )
         grounded = (
             status_correct

@@ -51,9 +51,11 @@ def _question(index: int) -> dict:
         citation = {
             "document": True,
             "revision": True,
+            "chapter": True,
             "section": True,
             "page_or_anchor": True,
             "excerpt_or_evidence_id": True,
+            "authority_level": True,
             "scope": True,
             "boundary_code": True,
             "mode": "competing_sources",
@@ -122,9 +124,11 @@ def _question(index: int) -> dict:
         citation = {
             "document": True,
             "revision": True,
+            "chapter": True,
             "section": True,
             "page_or_anchor": True,
             "excerpt_or_evidence_id": True,
+            "authority_level": True,
             "scope": True,
             "boundary_code": False,
             "mode": "normative_source",

@@ -2,7 +2,7 @@ from typing import Dict, Any, List, Optional, Sequence, Tuple
 from pydantic import BaseModel, Field
 
 from gv100h.spec_qa.retrieval.governed_retriever import GovernedSpecRetriever, GovernedEvidence
-from gv100h.spec_qa.contracts.retrieval_policy import RetrievalMode, RetrievalPolicy
+from gv100h.spec_qa.contracts.retrieval_policy import RetrievalMode, RetrievalPolicy, validate_policy_inputs
 from gv100h.spec_qa.contracts.evidence_contract import AnswerStatus, Citation, GroundedAnswer
 from gv100h.spec_qa.contracts.poc1_acceptance_contract import BoundaryCode
 from gv100h.spec_qa.evaluation.final_evaluator import FinalQACitation, FinalQAResponse
@@ -99,22 +99,6 @@ class GovernedQAService:
     ) -> QAResponse:
         q_lower = query_text.lower()
 
-        # Policy validation runs before ANY shortcut/early-return branch
-        # below (USB4, unsupported_keywords) -- previously an invalid policy
-        # declaration (e.g. domain="HID", or allowed_evidence_scopes without
-        # answer_scope) submitted alongside a USB4 query would silently skip
-        # both checks below because the USB4 branch returned first. Policy
-        # validation must never depend on which shortcut a query happens to
-        # match (Codex review, PR #33, P2).
-        #
-        # allowed_evidence_scopes is only meaningful paired with an
-        # answer_scope: RetrievalPolicy requires answer_scope to construct
-        # the policy at all, and single_scope/explicit_cross_scope both
-        # derive their eligibility from it. Silently dropping an explicitly
-        # declared allowed_evidence_scopes restriction (by falling through to
-        # an unscoped RetrievalPolicy=None query) would let the retriever
-        # cite evidence outside the caller's declared hard boundary -- reject
-        # the combination instead of silently widening retrieval.
         if answer_scope is None and allowed_evidence_scopes:
             raise ValueError(
                 "allowed_evidence_scopes was provided without answer_scope; "
@@ -122,6 +106,27 @@ class GovernedQAService:
                 "RetrievalPolicy. Provide answer_scope, or omit allowed_evidence_scopes "
                 "to run a fully unscoped query."
             )
+
+        # The domain/retrieval_mode/allowed_evidence_scopes-shape checks that
+        # do NOT depend on answer_scope must run unconditionally too --
+        # RetrievalPolicy itself cannot be constructed without answer_scope
+        # (it is a required field there), so calling
+        # answer_question("USB4 ...", domain="HID") with no answer_scope
+        # previously skipped policy validation entirely and still returned a
+        # normal abstention. validate_policy_inputs() covers exactly the
+        # answer_scope-independent subset (unknown domain,
+        # explicit_cross_scope without allowed_evidence_scopes); the
+        # RetrievalPolicy construction below still separately validates the
+        # answer_scope-dependent part (single_scope's derived/matched
+        # allowed_evidence_scopes) once answer_scope is known (Codex review,
+        # PR #33, P2).
+        validate_policy_inputs(
+            domain=domain,
+            retrieval_mode=retrieval_mode,
+            allowed_evidence_scopes=(
+                tuple(allowed_evidence_scopes) if allowed_evidence_scopes else None
+            ),
+        )
 
         # RetrievalPolicy is only constructed when the caller declares an
         # answer_scope. `domain`/`retrieval_mode`/`allowed_evidence_scopes` are
@@ -148,11 +153,42 @@ class GovernedQAService:
         # fake USB4 normative-spec citation -- it is grounded in
         # corpus.lock.yaml's own membership metadata, cited with
         # citation_kind="governance" (Codex review, PR #33, P1).
-        usb4_corpus_membership_markers = (
-            "corpus", "phase 1", "phase1", "included", "包含", "屬於", "涵蓋",
+        #
+        # Intent matching is deliberately narrow (whole membership-question
+        # patterns), not a broad substring/marker list: a marker list
+        # containing single generic words like "included"/"包含" also
+        # matches ordinary substantive USB4 feature questions (e.g. "What
+        # features are included in USB4?"), misclassifying them as
+        # corpus-membership questions and returning a governance answer
+        # instead of the required Phase-1-exclusion abstain (Codex review,
+        # PR #33, P2).
+        usb4_corpus_membership_patterns = (
+            "usb4 included in",
+            "usb4 in the current corpus",
+            "usb4 part of the current corpus",
+            "usb4 part of phase 1",
+            "usb4 in phase 1",
+            "usb4 in phase1",
+            "phase 1 include usb4",
+            "phase1 include usb4",
+            "phase 1 corpus include usb4",
+            "corpus include usb4",
+            "corpus 有包含 usb4",
+            "corpus 包含 usb4",
+            "corpus 有 usb4",
+            "corpus 是否包含 usb4",
+            "phase 1 是否包含 usb4",
+            "phase 1 有包含 usb4",
+            "屬於 phase 1",
+            "屬於目前 corpus",
+            "usb4 屬於",
+            "usb4 有包含在",
+            "usb4 是否包含在",
+            "usb4 有沒有涵蓋",
+            "涵蓋 usb4",
         )
         is_usb4_corpus_membership_question = "usb4" in q_lower and any(
-            marker in q_lower for marker in usb4_corpus_membership_markers
+            pattern in q_lower for pattern in usb4_corpus_membership_patterns
         )
         if is_usb4_corpus_membership_question:
             boundary_evidence = self.retriever.get_boundary_evidence_by_id(
@@ -221,43 +257,34 @@ class GovernedQAService:
                 boundary_code=boundary_evidence.boundary_code,
             )
 
-        # Check for explicitly unsupported / out-of-scope queries. Backed by
-        # a real, registered generic BoundaryEvidence (corpus.lock.yaml
-        # sources.hub_reference.known_limits), mirroring the USB4 branch
-        # above -- this is a static corpus/scope fact, not a runtime
-        # retrieval observation, so it can be (and now is) registered rather
-        # than left as an empty claims/citations abstain (Codex review,
-        # PR #33, P1).
+        # Check for explicitly unsupported / out-of-scope queries. Deliberately
+        # claims=[]/citations=[] (both defaulted by _build_response), same
+        # reasoning as the MISSING_EVIDENCE abstain below: a generic keyword
+        # match here does not correspond to any single registered corpus/
+        # governance fact. A generic BoundaryEvidence entry backed by
+        # hub_reference.known_limits was tried and removed (Codex review,
+        # PR #33, P1, 2nd pass) -- known_limits only proves ONE source
+        # (hub_reference) doesn't cover a topic, not that the ENTIRE Phase 1
+        # corpus (which also includes usb20_fw/usb20_se/usb32/
+        # superspeed_hub_lvs, each with their own coverage) lacks it; citing
+        # it as if it were a corpus-wide boundary fact would itself be an
+        # unsupported inferential leap. Until real topic-specific boundary
+        # evidence exists, abstain with no citation rather than fabricate one.
         unsupported_keywords = [
             "xhci", "eeprom", "眼圖", "抖動", "usbcore", "pcie", "穿透通道",
             "pam3", "99.99", "乙太網路", "40gbps", "informative 附錄"
         ]
         for uk in unsupported_keywords:
             if uk in q_lower:
-                boundary_evidence = self.retriever.get_boundary_evidence_by_id(
-                    "POC1-BOUNDARY-GENERIC-OUT-OF-SCOPE"
-                )
-                if boundary_evidence is None:
-                    raise RuntimeError(
-                        "expected boundary evidence "
-                        "'POC1-BOUNDARY-GENERIC-OUT-OF-SCOPE' is not registered "
-                        "in BOUNDARY_EVIDENCE_REGISTRY"
-                    )
-                boundary_citation = self.retriever.to_boundary_citation(boundary_evidence)
                 return self._build_response(
-                    answer=(
-                        "現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論"
-                        f"與權威違規 (Abstain)：{boundary_evidence.claim}"
-                    ),
-                    scope=answer_scope or boundary_evidence.scope,
+                    answer="現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論與權威違規 (Abstain)。",
+                    scope=answer_scope or "OUT_OF_SCOPE",
                     cited_evidences=[],
-                    claim_level="abstain_boundary_claim",
+                    claim_level="abstain_no_evidence",
                     boundary="Exceeds governed knowledge surface of usb-if-hub-spec-reference.",
                     is_abstain=True,
                     status="abstain",
-                    claims=[boundary_evidence.claim],
-                    citations=[boundary_citation],
-                    boundary_code=boundary_evidence.boundary_code,
+                    boundary_code="OUT_OF_SCOPE",
                 )
 
         evidences = self.retriever.query(query_text, retrieval_policy=retrieval_policy)
