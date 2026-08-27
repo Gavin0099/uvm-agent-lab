@@ -1344,6 +1344,7 @@ def test_full_contract_chain_boundary_abstain_round_trip_through_final_evaluator
     boundary_citation = Citation(
         evidence_id="USB4-OUT-OF-SCOPE",
         excerpt="Phase 1 corpus does not include the USB4 specification.",
+        citation_kind="boundary",
     )
     claim_text = "目前 Phase 1 corpus 不包含 USB4 specification，因此沒有足夠 evidence 回答。"
     resp = QAResponse(
@@ -1710,6 +1711,24 @@ def test_qa_service_policy_validation_runs_before_usb4_early_return():
             "USB4 Hub 的 Warm Reset 規範為何？",
             answer_scope="USB4_SPEC",
             domain="HID",
+        )
+
+
+@pytest.mark.unit
+def test_qa_service_rejects_unknown_retrieval_mode_without_answer_scope():
+    # Codex review, PR #33, fresh finding on edf8825: validate_policy_inputs()
+    # previously only checked the retrieval_mode == "explicit_cross_scope"
+    # branch. RetrievalMode's typing.Literal annotation is not enforced at
+    # runtime for a plain function/method parameter -- only pydantic's model
+    # validation enforces it, and RetrievalPolicy (which would reject an
+    # unknown mode) is never constructed when answer_scope is omitted. An
+    # invalid retrieval_mode like "bogus" must still be rejected in that
+    # case, not silently accepted through to a USB4 early-return abstain.
+    service = GovernedQAService()
+    with pytest.raises(RetrievalPolicyError, match="unknown retrieval_mode"):
+        service.answer_question(
+            "USB4 Hub 的 Warm Reset 規範為何？",
+            retrieval_mode="bogus",
         )
 
 
@@ -2303,6 +2322,23 @@ def test_qa_service_usb4_feature_question_with_included_is_not_misclassified_as_
     resp_zh = service.answer_question("USB4 包含哪些功能？")
     assert resp_zh.status == "abstain"
     assert resp_zh.boundary_code == "OUT_OF_SCOPE"
+
+
+@pytest.mark.unit
+def test_qa_service_usb4_hub_capability_question_is_not_misclassified_as_corpus_membership():
+    # Codex review, PR #33, fresh finding on edf8825: the bare "usb4
+    # included in" pattern alone also matches an ordinary hub-capability
+    # question ("Is USB4 included in this hub's supported-protocol list?"),
+    # which is asking about the hub, not the corpus, and must still abstain
+    # as a generic USB4 topic question -- not be misclassified as a
+    # corpus-membership governance question for lack of any corpus/phase
+    # qualifier in the text.
+    service = GovernedQAService()
+    resp = service.answer_question(
+        "Is USB4 included in this hub's supported-protocol list?"
+    )
+    assert resp.status == "abstain"
+    assert resp.boundary_code == "OUT_OF_SCOPE"
 
 
 @pytest.mark.contract

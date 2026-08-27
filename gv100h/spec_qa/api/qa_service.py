@@ -187,8 +187,27 @@ class GovernedQAService:
             "usb4 有沒有涵蓋",
             "涵蓋 usb4",
         )
-        is_usb4_corpus_membership_question = "usb4" in q_lower and any(
-            pattern in q_lower for pattern in usb4_corpus_membership_patterns
+        # A bare pattern like "usb4 included in" also matches an ordinary
+        # hub-capability question (e.g. "Is USB4 included in this hub's
+        # supported-protocol list?"), which is asking about the hub, not
+        # about the corpus -- and must still abstain as a generic USB4
+        # topic question, not be answered as a corpus-membership fact
+        # (Codex review, PR #33, fresh finding on edf8825). Require an
+        # explicit corpus/phase qualifier to co-occur in the question
+        # rather than treating any single membership-shaped phrase alone as
+        # sufficient; every pattern above except the bare "usb4 included
+        # in" already carries such a qualifier itself.
+        usb4_corpus_context_markers = (
+            "corpus",
+            "phase 1",
+            "phase1",
+            "phase 2",
+            "phase2",
+        )
+        is_usb4_corpus_membership_question = (
+            "usb4" in q_lower
+            and any(pattern in q_lower for pattern in usb4_corpus_membership_patterns)
+            and any(marker in q_lower for marker in usb4_corpus_context_markers)
         )
         if is_usb4_corpus_membership_question:
             boundary_evidence = self.retriever.get_boundary_evidence_by_id(

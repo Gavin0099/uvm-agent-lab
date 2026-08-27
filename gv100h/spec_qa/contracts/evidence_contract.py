@@ -385,3 +385,19 @@ class GroundedAnswer(BaseModel):
                     "citations must not declare normative document-identity "
                     f"fields; citation {citation.evidence_id!r} declares {present}"
                 )
+            if citation.citation_kind != "boundary":
+                # Absence of normative fields alone is not sufficient: the
+                # reciprocal answer/conflict validation explicitly rejects
+                # citation_kind="boundary" (_require_normative_citations), but
+                # this abstain-side check previously only inspected field
+                # presence, so a citation with the default
+                # citation_kind="normative" (or a declared "governance") and
+                # every normative field left unset would still pass here --
+                # certifying a status/kind contradiction and letting callers
+                # relabel non-boundary evidence as support for an abstention
+                # (Codex review, PR #33, fresh finding on edf8825).
+                raise EvidenceContractError(
+                    "an 'abstain' status must cite boundary evidence only -- "
+                    f"citation {citation.evidence_id!r} declares "
+                    f"citation_kind={citation.citation_kind!r}; expected 'boundary'"
+                )

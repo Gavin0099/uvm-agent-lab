@@ -40,8 +40,11 @@ def _boundary_citation(
     # A boundary citation backs an 'abstain' claim: it must NOT declare any
     # normative document-identity field (document/revision/chapter/section/
     # page_or_anchor/authority_level), per poc1_acceptance_contract.py's
-    # "boundary_evidence" citation mode.
-    return Citation(evidence_id=evidence_id, excerpt=excerpt)
+    # "boundary_evidence" citation mode. It must also declare
+    # citation_kind="boundary" explicitly -- the default "normative" is
+    # rejected by GroundedAnswer._require_boundary_citations() (Codex
+    # review, PR #33, fresh finding on edf8825).
+    return Citation(evidence_id=evidence_id, excerpt=excerpt, citation_kind="boundary")
 
 
 @pytest.mark.unit
@@ -131,12 +134,16 @@ def test_grounded_answer_answer_status_rejects_boundary_code():
 def test_grounded_answer_answer_status_requires_normative_citation_fields():
     # Codex review follow-up (PR #33, P1): a citation missing its normative
     # document-identity fields (e.g. one built for boundary use) must not be
-    # silently accepted as evidence for an "answer".
+    # silently accepted as evidence for an "answer". Uses citation_kind
+    # left at its default "normative" (not _boundary_citation(), which now
+    # declares citation_kind="boundary" and would instead trip the earlier
+    # "must not cite boundary-only evidence" check) to isolate the
+    # missing-normative-fields branch this test targets.
     with pytest.raises(EvidenceContractError, match="requires normative citation fields"):
         GroundedAnswer(
             status="answer",
             claims=["some claim"],
-            citations=[_boundary_citation("USB3-FEAT-PORT_POWER", excerpt="x")],
+            citations=[Citation(evidence_id="USB3-FEAT-PORT_POWER", excerpt="x")],
             evidence_ids=["USB3-FEAT-PORT_POWER"],
             scope="USB_3_X",
         )
@@ -262,6 +269,42 @@ def test_grounded_answer_abstain_rejects_normative_shaped_citation():
             evidence_ids=["USB3-FEAT-PORT_POWER"],
             boundary="OUT_OF_SCOPE",
             scope="USB_3_X",
+        )
+
+
+@pytest.mark.unit
+def test_grounded_answer_abstain_rejects_citation_kind_not_boundary():
+    # Codex review, PR #33, fresh finding on edf8825: leaving every
+    # normative field unset is not sufficient on its own -- a citation
+    # declaring citation_kind="normative" (the default) or "governance"
+    # with no normative fields set previously still passed
+    # _require_boundary_citations(), certifying a status/kind contradiction
+    # and letting non-boundary evidence be relabeled as support for an
+    # abstention, even though the reciprocal answer/conflict validation
+    # explicitly rejects citation_kind="boundary" citations.
+    with pytest.raises(EvidenceContractError, match="expected 'boundary'"):
+        GroundedAnswer(
+            status="abstain",
+            claims=["a boundary claim"],
+            citations=[Citation(evidence_id="USB4-OUT-OF-SCOPE", excerpt="x")],
+            evidence_ids=["USB4-OUT-OF-SCOPE"],
+            boundary="OUT_OF_SCOPE",
+            scope="USB4_SPEC",
+        )
+    with pytest.raises(EvidenceContractError, match="expected 'boundary'"):
+        GroundedAnswer(
+            status="abstain",
+            claims=["a boundary claim"],
+            citations=[
+                Citation(
+                    evidence_id="USB4-OUT-OF-SCOPE",
+                    excerpt="x",
+                    citation_kind="governance",
+                )
+            ],
+            evidence_ids=["USB4-OUT-OF-SCOPE"],
+            boundary="OUT_OF_SCOPE",
+            scope="USB4_SPEC",
         )
 
 
