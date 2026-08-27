@@ -35,13 +35,17 @@ class EvidenceResolver(Protocol):
         The evaluator looks this method up with getattr() rather than
         assuming every EvidenceResolver implements it, so a resolver that
         only implements get_evidence_by_id() does not raise AttributeError.
-        However, a resolver lacking this method is NOT a free pass: any
-        *normative* submitted citation (one with a non-None `document`)
-        whose provenance cannot be verified this way is scored as invalid
-        (fail closed), because "the check was skipped" and "the citation is
-        correct" are not the same thing (Codex review, PR #33, P1). Only
-        non-normative (boundary/governance-shaped) citations are exempt --
-        they carry nothing to verify by design.
+        However, a resolver lacking this method is NOT a free pass: EVERY
+        submitted citation -- normative or non-normative/boundary-shaped --
+        whose canonical evidence-shape cannot be verified this way is scored
+        as invalid (fail closed), because "the check was skipped" and "the
+        citation is correct" are not the same thing (Codex review, PR #33,
+        P1). Non-normative citations are no longer exempt: an acceptance
+        manifest can mistakenly list an ordinary normative evidence_id under
+        boundary_evidence_ids, and only resolving the canonical record can
+        catch a boundary-shaped submission for what is actually normative
+        evidence, or vice versa (Codex review, PR #33, fresh finding on
+        ad0542c).
         """
         ...
 
@@ -223,40 +227,63 @@ class FinalPOC1Evaluator:
         citation: FinalQACitation,
     ) -> Optional[frozenset]:
         """
-        Compare a submitted citation's document/revision/chapter/section/
-        page_or_anchor/authority_level against the resolver's own canonical
-        record for that evidence_id.
+        Verify a submitted citation's evidence-shape (normative vs
+        boundary/non-normative) and, when normative, its
+        document/revision/chapter/section/page_or_anchor/authority_level
+        fields against the resolver's own canonical record for that
+        evidence_id.
+
+        Canonical verification fails closed uniformly for every citation,
+        normative or not (Codex review, PR #33, fresh finding on ad0542c).
+        The previous version treated any non-normative (`document is None`)
+        citation as automatically valid without ever consulting the
+        canonical record, so an acceptance manifest that mistakenly listed
+        an ordinary normative evidence_id under boundary_evidence_ids could
+        be "satisfied" by a boundary-shaped response citing that same
+        evidence_id: the ID resolves, it's in the expected set, and the
+        absent normative fields satisfy boundary-shape completeness --
+        nothing ever checked whether that evidence_id is genuinely
+        boundary-shaped in the canonical registry. Symmetrically, a
+        normative-looking citation for an evidence_id whose canonical
+        record is actually boundary-shaped must also be rejected. Treating
+        boundary citations as exempt from canonical verification (while
+        normative ones fail closed) would itself reintroduce the
+        "unverifiable == correct" gap already closed for normative
+        provenance (Codex review, PR #33, P1).
 
         Returns:
-        - an empty frozenset() when the citation is non-normative
-          (`citation.document is None`, e.g. a boundary/governance
-          citation) -- there is nothing normative to verify, by design
-          (GroundedAnswer forbids normative fields on non-normative citation
-          kinds), or when every compared field agrees with the canonical
-          record;
-        - a non-empty frozenset of the field names that disagree, when a
-          normative canonical record exists but some field was submitted
-          incorrectly (e.g. chapter="999" for an evidence_id whose real
-          chapter is "10");
-        - None when the citation IS normative but its provenance could not
-          be verified at all -- the resolver has no
-          get_canonical_citation_by_id(), the evidence_id does not resolve
-          to a canonical record, or the canonical record itself is
-          boundary-shaped (`document is None`, meaning the submitted
-          normative-looking citation actually maps to non-normative
-          evidence). Callers must treat None as "fail closed", not as "no
-          mismatch" -- an unverifiable normative citation is not the same
-          as a correct one (Codex review, PR #33, P1).
+        - a frozenset containing "citation_kind" when the submitted
+          citation's normative/non-normative shape does not match the
+          canonical record's shape (e.g. a boundary-shaped citation for an
+          evidence_id whose canonical record is normative, or vice versa);
+        - a non-empty frozenset of the field names that disagree, when both
+          the submitted citation and its canonical record are normative but
+          some field was submitted incorrectly (e.g. chapter="999" for an
+          evidence_id whose real chapter is "10");
+        - an empty frozenset() only when the submitted citation and its
+          canonical record agree on evidence-shape, and (for normative
+          citations) every compared field matches;
+        - None when evidence-shape could not be verified at all -- the
+          resolver has no get_canonical_citation_by_id(), or the
+          evidence_id does not resolve to any canonical record. Callers
+          must treat None as "fail closed", not as "no mismatch", for every
+          citation regardless of its submitted shape (Codex review, PR #33,
+          fresh finding on ad0542c).
         """
-        is_normative_citation = citation.document is not None
-        if not is_normative_citation:
-            return frozenset()
         get_canonical = getattr(self.evidence_resolver, "get_canonical_citation_by_id", None)
         if get_canonical is None:
             return None
         canonical = get_canonical(citation.evidence_id)
-        if canonical is None or getattr(canonical, "document", None) is None:
+        if canonical is None:
             return None
+
+        submitted_normative = citation.document is not None
+        canonical_normative = getattr(canonical, "document", None) is not None
+        if submitted_normative != canonical_normative:
+            return frozenset({"citation_kind"})
+        if not submitted_normative:
+            return frozenset()
+
         return frozenset(
             field_name
             for field_name in self._CANONICAL_PROVENANCE_FIELDS

@@ -4,6 +4,7 @@ import pytest
 import sys
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -1261,6 +1262,35 @@ class _StubEvidenceResolver:
         return evidence_id if evidence_id in self._known_ids else None
 
 
+class _StubEvidenceResolverWithCanonicalBoundary(_StubEvidenceResolver):
+    """Extends _StubEvidenceResolver with get_canonical_citation_by_id(),
+    resolving every known id to a boundary-shaped canonical record
+    (document=None). Used by chain tests that hand-build a boundary/abstain
+    QAResponse and need canonical evidence-shape verification to actually
+    succeed for a legitimate boundary citation (Codex review, PR #33, fresh
+    finding on ad0542c: FinalPOC1Evaluator now fails closed on every
+    citation -- normative or boundary-shaped -- whose canonical
+    evidence-shape cannot be verified). This is deliberately a SEPARATE
+    class from _StubEvidenceResolver, which stays canonical-lookup-free on
+    purpose: it is what
+    test_final_evaluator_fails_closed_on_normative_citation_without_canonical_resolver
+    uses to prove the opposite behavior (fail closed when canonical lookup
+    is unavailable).
+    """
+
+    def get_canonical_citation_by_id(self, evidence_id):
+        if evidence_id not in self._known_ids:
+            return None
+        return SimpleNamespace(
+            document=None,
+            revision=None,
+            chapter=None,
+            section=None,
+            page_or_anchor=None,
+            authority_level=None,
+        )
+
+
 def _evaluator_with_resolver(resolver) -> FinalPOC1Evaluator:
     # Bypass __init__ (which loads a real manifest file from disk) --
     # evaluate_response() only touches self.evidence_resolver.
@@ -1402,7 +1432,9 @@ def test_full_contract_chain_boundary_abstain_round_trip_through_final_evaluator
         independently_reviewed=True,
     )
 
-    evaluator = _evaluator_with_resolver(_StubEvidenceResolver(["USB4-OUT-OF-SCOPE"]))
+    evaluator = _evaluator_with_resolver(_StubEvidenceResolverWithCanonicalBoundary(
+        ["USB4-OUT-OF-SCOPE"]
+    ))
     result = evaluator.evaluate_response(question, final_response)
     assert result.passed is True
     assert result.citation_complete is True

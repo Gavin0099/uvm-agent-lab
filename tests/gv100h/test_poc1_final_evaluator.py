@@ -180,25 +180,30 @@ class SyntheticEvidenceResolver:
                 + question["gold"]["boundary_evidence_ids"]
             )
         }
-        # Canonical provenance for every normative (answer/conflict)
-        # evidence_id, derived from the exact citation shape a well-behaved
-        # response legitimately submits for it (see _response() below).
-        # FinalPOC1Evaluator now fails closed on normative citations it
-        # cannot verify against a canonical record (Codex review, PR #33,
-        # P1); without this, every "answer"/"conflict" case in this file
-        # would be scored citation_valid=False purely because this stub
-        # predates that check, not because the citations are wrong.
+        # Canonical provenance for every evidence_id used across all 50
+        # questions (answer/conflict/abstain alike), derived from the exact
+        # citation shape a well-behaved response legitimately submits for it
+        # (see _response() below). FinalPOC1Evaluator now fails closed on
+        # EVERY citation it cannot verify against a canonical record --
+        # normative and boundary/non-normative alike (Codex review, PR #33,
+        # P1 and the fresh finding on ad0542c); without this, every case in
+        # this file would be scored citation_valid=False purely because
+        # this stub predates that check, not because the citations are
+        # wrong. .get() is used because boundary-shaped response citations
+        # (e.g. BOUNDARY-50) legitimately omit document/revision/etc., and
+        # a missing key there must still resolve to a canonical record
+        # whose document is None (a genuinely boundary-shaped canonical
+        # record), not a KeyError.
         self._canonical_citations = {
             citation["evidence_id"]: SimpleNamespace(
-                document=citation["document"],
-                revision=citation["revision"],
-                chapter=citation["chapter"],
-                section=citation["section"],
-                page_or_anchor=citation["page_or_anchor"],
-                authority_level=citation["authority_level"],
+                document=citation.get("document"),
+                revision=citation.get("revision"),
+                chapter=citation.get("chapter"),
+                section=citation.get("section"),
+                page_or_anchor=citation.get("page_or_anchor"),
+                authority_level=citation.get("authority_level"),
             )
             for index in range(1, 51)
-            if _question(index)["expected_status"] in ("answer", "conflict")
             for citation in _response(index)["citations"]
         }
 
@@ -207,6 +212,31 @@ class SyntheticEvidenceResolver:
 
     def get_canonical_citation_by_id(self, evidence_id: str):
         return self._canonical_citations.get(evidence_id)
+
+
+class WeakEvidenceResolver:
+    """A resolver that only implements get_evidence_by_id() -- it has no
+    get_canonical_citation_by_id() at all, e.g. an older/incomplete
+    integration wired up by a caller. FinalPOC1Evaluator must fail closed
+    on every citation in this case, normative or boundary-shaped alike
+    (Codex review, PR #33, fresh finding on ad0542c): qualification results
+    must not depend on whether the caller happened to wire up a "full"
+    resolver or a weaker one that cannot verify canonical evidence-shape.
+    """
+
+    def __init__(self, manifest: dict):
+        self._ids = {
+            evidence_id
+            for question in manifest["questions"]
+            for evidence_id in (
+                question["gold"]["accepted_evidence_ids"]
+                + question["gold"]["competing_evidence_ids"]
+                + question["gold"]["boundary_evidence_ids"]
+            )
+        }
+
+    def get_evidence_by_id(self, evidence_id: str):
+        return object() if evidence_id in self._ids else None
 
 
 def _response(index: int) -> dict:
@@ -380,3 +410,78 @@ def test_final_evaluator_rejects_unknown_evidence_and_wrong_status(tmp_path: Pat
     assert wrong_result.passed is False
     assert wrong_result.observed_status == "answer"
     assert wrong_result.grounded is False
+
+
+def test_final_evaluator_rejects_boundary_citation_for_canonically_normative_evidence(
+    tmp_path: Path,
+):
+    # Codex review, PR #33, fresh finding on ad0542c: an acceptance
+    # manifest can mistakenly list an ordinary normative evidence_id under
+    # boundary_evidence_ids. BOUNDARY-50 is nominally boundary evidence in
+    # this manifest, but its canonical record is (mis)registered as
+    # normative; the response still submits the legitimate boundary
+    # citation shape (no document/revision/etc.) for it. Without canonical
+    # evidence-shape verification, this would be scored fully valid because
+    # the ID resolves, is in the expected set, and the missing normative
+    # fields satisfy boundary-shape completeness.
+    manifest, path = _write_manifest(tmp_path)
+    resolver = SyntheticEvidenceResolver(manifest)
+    resolver._canonical_citations["BOUNDARY-50"] = SimpleNamespace(
+        document="USB4 spec, mislabeled as boundary evidence",
+        revision="1.0",
+        chapter="1",
+        section="1.1",
+        page_or_anchor="p1",
+        authority_level="authoritative",
+    )
+    evaluator = FinalPOC1Evaluator(str(path), evidence_resolver=resolver)
+
+    result = evaluator.evaluate_response(evaluator.manifest.questions[49], _response(50))
+
+    assert result.citation_valid is False
+    assert result.passed is False
+
+
+def test_final_evaluator_rejects_normative_citation_for_canonically_boundary_evidence(
+    tmp_path: Path,
+):
+    # Reverse shape mismatch (Codex review, PR #33, fresh finding on
+    # ad0542c): EVIDENCE-1's canonical record is actually boundary-shaped
+    # (document is None), but the response submits a fully normative-
+    # looking citation for it. Canonical evidence-shape verification must
+    # reject this symmetrically, not just the boundary-posing-as-normative
+    # direction.
+    manifest, path = _write_manifest(tmp_path)
+    resolver = SyntheticEvidenceResolver(manifest)
+    resolver._canonical_citations["EVIDENCE-1"] = SimpleNamespace(
+        document=None,
+        revision=None,
+        chapter=None,
+        section=None,
+        page_or_anchor=None,
+        authority_level=None,
+    )
+    evaluator = FinalPOC1Evaluator(str(path), evidence_resolver=resolver)
+
+    result = evaluator.evaluate_response(evaluator.manifest.questions[0], _response(1))
+
+    assert result.citation_valid is False
+    assert result.passed is False
+
+
+def test_final_evaluator_fails_closed_when_resolver_lacks_canonical_lookup(tmp_path: Path):
+    # Codex review, PR #33, fresh finding on ad0542c: a resolver that only
+    # implements get_evidence_by_id() must not give boundary-shaped
+    # citations a free pass just because canonical evidence-shape cannot be
+    # verified -- qualification must not silently degrade based on which
+    # resolver capability the caller happened to wire up.
+    manifest, path = _write_manifest(tmp_path)
+    evaluator = FinalPOC1Evaluator(
+        str(path),
+        evidence_resolver=WeakEvidenceResolver(manifest),
+    )
+
+    result = evaluator.evaluate_response(evaluator.manifest.questions[49], _response(50))
+
+    assert result.citation_valid is False
+    assert result.passed is False
