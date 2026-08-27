@@ -5,6 +5,7 @@ from gv100h.spec_qa.retrieval.governed_retriever import GovernedSpecRetriever, G
 from gv100h.spec_qa.contracts.retrieval_policy import RetrievalMode, RetrievalPolicy
 from gv100h.spec_qa.contracts.evidence_contract import AnswerStatus, Citation, GroundedAnswer
 from gv100h.spec_qa.contracts.poc1_acceptance_contract import BoundaryCode
+from gv100h.spec_qa.evaluation.final_evaluator import FinalQACitation, FinalQAResponse
 
 
 class QARequest(BaseModel):
@@ -35,6 +36,45 @@ class QAResponse(BaseModel):
     citations: List[Citation] = Field(default_factory=list)
     boundary_code: Optional[BoundaryCode] = None
     evidence_ids: List[str] = Field(default_factory=list)
+
+    def to_final_qa_response(self) -> FinalQAResponse:
+        """
+        Explicit, tested projection from this runtime/API response onto the
+        evaluator's canonical schema (FinalQAResponse/FinalQACitation in
+        gv100h/spec_qa/evaluation/final_evaluator.py).
+
+        QAResponse intentionally carries more than the evaluator needs --
+        legacy free-text answer/boundary fields, cited_evidences,
+        claim_level, is_abstain, evidence_ids, and each citation's
+        runtime-only chapter/authority_level provenance -- and
+        FinalQAResponse/FinalQACitation both use extra="forbid". Passing
+        ``self.model_dump()`` straight to the evaluator is therefore
+        unreliable: every response would be rejected as an invalid shape
+        (Codex review, PR #33, P1). This method is the single explicit,
+        tested narrowing from the runtime contract to the evaluator contract
+        -- see tests/gv100h/test_m2_spec_qa.py's
+        test_full_contract_chain_* tests, which exercise this method through
+        FinalPOC1Evaluator.evaluate_response() end to end, not just as an
+        isolated schema conversion.
+        """
+        return FinalQAResponse(
+            status=self.status,
+            claims=list(self.claims),
+            citations=[
+                FinalQACitation(
+                    evidence_id=citation.evidence_id,
+                    document=citation.document,
+                    revision=citation.revision,
+                    section=citation.section,
+                    page_or_anchor=citation.page_or_anchor,
+                    excerpt_or_evidence_id=citation.excerpt or citation.evidence_id,
+                    scope=None,
+                )
+                for citation in self.citations
+            ],
+            scope=self.scope,
+            boundary_code=self.boundary_code,
+        )
 
 
 class GovernedQAService:

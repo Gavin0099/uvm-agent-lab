@@ -11,9 +11,17 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from gv100h.spec_qa.retrieval.governed_retriever import GovernedSpecRetriever
-from gv100h.spec_qa.api.qa_service import GovernedQAService
+from gv100h.spec_qa.api.qa_service import GovernedQAService, QAResponse
 from gv100h.spec_qa.contracts.evidence_contract import Citation, EvidenceContractError, GroundedAnswer
 from gv100h.spec_qa.contracts.retrieval_policy import RetrievalPolicy, RetrievalPolicyError
+from gv100h.spec_qa.contracts.poc1_acceptance_contract import (
+    AcceptanceQuestion,
+    CitationRequirements,
+    GoldClaim,
+    GoldOracle,
+    GradingWeights,
+)
+from gv100h.spec_qa.evaluation.final_evaluator import FinalPOC1Evaluator
 from gv100h.spec_qa.evaluation.deterministic_evaluator import DeterministicSpecQAEvaluator
 from gv100h.coding_eval.governance_ab_runner import ABExperimentSummary
 from gv100h.qualification.evaluator import QualificationPolicyEvaluator
@@ -1085,11 +1093,15 @@ def test_governed_qa_service_answer_populates_evidence_contract_fields():
 
 
 @pytest.mark.contract
-def test_governed_qa_service_response_is_a_complete_serializable_evidence_contract():
-    # The invariant that matters: the JSON the service emits is itself the
-    # evaluatable Evidence Contract, not something the caller has to
-    # reconstruct from free-text `answer`/`boundary` fields. Round-trip the
-    # structured subset of QAResponse through GroundedAnswer to prove it.
+def test_governed_qa_service_response_projects_onto_grounded_answer():
+    # This proves QAResponse's structured fields are internally consistent
+    # with the Evidence Contract shape (GroundedAnswer/Citation) -- but this
+    # alone is NOT sufficient evidence that a QAResponse is admissible to the
+    # separate downstream FinalPOC1Evaluator contract (FinalQAResponse uses
+    # extra="forbid" and a different citation shape). See the
+    # test_full_contract_chain_* tests below, which is where that stronger,
+    # actually-load-bearing claim is verified end to end (Codex review,
+    # PR #33, P1).
     service = GovernedQAService()
     resp = service.answer_question("PORT_POWER feature selector value", "USB_3_X")
     dumped = resp.model_dump()
@@ -1105,3 +1117,155 @@ def test_governed_qa_service_response_is_a_complete_serializable_evidence_contra
         evidence_ids=dumped["evidence_ids"],
     )
     assert reconstructed.status == "answer"
+
+
+class _StubEvidenceResolver:
+    """Resolves exactly the evidence IDs it's told about -- enough to drive
+    FinalPOC1Evaluator.evaluate_response() without loading a real manifest
+    file or corpus.lock.yaml receipt."""
+
+    def __init__(self, known_ids):
+        self._known_ids = set(known_ids)
+
+    def get_evidence_by_id(self, evidence_id):
+        return evidence_id if evidence_id in self._known_ids else None
+
+
+def _evaluator_with_resolver(resolver) -> FinalPOC1Evaluator:
+    # Bypass __init__ (which loads a real manifest file from disk) --
+    # evaluate_response() only touches self.evidence_resolver.
+    evaluator = FinalPOC1Evaluator.__new__(FinalPOC1Evaluator)
+    evaluator.evidence_resolver = resolver
+    return evaluator
+
+
+_CHAIN_GRADING_WEIGHTS = GradingWeights(
+    factual_correctness=0.3,
+    citation_correctness=0.3,
+    source_authority=0.2,
+    scope_control=0.1,
+    uncertainty_behavior=0.1,
+)
+
+
+@pytest.mark.contract
+def test_full_contract_chain_answer_round_trip_through_final_evaluator():
+    # The invariant Codex's review actually cares about: a QAResponse that
+    # is internally valid per GroundedAnswer/Citation must ALSO be
+    # admissible to FinalPOC1Evaluator once projected through the explicit
+    # adapter. Each layer being green in isolation (Evidence Contract valid,
+    # QAResponse valid) is not sufficient proof of this -- this test proves
+    # the full chain: GovernedQAService -> QAResponse -> to_final_qa_response()
+    # -> FinalQAResponse -> FinalPOC1Evaluator.evaluate_response().
+    service = GovernedQAService()
+    resp = service.answer_question("PORT_POWER feature selector value", "USB_3_X")
+    final_response = resp.to_final_qa_response()
+
+    question = AcceptanceQuestion(
+        question_id="CHAIN-TEST-ANSWER-1",
+        layer="L1",
+        priority="P0",
+        category="single_spec_fact",
+        question="PORT_POWER feature selector value",
+        expected_status="answer",
+        expected_scope="USB_3_X",
+        accepted_source_ids=["hub_reference"],
+        required_citation_fields=CitationRequirements(
+            document=True,
+            revision=True,
+            section=True,
+            page_or_anchor=True,
+            excerpt_or_evidence_id=True,
+            scope=True,
+            boundary_code=False,
+            mode="normative_source",
+        ),
+        gold=GoldOracle(
+            accepted_evidence_ids=list(resp.evidence_ids),
+            required_claims=[GoldClaim(claim_id="c1", assertion=resp.claims[0], required=True)],
+            section_anchors=[c.section for c in resp.citations],
+            required_facts=[],
+        ),
+        grading=_CHAIN_GRADING_WEIGHTS,
+        independently_reviewed=True,
+    )
+
+    evaluator = _evaluator_with_resolver(_StubEvidenceResolver(resp.evidence_ids))
+    result = evaluator.evaluate_response(question, final_response)
+    assert result.passed is True
+    assert result.citation_complete is True
+    assert result.fabricated_citation is False
+    assert result.authority_violation is False
+
+
+@pytest.mark.contract
+def test_full_contract_chain_boundary_abstain_round_trip_through_final_evaluator():
+    # Mirrors the answer-path chain test above, but for the P1 abstain fix:
+    # a GroundedAnswer-valid abstain that asserts a boundary claim backed by
+    # a boundary citation must also be admissible to the evaluator's
+    # "boundary_evidence" citation mode.
+    boundary_citation = Citation(
+        evidence_id="USB4-OUT-OF-SCOPE",
+        excerpt="Phase 1 corpus does not include the USB4 specification.",
+    )
+    claim_text = "目前 Phase 1 corpus 不包含 USB4 specification，因此沒有足夠 evidence 回答。"
+    resp = QAResponse(
+        answer=claim_text,
+        scope="USB4_SPEC",
+        cited_evidences=[],
+        claim_level="abstain_boundary_claim",
+        boundary="Exceeds governed knowledge surface.",
+        is_abstain=True,
+        status="abstain",
+        claims=[claim_text],
+        citations=[boundary_citation],
+        boundary_code="OUT_OF_SCOPE",
+        evidence_ids=["USB4-OUT-OF-SCOPE"],
+    )
+    # GroundedAnswer itself must also accept this shape -- if it didn't,
+    # QAResponse.model_validate would already have rejected the response
+    # (only reachable if _build_response() had skipped the check).
+    GroundedAnswer(
+        status=resp.status,
+        claims=resp.claims,
+        citations=resp.citations,
+        scope=resp.scope,
+        boundary=resp.boundary_code,
+        evidence_ids=resp.evidence_ids,
+    )
+
+    final_response = resp.to_final_qa_response()
+
+    question = AcceptanceQuestion(
+        question_id="CHAIN-TEST-ABSTAIN-1",
+        layer="L4",
+        priority="P0",
+        category="uncertainty_conflict",
+        question="USB4 Hub 的 Warm Reset 規範為何？",
+        expected_status="abstain",
+        expected_scope="USB4_SPEC",
+        accepted_source_ids=[],
+        required_citation_fields=CitationRequirements(
+            document=False,
+            revision=False,
+            section=False,
+            page_or_anchor=False,
+            excerpt_or_evidence_id=True,
+            scope=True,
+            boundary_code=True,
+            mode="boundary_evidence",
+        ),
+        gold=GoldOracle(
+            boundary_evidence_ids=["USB4-OUT-OF-SCOPE"],
+            required_claims=[GoldClaim(claim_id="b1", assertion=claim_text, required=True)],
+            boundary_code="OUT_OF_SCOPE",
+        ),
+        grading=_CHAIN_GRADING_WEIGHTS,
+        independently_reviewed=True,
+    )
+
+    evaluator = _evaluator_with_resolver(_StubEvidenceResolver(["USB4-OUT-OF-SCOPE"]))
+    result = evaluator.evaluate_response(question, final_response)
+    assert result.passed is True
+    assert result.citation_complete is True
+    assert result.fabricated_citation is False

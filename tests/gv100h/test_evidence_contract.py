@@ -32,6 +32,18 @@ def _citation(
     )
 
 
+def _boundary_citation(
+    evidence_id: str = "USB4-OUT-OF-SCOPE",
+    *,
+    excerpt: str = "Phase 1 corpus does not include the USB4 specification.",
+) -> Citation:
+    # A boundary citation backs an 'abstain' claim: it must NOT declare any
+    # normative document-identity field (document/revision/chapter/section/
+    # page_or_anchor/authority_level), per poc1_acceptance_contract.py's
+    # "boundary_evidence" citation mode.
+    return Citation(evidence_id=evidence_id, excerpt=excerpt)
+
+
 @pytest.mark.unit
 def test_citation_rejects_empty_required_fields():
     with pytest.raises(EvidenceContractError):
@@ -47,15 +59,25 @@ def test_citation_rejects_empty_required_fields():
 
 
 @pytest.mark.unit
-def test_citation_requires_chapter():
-    # Codex review (P1): the P0 citation contract requires document,
-    # revision, chapter, section, and page-or-anchor. A Citation missing
-    # `chapter` cannot represent that shape and must be rejected.
+def test_citation_permits_omitting_normative_fields():
+    # Codex review follow-up (PR #33): normative document-identity fields are
+    # now conditional on the answer's status (enforced by GroundedAnswer, not
+    # Citation itself), so a boundary citation with only evidence_id/excerpt
+    # must construct successfully.
+    citation = Citation(evidence_id="USB4-OUT-OF-SCOPE", excerpt="out of scope")
+    assert citation.document is None
+    assert citation.chapter is None
+    assert citation.authority_level is None
+
+
+@pytest.mark.unit
+def test_citation_rejects_blank_normative_field_when_provided():
     with pytest.raises(EvidenceContractError):
         Citation(
             evidence_id="USB3-FEAT-PORT_POWER",
-            document="usb-if-hub-spec-reference",
+            document="   ",
             revision="808f23c",
+            chapter="10",
             section="10.16.2.1",
             page_or_anchor="10.16.2.1",
             authority_level="authoritative",
@@ -92,6 +114,21 @@ def test_grounded_answer_answer_status_rejects_boundary_code():
             citations=[_citation()],
             evidence_ids=["USB3-FEAT-PORT_POWER"],
             boundary="MISSING_EVIDENCE",
+            scope="USB_3_X",
+        )
+
+
+@pytest.mark.unit
+def test_grounded_answer_answer_status_requires_normative_citation_fields():
+    # Codex review follow-up (PR #33, P1): a citation missing its normative
+    # document-identity fields (e.g. one built for boundary use) must not be
+    # silently accepted as evidence for an "answer".
+    with pytest.raises(EvidenceContractError, match="requires normative citation fields"):
+        GroundedAnswer(
+            status="answer",
+            claims=["some claim"],
+            citations=[_boundary_citation("USB3-FEAT-PORT_POWER", excerpt="x")],
+            evidence_ids=["USB3-FEAT-PORT_POWER"],
             scope="USB_3_X",
         )
 
@@ -134,7 +171,35 @@ def test_grounded_answer_requires_nonempty_scope():
 
 
 @pytest.mark.unit
-def test_grounded_answer_abstain_requires_boundary_and_no_claims():
+def test_grounded_answer_rejects_whitespace_only_scope():
+    # Codex review follow-up (PR #33, P2): Field(min_length=1) alone accepts
+    # "   ", which identifies no real corpus scope but would still be
+    # certified, defeating the wrong-scope defense.
+    with pytest.raises(EvidenceContractError):
+        GroundedAnswer(
+            status="abstain",
+            claims=[],
+            citations=[],
+            evidence_ids=[],
+            boundary="OUT_OF_SCOPE",
+            scope="   ",
+        )
+
+
+@pytest.mark.unit
+def test_grounded_answer_rejects_whitespace_only_claims():
+    with pytest.raises(EvidenceContractError):
+        GroundedAnswer(
+            status="answer",
+            claims=["   "],
+            citations=[_citation()],
+            evidence_ids=["USB3-FEAT-PORT_POWER"],
+            scope="USB_3_X",
+        )
+
+
+@pytest.mark.unit
+def test_grounded_answer_abstain_requires_boundary_code():
     with pytest.raises(EvidenceContractError, match="requires a boundary code"):
         GroundedAnswer(
             status="abstain",
@@ -144,14 +209,50 @@ def test_grounded_answer_abstain_requires_boundary_and_no_claims():
             scope="OUT_OF_SCOPE",
         )
 
-    with pytest.raises(EvidenceContractError, match="must not assert material claims"):
+
+@pytest.mark.unit
+def test_grounded_answer_abstain_allows_boundary_claim_with_boundary_citation():
+    # Codex review follow-up (PR #33, P1): a formal acceptance-manifest
+    # abstain requires boundary_evidence_ids AND a required boundary claim
+    # (poc1_acceptance_contract.py) -- the previous rule ("abstain must not
+    # assert material claims") made that shape impossible to represent.
+    answer = GroundedAnswer(
+        status="abstain",
+        claims=["Phase 1 corpus does not include the USB4 specification."],
+        citations=[_boundary_citation()],
+        evidence_ids=["USB4-OUT-OF-SCOPE"],
+        boundary="OUT_OF_SCOPE",
+        scope="USB4_SPEC",
+    )
+    assert answer.claims == ["Phase 1 corpus does not include the USB4 specification."]
+
+
+@pytest.mark.unit
+def test_grounded_answer_abstain_rejects_claim_without_boundary_citation():
+    with pytest.raises(EvidenceContractError, match="requires at least one supporting boundary citation"):
         GroundedAnswer(
             status="abstain",
-            claims=["a claim"],
+            claims=["Phase 1 corpus does not include the USB4 specification."],
             citations=[],
             evidence_ids=[],
-            boundary="MISSING_EVIDENCE",
-            scope="OUT_OF_SCOPE",
+            boundary="OUT_OF_SCOPE",
+            scope="USB4_SPEC",
+        )
+
+
+@pytest.mark.unit
+def test_grounded_answer_abstain_rejects_normative_shaped_citation():
+    # A boundary claim must be backed by *boundary* evidence, not a
+    # normative-shaped citation -- that would misrepresent an abstain as if
+    # it were grounded in a specific document/section like an "answer".
+    with pytest.raises(EvidenceContractError, match="must cite boundary evidence only"):
+        GroundedAnswer(
+            status="abstain",
+            claims=["a boundary claim"],
+            citations=[_citation()],
+            evidence_ids=["USB3-FEAT-PORT_POWER"],
+            boundary="OUT_OF_SCOPE",
+            scope="USB_3_X",
         )
 
 

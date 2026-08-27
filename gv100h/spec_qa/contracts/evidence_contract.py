@@ -31,13 +31,30 @@ this contract, not the other way around, the same layering already used by
 """
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from gv100h.spec_qa.contracts.poc1_acceptance_contract import BoundaryCode
 
 AnswerStatus = Literal["answer", "abstain", "conflict"]
 
 AuthorityLevel = Literal["authoritative", "informative", "derived"]
+
+# Fields that identify a *normative* citation (backing an "answer"/"conflict"
+# claim against a specific document/revision/section). A *boundary* citation
+# (backing an "abstain") must not declare any of these -- per
+# poc1_acceptance_contract.py's CitationRequirements, boundary_evidence mode
+# explicitly forbids normative document/section identity fields. GroundedAnswer
+# ._check_contract() is the single place that enforces which shape (all
+# present vs. all absent) applies, based on ``status`` -- Citation itself only
+# enforces "non-blank if provided" so one class can represent both shapes.
+NORMATIVE_CITATION_FIELDS = (
+    "document",
+    "revision",
+    "chapter",
+    "section",
+    "page_or_anchor",
+    "authority_level",
+)
 
 
 class EvidenceContractError(ValueError):
@@ -46,19 +63,33 @@ class EvidenceContractError(ValueError):
 
 class Citation(BaseModel):
     """
-    A single piece of cited evidence, traceable to document, revision,
-    section, and page-or-anchor per docs/USB_SPEC_QA_POC1_SCOPE.md Section 5.
+    A single piece of cited evidence.
+
+    Two shapes share this one class, distinguished by whether the normative
+    identity fields are populated:
+
+    - a *normative* citation (used by "answer"/"conflict"): document,
+      revision, chapter, section, page_or_anchor, and authority_level must
+      ALL be populated, per docs/USB_SPEC_QA_POC1_SCOPE.md Section 5.
+    - a *boundary* citation (used by "abstain"): none of those fields may be
+      populated -- a boundary citation only needs evidence_id (and,
+      optionally, excerpt) to explain why no answer was given, per
+      poc1_acceptance_contract.py's "boundary_evidence" citation mode.
+
+    GroundedAnswer._check_contract() enforces which shape applies for a
+    given ``status``; this class only guarantees that any provided field is
+    non-blank.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     evidence_id: str = Field(min_length=1)
-    document: str = Field(min_length=1)
-    revision: str = Field(min_length=1)
-    chapter: str = Field(min_length=1)
-    section: str = Field(min_length=1)
-    page_or_anchor: str = Field(min_length=1)
-    authority_level: AuthorityLevel
+    document: Optional[str] = Field(default=None, min_length=1)
+    revision: Optional[str] = Field(default=None, min_length=1)
+    chapter: Optional[str] = Field(default=None, min_length=1)
+    section: Optional[str] = Field(default=None, min_length=1)
+    page_or_anchor: Optional[str] = Field(default=None, min_length=1)
+    authority_level: Optional[AuthorityLevel] = None
     excerpt: Optional[str] = None
 
     def __init__(self, **data):
@@ -69,6 +100,13 @@ class Citation(BaseModel):
         except ValidationError as exc:
             messages = "; ".join(error["msg"] for error in exc.errors())
             raise EvidenceContractError(messages) from exc
+
+    @field_validator("document", "revision", "chapter", "section", "page_or_anchor", mode="after")
+    @classmethod
+    def _normative_field_not_blank_if_present(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and not value.strip():
+            raise ValueError("must not be blank/whitespace-only when provided")
+        return value
 
 
 class GroundedAnswer(BaseModel):
@@ -103,6 +141,23 @@ class GroundedAnswer(BaseModel):
             messages = "; ".join(error["msg"] for error in exc.errors())
             raise EvidenceContractError(messages) from exc
 
+    @field_validator("scope")
+    @classmethod
+    def _scope_must_not_be_blank(cls, value: str) -> str:
+        # Field(min_length=1) alone accepts "   " -- a whitespace-only scope
+        # identifies no real corpus scope but would still be certified,
+        # defeating the wrong-scope defense (Codex review, PR #33, P2).
+        if not value.strip():
+            raise ValueError("scope must not be blank/whitespace-only")
+        return value
+
+    @field_validator("claims")
+    @classmethod
+    def _claims_must_not_contain_blank_entries(cls, value: List[str]) -> List[str]:
+        if any(not claim.strip() for claim in value):
+            raise ValueError("claims must not contain blank/whitespace-only entries")
+        return value
+
     @model_validator(mode="after")
     def _check_contract(self) -> "GroundedAnswer":
         cited_ids = [citation.evidence_id for citation in self.citations]
@@ -133,6 +188,7 @@ class GroundedAnswer(BaseModel):
                     "an 'answer' status must not declare a boundary code; "
                     "boundary is reserved for abstain/conflict"
                 )
+            self._require_normative_citations("answer")
 
         elif self.status == "abstain":
             if self.boundary is None:
@@ -140,10 +196,22 @@ class GroundedAnswer(BaseModel):
                     "an 'abstain' status requires a boundary code explaining why "
                     "no answer was given"
                 )
-            if self.claims:
+            # An abstain response is allowed (and, per a formal acceptance
+            # manifest's boundary_evidence_ids + required_claims, sometimes
+            # required) to assert a *boundary* claim -- e.g. "Phase 1 corpus
+            # does not include the USB4 specification" is a material claim,
+            # but not an "answer" to the question. What it must never do is
+            # assert an unsupported claim: if it asserts any claim at all, it
+            # must cite at least one boundary citation backing it (Codex
+            # review, PR #33, P1 -- previously this status forbade claims
+            # entirely, which made a conforming acceptance-manifest abstain
+            # impossible to represent).
+            if self.claims and not self.citations:
                 raise EvidenceContractError(
-                    "an 'abstain' status must not assert material claims"
+                    "an 'abstain' status that asserts a boundary claim requires "
+                    "at least one supporting boundary citation"
                 )
+            self._require_boundary_citations()
 
         elif self.status == "conflict":
             if self.boundary is None:
@@ -168,5 +236,34 @@ class GroundedAnswer(BaseModel):
                     f"{len(provenance_identities)} distinct identity(ies) across "
                     f"{len(self.citations)} citation(s)"
                 )
+            self._require_normative_citations("conflict")
 
         return self
+
+    def _require_normative_citations(self, status: str) -> None:
+        for citation in self.citations:
+            missing = [
+                field_name
+                for field_name in NORMATIVE_CITATION_FIELDS
+                if getattr(citation, field_name) is None
+            ]
+            if missing:
+                raise EvidenceContractError(
+                    f"a {status!r} status requires normative citation fields "
+                    f"{NORMATIVE_CITATION_FIELDS} on every citation; citation "
+                    f"{citation.evidence_id!r} is missing {missing}"
+                )
+
+    def _require_boundary_citations(self) -> None:
+        for citation in self.citations:
+            present = [
+                field_name
+                for field_name in NORMATIVE_CITATION_FIELDS
+                if getattr(citation, field_name) is not None
+            ]
+            if present:
+                raise EvidenceContractError(
+                    "an 'abstain' status must cite boundary evidence only -- "
+                    "citations must not declare normative document-identity "
+                    f"fields; citation {citation.evidence_id!r} declares {present}"
+                )
