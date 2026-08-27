@@ -221,22 +221,43 @@ class GovernedQAService:
                 boundary_code=boundary_evidence.boundary_code,
             )
 
-        # Check for explicitly unsupported / out-of-scope queries
+        # Check for explicitly unsupported / out-of-scope queries. Backed by
+        # a real, registered generic BoundaryEvidence (corpus.lock.yaml
+        # sources.hub_reference.known_limits), mirroring the USB4 branch
+        # above -- this is a static corpus/scope fact, not a runtime
+        # retrieval observation, so it can be (and now is) registered rather
+        # than left as an empty claims/citations abstain (Codex review,
+        # PR #33, P1).
         unsupported_keywords = [
             "xhci", "eeprom", "眼圖", "抖動", "usbcore", "pcie", "穿透通道",
             "pam3", "99.99", "乙太網路", "40gbps", "informative 附錄"
         ]
         for uk in unsupported_keywords:
             if uk in q_lower:
+                boundary_evidence = self.retriever.get_boundary_evidence_by_id(
+                    "POC1-BOUNDARY-GENERIC-OUT-OF-SCOPE"
+                )
+                if boundary_evidence is None:
+                    raise RuntimeError(
+                        "expected boundary evidence "
+                        "'POC1-BOUNDARY-GENERIC-OUT-OF-SCOPE' is not registered "
+                        "in BOUNDARY_EVIDENCE_REGISTRY"
+                    )
+                boundary_citation = self.retriever.to_boundary_citation(boundary_evidence)
                 return self._build_response(
-                    answer="現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論與權威違規 (Abstain)。",
-                    scope=answer_scope or "OUT_OF_SCOPE",
+                    answer=(
+                        "現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論"
+                        f"與權威違規 (Abstain)：{boundary_evidence.claim}"
+                    ),
+                    scope=answer_scope or boundary_evidence.scope,
                     cited_evidences=[],
-                    claim_level="abstain_no_evidence",
+                    claim_level="abstain_boundary_claim",
                     boundary="Exceeds governed knowledge surface of usb-if-hub-spec-reference.",
                     is_abstain=True,
                     status="abstain",
-                    boundary_code="OUT_OF_SCOPE",
+                    claims=[boundary_evidence.claim],
+                    citations=[boundary_citation],
+                    boundary_code=boundary_evidence.boundary_code,
                 )
 
         evidences = self.retriever.query(query_text, retrieval_policy=retrieval_policy)

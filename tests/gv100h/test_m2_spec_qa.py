@@ -907,13 +907,22 @@ def test_governed_qa_service_abstention():
     assert "無法支持" in resp.answer
     assert len(resp.cited_evidences) == 0
     # Evidence Contract fields (docs/USB_SPEC_QA_POC1_SCOPE.md §5): an
-    # abstain response must declare a boundary code and no claims/citations,
-    # and the boundary_code/claims/scope must survive onto QAResponse itself
-    # (Codex review P1), not just be validated and discarded internally.
+    # abstain response must declare a boundary code, and -- since Commit D
+    # (Codex review, PR #33, P1) -- a real, registered generic BoundaryEvidence
+    # backs this path too (corpus.lock.yaml sources.hub_reference.known_limits),
+    # mirroring the USB4 branch below. This is a static corpus/scope fact, not
+    # a runtime retrieval observation, so it is registrable rather than left
+    # as an empty claims/citations abstain.
     assert resp.status == "abstain"
-    assert resp.citations == []
-    assert resp.evidence_ids == []
-    assert resp.claims == []
+    assert resp.claims == [
+        service.retriever.get_boundary_evidence_by_id(
+            "POC1-BOUNDARY-GENERIC-OUT-OF-SCOPE"
+        ).claim
+    ]
+    assert len(resp.citations) == 1
+    assert resp.citations[0].evidence_id == "POC1-BOUNDARY-GENERIC-OUT-OF-SCOPE"
+    assert resp.citations[0].document is None  # boundary shape, not normative
+    assert resp.evidence_ids == ["POC1-BOUNDARY-GENERIC-OUT-OF-SCOPE"]
     assert resp.boundary_code == "OUT_OF_SCOPE"
     assert resp.scope
 
@@ -1669,6 +1678,7 @@ def test_get_evidence_by_id_resolves_boundary_registry_directly():
     retriever = GovernedSpecRetriever()
     assert retriever.get_evidence_by_id("USB3-FEAT-PORT_POWER") is not None
     assert retriever.get_evidence_by_id("POC1-BOUNDARY-USB4-EXCLUDED") is not None
+    assert retriever.get_evidence_by_id("POC1-BOUNDARY-GENERIC-OUT-OF-SCOPE") is not None
     assert retriever.get_evidence_by_id("NOT-A-REGISTERED-ID") is None
 
 
@@ -2035,3 +2045,70 @@ def test_full_contract_chain_usb4_corpus_membership_answer_passes_evaluator():
     result = evaluator.evaluate_response(question, final_response)
     assert result.fabricated_citation is False
     assert result.grounded is True
+
+
+@pytest.mark.unit
+def test_qa_service_missing_evidence_abstain_cannot_be_admitted_without_a_boundary_receipt():
+    # Commit D item 2 (deliberately NOT Commit C-style): a runtime
+    # MISSING_EVIDENCE abstain (zero retrieval results for a given query +
+    # scope + policy + corpus revision) is a RUNTIME OBSERVATION, not a
+    # static corpus fact -- unlike the USB4/generic-keyword boundary
+    # evidence above, it must NOT be backed by a fabricated static citation
+    # just to make an acceptance-manifest question "pass". This test proves
+    # (rather than silently working around) that limitation: a manifest
+    # question requiring boundary evidence for a MISSING_EVIDENCE abstain
+    # currently CANNOT be admitted, because no BoundaryEvidence is (or
+    # should be) registered for it. Fixing this for real requires a future
+    # RetrievalBoundaryReceipt (query/scope/policy/corpus_lock_hash/
+    # result_count=0), which is out of scope here and intentionally left
+    # unimplemented rather than faked.
+    service = GovernedQAService()
+    resp = service.answer_question(
+        "What is the maximum number of downstream ports on a hypothetical "
+        "USB 3.x hub variant that does not exist in any governed source?",
+        "USB_3_X",
+    )
+    assert resp.status == "abstain"
+    assert resp.boundary_code == "MISSING_EVIDENCE"
+    # The known, tracked limitation: no citation is available to back this
+    # abstention, because none may be fabricated.
+    assert resp.claims == []
+    assert resp.citations == []
+
+    final_response = resp.to_final_qa_response()
+    question = AcceptanceQuestion(
+        question_id="CHAIN-TEST-MISSING-EVIDENCE-ADMISSION-BLOCKED",
+        layer="L4",
+        priority="P0",
+        category="uncertainty_conflict",
+        question="a hypothetical hub variant with no governed evidence",
+        expected_status="abstain",
+        expected_scope=resp.scope,
+        accepted_source_ids=[],
+        required_citation_fields=CitationRequirements(
+            document=False,
+            revision=False,
+            section=False,
+            page_or_anchor=False,
+            excerpt_or_evidence_id=True,
+            scope=True,
+            boundary_code=True,
+            mode="boundary_evidence",
+        ),
+        gold=GoldOracle(
+            boundary_evidence_ids=["SOME-FUTURE-RETRIEVAL-BOUNDARY-RECEIPT-ID"],
+            required_claims=[GoldClaim(claim_id="b1", assertion="no evidence found", required=True)],
+            boundary_code="MISSING_EVIDENCE",
+        ),
+        grading=_CHAIN_GRADING_WEIGHTS,
+        independently_reviewed=True,
+    )
+    evaluator = _evaluator_with_resolver(service.retriever)
+    result = evaluator.evaluate_response(question, final_response)
+    # Admission-blocked: no citation exists to satisfy citation_complete, and
+    # the cited evidence set is empty, so evidence_shape_correct is False.
+    # This is the correct, honest outcome for an unimplemented
+    # RetrievalBoundaryReceipt -- NOT a bug to silently patch by inventing an
+    # evidence_id.
+    assert result.passed is False
+    assert result.citation_complete is False

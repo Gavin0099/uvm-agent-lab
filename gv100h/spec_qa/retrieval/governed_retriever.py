@@ -183,6 +183,34 @@ class GovernedSpecRetriever:
                 "retrieval_status=excluded_from_phase_1."
             ),
         ),
+        # Generic Phase 1 scope exclusion (Codex review, PR #33, P1 --
+        # "populate boundary evidence for service abstentions"). Backed by
+        # the *actual* declared known_limits of the governed_reference source
+        # (corpus.lock.yaml sources.hub_reference.known_limits), not an
+        # invented per-keyword claim: host-controller-internal topics
+        # (xHCI/usbcore), firmware-compliance topics (EEPROM programming),
+        # and PHY/electrical-compliance topics (eye diagram, jitter, PAM3,
+        # 40 Gbps signaling) all fall outside what that source's known_limits
+        # already declares it does NOT cover. This is a static corpus/scope
+        # fact, unlike a MISSING_EVIDENCE runtime retrieval miss (see the note
+        # above) -- it is genuinely registrable.
+        BoundaryEvidence(
+            evidence_id="POC1-BOUNDARY-GENERIC-OUT-OF-SCOPE",
+            boundary_code="OUT_OF_SCOPE",
+            claim=(
+                "This question falls outside the Phase 1 governed corpus scope "
+                "(corpus.lock.yaml sources.hub_reference.known_limits declares "
+                "not_full_usb_spec_coverage, not_firmware_compliance_proof, and "
+                "not_electrical_or_lvs_compliance_proof)."
+            ),
+            scope="USB_HUB",
+            source_id="hub_reference",
+            excerpt=(
+                "corpus.lock.yaml sources.hub_reference.known_limits: "
+                "not_full_usb_spec_coverage, not_firmware_compliance_proof, "
+                "not_electrical_or_lvs_compliance_proof, not_usb4_corpus."
+            ),
+        ),
     ]
 
     def __init__(
