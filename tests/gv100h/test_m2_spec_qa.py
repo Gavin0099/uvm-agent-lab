@@ -12,7 +12,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from gv100h.spec_qa.retrieval.governed_retriever import GovernedSpecRetriever
 from gv100h.spec_qa.api.qa_service import GovernedQAService
-from gv100h.spec_qa.contracts.evidence_contract import Citation, EvidenceContractError
+from gv100h.spec_qa.contracts.evidence_contract import Citation, EvidenceContractError, GroundedAnswer
 from gv100h.spec_qa.contracts.retrieval_policy import RetrievalPolicy, RetrievalPolicyError
 from gv100h.spec_qa.evaluation.deterministic_evaluator import DeterministicSpecQAEvaluator
 from gv100h.coding_eval.governance_ab_runner import ABExperimentSummary
@@ -899,10 +899,15 @@ def test_governed_qa_service_abstention():
     assert "無法支持" in resp.answer
     assert len(resp.cited_evidences) == 0
     # Evidence Contract fields (docs/USB_SPEC_QA_POC1_SCOPE.md §5): an
-    # abstain response must declare a boundary code and no claims/citations.
+    # abstain response must declare a boundary code and no claims/citations,
+    # and the boundary_code/claims/scope must survive onto QAResponse itself
+    # (Codex review P1), not just be validated and discarded internally.
     assert resp.status == "abstain"
     assert resp.citations == []
     assert resp.evidence_ids == []
+    assert resp.claims == []
+    assert resp.boundary_code == "OUT_OF_SCOPE"
+    assert resp.scope
 
 
 @pytest.mark.unit
@@ -995,7 +1000,8 @@ def test_governed_retriever_rejects_evidence_with_unregistered_source_id():
 @pytest.mark.unit
 def test_governed_retriever_to_citation_resolves_hub_reference_provenance():
     # hub_reference has no document/revision keys in corpus.lock.yaml, only
-    # repo/commit -- to_citation() must fall back to those.
+    # repo/commit -- to_citation() must fall back to those. chapter is
+    # derived from the evidence's own section ("10.16.2.1" -> "10").
     retriever = GovernedSpecRetriever()
     ev = retriever.get_evidence_by_id("USB3-FEAT-PORT_POWER")
     citation = retriever.to_citation(ev)
@@ -1003,9 +1009,22 @@ def test_governed_retriever_to_citation_resolves_hub_reference_provenance():
     assert citation.evidence_id == "USB3-FEAT-PORT_POWER"
     assert citation.document == "Gavin0099/usb-if-hub-spec-reference"
     assert citation.revision == "808f23c24bd8651da9cdcd63ea8669126917a379"
+    assert citation.chapter == "10"
     assert citation.section == ev.section
     assert citation.authority_level == ev.authority_level
     assert citation.excerpt is not None
+
+
+@pytest.mark.unit
+def test_governed_retriever_to_citation_derives_chapter_for_all_registry_entries():
+    # Every embedded evidence entry's section starts with a numeric chapter
+    # segment consistent with corpus.lock.yaml's declared included_chapters
+    # (USB 3.x sections start with 10, USB 2.0 sections start with 11).
+    retriever = GovernedSpecRetriever()
+    for ev in retriever.EVIDENCE_REGISTRY:
+        citation = retriever.to_citation(ev)
+        assert citation.chapter == ev.section.split(".")[0]
+        assert citation.chapter.isdigit()
 
 
 @pytest.mark.unit
@@ -1019,18 +1038,47 @@ def test_governed_retriever_to_citation_truncates_long_excerpts():
 
 @pytest.mark.unit
 def test_governed_qa_service_answer_populates_evidence_contract_fields():
-    # An "answer" response must expose status/citations/evidence_ids per the
-    # Evidence Contract, in addition to the legacy free-text fields.
+    # An "answer" response must expose status/claims/citations/scope/
+    # evidence_ids per the Evidence Contract, in addition to the legacy
+    # free-text fields -- the response is the complete evaluated contract,
+    # not just a subset (Codex review P1).
     service = GovernedQAService()
     resp = service.answer_question(
         "PORT_POWER feature selector value", "USB_3_X"
     )
     assert resp.is_abstain is False
     assert resp.status == "answer"
+    assert resp.claims
+    assert resp.boundary_code is None
+    assert resp.scope
     assert len(resp.citations) > 0
     assert resp.evidence_ids == [c.evidence_id for c in resp.citations]
     assert set(resp.evidence_ids) == {ev.evidence_id for ev in resp.cited_evidences}
     for citation in resp.citations:
         assert citation.document
         assert citation.revision
+        assert citation.chapter
         assert citation.section
+
+
+@pytest.mark.contract
+def test_governed_qa_service_response_is_a_complete_serializable_evidence_contract():
+    # The invariant that matters: the JSON the service emits is itself the
+    # evaluatable Evidence Contract, not something the caller has to
+    # reconstruct from free-text `answer`/`boundary` fields. Round-trip the
+    # structured subset of QAResponse through GroundedAnswer to prove it.
+    service = GovernedQAService()
+    resp = service.answer_question("PORT_POWER feature selector value", "USB_3_X")
+    dumped = resp.model_dump()
+    for key in ("status", "claims", "citations", "scope", "boundary_code", "evidence_ids"):
+        assert key in dumped
+
+    reconstructed = GroundedAnswer(
+        status=dumped["status"],
+        claims=dumped["claims"],
+        citations=dumped["citations"],
+        scope=dumped["scope"],
+        boundary=dumped["boundary_code"],
+        evidence_ids=dumped["evidence_ids"],
+    )
+    assert reconstructed.status == "answer"

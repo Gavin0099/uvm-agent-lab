@@ -1,9 +1,10 @@
 from typing import Dict, Any, List, Optional, Sequence, Tuple
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from gv100h.spec_qa.retrieval.governed_retriever import GovernedSpecRetriever, GovernedEvidence
 from gv100h.spec_qa.contracts.retrieval_policy import RetrievalMode, RetrievalPolicy
 from gv100h.spec_qa.contracts.evidence_contract import AnswerStatus, Citation, GroundedAnswer
+from gv100h.spec_qa.contracts.poc1_acceptance_contract import BoundaryCode
 
 
 class QARequest(BaseModel):
@@ -25,9 +26,15 @@ class QAResponse(BaseModel):
     # These are populated in parallel with the legacy free-text fields above
     # so existing callers/tests keep working unchanged; new callers should
     # prefer these structured fields over parsing `answer`/`boundary` prose.
+    # `claims` and `boundary_code` complete the contract (status/citations/
+    # evidence_ids alone were only half of GroundedAnswer's shape) so a
+    # caller can evaluate this response without re-deriving claims/boundary
+    # from the free-text `answer`/`boundary` fields.
     status: AnswerStatus = "abstain"
-    citations: List[Citation] = []
-    evidence_ids: List[str] = []
+    claims: List[str] = Field(default_factory=list)
+    citations: List[Citation] = Field(default_factory=list)
+    boundary_code: Optional[BoundaryCode] = None
+    evidence_ids: List[str] = Field(default_factory=list)
 
 
 class GovernedQAService:
@@ -161,22 +168,28 @@ class GovernedQAService:
         status: AnswerStatus,
         claims: Optional[List[str]] = None,
         citations: Optional[List[Citation]] = None,
-        boundary_code: Optional[str] = None,
+        boundary_code: Optional[BoundaryCode] = None,
     ) -> QAResponse:
         """
         Construct a QAResponse and self-validate its structured Evidence
-        Contract fields (status/claims/citations/evidence_ids/boundary)
+        Contract fields (status/claims/citations/evidence_ids/scope/boundary)
         against GroundedAnswer before returning -- this is a fail-closed
         check: if this service ever builds a response that violates the
         Answer and Evidence Contract (docs/USB_SPEC_QA_POC1_SCOPE.md §5),
         it raises instead of silently returning a non-compliant response.
+
+        The validated claims/citations/scope/boundary_code/evidence_ids are
+        all carried through onto the returned QAResponse -- the response is
+        the complete evaluated contract, not just the fields that happened
+        to be convenient to expose.
         """
+        claims = claims or []
         citations = citations or []
         evidence_ids = [c.evidence_id for c in citations]
 
         GroundedAnswer(
             status=status,
-            claims=claims or [],
+            claims=claims,
             citations=citations,
             scope=scope,
             boundary=boundary_code,
@@ -191,7 +204,10 @@ class GovernedQAService:
             boundary=boundary,
             is_abstain=is_abstain,
             status=status,
+            claims=claims,
             citations=citations,
+            boundary_code=boundary_code,
             evidence_ids=evidence_ids,
         )
+
 

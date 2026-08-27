@@ -55,6 +55,7 @@ class Citation(BaseModel):
     evidence_id: str = Field(min_length=1)
     document: str = Field(min_length=1)
     revision: str = Field(min_length=1)
+    chapter: str = Field(min_length=1)
     section: str = Field(min_length=1)
     page_or_anchor: str = Field(min_length=1)
     authority_level: AuthorityLevel
@@ -81,7 +82,11 @@ class GroundedAnswer(BaseModel):
     status: AnswerStatus
     claims: List[str] = Field(default_factory=list)
     citations: List[Citation] = Field(default_factory=list)
-    scope: Optional[str] = None
+    # Required and nonempty: every evaluated answer -- including abstain and
+    # conflict -- must expose which corpus scope it was evaluated under
+    # (docs/USB_SPEC_QA_POC1_SCOPE.md §5). This is part of the Wrong-Version/
+    # Wrong-Scope defense, not a cosmetic field.
+    scope: str = Field(min_length=1)
     boundary: Optional[BoundaryCode] = None
     evidence_ids: List[str] = Field(default_factory=list)
 
@@ -145,11 +150,23 @@ class GroundedAnswer(BaseModel):
                 raise EvidenceContractError(
                     "a 'conflict' status requires a boundary code"
                 )
-            if len(self.citations) < 2:
+            # A conflict is only real when the citations come from distinct
+            # competing provenance -- two citations that happen to share the
+            # same (document, revision, authority_level) are not "competing
+            # sources or authority levels", they are the same source cited
+            # twice. Counting citations alone (the previous rule) let two
+            # unrelated sections of the SAME source falsely qualify as a
+            # conflict.
+            provenance_identities = {
+                (c.document, c.revision, c.authority_level) for c in self.citations
+            }
+            if len(provenance_identities) < 2:
                 raise EvidenceContractError(
                     "a 'conflict' status requires citations from at least two "
-                    "competing sources; got "
-                    f"{len(self.citations)}"
+                    "distinct competing provenance identities (document, "
+                    "revision, authority_level); got "
+                    f"{len(provenance_identities)} distinct identity(ies) across "
+                    f"{len(self.citations)} citation(s)"
                 )
 
         return self

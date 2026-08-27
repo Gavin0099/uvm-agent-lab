@@ -212,6 +212,12 @@ class GovernedSpecRetriever:
         - the hub_reference governed_reference source instead declares
           repo + commit (no document/revision keys), so those are used as
           the document/revision fallback.
+
+        `chapter` is derived from the evidence's own `section` field (e.g.
+        "10.16.2.1" -> chapter "10"), which is consistent with corpus.lock.yaml's
+        declared `included_chapters` per source (e.g. hub_reference-derived
+        sections such as "10.16.2.1"/"11.24.2.1" fall inside the USB 3.2
+        chapter-10 / USB 2.0 chapter-11 ranges already recorded there).
         """
         source = self.corpus_lock["sources"].get(ev.source_id)
         if source is None:
@@ -222,6 +228,7 @@ class GovernedSpecRetriever:
 
         document = source.get("document", source.get("repo", ev.source_id))
         revision = source.get("revision", source.get("commit", "unknown"))
+        chapter = self._derive_chapter(ev)
 
         excerpt = ev.content
         if excerpt_max_len and len(excerpt) > excerpt_max_len:
@@ -231,11 +238,24 @@ class GovernedSpecRetriever:
             evidence_id=ev.evidence_id,
             document=document,
             revision=revision,
+            chapter=chapter,
             section=ev.section,
             page_or_anchor=ev.section,
             authority_level=ev.authority_level,
             excerpt=excerpt,
         )
+
+    @staticmethod
+    def _derive_chapter(ev: GovernedEvidence) -> str:
+        chapter = ev.section.split(".")[0].strip()
+        if not chapter or not chapter.isdigit():
+            raise EvidenceContractError(
+                f"evidence {ev.evidence_id!r} has a section {ev.section!r} that "
+                "does not start with a numeric chapter segment; cannot derive "
+                "a citation chapter"
+            )
+        return chapter
+
 
     def _refresh_qualification_state(self) -> None:
         block_reasons = list(self.corpus_lock_validation["block_reasons"])
