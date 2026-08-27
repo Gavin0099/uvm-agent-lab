@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import hashlib
 from pathlib import Path
-from typing import Any, Dict, Literal
+from typing import Any, Dict, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -12,15 +12,17 @@ class AcceptanceContractError(ValueError):
     pass
 
 
-REQUIRED_POC1_SOURCE_IDS = frozenset(
+GOLD_EVIDENCE_SOURCE_IDS = frozenset(
     {
-        "hub_reference",
         "usb20_fw",
         "usb20_se",
         "usb32",
         "superspeed_hub_lvs",
     }
 )
+RETRIEVAL_AID_SOURCE_IDS = frozenset({"hub_reference"})
+POC1_CORPUS_SOURCE_IDS = GOLD_EVIDENCE_SOURCE_IDS | RETRIEVAL_AID_SOURCE_IDS
+REQUIRED_POC1_SOURCE_IDS = GOLD_EVIDENCE_SOURCE_IDS
 
 BoundaryCode = Literal[
     "OUT_OF_SCOPE",
@@ -30,6 +32,186 @@ BoundaryCode = Literal[
     "VERSION_CONFLICT",
     "UNRESOLVED_CONFLICT",
 ]
+BOUNDARY_CODES = get_args(BoundaryCode)
+CONFLICT_BOUNDARY_CODES = frozenset(
+    {
+        "AUTHORITY_MISMATCH",
+        "VERSION_CONFLICT",
+        "UNRESOLVED_CONFLICT",
+    }
+)
+
+# A question is "user_realistic" when an engineer could plausibly ask it
+# without already knowing which section/table/test-case identifier answers
+# it (the agent must locate that itself). "diagnostic" is reserved for
+# questions that are only well-posed when a specific excerpt/identifier is
+# named up front (e.g. conflict-detection questions that compare two named
+# statements). At least this fraction of the acceptance set must be
+# user_realistic, or the set over-represents "open-book quiz" phrasing and
+# overstates real retrieval+reasoning difficulty.
+MIN_USER_REALISTIC_QUESTION_RATIO = 0.7
+
+
+def _bound_source_ids(values: list[str]) -> set[str]:
+    bound: set[str] = set()
+    for raw in values:
+        text = str(raw).strip()
+        if ":" not in text:
+            continue
+        source_id, rest = text.split(":", 1)
+        source_id = source_id.strip()
+        rest = rest.strip()
+        if source_id and rest:
+            bound.add(source_id)
+    return bound
+
+
+# This is a deliberately separate, git-tracked snapshot of "which sources each
+# question was approved against" -- NOT the live draft file. Reading the live
+# draft here would make the freeze a no-op (every edit silently redefines its
+# own baseline). Regenerate it only via freeze_source_set_identity(), never as
+# an automatic side effect of loading or editing the draft.
+DEFAULT_POC1_SOURCE_SET_IDENTITY_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "gv100h"
+    / "spec_qa"
+    / "golden"
+    / "poc1_acceptance_set.frozen_source_identity.json"
+)
+
+
+def _question_id(question: Any) -> str:
+    if isinstance(question, dict):
+        return str(question["question_id"])
+    return str(question.question_id)
+
+
+def _accepted_source_ids(question: Any) -> list[str]:
+    if isinstance(question, dict):
+        return list(question.get("accepted_source_ids") or [])
+    return list(question.accepted_source_ids)
+
+
+def load_frozen_source_sets(
+    draft_path: str | Path | None = None,
+) -> Dict[str, frozenset[str]]:
+    identity_path = (
+        Path(draft_path)
+        if draft_path is not None
+        else DEFAULT_POC1_SOURCE_SET_IDENTITY_PATH
+    )
+    try:
+        payload: Any = json.loads(identity_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AcceptanceContractError(
+            f"preregistered source-set identity is missing or invalid: {identity_path}"
+        ) from exc
+    questions = payload.get("questions") if isinstance(payload, dict) else None
+    if not isinstance(questions, list) or not questions:
+        raise AcceptanceContractError(
+            "preregistered source-set identity must declare questions"
+        )
+    frozen: Dict[str, frozenset[str]] = {}
+    for question in questions:
+        if not isinstance(question, dict):
+            raise AcceptanceContractError(
+                "preregistered source-set identity has an invalid question"
+            )
+        question_id = str(question.get("question_id") or "").strip()
+        if not question_id:
+            raise AcceptanceContractError(
+                "preregistered source-set identity requires question_id"
+            )
+        if question_id in frozen:
+            raise AcceptanceContractError(
+                f"preregistered source-set identity has duplicate question_id: {question_id}"
+            )
+        frozen[question_id] = frozenset(_accepted_source_ids(question))
+    return frozen
+
+
+def freeze_source_set_identity(
+    source_path: str | Path,
+    output_path: str | Path | None = None,
+) -> Dict[str, frozenset[str]]:
+    """Deliberately (re-)generate the pinned source-set identity snapshot.
+
+    This must only be invoked as an explicit, reviewed action (e.g. when a
+    question's accepted_source_ids are re-approved after review) -- never
+    automatically as a side effect of loading or editing the draft. Reading
+    ``source_path`` (typically the live draft) and writing the same content
+    right back out as the "frozen" baseline on every edit would make the
+    freeze a tautology that can never detect drift.
+    """
+    source = Path(source_path)
+    try:
+        payload: Any = json.loads(source.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AcceptanceContractError(
+            f"source-set identity source is missing or invalid: {source}"
+        ) from exc
+    questions = payload.get("questions") if isinstance(payload, dict) else None
+    if not isinstance(questions, list) or not questions:
+        raise AcceptanceContractError(
+            "source-set identity source must declare questions"
+        )
+    frozen_payload = {
+        "questions": [
+            {
+                "question_id": _question_id(question),
+                "accepted_source_ids": _accepted_source_ids(question),
+            }
+            for question in questions
+        ]
+    }
+    destination = (
+        Path(output_path)
+        if output_path is not None
+        else DEFAULT_POC1_SOURCE_SET_IDENTITY_PATH
+    )
+    destination.write_text(
+        json.dumps(frozen_payload, ensure_ascii=True, sort_keys=True, indent=2)
+        + "\n",
+        encoding="utf-8",
+    )
+    return load_frozen_source_sets(destination)
+
+
+def verify_accepted_source_set_identity(
+    questions: Any,
+    frozen_source_sets: Dict[str, frozenset[str]] | None = None,
+    *,
+    draft_path: str | Path | None = None,
+) -> None:
+    identity = (
+        frozen_source_sets
+        if frozen_source_sets is not None
+        else load_frozen_source_sets(draft_path)
+    )
+    admitted_ids = {_question_id(question) for question in questions}
+    if admitted_ids != set(identity):
+        missing = sorted(set(identity) - admitted_ids)
+        extra = sorted(admitted_ids - set(identity))
+        details = []
+        if missing:
+            details.append("missing: " + ", ".join(missing))
+        if extra:
+            details.append("extra: " + ", ".join(extra))
+        raise AcceptanceContractError(
+            "admitted question IDs must exactly match the preregistered "
+            "source-set identity (" + "; ".join(details) + ")"
+        )
+    for question in questions:
+        question_id = _question_id(question)
+        if question_id not in identity:
+            continue
+        accepted = set(_accepted_source_ids(question))
+        required = set(identity[question_id])
+        if accepted != required:
+            raise AcceptanceContractError(
+                f"question {question_id} accepted_source_ids must exactly match "
+                "the preregistered source set"
+            )
 
 
 class CitationRequirements(BaseModel):
@@ -102,13 +284,14 @@ class AcceptanceQuestion(BaseModel):
     grading: GradingWeights
     independently_reviewed: Literal[True]
     usb4_negative_control: bool = False
+    question_style: Literal["user_realistic", "diagnostic"]
 
 
 class POC1AcceptanceSet(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     schema_name: Literal["poc1_spec_qa_acceptance_set"]
-    schema_version: Literal["1.1"]
+    schema_version: Literal["1.2"]
     corpus_lock: str = Field(min_length=1)
     corpus_receipt_path: str = Field(min_length=1)
     corpus_receipt_hash: str = Field(pattern=r"^[0-9a-fA-F]{64}$")
@@ -189,9 +372,23 @@ class POC1AcceptanceSet(BaseModel):
                     f"question {question.question_id} priority must be "
                     f"{expected_priority} for layer {question.layer}"
                 )
+            retrieval_aids = sorted(
+                set(question.accepted_source_ids) & RETRIEVAL_AID_SOURCE_IDS
+            )
+            if retrieval_aids:
+                raise AcceptanceContractError(
+                    f"question {question.question_id} accepted_source_ids must not "
+                    "include retrieval-aid sources: " + ", ".join(retrieval_aids)
+                )
             if not set(question.accepted_source_ids).issubset(required_source_ids):
                 raise AcceptanceContractError(
                     f"question {question.question_id} cites a source outside required_source_ids"
+                )
+            if question.category == "cross_document" and len(
+                set(question.accepted_source_ids)
+            ) < 2:
+                raise AcceptanceContractError(
+                    f"cross_document question {question.question_id} requires at least two sources"
                 )
             if question.expected_status == "answer" and not question.accepted_source_ids:
                 raise AcceptanceContractError(
@@ -289,6 +486,20 @@ class POC1AcceptanceSet(BaseModel):
                     raise AcceptanceContractError(
                         f"answer question {question.question_id} must not declare a boundary code"
                     )
+                if len(question.accepted_source_ids) >= 2:
+                    bound_evidence = _bound_source_ids(gold.accepted_evidence_ids)
+                    bound_anchors = _bound_source_ids(gold.section_anchors)
+                    missing_sources = [
+                        source_id
+                        for source_id in question.accepted_source_ids
+                        if source_id not in bound_evidence or source_id not in bound_anchors
+                    ]
+                    if missing_sources:
+                        raise AcceptanceContractError(
+                            f"answer question {question.question_id} requires each "
+                            "accepted_source_id to have gold accepted evidence and "
+                            "section anchors"
+                        )
                 if citation.mode != "normative_source" or not citation.scope or citation.boundary_code or not all(
                     getattr(citation, field_name) is True for field_name in normative_fields
                 ):
@@ -312,11 +523,7 @@ class POC1AcceptanceSet(BaseModel):
                     raise AcceptanceContractError(
                         f"conflict question {question.question_id} requires two gold claims and section anchors"
                     )
-                if gold.boundary_code not in {
-                    "AUTHORITY_MISMATCH",
-                    "VERSION_CONFLICT",
-                    "UNRESOLVED_CONFLICT",
-                }:
+                if gold.boundary_code not in CONFLICT_BOUNDARY_CODES:
                     raise AcceptanceContractError(
                         f"conflict question {question.question_id} requires a conflict boundary code"
                     )
@@ -380,6 +587,26 @@ class POC1AcceptanceSet(BaseModel):
             raise AcceptanceContractError(
                 "acceptance set requires at least one USB4 negative control"
             )
+        realistic_count = sum(
+            question.question_style == "user_realistic" for question in self.questions
+        )
+        realistic_ratio = realistic_count / len(self.questions)
+        if realistic_ratio < MIN_USER_REALISTIC_QUESTION_RATIO:
+            raise AcceptanceContractError(
+                f"user_realistic question ratio {realistic_ratio:.2f} is below "
+                f"the required minimum {MIN_USER_REALISTIC_QUESTION_RATIO:.2f}; "
+                "questions must not lean on diagnostic-only phrasing that "
+                "leaks target section/table/test-case identifiers"
+            )
+        # NOTE: frozen source-set identity is deliberately NOT checked here.
+        # This method validates structural/schema correctness for any
+        # manifest (including ad hoc test fixtures) and has no repo_root
+        # context to resolve a frozen baseline against. The identity/freeze
+        # check is an admission-time concern with a resolvable trust
+        # boundary; it is enforced by
+        # poc1_admission.verify_poc1_acceptance_admission(), which receives
+        # an explicit repo_root and threads it into
+        # verify_accepted_source_set_identity(..., frozen_source_sets=...).
         missing_coverage = sorted(REQUIRED_POC1_SOURCE_IDS - source_coverage)
         if missing_coverage:
             raise AcceptanceContractError(

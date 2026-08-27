@@ -1,0 +1,17 @@
+{
+  "receipt_schema": "test_evidence_receipt.v0.1",
+  "status": "report_only",
+  "command": "pytest -q tests/gv100h/test_poc1_acceptance_contract.py tests/gv100h/test_m2_spec_qa.py tests/gv100h/test_poc1_acceptance_authoring_draft.py",
+  "exit_code": 0,
+  "started_at": "2026-08-24T09:49:31Z",
+  "finished_at": "2026-08-24T09:49:48Z",
+  "runner": "pytest",
+  "linked_commit": "70ab802a772295c50455ec242da7e119f2f9b1b3",
+  "output_artifacts": [
+    "artifacts/evidence/test-results/poc1-acceptance-authoring-20260824.txt"
+  ],
+  "cannot_claim": [
+    "semantic correctness of the tested behavior",
+    "receipt authenticity: every field is fabricatable by a direct writer"
+  ]
+}

@@ -8,6 +8,7 @@ import pytest
 from gv100h.spec_qa.contracts.poc1_acceptance_contract import (
     AcceptanceContractError,
     load_poc1_acceptance_set,
+    verify_accepted_source_set_identity,
 )
 
 
@@ -21,12 +22,16 @@ def _question(index: int, layer: str, category: str) -> dict:
         []
         if index == 50
         else ["usb20_fw", "usb32"]
-        if index == 49
+        if index == 49 or category == "cross_document"
         else ["usb32"]
     )
     if expected_status == "answer":
         gold = {
-            "accepted_evidence_ids": [f"EVIDENCE-{index}-A"],
+            "accepted_evidence_ids": (
+                ["usb20_fw:EVIDENCE-27-A", "usb32:EVIDENCE-27-B"]
+                if category == "cross_document"
+                else [f"EVIDENCE-{index}-A"]
+            ),
             "competing_evidence_ids": [],
             "boundary_evidence_ids": [],
             "required_claims": [
@@ -35,7 +40,11 @@ def _question(index: int, layer: str, category: str) -> dict:
                     "assertion": f"Required answer fact {index}",
                 }
             ],
-            "section_anchors": [f"section-{index}"],
+            "section_anchors": (
+                ["usb20_fw:11.5.1.2", "usb32:10.3.1.11"]
+                if category == "cross_document"
+                else [f"section-{index}"]
+            ),
             "required_facts": [f"fact-{index}"],
             "forbidden_claims": [f"unsupported-{index}"],
             "acceptable_variants": [f"variant-{index}"],
@@ -132,6 +141,7 @@ def _question(index: int, layer: str, category: str) -> dict:
         },
         "independently_reviewed": True,
         "usb4_negative_control": index == 50,
+        "question_style": "user_realistic",
     }
 
 
@@ -149,7 +159,7 @@ def _valid_manifest() -> dict:
         questions.append(_question(index, layer, category))
     return {
         "schema_name": "poc1_spec_qa_acceptance_set",
-        "schema_version": "1.1",
+        "schema_version": "1.2",
         "corpus_lock": "gv100h/spec_qa/contracts/corpus.lock.yaml",
         "corpus_receipt_path": "artifacts/evidence/test-results/corpus.json",
         "corpus_receipt_hash": "a" * 64,
@@ -165,7 +175,6 @@ def _valid_manifest() -> dict:
         "total_questions": 50,
         "required_layers": {"L1": 10, "L2": 10, "L3": 10, "L4": 10},
         "required_source_ids": [
-            "hub_reference",
             "usb20_fw",
             "usb20_se",
             "usb32",
@@ -186,7 +195,7 @@ def test_smoke_dataset_is_not_admitted_as_final_acceptance_set(tmp_path: Path):
     smoke.update(
         {
             "schema_name": "poc1_spec_qa_acceptance_set",
-            "schema_version": "1.1",
+            "schema_version": "1.2",
             "corpus_receipt_path": "artifacts/evidence/test-results/corpus.json",
             "corpus_receipt_hash": "a" * 64,
             "benchmark_role": "poc1_acceptance_set",
@@ -203,14 +212,24 @@ def test_smoke_dataset_is_not_admitted_as_final_acceptance_set(tmp_path: Path):
 def test_valid_acceptance_set_contract_loads(tmp_path: Path):
     payload = _valid_manifest()
     for index, source_id in enumerate(
-        ["hub_reference", "usb20_fw", "usb20_se", "usb32", "superspeed_hub_lvs"]
+        ["usb20_fw", "usb20_se", "usb32", "superspeed_hub_lvs"]
     ):
         payload["questions"][index]["accepted_source_ids"] = [source_id]
+    payload["questions"][26]["accepted_source_ids"] = ["usb20_fw", "usb32"]
+    payload["questions"][26]["gold"]["accepted_evidence_ids"] = [
+        "usb20_fw:EVIDENCE-27-A",
+        "usb32:EVIDENCE-27-B",
+    ]
+    payload["questions"][26]["gold"]["section_anchors"] = [
+        "usb20_fw:11.5.1.2",
+        "usb32:10.3.1.11",
+    ]
     manifest = load_poc1_acceptance_set(_write_manifest(tmp_path, payload))
 
     assert manifest.total_questions == 50
     assert manifest.benchmark_role == "poc1_acceptance_set"
     assert sum(item.usb4_negative_control for item in manifest.questions) == 1
+    assert manifest.questions[26].accepted_source_ids == ["usb20_fw", "usb32"]
 
 
 @pytest.mark.parametrize(
@@ -218,6 +237,7 @@ def test_valid_acceptance_set_contract_loads(tmp_path: Path):
     [
         ("duplicate_id", "duplicate question_id"),
         ("foreign_source", "outside required_source_ids"),
+        ("retrieval_aid_source", "retrieval-aid sources"),
         ("extra_source", "exactly match POC-1 sources"),
         ("missing_layer", "layer L4"),
         ("usb4_answer", "must abstain"),
@@ -225,6 +245,10 @@ def test_valid_acceptance_set_contract_loads(tmp_path: Path):
         ("usb4_layer_mismatch", "must be an L4 uncertainty_conflict question"),
         ("missing_citation_field", "must require normative source citation fields"),
         ("missing_gold_evidence", "requires gold accepted evidence"),
+        (
+            "answer_missing_source_evidence",
+            "accepted_source_id to have gold accepted evidence",
+        ),
         ("empty_gold_evidence", "gold evidence IDs must be non-empty"),
         ("missing_required_claim", "requires gold claims, facts, and section anchors"),
         ("blank_gold_fact", "gold facts must be non-empty"),
@@ -243,9 +267,18 @@ def test_valid_acceptance_set_contract_loads(tmp_path: Path):
         ("l3_priority_mismatch", "priority must be P1"),
         ("usb4_scope_mismatch", "must use USB4_SPEC scope"),
         ("conflict_without_competing_source", "at least two competing sources"),
+        (
+            "cross_document_single_source",
+            "cross_document question QA-027 requires at least two sources",
+        ),
+        (
+            "empty_suffix_source_binding",
+            "accepted_source_id to have gold accepted evidence",
+        ),
         ("missing_source_coverage", "lacks question coverage for"),
         ("missing_usb4_control", "requires at least one USB4 negative control"),
         ("review_receipt_path", "durable artifacts/ path"),
+        ("user_realistic_ratio_violation", "user_realistic question ratio"),
     ],
 )
 def test_acceptance_set_rejects_contract_violations(
@@ -256,6 +289,8 @@ def test_acceptance_set_rejects_contract_violations(
         manifest["questions"][1]["question_id"] = manifest["questions"][0]["question_id"]
     elif mutation == "foreign_source":
         manifest["questions"][0]["accepted_source_ids"] = ["not_locked"]
+    elif mutation == "retrieval_aid_source":
+        manifest["questions"][0]["accepted_source_ids"] = ["hub_reference"]
     elif mutation == "extra_source":
         manifest["required_source_ids"].append("not_locked")
     elif mutation == "missing_layer":
@@ -269,6 +304,10 @@ def test_acceptance_set_rejects_contract_violations(
         manifest["questions"][0]["required_citation_fields"]["section"] = False
     elif mutation == "missing_gold_evidence":
         manifest["questions"][0]["gold"]["accepted_evidence_ids"] = []
+    elif mutation == "answer_missing_source_evidence":
+        manifest["questions"][0]["accepted_source_ids"] = ["usb20_fw", "usb32"]
+        manifest["questions"][0]["gold"]["accepted_evidence_ids"] = ["EVIDENCE-1-A"]
+        manifest["questions"][0]["gold"]["section_anchors"] = ["section-1"]
     elif mutation == "blank_gold_fact":
         manifest["questions"][0]["gold"]["required_facts"] = [" "]
     elif mutation == "blank_section_anchor":
@@ -314,19 +353,118 @@ def test_acceptance_set_rejects_contract_violations(
         manifest["questions"][49]["accepted_source_ids"] = ["usb32"]
     elif mutation == "conflict_without_competing_source":
         manifest["questions"][48]["accepted_source_ids"] = ["usb32"]
+    elif mutation == "cross_document_single_source":
+        manifest["questions"][26]["accepted_source_ids"] = ["usb32"]
+        manifest["questions"][26]["gold"]["accepted_evidence_ids"] = ["EVIDENCE-27-A"]
+        manifest["questions"][26]["gold"]["section_anchors"] = ["section-27"]
+    elif mutation == "empty_suffix_source_binding":
+        # A vacuous "source_id:" entry (no payload after the colon) must not
+        # count as bound evidence/anchor for that source.
+        manifest["questions"][26]["gold"]["accepted_evidence_ids"] = [
+            "usb20_fw:",
+            "usb32:EVIDENCE-27-B",
+        ]
     elif mutation == "missing_source_coverage":
         for question in manifest["questions"]:
             if question["expected_status"] == "answer":
-                question["accepted_source_ids"] = ["usb20_fw"]
+                if question["category"] == "cross_document":
+                    question["accepted_source_ids"] = ["usb20_fw", "usb20_se"]
+                    question["gold"]["accepted_evidence_ids"] = [
+                        "usb20_fw:EVIDENCE-COVERAGE-A",
+                        "usb20_se:EVIDENCE-COVERAGE-B",
+                    ]
+                    question["gold"]["section_anchors"] = [
+                        "usb20_fw:section-coverage-a",
+                        "usb20_se:section-coverage-b",
+                    ]
+                else:
+                    question["accepted_source_ids"] = ["usb20_fw"]
             elif question["expected_status"] == "conflict":
                 question["accepted_source_ids"] = ["usb20_fw", "usb20_se"]
     elif mutation == "missing_usb4_control":
         manifest["questions"][49]["usb4_negative_control"] = False
     elif mutation == "review_receipt_path":
         manifest["review_receipt_path"] = "review/poc1.json"
+    elif mutation == "user_realistic_ratio_violation":
+        # Push the user_realistic ratio below the 0.7 minimum by tagging
+        # enough questions as diagnostic-only phrasing.
+        for question in manifest["questions"][:16]:
+            question["question_style"] = "diagnostic"
     else:
         manifest["questions"][49]["accepted_source_ids"] = ["usb32"]
         manifest["questions"][49]["expected_status"] = "answer"
 
     with pytest.raises(AcceptanceContractError, match=expected_message):
         load_poc1_acceptance_set(_write_manifest(tmp_path, manifest))
+
+
+def _frozen_identity_from_questions(questions: list[dict]) -> dict[str, frozenset[str]]:
+    return {
+        question["question_id"]: frozenset(question["accepted_source_ids"])
+        for question in questions
+    }
+
+
+@pytest.mark.parametrize(
+    "mutation,question_index,new_sources",
+    [
+        ("shrink_three_to_two", 0, ["usb20_fw", "usb20_se"]),
+        ("shrink_two_to_one", 1, ["usb20_fw"]),
+        ("replace_one_source", 1, ["usb20_fw", "usb20_se"]),
+        ("add_extra_source", 1, ["usb20_fw", "usb32", "usb20_se"]),
+    ],
+)
+def test_source_set_identity_requires_exact_equality(
+    mutation: str,
+    question_index: int,
+    new_sources: list[str],
+):
+    questions = [
+        {
+            "question_id": "DRAFT-L3-037",
+            "accepted_source_ids": ["usb20_fw", "usb20_se", "superspeed_hub_lvs"],
+        },
+        {
+            "question_id": "DRAFT-L4-039",
+            "accepted_source_ids": ["usb20_fw", "usb32"],
+        },
+    ]
+    frozen = _frozen_identity_from_questions(questions)
+    mutated = [dict(item) for item in questions]
+    mutated[question_index] = dict(mutated[question_index])
+    mutated[question_index]["accepted_source_ids"] = new_sources
+
+    verify_accepted_source_set_identity(questions, frozen)
+    with pytest.raises(
+        AcceptanceContractError,
+        match="accepted_source_ids must exactly match the preregistered source set",
+    ):
+        verify_accepted_source_set_identity(mutated, frozen)
+    assert mutation
+
+
+def test_source_set_identity_rejects_completely_disjoint_question_ids():
+    """A submitted question set with zero overlapping question IDs against
+    the frozen identity must be rejected outright, not silently treated as
+    an unrelated/unchecked set (previously bypassed the check entirely)."""
+    frozen = _frozen_identity_from_questions(
+        [
+            {
+                "question_id": "DRAFT-L3-037",
+                "accepted_source_ids": ["usb20_fw", "usb20_se"],
+            },
+        ]
+    )
+    disjoint_questions = [
+        {
+            "question_id": "SOMETHING-ELSE-ENTIRELY",
+            "accepted_source_ids": ["usb20_fw", "usb20_se"],
+        },
+    ]
+
+    with pytest.raises(
+        AcceptanceContractError,
+        match="accepted_source_ids must exactly match the preregistered source set|"
+        "admitted question IDs must exactly match the preregistered",
+    ):
+        verify_accepted_source_set_identity(disjoint_questions, frozen)

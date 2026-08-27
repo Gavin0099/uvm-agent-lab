@@ -9,7 +9,7 @@ from gv100h.spec_qa.evaluation.final_evaluator import FinalPOC1Evaluator
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SOURCE_IDS = ["hub_reference", "usb20_fw", "usb20_se", "usb32", "superspeed_hub_lvs"]
+SOURCE_IDS = ["usb20_fw", "usb20_se", "usb32", "superspeed_hub_lvs"]
 
 
 def _question(index: int) -> dict:
@@ -93,15 +93,27 @@ def _question(index: int) -> dict:
             "L4": "uncertainty_conflict",
         }[layer]
         scope = "USB_HUB_COMMON"
-        accepted_sources = [SOURCE_IDS[(index - 1) % len(SOURCE_IDS)]]
+        primary = SOURCE_IDS[(index - 1) % len(SOURCE_IDS)]
+        secondary = SOURCE_IDS[index % len(SOURCE_IDS)]
+        accepted_sources = (
+            [primary, secondary] if layer == "L3" else [primary]
+        )
         gold = {
-            "accepted_evidence_ids": [f"EVIDENCE-{index}"],
+            "accepted_evidence_ids": (
+                [f"{primary}:EVIDENCE-{index}-A", f"{secondary}:EVIDENCE-{index}-B"]
+                if layer == "L3"
+                else [f"EVIDENCE-{index}"]
+            ),
             "competing_evidence_ids": [],
             "boundary_evidence_ids": [],
             "required_claims": [
                 {"claim_id": f"CLAIM-{index}", "assertion": f"fact-{index}"}
             ],
-            "section_anchors": [f"section-{index}"],
+            "section_anchors": (
+                [f"{primary}:section-{index}-a", f"{secondary}:section-{index}-b"]
+                if layer == "L3"
+                else [f"section-{index}"]
+            ),
             "required_facts": [f"fact-{index}"],
             "forbidden_claims": [f"forbidden-{index}"],
             "acceptable_variants": [],
@@ -138,13 +150,14 @@ def _question(index: int) -> dict:
         },
         "independently_reviewed": True,
         "usb4_negative_control": index == 50,
+        "question_style": "user_realistic",
     }
 
 
 def _manifest() -> dict:
     return {
         "schema_name": "poc1_spec_qa_acceptance_set",
-        "schema_version": "1.1",
+        "schema_version": "1.2",
         "corpus_lock": "gv100h/spec_qa/contracts/corpus.lock.yaml",
         "corpus_receipt_path": "artifacts/evidence/test-results/corpus.json",
         "corpus_receipt_hash": "a" * 64,
@@ -189,14 +202,18 @@ def _response(index: int) -> dict:
             "claims": [f"fact-{index}"],
             "citations": [
                 {
-                    "evidence_id": f"EVIDENCE-{index}",
+                    "evidence_id": evidence_id,
                     "document": "USB synthetic source",
                     "revision": "synthetic revision",
-                    "section": f"section-{index}",
-                    "page_or_anchor": f"page-{index}",
-                    "excerpt_or_evidence_id": f"EVIDENCE-{index}",
+                    "section": section,
+                    "page_or_anchor": section,
+                    "excerpt_or_evidence_id": evidence_id,
                     "scope": question["expected_scope"],
                 }
+                for evidence_id, section in zip(
+                    question["gold"]["accepted_evidence_ids"],
+                    question["gold"]["section_anchors"],
+                )
             ],
             "scope": question["expected_scope"],
             "boundary_code": None,
@@ -347,3 +364,256 @@ def test_final_evaluator_rejects_unknown_evidence_and_wrong_status(tmp_path: Pat
     assert wrong_result.passed is False
     assert wrong_result.observed_status == "answer"
     assert wrong_result.grounded is False
+
+
+def _constructed_same_object_conflict_question() -> dict:
+    """Artificial X / not-X pair. Not a USB-spec gold item."""
+    return {
+        "question_id": "FIXTURE-CONFLICT-001",
+        "layer": "L4",
+        "priority": "P0",
+        "category": "uncertainty_conflict",
+        "question": (
+            "Source A states that object PORT_X in state S under revision R "
+            "has property P=true. Source B states that the same object "
+            "PORT_X in the same state S under the same revision R has "
+            "property P=false. What status should be returned?"
+        ),
+        "expected_status": "conflict",
+        "expected_scope": "USB_HUB_COMMON",
+        "accepted_source_ids": ["usb20_fw", "usb32"],
+        "required_citation_fields": {
+            "document": True,
+            "revision": True,
+            "section": True,
+            "page_or_anchor": True,
+            "excerpt_or_evidence_id": True,
+            "scope": True,
+            "boundary_code": True,
+            "mode": "competing_sources",
+        },
+        "gold": {
+            "accepted_evidence_ids": [],
+            "competing_evidence_ids": ["EVIDENCE-X", "EVIDENCE-NOT-X"],
+            "boundary_evidence_ids": [],
+            "required_claims": [
+                {
+                    "claim_id": "CLAIM-X",
+                    "assertion": "Source A asserts P=true for PORT_X in state S at revision R",
+                },
+                {
+                    "claim_id": "CLAIM-NOT-X",
+                    "assertion": "Source B asserts P=false for PORT_X in state S at revision R",
+                },
+            ],
+            "section_anchors": ["source-a-same-object", "source-b-same-object"],
+            "required_facts": [
+                "same object PORT_X",
+                "same state S",
+                "same revision R",
+            ],
+            "forbidden_claims": ["scope difference only"],
+            "acceptable_variants": [],
+            "boundary_code": "UNRESOLVED_CONFLICT",
+        },
+        "grading": {
+            "factual_correctness": 0.40,
+            "citation_correctness": 0.25,
+            "source_authority": 0.15,
+            "scope_control": 0.10,
+            "uncertainty_behavior": 0.10,
+        },
+        "independently_reviewed": True,
+        "usb4_negative_control": False,
+        "question_style": "diagnostic",
+    }
+
+
+def _constructed_conflict_response() -> dict:
+    return {
+        "status": "conflict",
+        "claims": [
+            "Source A asserts P=true for PORT_X in state S at revision R",
+            "Source B asserts P=false for PORT_X in state S at revision R",
+            "same object PORT_X",
+            "same state S",
+            "same revision R",
+        ],
+        "citations": [
+            {
+                "evidence_id": "EVIDENCE-X",
+                "document": "Constructed source A",
+                "revision": "R",
+                "section": "source-a-same-object",
+                "page_or_anchor": "source-a-same-object",
+                "excerpt_or_evidence_id": "EVIDENCE-X",
+                "scope": "USB_HUB_COMMON",
+            },
+            {
+                "evidence_id": "EVIDENCE-NOT-X",
+                "document": "Constructed source B",
+                "revision": "R",
+                "section": "source-b-same-object",
+                "page_or_anchor": "source-b-same-object",
+                "excerpt_or_evidence_id": "EVIDENCE-NOT-X",
+                "scope": "USB_HUB_COMMON",
+            },
+        ],
+        "scope": "USB_HUB_COMMON",
+        "boundary_code": "UNRESOLVED_CONFLICT",
+    }
+
+
+def test_constructed_same_object_conflict_path_is_detected(tmp_path: Path):
+    manifest = _manifest()
+    manifest["questions"][48] = _constructed_same_object_conflict_question()
+    path = tmp_path / "constructed-conflict.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    evaluator = FinalPOC1Evaluator(
+        str(path),
+        evidence_resolver=SyntheticEvidenceResolver(manifest),
+    )
+    question = evaluator.manifest.questions[48]
+
+    passed = evaluator.evaluate_response(question, _constructed_conflict_response())
+    assert passed.passed is True
+    assert passed.expected_status == "conflict"
+    assert passed.observed_status == "conflict"
+    assert passed.boundary_correct is True
+
+    collapsed = _constructed_conflict_response()
+    collapsed["status"] = "answer"
+    collapsed["boundary_code"] = None
+    collapsed["claims"] = ["scope difference only"]
+    collapsed_result = evaluator.evaluate_response(question, collapsed)
+    assert collapsed_result.passed is False
+    assert collapsed_result.observed_status == "answer"
+    assert collapsed_result.forbidden_claim_detected is True
+
+
+def _constructed_multi_source_answer_question() -> dict:
+    """L3-shaped gold with two required sources and two interchangeable
+    evidence alternates for one of them. Regression fixture for the
+    per-required-source citation coverage check."""
+    return {
+        "question_id": "FIXTURE-MULTISRC-001",
+        "layer": "L3",
+        "priority": "P1",
+        "category": "cross_document",
+        "question": "Constructed cross-document coverage question.",
+        "expected_status": "answer",
+        "expected_scope": "USB_HUB_COMMON",
+        "accepted_source_ids": ["usb20_fw", "usb32"],
+        "required_citation_fields": {
+            "document": True,
+            "revision": True,
+            "section": True,
+            "page_or_anchor": True,
+            "excerpt_or_evidence_id": True,
+            "scope": True,
+            "boundary_code": False,
+            "mode": "normative_source",
+        },
+        "gold": {
+            "accepted_evidence_ids": [
+                "usb20_fw:E1",
+                "usb20_fw:E2",
+                "usb32:E3",
+            ],
+            "competing_evidence_ids": [],
+            "boundary_evidence_ids": [],
+            "required_claims": [
+                {
+                    "claim_id": "CLAIM-MULTISRC",
+                    "assertion": "multi-source fact",
+                }
+            ],
+            "section_anchors": [
+                "usb20_fw:section-e1",
+                "usb20_fw:section-e2",
+                "usb32:section-e3",
+            ],
+            "required_facts": ["multi-source fact"],
+            "forbidden_claims": ["unsupported-multisrc"],
+            "acceptable_variants": [],
+            "boundary_code": None,
+        },
+        "grading": {
+            "factual_correctness": 0.40,
+            "citation_correctness": 0.25,
+            "source_authority": 0.15,
+            "scope_control": 0.10,
+            "uncertainty_behavior": 0.10,
+        },
+        "independently_reviewed": True,
+        "usb4_negative_control": False,
+        "question_style": "user_realistic",
+    }
+
+
+def _multi_source_response(evidence_ids: list[str]) -> dict:
+    return {
+        "status": "answer",
+        "claims": ["multi-source fact"],
+        "citations": [
+            {
+                "evidence_id": evidence_id,
+                "document": "USB synthetic source",
+                "revision": "synthetic revision",
+                "section": evidence_id,
+                "page_or_anchor": evidence_id,
+                "excerpt_or_evidence_id": evidence_id,
+                "scope": "USB_HUB_COMMON",
+            }
+            for evidence_id in evidence_ids
+        ],
+        "scope": "USB_HUB_COMMON",
+        "boundary_code": None,
+    }
+
+
+def test_multi_source_answer_citing_only_one_required_source_fails(tmp_path: Path):
+    """L3 gold requires usb20_fw + usb32 coverage. Citing only usb20_fw's
+    evidence must not pass, even though that one citation is individually
+    legitimate (closes the P1 gap: subset-only checks let a model answer
+    a multi-source question from a single source)."""
+    manifest = _manifest()
+    manifest["questions"][26] = _constructed_multi_source_answer_question()
+    path = tmp_path / "constructed-multisource.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    evaluator = FinalPOC1Evaluator(
+        str(path),
+        evidence_resolver=SyntheticEvidenceResolver(manifest),
+    )
+    question = evaluator.manifest.questions[26]
+
+    result = evaluator.evaluate_response(
+        question, _multi_source_response(["usb20_fw:E1"])
+    )
+
+    assert result.citation_valid is False
+    assert result.grounded is False
+    assert result.passed is False
+
+
+def test_multi_source_answer_accepts_alternate_evidence_per_source(tmp_path: Path):
+    """Citing a different, still-valid evidence id for one of the required
+    sources (an alternate, not the first-listed gold id) must still pass,
+    as long as every required source is covered by at least one citation."""
+    manifest = _manifest()
+    manifest["questions"][26] = _constructed_multi_source_answer_question()
+    path = tmp_path / "constructed-multisource.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    evaluator = FinalPOC1Evaluator(
+        str(path),
+        evidence_resolver=SyntheticEvidenceResolver(manifest),
+    )
+    question = evaluator.manifest.questions[26]
+
+    result = evaluator.evaluate_response(
+        question, _multi_source_response(["usb20_fw:E2", "usb32:E3"])
+    )
+
+    assert result.citation_valid is True
+    assert result.grounded is True
+    assert result.passed is True
