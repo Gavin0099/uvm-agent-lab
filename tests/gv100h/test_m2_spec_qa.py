@@ -1308,6 +1308,8 @@ def test_full_contract_chain_answer_round_trip_through_final_evaluator():
             excerpt_or_evidence_id=True,
             scope=True,
             boundary_code=False,
+            chapter=True,
+            authority_level=True,
             mode="normative_source",
         ),
         gold=GoldOracle(
@@ -1320,7 +1322,12 @@ def test_full_contract_chain_answer_round_trip_through_final_evaluator():
         independently_reviewed=True,
     )
 
-    evaluator = _evaluator_with_resolver(_StubEvidenceResolver(resp.evidence_ids))
+    # Real retriever, not _StubEvidenceResolver: cuREi (Codex review, PR #33,
+    # P1) makes FinalPOC1Evaluator fail closed on a normative citation's
+    # canonical provenance when the resolver cannot verify it. Proving this
+    # full chain "passes" requires a resolver that can actually verify
+    # provenance, the same way production does.
+    evaluator = _evaluator_with_resolver(service.retriever)
     result = evaluator.evaluate_response(question, final_response)
     assert result.passed is True
     assert result.citation_complete is True
@@ -2053,6 +2060,200 @@ def test_final_evaluator_rejects_citation_with_provenance_mismatch_against_canon
     assert mismatched_result.fabricated_citation is False
     assert mismatched_result.authority_violation is False
     assert mismatched_result.citation_valid is False
+
+
+@pytest.mark.contract
+def test_final_evaluator_fails_closed_on_normative_citation_without_canonical_resolver():
+    # Codex review, PR #33, P1 (cuREi): a resolver that cannot supply
+    # get_canonical_citation_by_id() must NOT give every normative citation
+    # a free pass on citation_valid -- "the check could not run" is not the
+    # same as "the citation is correct". _StubEvidenceResolver only
+    # implements get_evidence_by_id(), the same supported path the repo's
+    # own SyntheticEvidenceResolver test stub used to exercise (Codex
+    # named that stub directly as evidence the old design was toothless).
+    service = GovernedQAService()
+    resp = service.answer_question("PORT_POWER feature selector value", "USB_3_X")
+    final_response = resp.to_final_qa_response()
+
+    question = AcceptanceQuestion(
+        question_id="CHAIN-TEST-FAIL-CLOSED-NO-CANONICAL",
+        layer="L1",
+        priority="P0",
+        category="single_spec_fact",
+        question="PORT_POWER feature selector value",
+        expected_status="answer",
+        expected_scope="USB_3_X",
+        accepted_source_ids=["hub_reference"],
+        required_citation_fields=CitationRequirements(
+            document=True,
+            revision=True,
+            section=True,
+            page_or_anchor=True,
+            excerpt_or_evidence_id=True,
+            scope=True,
+            boundary_code=False,
+            chapter=True,
+            authority_level=True,
+            mode="normative_source",
+        ),
+        gold=GoldOracle(
+            accepted_evidence_ids=list(resp.evidence_ids),
+            required_claims=[GoldClaim(claim_id="c1", assertion=resp.claims[0], required=True)],
+            section_anchors=[c.section for c in resp.citations],
+            required_facts=[],
+        ),
+        grading=_CHAIN_GRADING_WEIGHTS,
+        independently_reviewed=True,
+    )
+
+    evaluator = _evaluator_with_resolver(_StubEvidenceResolver(resp.evidence_ids))
+    result = evaluator.evaluate_response(question, final_response)
+    # citation_complete/fabrication both pass -- only canonical provenance
+    # verification is unavailable, and that alone must be enough to fail
+    # citation_valid (and therefore grounded/passed).
+    assert result.citation_complete is True
+    assert result.fabricated_citation is False
+    assert result.citation_valid is False
+    assert result.passed is False
+
+
+@pytest.mark.contract
+def test_final_evaluator_flags_authority_violation_on_canonical_authority_level_mismatch():
+    # Codex review, PR #33, P2 (cuREm): authority_violation must also
+    # become True when a citation's authority_level disagrees with the
+    # resolver's canonical record for that evidence_id -- not just when the
+    # cited evidence_id itself falls outside the question's accepted set.
+    # The evidence_id here IS accepted (a pure membership check would say
+    # False), so this proves the new canonical-mismatch path is what flips
+    # the result, and that it also feeds authority_violations_count.
+    service = GovernedQAService()
+    resp = service.answer_question("PORT_POWER feature selector value", "USB_3_X")
+    final_response = resp.to_final_qa_response()
+
+    question = AcceptanceQuestion(
+        question_id="CHAIN-TEST-AUTHORITY-MISMATCH",
+        layer="L1",
+        priority="P0",
+        category="single_spec_fact",
+        question="PORT_POWER feature selector value",
+        expected_status="answer",
+        expected_scope="USB_3_X",
+        accepted_source_ids=["hub_reference"],
+        required_citation_fields=CitationRequirements(
+            document=True,
+            revision=True,
+            section=True,
+            page_or_anchor=True,
+            excerpt_or_evidence_id=True,
+            scope=True,
+            boundary_code=False,
+            chapter=False,
+            authority_level=False,
+            mode="normative_source",
+        ),
+        gold=GoldOracle(
+            accepted_evidence_ids=list(resp.evidence_ids),
+            required_claims=[GoldClaim(claim_id="c1", assertion=resp.claims[0], required=True)],
+            section_anchors=[c.section for c in resp.citations],
+            required_facts=[],
+        ),
+        grading=_CHAIN_GRADING_WEIGHTS,
+        independently_reviewed=True,
+    )
+
+    evaluator = _evaluator_with_resolver(service.retriever)
+
+    result = evaluator.evaluate_response(question, final_response)
+    assert result.authority_violation is False
+
+    mismatched = final_response.model_copy(
+        update={
+            "citations": [
+                citation.model_copy(update={"authority_level": "not-the-real-authority-level"})
+                for citation in final_response.citations
+            ]
+        }
+    )
+    mismatched_result = evaluator.evaluate_response(question, mismatched)
+    # The cited evidence_id set is unchanged -- still fully accepted -- so
+    # only the canonical authority_level mismatch can explain the flip.
+    assert set(mismatched_result.cited_evidence_ids).issubset(set(resp.evidence_ids))
+    assert mismatched_result.authority_violation is True
+    assert mismatched_result.citation_valid is False
+
+
+@pytest.mark.contract
+def test_final_evaluator_rejects_boundary_citation_with_unrequested_chapter_or_authority_level():
+    # Codex review, PR #33, P1 (cuREo): _required_citation_fields_present()
+    # must reject chapter/authority_level being present when NOT required,
+    # symmetrically with the other normative identity fields. This shape is
+    # reachable at the FinalQAResponse layer even though
+    # GroundedAnswer._check_contract() would reject the equivalent shape at
+    # the QAResponse layer -- evaluate_response() accepts any raw dict
+    # directly (e.g. from a benchmark answer_fn), so the evaluator's own
+    # schema must not rely on GroundedAnswer having already filtered this
+    # out upstream.
+    question = AcceptanceQuestion(
+        question_id="CHAIN-TEST-BOUNDARY-UNREQUESTED-CHAPTER",
+        layer="L4",
+        priority="P0",
+        category="uncertainty_conflict",
+        question="USB4 Hub 的 Warm Reset 規範為何？",
+        expected_status="abstain",
+        expected_scope="USB4_SPEC",
+        accepted_source_ids=[],
+        required_citation_fields=CitationRequirements(
+            document=False,
+            revision=False,
+            section=False,
+            page_or_anchor=False,
+            excerpt_or_evidence_id=True,
+            scope=True,
+            boundary_code=True,
+            chapter=False,
+            authority_level=False,
+            mode="boundary_evidence",
+        ),
+        gold=GoldOracle(
+            boundary_evidence_ids=["USB4-OUT-OF-SCOPE"],
+            required_claims=[GoldClaim(claim_id="b1", assertion="boundary claim", required=True)],
+            boundary_code="OUT_OF_SCOPE",
+        ),
+        grading=_CHAIN_GRADING_WEIGHTS,
+        independently_reviewed=True,
+    )
+
+    response = {
+        "status": "abstain",
+        "claims": ["boundary claim"],
+        "citations": [
+            {
+                "evidence_id": "USB4-OUT-OF-SCOPE",
+                "excerpt_or_evidence_id": "USB4-OUT-OF-SCOPE",
+                "scope": "USB4_SPEC",
+                "chapter": "10",
+                "authority_level": "authoritative",
+            }
+        ],
+        "scope": "USB4_SPEC",
+        "boundary_code": "OUT_OF_SCOPE",
+    }
+
+    evaluator = _evaluator_with_resolver(_StubEvidenceResolver(["USB4-OUT-OF-SCOPE"]))
+    result = evaluator.evaluate_response(question, response)
+    assert result.citation_complete is False
+
+    # Control: the identical shape without the unrequested fields must pass
+    # -- proving the rejection above is about the unrequested fields, not
+    # some unrelated part of this fixture.
+    clean_citation = {
+        key: value
+        for key, value in response["citations"][0].items()
+        if key not in ("chapter", "authority_level")
+    }
+    clean_response = {**response, "citations": [clean_citation]}
+    clean_result = evaluator.evaluate_response(question, clean_response)
+    assert clean_result.citation_complete is True
 
 
 @pytest.mark.unit

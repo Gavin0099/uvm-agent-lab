@@ -32,12 +32,16 @@ class EvidenceResolver(Protocol):
         chapter) for a resolvable evidence_id and still be scored
         citation_complete (Codex review, PR #33, P1).
 
-        This is optional at runtime: a resolver that only implements
-        get_evidence_by_id() (e.g. a test stub) still works with
-        FinalPOC1Evaluator, it just does not get the extra correctness
-        check -- the evaluator looks this method up with getattr() rather
-        than assuming every EvidenceResolver implements it, so existing
-        minimal resolvers are not broken by this addition.
+        The evaluator looks this method up with getattr() rather than
+        assuming every EvidenceResolver implements it, so a resolver that
+        only implements get_evidence_by_id() does not raise AttributeError.
+        However, a resolver lacking this method is NOT a free pass: any
+        *normative* submitted citation (one with a non-None `document`)
+        whose provenance cannot be verified this way is scored as invalid
+        (fail closed), because "the check was skipped" and "the citation is
+        correct" are not the same thing (Codex review, PR #33, P1). Only
+        non-normative (boundary/governance-shaped) citations are exempt --
+        they carry nothing to verify by design.
         """
         ...
 
@@ -162,11 +166,28 @@ class FinalPOC1Evaluator:
         question: AcceptanceQuestion,
     ) -> bool:
         requirements = question.required_citation_fields
+        # Symmetric presence check for every normative identity field,
+        # including chapter/authority_level: this is what keeps a
+        # *boundary* citation shape from posing as a *normative* one (all
+        # required fields present) and, just as important, keeps a
+        # normative-looking field from leaking onto a citation whose
+        # question never required it -- e.g. an abstention citation must
+        # not smuggle in a chapter/authority_level value under a
+        # boundary_evidence-mode question (Codex review, PR #33, P1).
+        # chapter/authority_level used to be checked one-directionally only
+        # (required -> must be present) to stay lenient with older ad-hoc
+        # fixtures that predate these fields being mandatory for
+        # answer/conflict questions; POC1AcceptanceSet.validate_contract()
+        # now enforces chapter=True/authority_level=True for every real,
+        # reviewed answer/conflict question, so that leniency is no longer
+        # needed and was itself a gap Codex flagged.
         fields = (
             "document",
             "revision",
+            "chapter",
             "section",
             "page_or_anchor",
+            "authority_level",
             "excerpt_or_evidence_id",
         )
         if not response.citations:
@@ -180,19 +201,6 @@ class FinalPOC1Evaluator:
                     and getattr(citation, field_name)
                 ):
                     return False
-            # chapter/authority_level are checked one-directionally (required
-            # -> must be present), unlike the symmetric fields above: those
-            # symmetric checks exist to keep a *boundary* citation shape from
-            # posing as a *normative* one (all-present vs. all-absent).
-            # chapter/authority_level are additional P0 provenance detail, not
-            # a shape discriminator -- a citation that already carries them
-            # (as qa_service.py's runtime Citations do) must not be penalized
-            # just because an older reviewed acceptance-manifest question
-            # never opted into requiring them (Codex review, PR #33, P1).
-            if requirements.chapter and not citation.chapter:
-                return False
-            if requirements.authority_level and not citation.authority_level:
-                return False
         if requirements.scope and not response.scope:
             return False
         if requirements.boundary_code and not response.boundary_code:
@@ -201,48 +209,59 @@ class FinalPOC1Evaluator:
             return False
         return True
 
-    def _canonical_provenance_matches(
+    _CANONICAL_PROVENANCE_FIELDS = (
+        "document",
+        "revision",
+        "chapter",
+        "section",
+        "page_or_anchor",
+        "authority_level",
+    )
+
+    def _canonical_field_mismatches(
         self,
         citation: FinalQACitation,
-    ) -> bool:
+    ) -> Optional[frozenset]:
         """
         Compare a submitted citation's document/revision/chapter/section/
         page_or_anchor/authority_level against the resolver's own canonical
-        record for that evidence_id, when the resolver can supply one.
+        record for that evidence_id.
 
-        Returns True (nothing to flag) when:
-        - the resolver does not implement get_canonical_citation_by_id at
-          all (an older/minimal resolver stub; fabrication is still caught
-          separately by the existing evidence_id-resolvability check), or
-        - evidence_id does not resolve to a canonical citation (unresolvable
-          IDs are already flagged as fabricated elsewhere), or
-        - the canonical shape is a boundary/governance citation (its
-          `document` is None) -- those carry no normative fields to compare,
-          by design (GroundedAnswer forbids normative fields on non-normative
-          citation kinds).
-
-        Returns False when a normative canonical citation exists and any of
-        the compared fields disagree with what was submitted -- e.g. a
-        response citing chapter="999" for an evidence_id whose real chapter
-        is "10" (Codex review, PR #33, P1).
+        Returns:
+        - an empty frozenset() when the citation is non-normative
+          (`citation.document is None`, e.g. a boundary/governance
+          citation) -- there is nothing normative to verify, by design
+          (GroundedAnswer forbids normative fields on non-normative citation
+          kinds), or when every compared field agrees with the canonical
+          record;
+        - a non-empty frozenset of the field names that disagree, when a
+          normative canonical record exists but some field was submitted
+          incorrectly (e.g. chapter="999" for an evidence_id whose real
+          chapter is "10");
+        - None when the citation IS normative but its provenance could not
+          be verified at all -- the resolver has no
+          get_canonical_citation_by_id(), the evidence_id does not resolve
+          to a canonical record, or the canonical record itself is
+          boundary-shaped (`document is None`, meaning the submitted
+          normative-looking citation actually maps to non-normative
+          evidence). Callers must treat None as "fail closed", not as "no
+          mismatch" -- an unverifiable normative citation is not the same
+          as a correct one (Codex review, PR #33, P1).
         """
+        is_normative_citation = citation.document is not None
+        if not is_normative_citation:
+            return frozenset()
         get_canonical = getattr(self.evidence_resolver, "get_canonical_citation_by_id", None)
         if get_canonical is None:
-            return True
+            return None
         canonical = get_canonical(citation.evidence_id)
         if canonical is None or getattr(canonical, "document", None) is None:
-            return True
-        for field_name in (
-            "document",
-            "revision",
-            "chapter",
-            "section",
-            "page_or_anchor",
-            "authority_level",
-        ):
-            if getattr(citation, field_name) != getattr(canonical, field_name):
-                return False
-        return True
+            return None
+        return frozenset(
+            field_name
+            for field_name in self._CANONICAL_PROVENANCE_FIELDS
+            if getattr(citation, field_name) != getattr(canonical, field_name)
+        )
 
     def _coerce_response(self, raw_response: Any) -> Optional[FinalQAResponse]:
         if isinstance(raw_response, FinalQAResponse):
@@ -287,7 +306,27 @@ class FinalPOC1Evaluator:
             if self.evidence_resolver.get_evidence_by_id(evidence_id) is not None
         }
         fabricated = resolved_ids != set(cited_ids)
-        authority_violation = not set(cited_ids).issubset(expected_ids)
+        citation_mismatches = [
+            self._canonical_field_mismatches(citation) for citation in response.citations
+        ]
+        canonical_provenance_ok = all(
+            mismatches is not None and not mismatches for mismatches in citation_mismatches
+        )
+        # authority_violation is True either when the cited evidence set
+        # falls outside what the question accepts (source-eligibility), OR
+        # when a citation's authority_level disagrees with the resolver's
+        # canonical record for that evidence_id -- e.g. a response citing
+        # the accepted evidence_id but reporting the wrong authority_level
+        # must still be counted against authority_violations_count, not
+        # just flagged via the separate citation_valid/grounded outcome
+        # (Codex review, PR #33, P2).
+        canonical_authority_mismatch = any(
+            mismatches is not None and "authority_level" in mismatches
+            for mismatches in citation_mismatches
+        )
+        authority_violation = (
+            not set(cited_ids).issubset(expected_ids) or canonical_authority_mismatch
+        )
         scope_correct = response.scope == question.expected_scope and all(
             citation.scope in {None, question.expected_scope}
             for citation in response.citations
@@ -328,10 +367,7 @@ class FinalPOC1Evaluator:
             evidence_shape_correct
             and not fabricated
             and not authority_violation
-            and all(
-                self._canonical_provenance_matches(citation)
-                for citation in response.citations
-            )
+            and canonical_provenance_ok
         )
         grounded = (
             status_correct

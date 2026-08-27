@@ -45,10 +45,13 @@ class CitationRequirements(BaseModel):
     # Additive P0 provenance flags (docs/USB_SPEC_QA_POC1_SCOPE.md Section 5).
     # Default False for backward compatibility with the existing reviewed
     # acceptance manifest, which never declared them; a question may opt in
-    # by setting either flag True (final_evaluator.py's
-    # _required_citation_fields_present() enforces them one-directionally:
-    # required -> must be present, not a symmetric absent/present shape
-    # check like the fields above) (Codex review, PR #33, P1).
+    # by setting either flag True. final_evaluator.py's
+    # _required_citation_fields_present() enforces both symmetrically, the
+    # same as the other normative identity fields above: required -> must
+    # be present, and NOT required -> must be absent (a citation must not
+    # smuggle in a chapter/authority_level value under a question that
+    # never asked for one, e.g. a boundary_evidence-mode abstention)
+    # (Codex review, PR #33, P1).
     chapter: bool = False
     authority_level: bool = False
     mode: Literal[

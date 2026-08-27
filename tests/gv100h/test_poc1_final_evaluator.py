@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -179,9 +180,33 @@ class SyntheticEvidenceResolver:
                 + question["gold"]["boundary_evidence_ids"]
             )
         }
+        # Canonical provenance for every normative (answer/conflict)
+        # evidence_id, derived from the exact citation shape a well-behaved
+        # response legitimately submits for it (see _response() below).
+        # FinalPOC1Evaluator now fails closed on normative citations it
+        # cannot verify against a canonical record (Codex review, PR #33,
+        # P1); without this, every "answer"/"conflict" case in this file
+        # would be scored citation_valid=False purely because this stub
+        # predates that check, not because the citations are wrong.
+        self._canonical_citations = {
+            citation["evidence_id"]: SimpleNamespace(
+                document=citation["document"],
+                revision=citation["revision"],
+                chapter=citation["chapter"],
+                section=citation["section"],
+                page_or_anchor=citation["page_or_anchor"],
+                authority_level=citation["authority_level"],
+            )
+            for index in range(1, 51)
+            if _question(index)["expected_status"] in ("answer", "conflict")
+            for citation in _response(index)["citations"]
+        }
 
     def get_evidence_by_id(self, evidence_id: str):
         return object() if evidence_id in self._ids else None
+
+    def get_canonical_citation_by_id(self, evidence_id: str):
+        return self._canonical_citations.get(evidence_id)
 
 
 def _response(index: int) -> dict:
