@@ -531,16 +531,54 @@ class GovernedQAService:
         # compared scope, this fails closed to an abstain instead of
         # silently certifying an incomplete/overbroad comparison.
         CROSS_SCOPE_COMPARISON_SCOPES = frozenset({"USB_2_0", "USB_3_X"})
-        comparison_claims: List[str] = []
+        wants_descriptor_comparison = False
+        wants_port_power_comparison = False
         if "相同" in q_lower or "區分" in q_lower or "差異" in q_lower or "是否" in q_lower:
-            if "descriptor" in q_lower or "0x2a" in q_lower or "0x29" in q_lower or "描述符" in q_lower:
-                comparison_claims.append(
-                    "總結：USB 2.0 (0x29) 與 USB 3.x (0x2A) 描述符不同，兩者不能混用；USB 2.0 收到 0x2A 為未定義。"
-                )
-            if "port_power" in q_lower:
-                comparison_claims.append(
-                    "總結：PORT_POWER 特徵選擇器在 USB 2.0 與 USB 3.x 皆為 8 (0x0008)，兩者相同無差異。"
-                )
+            wants_descriptor_comparison = (
+                "descriptor" in q_lower or "0x2a" in q_lower or "0x29" in q_lower or "描述符" in q_lower
+            )
+            wants_port_power_comparison = "port_power" in q_lower
+
+        # Compound comparisons naming more than one topic in the same
+        # question (e.g. "descriptor 與 PORT_POWER 是否相同?") would require
+        # a topic x scope evidence matrix and per-topic claim binding to
+        # certify correctly. That is query-planning/reasoning-engine scope,
+        # not the "answers must have traceable evidence" contract this PR
+        # is responsible for -- PR #33's scope is explicitly frozen to
+        # single-topic comparisons; compound comparisons fail closed to an
+        # abstain instead of growing a bespoke reasoning engine one topic
+        # at a time (Codex review, PR #33, P1: scope freeze decision).
+        if wants_descriptor_comparison and wants_port_power_comparison:
+            return self._build_response(
+                answer=(
+                    "現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論 (Abstain)："
+                    "此問題同時比較多個主題（compound comparison），目前系統僅支援單一主題的"
+                    "跨版本比較，請將問題拆成每次只詢問一個主題。"
+                ),
+                scope=answer_scope or "OUT_OF_SCOPE",
+                cited_evidences=[],
+                claim_level="abstain_unsupported_compound_comparison",
+                boundary=(
+                    "Compound multi-topic comparisons are out of scope for "
+                    "this deterministic evidence-contract prototype; only a "
+                    "single comparison topic per question is certified. Ask "
+                    "about one topic (e.g. descriptor OR PORT_POWER) at a "
+                    "time."
+                ),
+                is_abstain=True,
+                status="abstain",
+                boundary_code="OUT_OF_SCOPE",
+            )
+
+        comparison_claims: List[str] = []
+        if wants_descriptor_comparison:
+            comparison_claims.append(
+                "總結：USB 2.0 (0x29) 與 USB 3.x (0x2A) 描述符不同，兩者不能混用；USB 2.0 收到 0x2A 為未定義。"
+            )
+        if wants_port_power_comparison:
+            comparison_claims.append(
+                "總結：PORT_POWER 特徵選擇器在 USB 2.0 與 USB 3.x 皆為 8 (0x0008)，兩者相同無差異。"
+            )
 
         if comparison_claims and not CROSS_SCOPE_COMPARISON_SCOPES.issubset(cited_scopes):
             missing_scopes = sorted(CROSS_SCOPE_COMPARISON_SCOPES - cited_scopes)

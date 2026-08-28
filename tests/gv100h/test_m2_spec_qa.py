@@ -1050,6 +1050,30 @@ def test_governed_qa_service_descriptor_comparison_passes_with_explicit_cross_sc
 
 
 @pytest.mark.unit
+def test_governed_qa_service_compound_comparison_abstains_even_with_full_evidence():
+    # Scope freeze decision (Codex review, PR #33, P1): a question naming
+    # more than one comparison topic (descriptor AND PORT_POWER) would
+    # require a topic x scope evidence matrix and per-topic claim binding
+    # to certify correctly -- that is query-planning/reasoning-engine scope,
+    # which PR #33 explicitly does not take on. Compound comparisons abstain
+    # unconditionally, even when explicit_cross_scope makes every scope for
+    # every topic available, rather than growing a bespoke topic-by-topic
+    # reasoning engine.
+    service = GovernedQAService()
+    resp = service.answer_question(
+        "USB 2.0 與 USB 3.x 的 descriptor 與 PORT_POWER 是否相同？",
+        "USB_HUB_COMMON",
+        retrieval_mode="explicit_cross_scope",
+        allowed_evidence_scopes=["USB_2_0", "USB_3_X"],
+    )
+    assert resp.status == "abstain"
+    assert resp.claim_level == "abstain_unsupported_compound_comparison"
+    assert resp.boundary_code == "OUT_OF_SCOPE"
+    assert resp.claims == []
+    assert resp.citations == []
+
+
+@pytest.mark.unit
 def test_governed_qa_service_rejects_allowed_evidence_scopes_without_answer_scope():
     # Codex review regression (PR #31, P1): QARequest permits declaring
     # allowed_evidence_scopes without answer_scope, but RetrievalPolicy
