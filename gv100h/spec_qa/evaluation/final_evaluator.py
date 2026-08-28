@@ -5,7 +5,7 @@ import json
 import re
 from typing import Any, Callable, Dict, List, Literal, Optional, Protocol
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from gv100h.spec_qa.contracts.evidence_contract import validate_conflict_provenance
 from gv100h.spec_qa.contracts.poc1_acceptance_contract import (
@@ -69,6 +69,31 @@ class FinalQACitation(BaseModel):
     # projecting onto this schema (Codex review, PR #33, P1).
     chapter: Optional[str] = None
     authority_level: Optional[str] = None
+
+    @field_validator(
+        "evidence_id",
+        "document",
+        "revision",
+        "chapter",
+        "section",
+        "page_or_anchor",
+        "excerpt_or_evidence_id",
+        "scope",
+        "authority_level",
+    )
+    @classmethod
+    def _reject_blank_strings(cls, value: Optional[str]) -> Optional[str]:
+        # A whitespace-only value (e.g. chapter=" ") is truthy in Python, so
+        # a naive presence check in _required_citation_fields_present()
+        # would score it as citation_complete=True even though it carries
+        # no real provenance -- inflating citation_completeness_rate with
+        # malformed input that canonical comparison would reject anyway
+        # (Codex review, PR #33, P2, fresh finding on 68a5024). Reject
+        # rather than silently .strip(): a provenance contract should fail
+        # closed on malformed input, not repair it on the caller's behalf.
+        if value is not None and not value.strip():
+            raise ValueError("citation string fields must not be blank")
+        return value
 
 
 class FinalQAResponse(BaseModel):

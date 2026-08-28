@@ -6,8 +6,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from pydantic import ValidationError
 
-from gv100h.spec_qa.evaluation.final_evaluator import FinalPOC1Evaluator
+from gv100h.spec_qa.evaluation.final_evaluator import FinalPOC1Evaluator, FinalQACitation
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -426,6 +427,50 @@ def test_final_evaluator_rejects_explicitly_empty_forbidden_field_on_abstain(tmp
 
     assert result.passed is False
     assert result.citation_complete is False
+
+
+@pytest.mark.parametrize(
+    "field_name,blank_value",
+    [
+        ("evidence_id", " "),
+        ("document", "   "),
+        ("revision", "\n"),
+        ("chapter", " "),
+        ("section", " "),
+        ("page_or_anchor", " "),
+        ("excerpt_or_evidence_id", " "),
+        ("scope", " "),
+        ("authority_level", "\t"),
+    ],
+)
+def test_final_qa_citation_rejects_blank_string_fields(field_name, blank_value):
+    # Codex review, PR #33, P2, fresh finding on 68a5024: a whitespace-only
+    # value (e.g. chapter=" ") is truthy in Python, so
+    # _required_citation_fields_present()'s presence check previously
+    # scored it citation_complete=True even though canonical comparison
+    # later rejects the citation -- inflating the separately reported
+    # citation_completeness_rate with malformed provenance.
+    # FinalQACitation now rejects blank strings for every citation string
+    # field at construction (fail closed) rather than silently repairing
+    # them with .strip().
+    kwargs = {"evidence_id": "EVIDENCE-1", field_name: blank_value}
+    with pytest.raises(ValidationError):
+        FinalQACitation(**kwargs)
+
+
+def test_final_qa_citation_accepts_non_blank_string_fields():
+    citation = FinalQACitation(
+        evidence_id="EVIDENCE-1",
+        document="USB4 Spec",
+        revision="v1.0",
+        section="4.2",
+        page_or_anchor="p12",
+        excerpt_or_evidence_id="EVIDENCE-1",
+        scope="USB_HUB_COMMON",
+        chapter="4",
+        authority_level="normative",
+    )
+    assert citation.chapter == "4"
 
 
 def test_final_evaluator_rejects_unknown_evidence_and_wrong_status(tmp_path: Path):
