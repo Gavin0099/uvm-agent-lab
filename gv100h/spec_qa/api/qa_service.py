@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Optional, Sequence, Tuple
+from typing import Dict, Any, List, Literal, Optional, Sequence, Tuple
 from pydantic import BaseModel, Field, model_validator
 
 from gv100h.spec_qa.retrieval.governed_retriever import GovernedSpecRetriever, GovernedEvidence
@@ -40,6 +40,32 @@ class QAResponse(BaseModel):
     citations: List[Citation] = Field(default_factory=list)
     boundary_code: Optional[BoundaryCode] = None
     evidence_ids: List[str] = Field(default_factory=list)
+    # Explicit, serialization-persistent discriminator between the
+    # pre-existing legacy API shape and a genuine structured Evidence
+    # Contract response. This exists because construction-time metadata
+    # (``model_fields_set``) cannot be used for this: it does not survive
+    # model_dump()/model_validate() or JSON round trips (see the history in
+    # `_is_abstain_matches_status` below). `contract_mode` is ordinary
+    # field data instead, so it round-trips like any other field.
+    #
+    # Every internal production constructor
+    # (GovernedQAService._build_response) sets this to "structured". The
+    # default of "legacy" exists solely so a caller building a QAResponse
+    # from only the pre-existing legacy fields (answer/scope/boundary/
+    # is_abstain, with status/boundary_code left at their defaults) keeps
+    # working unchanged and keeps round-tripping.
+    #
+    # This field is deliberately NOT trusted as the sole gate for the
+    # abstain/boundary_code invariant below: a caller trying to bypass the
+    # Evidence Contract could simply never set it to "structured" and keep
+    # the lenient default. The value-based fallback in
+    # `_is_abstain_matches_status` (triggering on non-empty claims/
+    # citations regardless of this flag) is what actually closes that
+    # loophole; `contract_mode="structured"` additionally catches a
+    # genuinely structured caller whose abstention happens to carry no
+    # claims/citations of its own (Codex review, PR #33, P2, fresh finding
+    # on 4ec68fe).
+    contract_mode: Literal["legacy", "structured"] = "legacy"
 
     @model_validator(mode="after")
     def _is_abstain_matches_status(self) -> "QAResponse":
@@ -72,30 +98,13 @@ class QAResponse(BaseModel):
             )
         # boundary_code has no legacy-safe default: BoundaryCode is a closed
         # set of specific reasons (see poc1_acceptance_contract.BoundaryCode),
-        # with no generic "unspecified" member to fall back on. A prior fix
-        # here gated this check on `model_fields_set` to distinguish a
-        # legacy-only caller (status/boundary_code left at their defaults)
-        # from one that explicitly opted into the new contract fields (Codex
-        # review, PR #33, P2, fresh finding on 7c74da3). `model_fields_set`
-        # is constructor-time metadata, not part of the serialized data: a
-        # plain `model_dump()`/`model_validate()` or JSON round trip of that
-        # exact legacy-constructed instance re-presents every field
-        # (including ones still at their default value) as explicitly set,
-        # so the same "previously-valid legacy abstention" failed to survive
-        # a round trip -- it must not be used to encode transient
-        # construction provenance for an invariant that has to hold for a
-        # coherently serialized contract too (Codex review, PR #33, P2,
-        # fresh finding on b05464f).
-        #
-        # The invariant is therefore expressed purely on field values, with
-        # no dependency on how the object was built: "answer" must never
-        # carry a boundary_code (mirrors GroundedAnswer), "conflict" always
-        # requires one (a live source conflict with no stated reason is not
-        # a meaningful signal, and nothing defaults into "conflict" -- it is
-        # never the unqualified legacy path), and "abstain" leaves
-        # boundary_code optional -- both a generic legacy abstention
-        # (boundary_code=None) and a new-contract abstention with a specific
-        # reason are valid, round-trip-stable shapes.
+        # with no generic "unspecified" member to fall back on. Two prior
+        # fixes here (Codex review, PR #33, P2, findings on 7c74da3 and
+        # b05464f) tried gating this check on `model_fields_set` and then on
+        # nothing at all; both left a real gap -- see `contract_mode` above
+        # for why construction metadata cannot express this, and the
+        # `is_structured` derivation below for how the requirement is
+        # actually enforced without it.
         if self.status == "answer" and self.boundary_code is not None:
             raise ValueError(
                 "boundary_code must be absent when status == 'answer'; got "
@@ -104,6 +113,33 @@ class QAResponse(BaseModel):
         if self.status == "conflict" and self.boundary_code is None:
             raise ValueError(
                 "boundary_code must be populated when status == 'conflict'"
+            )
+        # An "abstain" response must state a boundary_code unless it is the
+        # untouched legacy shape: legacy compatibility is Adapter-shaped
+        # leniency, not something a caller who is actually using the
+        # structured Evidence Contract fields gets to inherit. A response is
+        # treated as structured -- and therefore held to GroundedAnswer's
+        # rule that every abstention states a boundary -- if it declares
+        # contract_mode="structured", OR if it carries any claims/citations
+        # at all (populating those fields is itself opting into the
+        # structured contract, regardless of what contract_mode says; see
+        # the field comment above for why contract_mode alone cannot be
+        # trusted as the sole gate). Only a response with none of that --
+        # the bare legacy shape -- keeps the pre-existing boundary-less
+        # abstention (Codex review, PR #33, P2, fresh finding on 4ec68fe).
+        is_structured = (
+            self.contract_mode == "structured"
+            or bool(self.claims)
+            or bool(self.citations)
+        )
+        if self.status == "abstain" and is_structured and self.boundary_code is None:
+            raise ValueError(
+                "boundary_code must be populated for a structured 'abstain' "
+                "response (contract_mode='structured', or claims/citations "
+                "populated); only an untouched contract_mode='legacy' "
+                "response with no claims/citations preserves the "
+                "pre-existing boundary-less abstention for backward "
+                "compatibility"
             )
         return self
 
@@ -552,6 +588,7 @@ class GovernedQAService:
             citations=citations,
             boundary_code=boundary_code,
             evidence_ids=evidence_ids,
+            contract_mode="structured",
         )
 
 

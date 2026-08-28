@@ -590,6 +590,15 @@ class FinalPOC1Evaluator:
         citation_complete = self._required_citation_fields_present(response, question)
         claim_traceability_ok = self._claim_traceability_ok(response)
         conflict_provenance_ok = self._conflict_provenance_ok(response)
+        # GroundedAnswer rejects a response that cites the same evidence_id
+        # twice (that is not two independent pieces of evidence, it is one
+        # citation padded to look like two). Every check above that turns
+        # cited_ids into a set (fabricated/authority_violation/
+        # evidence_shape_correct) silently absorbs that duplication, so a
+        # direct FinalQAResponse from an agent_fn that bypasses QAResponse
+        # entirely could otherwise pass every other gate on a duplicated,
+        # individually-genuine citation (Codex review, PR #33, P2).
+        no_duplicate_citations = len(cited_ids) == len(set(cited_ids))
 
         if question.expected_status == "answer":
             evidence_shape_correct = bool(cited_ids) and set(cited_ids).issubset(expected_ids)
@@ -603,6 +612,7 @@ class FinalPOC1Evaluator:
             and not authority_violation
             and canonical_provenance_ok
             and conflict_provenance_ok
+            and no_duplicate_citations
         )
         grounded = (
             status_correct

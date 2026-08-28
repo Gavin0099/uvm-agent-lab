@@ -2372,6 +2372,78 @@ def test_final_evaluator_rejects_boundary_citation_with_unrequested_chapter_or_a
     assert clean_result.citation_complete is True
 
 
+@pytest.mark.contract
+def test_final_evaluator_rejects_duplicate_citation_evidence_ids_in_direct_response():
+    # Codex review, PR #33, P2: GroundedAnswer rejects a response that
+    # cites the same evidence_id twice -- padding one citation to look like
+    # two independent pieces of evidence. evaluate_response() accepts any
+    # raw dict directly (bypassing QAResponse/GroundedAnswer entirely, e.g.
+    # a benchmark agent_fn returning a direct FinalQAResponse), and every
+    # OTHER gate here (fabricated/authority_violation/
+    # evidence_shape_correct) collapses cited_ids into a set, silently
+    # absorbing the duplication -- so citing one genuine,
+    # canonically-verifiable evidence_id twice could otherwise pass
+    # citation_valid outright.
+    question = AcceptanceQuestion(
+        question_id="CHAIN-TEST-DUPLICATE-CITATION",
+        layer="L4",
+        priority="P0",
+        category="uncertainty_conflict",
+        question="USB4 Hub 的 Warm Reset 規範為何？",
+        expected_status="abstain",
+        expected_scope="USB4_SPEC",
+        accepted_source_ids=[],
+        required_citation_fields=CitationRequirements(
+            document=False,
+            revision=False,
+            section=False,
+            page_or_anchor=False,
+            excerpt_or_evidence_id=True,
+            scope=True,
+            boundary_code=True,
+            chapter=False,
+            authority_level=False,
+            mode="boundary_evidence",
+        ),
+        gold=GoldOracle(
+            boundary_evidence_ids=["USB4-OUT-OF-SCOPE"],
+            required_claims=[GoldClaim(claim_id="b1", assertion="boundary claim", required=True)],
+            boundary_code="OUT_OF_SCOPE",
+        ),
+        grading=_CHAIN_GRADING_WEIGHTS,
+        independently_reviewed=True,
+    )
+
+    duplicated_citation = {
+        "evidence_id": "USB4-OUT-OF-SCOPE",
+        "excerpt_or_evidence_id": "USB4-OUT-OF-SCOPE",
+        "scope": "USB4_SPEC",
+    }
+    response = {
+        "status": "abstain",
+        "claims": ["boundary claim"],
+        "citations": [duplicated_citation, dict(duplicated_citation)],
+        "scope": "USB4_SPEC",
+        "boundary_code": "OUT_OF_SCOPE",
+    }
+
+    evaluator = _evaluator_with_resolver(
+        _StubEvidenceResolverWithCanonicalBoundary(["USB4-OUT-OF-SCOPE"])
+    )
+    result = evaluator.evaluate_response(question, response)
+    assert result.fabricated_citation is False
+    assert result.authority_violation is False
+    assert result.citation_valid is False
+    assert result.passed is False
+
+    # Control: the identical shape with only ONE copy of the citation must
+    # pass citation_valid -- proving the rejection above is caused by the
+    # duplication, not some other property of this fixture.
+    single_response = {**response, "citations": [duplicated_citation]}
+    single_result = evaluator.evaluate_response(question, single_response)
+    assert single_result.citation_valid is True
+
+
 @pytest.mark.unit
 def test_qa_service_usb4_corpus_membership_question_is_answered_not_abstained():
     # Commit C item 5 (docs/USB_SPEC_QA_POC1_SCOPE.md lines 86-88): a
@@ -2627,6 +2699,15 @@ def _qa_response_kwargs(**overrides) -> dict:
     # happens when _build_response() separately constructs a
     # GroundedAnswer); these tests isolate the
     # is_abstain/status/boundary_code projection check alone.
+    #
+    # contract_mode defaults to "structured" here (unlike QAResponse's own
+    # "legacy" default) because every test below is deliberately exercising
+    # explicit new-contract usage (status/boundary_code set on purpose, not
+    # just inherited defaults) -- the same declaration every internal
+    # production constructor (GovernedQAService._build_response) makes.
+    # Tests that specifically need the untouched legacy shape override this
+    # or construct QAResponse directly (see the legacy-only-construction and
+    # round-trip tests below).
     base = dict(
         answer="an answer",
         scope="USB_3_X",
@@ -2636,6 +2717,7 @@ def _qa_response_kwargs(**overrides) -> dict:
         is_abstain=False,
         status="answer",
         boundary_code=None,
+        contract_mode="structured",
     )
     base.update(overrides)
     return base
@@ -2761,16 +2843,39 @@ def test_qa_response_rejects_missing_boundary_code_for_conflict_status():
 
 
 @pytest.mark.unit
-def test_qa_response_allows_missing_boundary_code_for_abstain_status():
-    # Codex review, PR #33, P2, fresh finding on b05464f: a prior fix gated
-    # the boundary_code requirement on `model_fields_set` to distinguish a
-    # legacy-default abstention from an explicit new-contract one, but that
-    # metadata does not survive a model_dump()/model_validate() round trip
-    # (see the round-trip tests below), so the check now allows
-    # status="abstain" with boundary_code=None outright -- explicitly, not
-    # just via defaults -- rather than depend on construction history.
+def test_qa_response_rejects_missing_boundary_code_for_structured_abstain_status():
+    # Codex review, PR #33, P2, fresh finding on 4ec68fe: the b05464f fix
+    # (allowing status="abstain" with boundary_code=None unconditionally)
+    # was itself too lenient -- it let a caller that is genuinely using the
+    # structured Evidence Contract fields (contract_mode="structured", the
+    # default used throughout this helper and by every internal production
+    # constructor) skip stating a boundary for an abstention, even though
+    # GroundedAnswer requires one. Only the untouched legacy shape (see the
+    # legacy-only tests below) keeps the boundary-less abstention.
+    with pytest.raises(
+        ValidationError,
+        match="boundary_code must be populated for a structured 'abstain'",
+    ):
+        QAResponse(
+            **_qa_response_kwargs(
+                is_abstain=True,
+                status="abstain",
+                boundary_code=None,
+                boundary="Exceeds governed knowledge surface.",
+            )
+        )
+
+
+@pytest.mark.unit
+def test_qa_response_allows_missing_boundary_code_for_explicit_legacy_contract_mode():
+    # An explicit contract_mode="legacy" override (with no claims/
+    # citations populated) still preserves the boundary-less abstention --
+    # this is the escape hatch a genuine legacy adapter would use,
+    # distinct from the untouched-defaults case covered by the
+    # legacy-only-construction tests below.
     response = QAResponse(
         **_qa_response_kwargs(
+            contract_mode="legacy",
             is_abstain=True,
             status="abstain",
             boundary_code=None,
@@ -2779,6 +2884,37 @@ def test_qa_response_allows_missing_boundary_code_for_abstain_status():
     )
     assert response.status == "abstain"
     assert response.boundary_code is None
+    assert response.contract_mode == "legacy"
+
+
+@pytest.mark.unit
+def test_qa_response_rejects_missing_boundary_code_for_abstain_with_claims_despite_legacy_contract_mode():
+    # Codex review, PR #33, P2, fresh finding on 4ec68fe (the precise
+    # scenario): a caller could leave contract_mode at its "legacy" default
+    # while still populating claims/citations -- exactly the structured
+    # usage the finding describes. contract_mode is not trusted as the
+    # sole gate for this reason: non-empty claims/citations force the
+    # boundary_code requirement regardless of what contract_mode says.
+    citation = Citation(
+        evidence_id="USB3-EVIDENCE-1",
+        excerpt="Some cited excerpt text.",
+    )
+    with pytest.raises(
+        ValidationError,
+        match="boundary_code must be populated for a structured 'abstain'",
+    ):
+        QAResponse(
+            **_qa_response_kwargs(
+                contract_mode="legacy",
+                is_abstain=True,
+                status="abstain",
+                boundary_code=None,
+                boundary="Exceeds governed knowledge surface.",
+                claims=["Some claim."],
+                claim_evidence_ids=[["USB3-EVIDENCE-1"]],
+                citations=[citation],
+            )
+        )
 
 
 @pytest.mark.unit
@@ -2867,3 +3003,38 @@ def test_qa_response_legacy_abstention_survives_json_round_trip():
     assert round_tripped.status == "abstain"
     assert round_tripped.boundary_code is None
     assert round_tripped.is_abstain is True
+
+
+@pytest.mark.unit
+def test_qa_response_structured_contract_mode_survives_round_trip_and_still_enforces_boundary():
+    # contract_mode is ordinary field data (unlike model_fields_set), so it
+    # must round-trip like any other field, and the requirement it gates
+    # must still fire against a round-tripped payload, not just at initial
+    # construction.
+    citation = Citation(
+        evidence_id="USB3-EVIDENCE-1",
+        excerpt="Some cited excerpt text.",
+    )
+    original = QAResponse(
+        **_qa_response_kwargs(
+            is_abstain=True,
+            status="abstain",
+            boundary_code="OUT_OF_SCOPE",
+            boundary="Exceeds governed knowledge surface.",
+            claims=["Some claim."],
+            claim_evidence_ids=[["USB3-EVIDENCE-1"]],
+            citations=[citation],
+        )
+    )
+    dumped = original.model_dump()
+    assert dumped["contract_mode"] == "structured"
+
+    round_tripped = QAResponse.model_validate(dumped)
+    assert round_tripped.contract_mode == "structured"
+
+    dumped["boundary_code"] = None
+    with pytest.raises(
+        ValidationError,
+        match="boundary_code must be populated for a structured 'abstain'",
+    ):
+        QAResponse.model_validate(dumped)
