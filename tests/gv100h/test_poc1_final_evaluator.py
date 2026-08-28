@@ -404,6 +404,30 @@ def test_final_evaluator_rejects_normative_fields_on_abstain(tmp_path: Path):
     assert result.citation_complete is False
 
 
+def test_final_evaluator_rejects_explicitly_empty_forbidden_field_on_abstain(tmp_path: Path):
+    # Codex review regression (PR #33, P2, fresh finding on 07d45d0): the
+    # "field not required but present" check used truthiness, so an
+    # explicitly empty string (e.g. chapter="") on a boundary/abstention
+    # citation was treated as absent and slipped past citation_complete,
+    # even though a real value was submitted for a forbidden normative
+    # field.
+    manifest, path = _write_manifest(tmp_path)
+    evaluator = FinalPOC1Evaluator(
+        str(path),
+        evidence_resolver=SyntheticEvidenceResolver(manifest),
+    )
+    response = _response(50)
+    response["citations"][0]["chapter"] = ""
+
+    result = evaluator.evaluate_response(
+        evaluator.manifest.questions[49],
+        response,
+    )
+
+    assert result.passed is False
+    assert result.citation_complete is False
+
+
 def test_final_evaluator_rejects_unknown_evidence_and_wrong_status(tmp_path: Path):
     manifest, path = _write_manifest(tmp_path)
     evaluator = FinalPOC1Evaluator(

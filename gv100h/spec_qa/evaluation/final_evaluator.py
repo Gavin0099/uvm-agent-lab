@@ -265,9 +265,17 @@ class FinalPOC1Evaluator:
             for field_name in fields:
                 if getattr(requirements, field_name) and not getattr(citation, field_name):
                     return False
+                # `is not None` (not truthiness): an explicitly empty string
+                # (e.g. chapter="") is still a forbidden normative field
+                # smuggled onto a citation that must not carry one -- a
+                # truthiness check treats "" the same as unset and lets it
+                # slip through, and _canonical_field_mismatches() never
+                # independently catches this because it only compares
+                # provenance fields for citations it judges normative
+                # (Codex review, PR #33, P2, fresh finding on 07d45d0).
                 if (
                     not getattr(requirements, field_name)
-                    and getattr(citation, field_name)
+                    and getattr(citation, field_name) is not None
                 ):
                     return False
         if requirements.scope and not response.scope:
