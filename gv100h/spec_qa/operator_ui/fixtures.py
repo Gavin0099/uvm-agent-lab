@@ -1,7 +1,8 @@
 """Frozen QAResponse fixtures for the Operator UI.
 
 Presentation fixtures only. They must remain valid GroundedAnswer /
-QAResponse shapes and must not reconstruct a second evidence registry.
+QAResponse shapes, must not reconstruct a second evidence registry, and
+must not reuse production evidence IDs or provenance.
 """
 
 from __future__ import annotations
@@ -11,6 +12,15 @@ from typing import Dict, List
 from gv100h.spec_qa.api.qa_service import QAResponse
 from gv100h.spec_qa.contracts.evidence_contract import Citation
 
+FIXTURE_DOCUMENT = "operator-ui-fixture"
+FIXTURE_REVISION = "synthetic-v1"
+FIXTURE_ID_PREFIX = "FIXTURE-"
+
+FIXTURE_ANSWER_ID = "FIXTURE-ANSWER-USB3-PORT-POWER"
+FIXTURE_ABSTAIN_ID = "FIXTURE-ABSTAIN-USB4"
+FIXTURE_CONFLICT_A_ID = "FIXTURE-CONFLICT-USB3"
+FIXTURE_CONFLICT_B_ID = "FIXTURE-CONFLICT-USB2"
+
 
 def _citation(
     *,
@@ -18,8 +28,8 @@ def _citation(
     excerpt: str,
     section: str = "",
     authority_level: str = "authoritative",
-    document: str = "usb-if-hub-spec-reference",
-    revision: str = "808f23c",
+    document: str = FIXTURE_DOCUMENT,
+    revision: str = FIXTURE_REVISION,
     citation_kind: str = "normative",
 ) -> Citation:
     if citation_kind == "boundary":
@@ -44,31 +54,31 @@ def _citation(
 
 def answered_port_power() -> QAResponse:
     citation = _citation(
-        evidence_id="USB3-FEAT-PORT_POWER",
+        evidence_id=FIXTURE_ANSWER_ID,
         section="10.16.2.1",
-        excerpt="In USB 3.x Hub specifications, PORT_POWER feature selector value is 8 (0x0008).",
+        excerpt="Synthetic fixture: USB 3.x Hub Class PORT_POWER selector value is presented as 8 (0x0008).",
     )
     return QAResponse(
-        answer="USB 3.x Hub Class PORT_POWER feature selector value is 8 (0x0008).",
+        answer="Synthetic fixture answer: USB 3.x Hub Class PORT_POWER feature selector value is 8 (0x0008).",
         scope="USB_3_X",
         cited_evidences=[],
         claim_level="normative_requirement",
         boundary="Strictly bounded by in-scope governed evidence.",
         is_abstain=False,
         status="answer",
-        claims=["PORT_POWER feature selector value is 8 (0x0008)."],
-        claim_evidence_ids=[["USB3-FEAT-PORT_POWER"]],
+        claims=["Synthetic fixture: PORT_POWER feature selector value is 8 (0x0008)."],
+        claim_evidence_ids=[[FIXTURE_ANSWER_ID]],
         citations=[citation],
         boundary_code=None,
-        evidence_ids=["USB3-FEAT-PORT_POWER"],
+        evidence_ids=[FIXTURE_ANSWER_ID],
         contract_mode="structured",
     )
 
 
 def abstained_usb4() -> QAResponse:
     citation = _citation(
-        evidence_id="USB4-OUT-OF-SCOPE",
-        excerpt="Phase 1 corpus does not include the USB4 specification.",
+        evidence_id=FIXTURE_ABSTAIN_ID,
+        excerpt="Synthetic fixture: Phase 1 corpus does not include the USB4 specification.",
         citation_kind="boundary",
     )
     return QAResponse(
@@ -79,32 +89,30 @@ def abstained_usb4() -> QAResponse:
         boundary="Exceeds governed knowledge surface of usb-if-hub-spec-reference.",
         is_abstain=True,
         status="abstain",
-        claims=["Phase 1 corpus does not include the USB4 specification."],
-        claim_evidence_ids=[["USB4-OUT-OF-SCOPE"]],
+        claims=["Synthetic fixture: Phase 1 corpus does not include the USB4 specification."],
+        claim_evidence_ids=[[FIXTURE_ABSTAIN_ID]],
         citations=[citation],
         boundary_code="OUT_OF_SCOPE",
-        evidence_ids=["USB4-OUT-OF-SCOPE"],
+        evidence_ids=[FIXTURE_ABSTAIN_ID],
         contract_mode="structured",
     )
 
 
 def conflict_port_power_authority() -> QAResponse:
     usb3 = _citation(
-        evidence_id="USB3-FEAT-PORT_POWER",
+        evidence_id=FIXTURE_CONFLICT_A_ID,
         section="10.16.2.1",
-        excerpt="USB 3.x treats PORT_POWER as an authoritative Hub Class selector value 8.",
-        revision="usb32-1.1",
+        excerpt="Synthetic fixture A treats PORT_POWER as an authoritative Hub Class selector value 8.",
+        authority_level="authoritative",
     )
     usb2 = _citation(
-        evidence_id="USB2-FEAT-PORT_POWER",
+        evidence_id=FIXTURE_CONFLICT_B_ID,
         section="11.24.2.1",
-        excerpt="A competing record treats PORT_POWER as informative-only for USB 2.0.",
-        document="usb-2.0",
-        revision="usb20-2.0",
+        excerpt="Synthetic fixture B treats PORT_POWER as informative-only.",
         authority_level="informative",
     )
     return QAResponse(
-        answer="Competing sources disagree on PORT_POWER authority; no single governed answer is certified.",
+        answer="Synthetic fixture conflict: competing canned sources disagree on PORT_POWER authority.",
         scope="USB_HUB_COMMON",
         cited_evidences=[],
         claim_level="normative_requirement",
@@ -112,13 +120,13 @@ def conflict_port_power_authority() -> QAResponse:
         is_abstain=True,
         status="conflict",
         claims=[
-            "USB 3.x treats PORT_POWER as an authoritative Hub Class selector value 8.",
-            "A competing record treats PORT_POWER as informative-only for USB 2.0.",
+            "Synthetic fixture A treats PORT_POWER as an authoritative Hub Class selector value 8.",
+            "Synthetic fixture B treats PORT_POWER as informative-only.",
         ],
-        claim_evidence_ids=[["USB3-FEAT-PORT_POWER"], ["USB2-FEAT-PORT_POWER"]],
+        claim_evidence_ids=[[FIXTURE_CONFLICT_A_ID], [FIXTURE_CONFLICT_B_ID]],
         citations=[usb3, usb2],
         boundary_code="AUTHORITY_MISMATCH",
-        evidence_ids=["USB3-FEAT-PORT_POWER", "USB2-FEAT-PORT_POWER"],
+        evidence_ids=[FIXTURE_CONFLICT_A_ID, FIXTURE_CONFLICT_B_ID],
         contract_mode="structured",
     )
 

@@ -12,8 +12,14 @@ from gv100h.spec_qa.operator_ui.contract import (
     FROZEN_QA_RESPONSE_FIELDS,
     to_operator_view,
 )
-from gv100h.spec_qa.operator_ui.fixtures import get_fixture
+from gv100h.spec_qa.operator_ui.fixtures import (
+    FIXTURE_DOCUMENT,
+    FIXTURE_ID_PREFIX,
+    FIXTURES,
+    get_fixture,
+)
 from gv100h.spec_qa.operator_ui.server import OperatorUIHandler
+from gv100h.spec_qa.retrieval.governed_retriever import GovernedSpecRetriever
 
 
 def _as_grounded(resp):
@@ -28,12 +34,44 @@ def _as_grounded(resp):
     )
 
 
+def _fixture_evidence_ids(resp):
+    ids = set(resp.evidence_ids)
+    ids.update(citation.evidence_id for citation in resp.citations)
+    for bound in resp.claim_evidence_ids:
+        ids.update(bound)
+    return ids
+
+
+def _production_evidence_ids():
+    ids = {ev.evidence_id for ev in GovernedSpecRetriever.EVIDENCE_REGISTRY}
+    ids.update(be.evidence_id for be in GovernedSpecRetriever.BOUNDARY_EVIDENCE_REGISTRY)
+    return ids
+
+
 @pytest.mark.unit
 @pytest.mark.parametrize("name", ["answered", "abstain", "conflict"])
 def test_fixtures_satisfy_grounded_answer_contract(name):
     resp = get_fixture(name)
     grounded = _as_grounded(resp)
     assert grounded.status == resp.status
+
+
+@pytest.mark.unit
+def test_fixture_evidence_ids_are_synthetic_and_disjoint_from_production():
+    production_ids = _production_evidence_ids()
+    for name, resp in FIXTURES.items():
+        fixture_ids = _fixture_evidence_ids(resp)
+        assert fixture_ids, name
+        assert all(evidence_id.startswith(FIXTURE_ID_PREFIX) for evidence_id in fixture_ids), (
+            name,
+            fixture_ids,
+        )
+        overlap = fixture_ids & production_ids
+        assert overlap == set(), (name, overlap)
+        for citation in resp.citations:
+            if citation.citation_kind == "normative":
+                assert citation.document == FIXTURE_DOCUMENT
+                assert citation.revision == "synthetic-v1"
 
 
 @pytest.mark.unit
