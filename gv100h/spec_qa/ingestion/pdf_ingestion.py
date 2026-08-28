@@ -25,7 +25,7 @@ Determinism and fail-closed rules enforced here:
 import hashlib
 import re
 from pathlib import Path
-from typing import Any, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, FrozenSet, List, Mapping, Optional, Sequence, Tuple
 
 import pdfplumber
 
@@ -35,6 +35,42 @@ from gv100h.spec_qa.contracts.governed_chunk import GovernedChunk
 # A heading line: one or more dot-separated digit groups, then whitespace,
 # then a nonempty title -- e.g. "10.16.2.1 Hub Class Feature Selectors".
 _HEADING_PATTERN = re.compile(r"^(?P<section>\d+(?:\.\d+)*)\s+(?P<title>\S.*)$")
+
+# corpus.lock.yaml `included_chapters` entries are either a bare chapter
+# number ("6") or an inclusive range ("8-11").
+_CHAPTER_RANGE_PATTERN = re.compile(r"^(?P<start>\d+)-(?P<end>\d+)$")
+
+# A source's PDF-ingestible locator scheme. Kept as its own check (not
+# folded into ``is_source_eligible_as_answer_evidence``) because
+# "eligible as answer evidence" and "is a PDF this pipeline can ingest" are
+# two different questions -- e.g. ``hub_reference`` is eligible answer
+# evidence (layer=governed_reference) but its locator is
+# ``repo://Gavin0099/usb-if-hub-spec-reference@...``, not a PDF this module
+# understands.
+_PDF_LOCATOR_PATTERN = re.compile(r"^env://[^/]+/.+")
+
+
+def parse_included_chapters(entries: Sequence[Any]) -> FrozenSet[str]:
+    """
+    Expand a ``corpus.lock.yaml`` ``included_chapters`` list (bare chapter
+    numbers and/or ``"start-end"`` inclusive ranges, e.g. ``["5", "8-11"]``)
+    into the flat set of permitted chapter strings.
+    """
+    chapters: set = set()
+    for raw_entry in entries:
+        entry = str(raw_entry).strip()
+        range_match = _CHAPTER_RANGE_PATTERN.match(entry)
+        if range_match:
+            start, end = int(range_match.group("start")), int(range_match.group("end"))
+            if start > end:
+                raise PdfIngestionError(f"invalid included_chapters range: {entry!r}")
+            chapters.update(str(n) for n in range(start, end + 1))
+        elif entry.isdigit():
+            chapters.add(entry)
+        else:
+            raise PdfIngestionError(f"unrecognized included_chapters entry: {entry!r}")
+    return frozenset(chapters)
+
 
 # corpus.lock.yaml source "role" -> Citation/GovernedChunk authority_level.
 # Mirrors the mapping already implicit in governed_retriever.py's
@@ -112,6 +148,7 @@ def chunk_pdf(
     revision: str,
     authority_level: AuthorityLevel,
     expected_sha256: str,
+    included_chapters: Optional[Sequence[Any]] = None,
 ) -> List[GovernedChunk]:
     """
     Ingest one PDF into an ordered list of ``GovernedChunk`` records.
@@ -121,31 +158,54 @@ def chunk_pdf(
     produced -- an ingestion pipeline that silently returns nothing looks
     identical to "the PDF has no content", which is a much more dangerous
     failure mode than a loud error.
+
+    ``included_chapters`` (``corpus.lock.yaml``'s Phase-1 chapter allowlist
+    for this source, e.g. ``["6", "7", "9", "10"]``) is enforced HERE, not as
+    a post-hoc filter: a section outside the allowlist never becomes a
+    ``GovernedChunk`` at all -- being a locked/hash-verified source only
+    proves the PDF wasn't swapped, it is not itself authorization to cite
+    every chapter in that PDF as Phase-1 evidence. ``None`` (the default)
+    means "no chapter restriction declared for this source", not "all
+    chapters pre-approved" -- callers reading from ``corpus.lock.yaml``
+    should always pass the source's own ``included_chapters`` value.
     """
     verify_source_hash(pdf_path, expected_sha256)
+    allowed_chapters = (
+        parse_included_chapters(included_chapters) if included_chapters is not None else None
+    )
 
     chunks: List[GovernedChunk] = []
     current_section: Optional[str] = None
     index = 0
 
-    def _flush_paragraph(buffer: List[str], page_or_anchor: str) -> None:
+    def _chapter_allowed(section: str) -> bool:
+        if allowed_chapters is None:
+            return True
+        return section.split(".", 1)[0].strip() in allowed_chapters
+
+    def _emit(section: str, page_or_anchor: str, chunk_kind: str, content: str) -> None:
         nonlocal index
-        if not buffer or current_section is None:
+        if not _chapter_allowed(section):
             return
         chunks.append(
             GovernedChunk.build(
                 source_id=source_id,
                 document=document,
                 revision=revision,
-                section=current_section,
+                section=section,
                 page_or_anchor=page_or_anchor,
                 authority_level=authority_level,
-                chunk_kind="paragraph",
-                content="\n".join(buffer),
+                chunk_kind=chunk_kind,
+                content=content,
                 index=index,
             )
         )
         index += 1
+
+    def _flush_paragraph(buffer: List[str], page_or_anchor: str) -> None:
+        if not buffer or current_section is None:
+            return
+        _emit(current_section, page_or_anchor, "paragraph", "\n".join(buffer))
 
     with pdfplumber.open(str(pdf_path)) as pdf:
         for page_number, page in enumerate(pdf.pages, start=1):
@@ -158,20 +218,7 @@ def chunk_pdf(
                         _flush_paragraph(paragraph_buffer, page_or_anchor)
                         paragraph_buffer = []
                         current_section = heading_match.group("section")
-                        chunks.append(
-                            GovernedChunk.build(
-                                source_id=source_id,
-                                document=document,
-                                revision=revision,
-                                section=current_section,
-                                page_or_anchor=page_or_anchor,
-                                authority_level=authority_level,
-                                chunk_kind="heading_only",
-                                content=payload,
-                                index=index,
-                            )
-                        )
-                        index += 1
+                        _emit(current_section, page_or_anchor, "heading_only", payload)
                         continue
                     if current_section is None:
                         # No heading has been seen yet for this source --
@@ -185,26 +232,16 @@ def chunk_pdf(
                     paragraph_buffer = []
                     if current_section is None:
                         continue
-                    chunks.append(
-                        GovernedChunk.build(
-                            source_id=source_id,
-                            document=document,
-                            revision=revision,
-                            section=current_section,
-                            page_or_anchor=page_or_anchor,
-                            authority_level=authority_level,
-                            chunk_kind="table",
-                            content=_serialize_table(payload),
-                            index=index,
-                        )
-                    )
-                    index += 1
+                    _emit(current_section, page_or_anchor, "table", _serialize_table(payload))
             _flush_paragraph(paragraph_buffer, page_or_anchor)
 
     if not chunks:
-        raise PdfIngestionError(
-            f"{pdf_path} produced zero governed chunks (no recognizable section heading found)"
+        reason = (
+            "no recognizable section heading found"
+            if allowed_chapters is None
+            else f"no section matched included_chapters={sorted(allowed_chapters)}"
         )
+        raise PdfIngestionError(f"{pdf_path} produced zero governed chunks ({reason})")
     return chunks
 
 
@@ -225,6 +262,25 @@ def is_source_eligible_as_answer_evidence(source_id: str, corpus_lock: Mapping[s
         and source.get("included", True) is not False
         and layer.get("allowed_as_answer_evidence") is True
     )
+
+
+def is_official_raw_pdf_source(source_id: str, corpus_lock: Mapping[str, Any]) -> bool:
+    """
+    True only for sources this PDF ingestion pipeline can actually ingest:
+    ``layer == "official_raw"`` AND a supported ``env://`` PDF locator.
+
+    Deliberately separate from ``is_source_eligible_as_answer_evidence`` --
+    a source can be legitimate answer evidence without being a PDF this
+    module understands (e.g. ``hub_reference`` is
+    ``layer=governed_reference`` with a ``repo://...`` locator, not a PDF).
+    "eligible as answer evidence" and "ingestible as a PDF" are two
+    different questions; conflating them would let this pipeline attempt to
+    hash/open a non-PDF source as if it were one.
+    """
+    source = corpus_lock.get("sources", {}).get(source_id, {})
+    if source.get("layer") != "official_raw":
+        return False
+    return bool(_PDF_LOCATOR_PATTERN.match(str(source.get("source_locator", ""))))
 
 
 def resolve_source_locator(source_locator: str, *, raw_root: Optional[Path] = None) -> Path:
@@ -288,6 +344,7 @@ def ingest_source_from_corpus_lock(
         revision=revision,
         authority_level=authority_level,
         expected_sha256=source["content_sha256"],
+        included_chapters=source.get("included_chapters"),
     )
 
 
@@ -299,12 +356,17 @@ def load_accepted_chunks(
 ) -> List[GovernedChunk]:
     """
     Ingest every listed source and return only the chunks whose source is
-    eligible as answer evidence -- the "retrieval can obtain accepted
-    evidence" proof, without any ranking/embedding.
+    both eligible as answer evidence AND an ``official_raw`` PDF this
+    pipeline can actually ingest -- the "retrieval can obtain accepted
+    evidence" proof, without any ranking/embedding. A legitimate but
+    non-PDF answer-evidence source (e.g. ``hub_reference``) is skipped here
+    rather than attempted and failing on its unsupported locator scheme.
     """
     accepted: List[GovernedChunk] = []
     for source_id in source_ids:
         if not is_source_eligible_as_answer_evidence(source_id, corpus_lock):
+            continue
+        if not is_official_raw_pdf_source(source_id, corpus_lock):
             continue
         accepted.extend(ingest_source_from_corpus_lock(source_id, corpus_lock, raw_root=raw_root))
     return accepted

@@ -13,8 +13,10 @@ from gv100h.spec_qa.ingestion.pdf_ingestion import (
     PdfIngestionError,
     chunk_pdf,
     ingest_source_from_corpus_lock,
+    is_official_raw_pdf_source,
     is_source_eligible_as_answer_evidence,
     load_accepted_chunks,
+    parse_included_chapters,
     resolve_source_locator,
     search_chunks,
     verify_source_hash,
@@ -70,6 +72,35 @@ def _build_synthetic_pdf(path: Path) -> None:
 def synthetic_pdf(tmp_path: Path) -> Path:
     pdf_path = tmp_path / "usb32_synthetic.pdf"
     _build_synthetic_pdf(pdf_path)
+    return pdf_path
+
+
+# A second synthetic PDF spanning two chapters (6 and 8), standing in for the
+# real corpus.lock.yaml situation where usb20_fw/usb20_se both point at the
+# SAME usb_20.pdf file but declare different `included_chapters` -- proves
+# Phase-1 chapter scoping is enforced per-source, not just per-PDF-file.
+_CHAPTER6_MARKER = "CHAPTER SIX HUB REPEATER CONTENT"
+_CHAPTER8_MARKER = "CHAPTER EIGHT PROTOCOL LAYER CONTENT"
+
+
+def _build_multi_chapter_pdf(path: Path) -> None:
+    pdf = FPDF()
+    pdf.set_font("Helvetica", size=11)
+    pdf.add_page()
+    pdf.multi_cell(0, 6, "6.1 Hub Repeater")
+    pdf.ln(4)
+    pdf.multi_cell(0, 6, _CHAPTER6_MARKER)
+    pdf.ln(4)
+    pdf.multi_cell(0, 6, "8.1 Protocol Layer")
+    pdf.ln(4)
+    pdf.multi_cell(0, 6, _CHAPTER8_MARKER)
+    pdf.output(str(path))
+
+
+@pytest.fixture()
+def multi_chapter_pdf(tmp_path: Path) -> Path:
+    pdf_path = tmp_path / "multi_chapter.pdf"
+    _build_multi_chapter_pdf(pdf_path)
     return pdf_path
 
 
@@ -133,6 +164,47 @@ def test_chunk_pdf_derives_sections_pages_and_kinds(synthetic_pdf):
 def test_chunk_pdf_chunk_ids_are_unique(synthetic_pdf):
     chunks = _chunk_pdf(synthetic_pdf)
     assert len(chunks) == len({c.chunk_id for c in chunks})
+
+
+def test_parse_included_chapters_expands_ranges_and_bare_entries():
+    assert parse_included_chapters(["5", "8-11"]) == frozenset({"5", "8", "9", "10", "11"})
+
+
+def test_parse_included_chapters_rejects_unrecognized_entry():
+    with pytest.raises(PdfIngestionError, match="unrecognized included_chapters"):
+        parse_included_chapters(["not-a-chapter"])
+
+
+def test_chunk_pdf_included_chapters_excludes_disallowed_chapter(multi_chapter_pdf):
+    # P1 regression: being a locked/hash-verified source is NOT itself
+    # authorization to cite every chapter in that PDF -- corpus.lock.yaml's
+    # per-source included_chapters allowlist must be enforced at chunk
+    # creation time, not left to whatever headings happen to be in the PDF.
+    chunks = _chunk_pdf(multi_chapter_pdf, included_chapters=["6"])
+    assert chunks
+    assert {c.chapter for c in chunks} == {"6"}
+    assert all(_CHAPTER8_MARKER not in c.content for c in chunks)
+    assert any(_CHAPTER6_MARKER in c.content for c in chunks)
+
+
+def test_chunk_pdf_included_chapters_supports_inclusive_ranges(multi_chapter_pdf):
+    chunks = _chunk_pdf(multi_chapter_pdf, included_chapters=["8-11"])
+    assert chunks
+    assert {c.chapter for c in chunks} == {"8"}
+    assert all(_CHAPTER6_MARKER not in c.content for c in chunks)
+
+
+def test_chunk_pdf_without_included_chapters_keeps_every_chapter(multi_chapter_pdf):
+    # None means "no chapter restriction declared for this source", the
+    # backward-compatible default for direct chunk_pdf() callers -- not
+    # "all chapters pre-approved" as a corpus.lock.yaml policy statement.
+    chunks = _chunk_pdf(multi_chapter_pdf)
+    assert {c.chapter for c in chunks} == {"6", "8"}
+
+
+def test_chunk_pdf_fails_closed_when_included_chapters_matches_nothing(multi_chapter_pdf):
+    with pytest.raises(PdfIngestionError, match="included_chapters"):
+        _chunk_pdf(multi_chapter_pdf, included_chapters=["99"])
 
 
 def test_verify_source_hash_rejects_tampered_content(synthetic_pdf):
@@ -241,3 +313,101 @@ def test_load_accepted_chunks_skips_ineligible_sources_without_ingesting_them(
     # being filtered out.
     assert chunks
     assert all(c.source_id == "usb32_synth" for c in chunks)
+
+
+def test_ingest_source_from_corpus_lock_enforces_included_chapters(multi_chapter_pdf, tmp_path):
+    lock = _corpus_lock(
+        "env://USB_SPEC_QA_RAW_ROOT/multi_chapter.pdf", _sha256_of(multi_chapter_pdf)
+    )
+    lock["sources"]["usb32_synth"]["included_chapters"] = ["6"]
+    chunks = ingest_source_from_corpus_lock("usb32_synth", lock, raw_root=tmp_path)
+    assert chunks
+    assert {c.chapter for c in chunks} == {"6"}
+    assert all(_CHAPTER8_MARKER not in c.content for c in chunks)
+
+
+def test_same_pdf_different_corpus_sources_yield_different_chunk_scopes(
+    multi_chapter_pdf, tmp_path
+):
+    """
+    Mirrors the real corpus.lock.yaml situation: usb20_fw and usb20_se both
+    point at the SAME usb_20.pdf file but declare different
+    included_chapters. Ingesting the identical PDF bytes through two
+    different corpus.lock.yaml source entries must yield two DIFFERENT
+    GovernedChunk sets -- proving chapter governance is scoped per source
+    declaration, not just per physical PDF file.
+    """
+    sha = _sha256_of(multi_chapter_pdf)
+    lock = {
+        "layers": {"official_raw": {"allowed_as_answer_evidence": True}},
+        "sources": {
+            "usb20_fw_like": {
+                "document": "USB 2.0 Specification",
+                "revision": "2.0",
+                "role": "normative_official",
+                "layer": "official_raw",
+                "phase": "phase_1",
+                "included": True,
+                "included_chapters": ["6"],
+                "source_locator": "env://USB_SPEC_QA_RAW_ROOT/multi_chapter.pdf",
+                "content_sha256": sha,
+            },
+            "usb20_se_like": {
+                "document": "USB 2.0 Specification",
+                "revision": "2.0",
+                "role": "normative_official",
+                "layer": "official_raw",
+                "phase": "phase_1",
+                "included": True,
+                "included_chapters": ["8-11"],
+                "source_locator": "env://USB_SPEC_QA_RAW_ROOT/multi_chapter.pdf",
+                "content_sha256": sha,
+            },
+        },
+    }
+    fw_chunks = ingest_source_from_corpus_lock("usb20_fw_like", lock, raw_root=tmp_path)
+    se_chunks = ingest_source_from_corpus_lock("usb20_se_like", lock, raw_root=tmp_path)
+    assert {c.chapter for c in fw_chunks} == {"6"}
+    assert {c.chapter for c in se_chunks} == {"8"}
+    assert {c.chunk_id for c in fw_chunks}.isdisjoint({c.chunk_id for c in se_chunks})
+
+
+def _lock_with_governed_reference_source(source_locator: str, expected_sha256: str) -> dict:
+    lock = _corpus_lock(source_locator, expected_sha256)
+    lock["layers"]["governed_reference"] = {"allowed_as_answer_evidence": True}
+    lock["sources"]["hub_reference_like"] = {
+        "document": "USB-IF Hub Class Governed Reference",
+        "revision": "N/A",
+        "role": "canonical_structured_reference",
+        "layer": "governed_reference",
+        "phase": "phase_1",
+        "included": True,
+        # A legitimate answer-evidence source that is NOT a PDF this
+        # pipeline understands -- mirrors the real hub_reference entry's
+        # repo:// locator in corpus.lock.yaml.
+        "source_locator": "repo://Gavin0099/usb-if-hub-spec-reference@deadbeef",
+        "content_sha256": "0" * 64,
+    }
+    return lock
+
+
+def test_is_official_raw_pdf_source_distinguishes_pdf_from_non_pdf_evidence(synthetic_pdf):
+    lock = _lock_with_governed_reference_source(
+        "env://USB_SPEC_QA_RAW_ROOT/usb32_synthetic.pdf", _sha256_of(synthetic_pdf)
+    )
+    assert is_official_raw_pdf_source("usb32_synth", lock) is True
+    assert is_official_raw_pdf_source("hub_reference_like", lock) is False
+
+
+def test_load_accepted_chunks_skips_eligible_non_pdf_locator_sources(synthetic_pdf, tmp_path):
+    lock = _lock_with_governed_reference_source(
+        "env://USB_SPEC_QA_RAW_ROOT/usb32_synthetic.pdf", _sha256_of(synthetic_pdf)
+    )
+    # hub_reference_like IS eligible as answer evidence (layer allows it,
+    # phase_1, included) but must be skipped here rather than attempted --
+    # attempting it would misuse its repo:// locator as if it were a PDF
+    # env:// path.
+    chunks = load_accepted_chunks(["usb32_synth", "hub_reference_like"], lock, raw_root=tmp_path)
+    assert chunks
+    assert all(c.source_id == "usb32_synth" for c in chunks)
+
