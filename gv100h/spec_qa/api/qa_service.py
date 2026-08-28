@@ -181,7 +181,11 @@ class GovernedQAService:
     ) -> QAResponse:
         q_lower = query_text.lower()
 
-        if answer_scope is None and allowed_evidence_scopes:
+        # `is not None` (not truthiness) so an explicitly empty
+        # allowed_evidence_scopes=[] is still treated as "provided" and
+        # rejected here rather than silently passing through as if it had
+        # been omitted (Codex review, PR #33, fresh finding on 90a6e1a).
+        if answer_scope is None and allowed_evidence_scopes is not None:
             raise ValueError(
                 "allowed_evidence_scopes was provided without answer_scope; "
                 "GovernedQAService requires answer_scope to build a scope-restricting "
@@ -206,7 +210,9 @@ class GovernedQAService:
             domain=domain,
             retrieval_mode=retrieval_mode,
             allowed_evidence_scopes=(
-                tuple(allowed_evidence_scopes) if allowed_evidence_scopes else None
+                tuple(allowed_evidence_scopes)
+                if allowed_evidence_scopes is not None
+                else None
             ),
         )
 
@@ -220,7 +226,9 @@ class GovernedQAService:
                 answer_scope=answer_scope,
                 retrieval_mode=retrieval_mode,
                 allowed_evidence_scopes=(
-                    tuple(allowed_evidence_scopes) if allowed_evidence_scopes else None
+                    tuple(allowed_evidence_scopes)
+                    if allowed_evidence_scopes is not None
+                    else None
                 ),
             )
             if answer_scope is not None

@@ -966,6 +966,36 @@ def test_governed_qa_service_rejects_allowed_evidence_scopes_without_answer_scop
 
 
 @pytest.mark.unit
+def test_governed_qa_service_rejects_empty_allowed_evidence_scopes_without_answer_scope():
+    # Codex review regression (PR #33, P2, fresh finding on 90a6e1a): the
+    # "provided without answer_scope" check above used truthiness, so an
+    # explicitly empty allowed_evidence_scopes=[] was falsy and silently
+    # bypassed the rejection instead of being treated as "provided".
+    service = GovernedQAService()
+    with pytest.raises(ValueError, match="allowed_evidence_scopes was provided without answer_scope"):
+        service.answer_question(
+            "PORT_POWER feature selector value",
+            allowed_evidence_scopes=[],
+        )
+
+
+@pytest.mark.unit
+def test_governed_qa_service_rejects_empty_allowed_evidence_scopes_with_answer_scope():
+    # Codex review regression (PR #33, P2, fresh finding on 90a6e1a): the
+    # same truthiness conversion turned an explicitly empty
+    # allowed_evidence_scopes=[] into None before reaching RetrievalPolicy,
+    # so single_scope silently derived (answer_scope,) instead of enforcing
+    # its contract that a provided list must equal exactly (answer_scope,).
+    service = GovernedQAService()
+    with pytest.raises(RetrievalPolicyError, match="single_scope retrieval_mode requires"):
+        service.answer_question(
+            "PORT_POWER feature selector value",
+            "USB_2_0",
+            allowed_evidence_scopes=[],
+        )
+
+
+@pytest.mark.unit
 def test_governed_qa_service_routes_domain_into_retrieval_policy():
     # Codex review regression (PR #31, P2): QARequest accepts a `domain`
     # field, but answer_question() had no corresponding parameter, so every
