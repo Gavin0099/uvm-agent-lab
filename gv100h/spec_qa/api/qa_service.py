@@ -55,14 +55,14 @@ class QAResponse(BaseModel):
     # is_abstain, with status/boundary_code left at their defaults) keeps
     # working unchanged and keeps round-tripping.
     #
-    # This field is deliberately NOT trusted as the sole gate for the
-    # abstain/boundary_code invariant below: a caller trying to bypass the
-    # Evidence Contract could simply never set it to "structured" and keep
-    # the lenient default. The value-based fallback in
+    # This field is deliberately NOT trusted as the sole gate for
+    # "structured" treatment below: a caller trying to bypass the Evidence
+    # Contract could simply never set it to "structured" and keep the
+    # lenient default. The value-based fallback in
     # `_is_abstain_matches_status` (triggering on non-empty claims/
     # citations regardless of this flag) is what actually closes that
     # loophole; `contract_mode="structured"` additionally catches a
-    # genuinely structured caller whose abstention happens to carry no
+    # genuinely structured caller whose response happens to carry no
     # claims/citations of its own (Codex review, PR #33, P2, fresh finding
     # on 4ec68fe).
     contract_mode: Literal["legacy", "structured"] = "legacy"
@@ -96,51 +96,59 @@ class QAResponse(BaseModel):
                 "'abstain' and 'conflict'); got status="
                 f"{self.status!r} with is_abstain={self.is_abstain!r}"
             )
-        # boundary_code has no legacy-safe default: BoundaryCode is a closed
-        # set of specific reasons (see poc1_acceptance_contract.BoundaryCode),
-        # with no generic "unspecified" member to fall back on. Two prior
-        # fixes here (Codex review, PR #33, P2, findings on 7c74da3 and
-        # b05464f) tried gating this check on `model_fields_set` and then on
-        # nothing at all; both left a real gap -- see `contract_mode` above
-        # for why construction metadata cannot express this, and the
-        # `is_structured` derivation below for how the requirement is
-        # actually enforced without it.
-        if self.status == "answer" and self.boundary_code is not None:
-            raise ValueError(
-                "boundary_code must be absent when status == 'answer'; got "
-                f"boundary_code={self.boundary_code!r}"
-            )
-        if self.status == "conflict" and self.boundary_code is None:
-            raise ValueError(
-                "boundary_code must be populated when status == 'conflict'"
-            )
-        # An "abstain" response must state a boundary_code unless it is the
-        # untouched legacy shape: legacy compatibility is Adapter-shaped
-        # leniency, not something a caller who is actually using the
-        # structured Evidence Contract fields gets to inherit. A response is
-        # treated as structured -- and therefore held to GroundedAnswer's
-        # rule that every abstention states a boundary -- if it declares
-        # contract_mode="structured", OR if it carries any claims/citations
-        # at all (populating those fields is itself opting into the
-        # structured contract, regardless of what contract_mode says; see
-        # the field comment above for why contract_mode alone cannot be
-        # trusted as the sole gate). Only a response with none of that --
-        # the bare legacy shape -- keeps the pre-existing boundary-less
-        # abstention (Codex review, PR #33, P2, fresh finding on 4ec68fe).
+
+        # A response is "structured" -- and therefore held to the FULL
+        # Evidence Contract, not a hand-picked subset of it -- if it
+        # declares contract_mode="structured", OR if it carries any
+        # claims/citations at all (populating those fields is itself
+        # opting into the structured contract, regardless of what
+        # contract_mode says; see the field comment above for why
+        # contract_mode alone cannot be trusted as the sole gate).
+        #
+        # Three prior fixes here (Codex review, PR #33, P2, findings on
+        # 7c74da3, b05464f, and 4ec68fe) each hand-copied one more rule from
+        # GroundedAnswer into this validator -- first "conflict requires
+        # boundary_code", then "abstain requires boundary_code unless
+        # legacy". That is exactly the pattern that kept producing fresh
+        # findings: every rule copied here is a rule that can independently
+        # drift from GroundedAnswer's real definition. A structured response
+        # must satisfy the actual, single Evidence Contract instead: project
+        # this response's structured fields onto GroundedAnswer and let it
+        # be the only place that defines what a valid answer/abstain/
+        # conflict looks like (claim-evidence traceability, duplicate-
+        # citation rejection, citation-kind rules, and the boundary_code
+        # rules all included, for free, with no second copy to maintain).
         is_structured = (
             self.contract_mode == "structured"
             or bool(self.claims)
             or bool(self.citations)
         )
-        if self.status == "abstain" and is_structured and self.boundary_code is None:
-            raise ValueError(
-                "boundary_code must be populated for a structured 'abstain' "
-                "response (contract_mode='structured', or claims/citations "
-                "populated); only an untouched contract_mode='legacy' "
-                "response with no claims/citations preserves the "
-                "pre-existing boundary-less abstention for backward "
-                "compatibility"
+        if is_structured:
+            GroundedAnswer(
+                status=self.status,
+                claims=list(self.claims),
+                claim_evidence_ids=[list(ids) for ids in self.claim_evidence_ids],
+                citations=list(self.citations),
+                scope=self.scope,
+                boundary=self.boundary_code,
+                evidence_ids=list(self.evidence_ids),
             )
+        else:
+            # Legacy shape: only the narrow, pre-existing rule that predates
+            # the Evidence Contract -- a plain "answer" must never carry a
+            # boundary_code. Nothing else is enforced here, matching the
+            # pre-Evidence-Contract API surface this shape exists to
+            # preserve.
+            if self.status == "answer" and self.boundary_code is not None:
+                raise ValueError(
+                    "boundary_code must be absent when status == 'answer'; "
+                    f"got boundary_code={self.boundary_code!r}"
+                )
+            if self.status == "conflict" and self.boundary_code is None:
+                raise ValueError(
+                    "boundary_code must be populated when status == "
+                    "'conflict'"
+                )
         return self
 
     def to_final_qa_response(self) -> FinalQAResponse:

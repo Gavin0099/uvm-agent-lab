@@ -2694,20 +2694,12 @@ def _qa_response_kwargs(**overrides) -> dict:
     # Minimal-but-valid QAResponse construction kwargs for the
     # is_abstain/status/boundary_code consistency tests below -- claims/
     # citations/claim_evidence_ids/evidence_ids are deliberately left at
-    # their empty defaults since QAResponse's own model_validator does not
-    # itself re-derive GroundedAnswer's claim-shape rules (that only
-    # happens when _build_response() separately constructs a
-    # GroundedAnswer); these tests isolate the
-    # is_abstain/status/boundary_code projection check alone.
-    #
-    # contract_mode defaults to "structured" here (unlike QAResponse's own
-    # "legacy" default) because every test below is deliberately exercising
-    # explicit new-contract usage (status/boundary_code set on purpose, not
-    # just inherited defaults) -- the same declaration every internal
-    # production constructor (GovernedQAService._build_response) makes.
-    # Tests that specifically need the untouched legacy shape override this
-    # or construct QAResponse directly (see the legacy-only-construction and
-    # round-trip tests below).
+    # their empty defaults, and contract_mode is left at QAResponse's own
+    # "legacy" default. Most tests below isolate the unconditional
+    # is_abstain/status projection check plus the narrow legacy
+    # boundary_code rule; tests that need the FULL Evidence Contract
+    # (contract_mode="structured", delegating to GroundedAnswer) override
+    # contract_mode and populate a fixture GroundedAnswer actually accepts.
     base = dict(
         answer="an answer",
         scope="USB_3_X",
@@ -2717,7 +2709,6 @@ def _qa_response_kwargs(**overrides) -> dict:
         is_abstain=False,
         status="answer",
         boundary_code=None,
-        contract_mode="structured",
     )
     base.update(overrides)
     return base
@@ -2738,7 +2729,12 @@ def test_qa_response_conflict_status_with_consistent_fields_passes():
     # Positive control: status="conflict" with is_abstain=True and a
     # boundary_code is also a valid, consistent QAResponse (conflict is not
     # an abstention, but it's also not a plain answer -- see the
-    # docstring on QAResponse._is_abstain_matches_status()).
+    # docstring on QAResponse._is_abstain_matches_status()). This stays in
+    # legacy mode (no claims/citations), so it exercises only the narrow
+    # legacy rule, not GroundedAnswer's stricter >=2-distinct-claims
+    # conflict shape -- see
+    # test_qa_response_rejects_structured_conflict_that_violates_grounded_answer_contract
+    # for that.
     response = QAResponse(
         **_qa_response_kwargs(
             is_abstain=True,
@@ -2809,7 +2805,7 @@ def test_qa_response_rejects_is_abstain_false_for_conflict_status():
 def test_qa_response_rejects_boundary_code_present_for_answer_status():
     # boundary_code must be absent when status == "answer" -- a confident
     # answer must not simultaneously carry a boundary_code signaling
-    # abstention/conflict.
+    # abstention/conflict. Legacy mode: exercises the narrow legacy rule.
     with pytest.raises(
         ValidationError,
         match="boundary_code must be absent when status == 'answer'",
@@ -2826,8 +2822,9 @@ def test_qa_response_rejects_boundary_code_present_for_answer_status():
 @pytest.mark.unit
 def test_qa_response_rejects_missing_boundary_code_for_conflict_status():
     # "conflict" has no legacy default path -- nothing constructs it
-    # implicitly -- so it can safely keep a strict requirement: a live
-    # source conflict with no stated reason is not a meaningful signal.
+    # implicitly -- so it can safely keep a strict requirement even in
+    # legacy mode: a live source conflict with no stated reason is not a
+    # meaningful signal.
     with pytest.raises(
         ValidationError,
         match="boundary_code must be populated when status == 'conflict'",
@@ -2847,17 +2844,17 @@ def test_qa_response_rejects_missing_boundary_code_for_structured_abstain_status
     # Codex review, PR #33, P2, fresh finding on 4ec68fe: the b05464f fix
     # (allowing status="abstain" with boundary_code=None unconditionally)
     # was itself too lenient -- it let a caller that is genuinely using the
-    # structured Evidence Contract fields (contract_mode="structured", the
-    # default used throughout this helper and by every internal production
-    # constructor) skip stating a boundary for an abstention, even though
-    # GroundedAnswer requires one. Only the untouched legacy shape (see the
-    # legacy-only tests below) keeps the boundary-less abstention.
+    # structured Evidence Contract fields (contract_mode="structured") skip
+    # stating a boundary for an abstention, even though GroundedAnswer
+    # requires one. contract_mode="structured" now delegates fully to
+    # GroundedAnswer, so the error message below is GroundedAnswer's own.
     with pytest.raises(
         ValidationError,
-        match="boundary_code must be populated for a structured 'abstain'",
+        match="an 'abstain' status requires a boundary code",
     ):
         QAResponse(
             **_qa_response_kwargs(
+                contract_mode="structured",
                 is_abstain=True,
                 status="abstain",
                 boundary_code=None,
@@ -2893,15 +2890,15 @@ def test_qa_response_rejects_missing_boundary_code_for_abstain_with_claims_despi
     # scenario): a caller could leave contract_mode at its "legacy" default
     # while still populating claims/citations -- exactly the structured
     # usage the finding describes. contract_mode is not trusted as the
-    # sole gate for this reason: non-empty claims/citations force the
-    # boundary_code requirement regardless of what contract_mode says.
+    # sole gate for this reason: non-empty claims/citations force full
+    # GroundedAnswer delegation regardless of what contract_mode says.
     citation = Citation(
         evidence_id="USB3-EVIDENCE-1",
         excerpt="Some cited excerpt text.",
     )
     with pytest.raises(
         ValidationError,
-        match="boundary_code must be populated for a structured 'abstain'",
+        match="an 'abstain' status requires a boundary code",
     ):
         QAResponse(
             **_qa_response_kwargs(
@@ -2913,8 +2910,98 @@ def test_qa_response_rejects_missing_boundary_code_for_abstain_with_claims_despi
                 claims=["Some claim."],
                 claim_evidence_ids=[["USB3-EVIDENCE-1"]],
                 citations=[citation],
+                evidence_ids=["USB3-EVIDENCE-1"],
             )
         )
+
+
+@pytest.mark.unit
+def test_qa_response_rejects_structured_answer_with_no_claims_or_citations():
+    # Codex review, PR #33, P2, fresh finding on 1771757: contract_mode=
+    # "structured" was only checked against a hand-picked subset of
+    # GroundedAnswer's rules (is_abstain projection, boundary_code
+    # presence/absence) -- so a structured "answer" with empty
+    # claims/citations/evidence_ids still passed, even though GroundedAnswer
+    # requires an "answer" to have at least one claim and one citation.
+    # QAResponse now delegates the FULL contract to GroundedAnswer for any
+    # structured response, closing this exact gap.
+    with pytest.raises(ValidationError, match="requires at least one"):
+        QAResponse(
+            **_qa_response_kwargs(
+                contract_mode="structured",
+                status="answer",
+                is_abstain=False,
+                boundary_code=None,
+            )
+        )
+
+
+@pytest.mark.unit
+def test_qa_response_rejects_structured_conflict_that_violates_grounded_answer_contract():
+    # A structured "conflict" with only one claim is not a real conflict --
+    # GroundedAnswer requires at least two distinct competing claims. This
+    # proves QAResponse now delegates the FULL conflict shape to
+    # GroundedAnswer, not just the boundary_code presence/absence check
+    # that predated this fix.
+    citation = Citation(
+        evidence_id="USB3-EVIDENCE-1",
+        excerpt="Some cited excerpt text.",
+        document="usb3-spec",
+        revision="r1",
+        chapter="1",
+        section="1.1",
+        page_or_anchor="p1",
+        authority_level="authoritative",
+    )
+    with pytest.raises(
+        ValidationError,
+        match="requires at least two distinct competing claims",
+    ):
+        QAResponse(
+            **_qa_response_kwargs(
+                contract_mode="structured",
+                status="conflict",
+                is_abstain=True,
+                boundary_code="VERSION_CONFLICT",
+                boundary="Two sources disagree.",
+                claims=["Only one claim."],
+                claim_evidence_ids=[["USB3-EVIDENCE-1"]],
+                citations=[citation],
+                evidence_ids=["USB3-EVIDENCE-1"],
+            )
+        )
+
+
+@pytest.mark.unit
+def test_qa_response_structured_valid_answer_passes():
+    # Positive control: a genuinely complete structured "answer" -- claim,
+    # citation, evidence_id, and claim-evidence traceability all present --
+    # must still pass now that contract_mode="structured" fully delegates
+    # to GroundedAnswer.
+    citation = Citation(
+        evidence_id="USB3-EVIDENCE-1",
+        excerpt="Some cited excerpt text.",
+        document="usb3-spec",
+        revision="r1",
+        chapter="1",
+        section="1.1",
+        page_or_anchor="p1",
+        authority_level="authoritative",
+    )
+    response = QAResponse(
+        **_qa_response_kwargs(
+            contract_mode="structured",
+            status="answer",
+            is_abstain=False,
+            boundary_code=None,
+            claims=["Some claim."],
+            claim_evidence_ids=[["USB3-EVIDENCE-1"]],
+            citations=[citation],
+            evidence_ids=["USB3-EVIDENCE-1"],
+        )
+    )
+    assert response.status == "answer"
+    assert response.contract_mode == "structured"
 
 
 @pytest.mark.unit
@@ -3008,15 +3095,17 @@ def test_qa_response_legacy_abstention_survives_json_round_trip():
 @pytest.mark.unit
 def test_qa_response_structured_contract_mode_survives_round_trip_and_still_enforces_boundary():
     # contract_mode is ordinary field data (unlike model_fields_set), so it
-    # must round-trip like any other field, and the requirement it gates
-    # must still fire against a round-tripped payload, not just at initial
-    # construction.
+    # must round-trip like any other field, and the FULL GroundedAnswer
+    # delegation it gates must still fire against a round-tripped payload,
+    # not just at initial construction.
     citation = Citation(
         evidence_id="USB3-EVIDENCE-1",
         excerpt="Some cited excerpt text.",
+        citation_kind="boundary",
     )
     original = QAResponse(
         **_qa_response_kwargs(
+            contract_mode="structured",
             is_abstain=True,
             status="abstain",
             boundary_code="OUT_OF_SCOPE",
@@ -3024,6 +3113,7 @@ def test_qa_response_structured_contract_mode_survives_round_trip_and_still_enfo
             claims=["Some claim."],
             claim_evidence_ids=[["USB3-EVIDENCE-1"]],
             citations=[citation],
+            evidence_ids=["USB3-EVIDENCE-1"],
         )
     )
     dumped = original.model_dump()
@@ -3035,6 +3125,6 @@ def test_qa_response_structured_contract_mode_survives_round_trip_and_still_enfo
     dumped["boundary_code"] = None
     with pytest.raises(
         ValidationError,
-        match="boundary_code must be populated for a structured 'abstain'",
+        match="an 'abstain' status requires a boundary code",
     ):
         QAResponse.model_validate(dumped)
