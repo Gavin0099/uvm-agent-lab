@@ -5,8 +5,9 @@ import json
 import re
 from typing import Any, Callable, Dict, List, Literal, Optional, Protocol
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from gv100h.spec_qa.contracts.evidence_contract import validate_conflict_provenance
 from gv100h.spec_qa.contracts.poc1_acceptance_contract import (
     AcceptanceQuestion,
     BoundaryCode,
@@ -20,6 +21,35 @@ class EvidenceResolver(Protocol):
     def get_evidence_by_id(self, evidence_id: str) -> Any:
         ...
 
+    def get_canonical_citation_by_id(self, evidence_id: str) -> Optional[Any]:
+        """
+        Resolve evidence_id to its canonical, source-of-truth citation shape
+        (an object exposing document/revision/chapter/section/page_or_anchor/
+        authority_level attributes, e.g. evidence_contract.Citation), or
+        None if not registered. Used by FinalPOC1Evaluator to verify
+        submitted citation *correctness* against real provenance, not just
+        *completeness* (fields merely present) -- without this, a response
+        could submit a plausible-looking but false value (e.g. the wrong
+        chapter) for a resolvable evidence_id and still be scored
+        citation_complete (Codex review, PR #33, P1).
+
+        The evaluator looks this method up with getattr() rather than
+        assuming every EvidenceResolver implements it, so a resolver that
+        only implements get_evidence_by_id() does not raise AttributeError.
+        However, a resolver lacking this method is NOT a free pass: EVERY
+        submitted citation -- normative or non-normative/boundary-shaped --
+        whose canonical evidence-shape cannot be verified this way is scored
+        as invalid (fail closed), because "the check was skipped" and "the
+        citation is correct" are not the same thing (Codex review, PR #33,
+        P1). Non-normative citations are no longer exempt: an acceptance
+        manifest can mistakenly list an ordinary normative evidence_id under
+        boundary_evidence_ids, and only resolving the canonical record can
+        catch a boundary-shaped submission for what is actually normative
+        evidence, or vice versa (Codex review, PR #33, fresh finding on
+        ad0542c).
+        """
+        ...
+
 
 class FinalQACitation(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -31,6 +61,39 @@ class FinalQACitation(BaseModel):
     page_or_anchor: Optional[str] = None
     excerpt_or_evidence_id: Optional[str] = None
     scope: Optional[str] = None
+    # Additive P0 provenance fields (docs/USB_SPEC_QA_POC1_SCOPE.md Section 5
+    # lists chapter and authority_level as mandatory citation fields
+    # alongside document/revision/section/page_or_anchor). qa_service.py's
+    # runtime Citation already carries both; previously
+    # QAResponse.to_final_qa_response() silently dropped them when
+    # projecting onto this schema (Codex review, PR #33, P1).
+    chapter: Optional[str] = None
+    authority_level: Optional[str] = None
+
+    @field_validator(
+        "evidence_id",
+        "document",
+        "revision",
+        "chapter",
+        "section",
+        "page_or_anchor",
+        "excerpt_or_evidence_id",
+        "scope",
+        "authority_level",
+    )
+    @classmethod
+    def _reject_blank_strings(cls, value: Optional[str]) -> Optional[str]:
+        # A whitespace-only value (e.g. chapter=" ") is truthy in Python, so
+        # a naive presence check in _required_citation_fields_present()
+        # would score it as citation_complete=True even though it carries
+        # no real provenance -- inflating citation_completeness_rate with
+        # malformed input that canonical comparison would reject anyway
+        # (Codex review, PR #33, P2, fresh finding on 68a5024). Reject
+        # rather than silently .strip(): a provenance contract should fail
+        # closed on malformed input, not repair it on the caller's behalf.
+        if value is not None and not value.strip():
+            raise ValueError("citation string fields must not be blank")
+        return value
 
 
 class FinalQAResponse(BaseModel):
@@ -38,6 +101,17 @@ class FinalQAResponse(BaseModel):
 
     status: Literal["answer", "abstain", "conflict"]
     claims: List[str] = Field(default_factory=list)
+    # One entry per ``claims`` entry, mirroring
+    # evidence_contract.GroundedAnswer.claim_evidence_ids -- see that
+    # field's docstring for why this is claim-to-evidence TRACEABILITY, not
+    # semantic entailment (Codex review, PR #33, P1, fresh finding on
+    # d4f3bf7). This schema deliberately does not enforce the
+    # length/binding invariants itself (unlike GroundedAnswer): a
+    # FinalQAResponse can be built directly by a caller that never passed
+    # through GroundedAnswer's own validation, so FinalPOC1Evaluator
+    # verifies traceability independently (see _claim_traceability_ok) and
+    # fails closed rather than assuming an already-valid shape.
+    claim_evidence_ids: List[List[str]] = Field(default_factory=list)
     citations: List[FinalQACitation] = Field(default_factory=list)
     scope: str = Field(min_length=1)
     boundary_code: Optional[BoundaryCode] = None
@@ -60,6 +134,7 @@ class FinalQuestionResult(BaseModel):
     boundary_correct: bool
     required_claims_present: bool
     forbidden_claim_detected: bool
+    claim_traceability_ok: bool
     cited_evidence_ids: List[str]
 
 
@@ -127,17 +202,141 @@ class FinalPOC1Evaluator:
         candidates = [expected, *variants]
         return any(cls._normalize(candidate) in haystack for candidate in candidates)
 
+    def _claim_traceability_ok(self, response: FinalQAResponse) -> bool:
+        """
+        Verify that every claim in ``response.claims`` declares which
+        evidence_id(s) support it (``response.claim_evidence_ids``), and
+        that every declared evidence_id is actually present among this
+        response's own citations.
+
+        This closes the "extra unrelated claim" gap: previously the P0
+        grounding gate only checked that ``required_claims``/
+        ``required_facts`` were present and ``forbidden_claims`` were
+        absent, so an answer could smuggle in one additional hallucinated
+        claim the manifest never anticipated (and so never listed under
+        forbidden_claims) alongside one real, valid citation, and still
+        pass -- nothing ever established WHICH citation (if any) backs
+        WHICH claim (Codex review, PR #33, P1, fresh finding on d4f3bf7).
+
+        This is a TRACEABILITY check only, not semantic entailment: a
+        response could still bind a real, correctly-provenanced evidence_id
+        to a claim it does not actually support, and this check alone
+        cannot catch that. Closing that remaining gap needs a
+        semantic/entailment layer (deterministic structured-fact
+        comparison, NLI, or an LLM judge) -- a deliberate follow-up, not
+        implemented here.
+
+        Because FinalQAResponse (unlike GroundedAnswer) can be constructed
+        directly by a caller that never passed through GroundedAnswer's own
+        claim_evidence_ids validation, this check fails closed independently
+        rather than assuming the response is already well-formed.
+
+        For ``status == "conflict"``, also mirrors GroundedAnswer's own
+        >=2-distinct-normalized-claims rule: a benchmark agent_fn response
+        could otherwise pack both competing assertions into a SINGLE claim
+        string and bind that one claim to both competing evidence_ids,
+        which the length/subset checks above accept (1 claim, 1
+        claim_evidence_ids entry, both ids cited) even though the manifest's
+        two-distinct-competing-claims requirement was never actually met
+        (Codex review, PR #33, P1, fresh finding on e3de202).
+        """
+        if len(response.claims) != len(response.claim_evidence_ids):
+            return False
+        cited_ids = {citation.evidence_id for citation in response.citations}
+        for evidence_ids in response.claim_evidence_ids:
+            if not evidence_ids:
+                return False
+            if not set(evidence_ids).issubset(cited_ids):
+                return False
+        if response.status == "conflict":
+            normalized_claims = {self._normalize(claim) for claim in response.claims}
+            if len(response.claims) < 2 or len(normalized_claims) < 2:
+                return False
+        return True
+
+    def _conflict_claim_binding_ok(
+        self, response: FinalQAResponse, question: AcceptanceQuestion
+    ) -> bool:
+        """
+        Codex review, PR #33, P1, fresh finding: a conflict response could
+        still pass every check above -- including the >=2-distinct-claims
+        rule in ``_claim_traceability_ok`` -- while never actually binding
+        the manifest's required conflicting assertions to distinct
+        competing evidence. Example exploit: ``claims=["required A",
+        "unrelated"]``, ``claim_evidence_ids=[["E1"], ["E1"]]``,
+        ``citations=[E1, E2]``. This has 2 distinct claim strings, each
+        bound to a subset of the cited ids, so the existing checks accept
+        it -- but E2 backs nothing, and only ONE competing evidence_id is
+        actually bound to any claim; the manifest's second required
+        assertion may not even appear anywhere in the claims at all
+        because ``required_claims_present`` only searches the claims
+        JOINED together, not per-claim.
+
+        This requires each of the question's required (``GoldClaim.required
+        is True``) gold assertions to resolve to a DIFFERENT response claim
+        entry (deterministic string containment via ``_contains_expected``,
+        never semantic matching), and the UNION of those matched claims'
+        bound evidence_ids to cover every gold ``competing_evidence_ids``
+        entry. This is a no-op (True) for non-conflict responses.
+        """
+        if response.status != "conflict":
+            return True
+        if len(response.claims) != len(response.claim_evidence_ids):
+            return False
+        required_assertions = [
+            claim.assertion for claim in question.gold.required_claims if claim.required
+        ]
+        if len(required_assertions) < 2:
+            return False
+        matched_indices: List[int] = []
+        for assertion in required_assertions:
+            match = next(
+                (
+                    index
+                    for index, claim in enumerate(response.claims)
+                    if index not in matched_indices
+                    and self._contains_expected(
+                        [claim], assertion, question.gold.acceptable_variants
+                    )
+                ),
+                None,
+            )
+            if match is None:
+                return False
+            matched_indices.append(match)
+        covered_ids: set = set()
+        for index in matched_indices:
+            covered_ids.update(response.claim_evidence_ids[index])
+        return set(question.gold.competing_evidence_ids).issubset(covered_ids)
+
     @staticmethod
     def _required_citation_fields_present(
         response: FinalQAResponse,
         question: AcceptanceQuestion,
     ) -> bool:
         requirements = question.required_citation_fields
+        # Symmetric presence check for every normative identity field,
+        # including chapter/authority_level: this is what keeps a
+        # *boundary* citation shape from posing as a *normative* one (all
+        # required fields present) and, just as important, keeps a
+        # normative-looking field from leaking onto a citation whose
+        # question never required it -- e.g. an abstention citation must
+        # not smuggle in a chapter/authority_level value under a
+        # boundary_evidence-mode question (Codex review, PR #33, P1).
+        # chapter/authority_level used to be checked one-directionally only
+        # (required -> must be present) to stay lenient with older ad-hoc
+        # fixtures that predate these fields being mandatory for
+        # answer/conflict questions; POC1AcceptanceSet.validate_contract()
+        # now enforces chapter=True/authority_level=True for every real,
+        # reviewed answer/conflict question, so that leniency is no longer
+        # needed and was itself a gap Codex flagged.
         fields = (
             "document",
             "revision",
+            "chapter",
             "section",
             "page_or_anchor",
+            "authority_level",
             "excerpt_or_evidence_id",
         )
         if not response.citations:
@@ -146,9 +345,17 @@ class FinalPOC1Evaluator:
             for field_name in fields:
                 if getattr(requirements, field_name) and not getattr(citation, field_name):
                     return False
+                # `is not None` (not truthiness): an explicitly empty string
+                # (e.g. chapter="") is still a forbidden normative field
+                # smuggled onto a citation that must not carry one -- a
+                # truthiness check treats "" the same as unset and lets it
+                # slip through, and _canonical_field_mismatches() never
+                # independently catches this because it only compares
+                # provenance fields for citations it judges normative
+                # (Codex review, PR #33, P2, fresh finding on 07d45d0).
                 if (
                     not getattr(requirements, field_name)
-                    and getattr(citation, field_name)
+                    and getattr(citation, field_name) is not None
                 ):
                     return False
         if requirements.scope and not response.scope:
@@ -159,6 +366,214 @@ class FinalPOC1Evaluator:
             return False
         return True
 
+    _CANONICAL_PROVENANCE_FIELDS = (
+        "document",
+        "revision",
+        "chapter",
+        "section",
+        "page_or_anchor",
+        "authority_level",
+    )
+
+    def _canonical_field_mismatches(
+        self,
+        citation: FinalQACitation,
+    ) -> Optional[frozenset]:
+        """
+        Verify a submitted citation's evidence-shape (normative vs
+        boundary/non-normative) and, when normative, its
+        document/revision/chapter/section/page_or_anchor/authority_level
+        fields against the resolver's own canonical record for that
+        evidence_id.
+
+        Canonical verification fails closed uniformly for every citation,
+        normative or not (Codex review, PR #33, fresh finding on ad0542c).
+        The previous version treated any non-normative (`document is None`)
+        citation as automatically valid without ever consulting the
+        canonical record, so an acceptance manifest that mistakenly listed
+        an ordinary normative evidence_id under boundary_evidence_ids could
+        be "satisfied" by a boundary-shaped response citing that same
+        evidence_id: the ID resolves, it's in the expected set, and the
+        absent normative fields satisfy boundary-shape completeness --
+        nothing ever checked whether that evidence_id is genuinely
+        boundary-shaped in the canonical registry. Symmetrically, a
+        normative-looking citation for an evidence_id whose canonical
+        record is actually boundary-shaped must also be rejected. Treating
+        boundary citations as exempt from canonical verification (while
+        normative ones fail closed) would itself reintroduce the
+        "unverifiable == correct" gap already closed for normative
+        provenance (Codex review, PR #33, P1).
+
+        "excerpt_or_evidence_id" is verified for *every* citation,
+        normative or boundary, independent of the document/revision/etc.
+        comparison above. It is valid iff it equals the citation's own
+        evidence_id, OR it is a strict contiguous verbatim substring of the
+        TRUSTED, UNTRUNCATED source text for that evidence_id (see
+        _trusted_source_text) -- never fuzzy/similarity matching, and never
+        the reverse containment ("the canonical text is contained inside
+        the submitted text"), which would let a real quote be padded with
+        arbitrary unsupported prose and still pass.
+
+        An earlier version of this check required exact equality against
+        the resolver's canonical Citation.excerpt -- but that field is
+        itself a DISPLAY rendering: GovernedSpecRetriever.to_citation()
+        truncates normative evidence content to at most 240 characters. A
+        response quoting a different, shorter genuine passage from later in
+        the source, or quoting the full untruncated passage when the
+        canonical record happened to store the truncated form, was
+        therefore incorrectly rejected (Codex review, PR #33, fresh finding
+        on d4f3bf7). Verifying against the untruncated trusted source text
+        instead of one preselected rendering fixes this while remaining a
+        strict, deterministic, non-fuzzy check: accepting anything means a
+        response could pair a real, correctly-provenanced evidence_id with
+        a fabricated quote and still pass both citation_complete and
+        citation_valid, letting unsupported evidence text through the
+        grounding gate (Codex review, PR #33, fresh finding on 88200c5).
+
+        Returns:
+        - a frozenset containing "citation_kind" when the submitted
+          citation's normative/non-normative shape does not match the
+          canonical record's shape (e.g. a boundary-shaped citation for an
+          evidence_id whose canonical record is normative, or vice versa);
+        - a frozenset containing "excerpt_or_evidence_id" (alone, or
+          alongside other mismatched field names) when the submitted value
+          is neither the citation's own evidence_id nor a verbatim
+          substring of the trusted source text;
+        - a non-empty frozenset of the field names that disagree, when both
+          the submitted citation and its canonical record are normative but
+          some field was submitted incorrectly (e.g. chapter="999" for an
+          evidence_id whose real chapter is "10");
+        - an empty frozenset() only when the submitted citation and its
+          canonical record agree on evidence-shape, the excerpt/evidence_id
+          identity check passes, and (for normative citations) every
+          compared field matches;
+        - None when evidence-shape could not be verified at all -- the
+          resolver has no get_canonical_citation_by_id(), or the
+          evidence_id does not resolve to any canonical record. Callers
+          must treat None as "fail closed", not as "no mismatch", for every
+          citation regardless of its submitted shape (Codex review, PR #33,
+          fresh finding on ad0542c).
+        """
+        get_canonical = getattr(self.evidence_resolver, "get_canonical_citation_by_id", None)
+        if get_canonical is None:
+            return None
+        canonical = get_canonical(citation.evidence_id)
+        if canonical is None:
+            return None
+
+        submitted_normative = citation.document is not None
+        canonical_normative = getattr(canonical, "document", None) is not None
+        if submitted_normative != canonical_normative:
+            return frozenset({"citation_kind"})
+
+        mismatches = set()
+        excerpt_value = citation.excerpt_or_evidence_id
+        if excerpt_value != citation.evidence_id:
+            # A whitespace-only excerpt (" ") is not None, and " " is a
+            # substring of virtually every trusted source text, so it must
+            # be rejected explicitly rather than falling through to the
+            # containment check (Codex review, PR #33, P2, fresh finding
+            # on e3de202).
+            if excerpt_value is None or not excerpt_value.strip():
+                mismatches.add("excerpt_or_evidence_id")
+            else:
+                trusted_text = self._trusted_source_text(citation.evidence_id)
+                if trusted_text is None or excerpt_value not in trusted_text:
+                    mismatches.add("excerpt_or_evidence_id")
+
+        if not submitted_normative:
+            return frozenset(mismatches)
+
+        mismatches.update(
+            field_name
+            for field_name in self._CANONICAL_PROVENANCE_FIELDS
+            if getattr(citation, field_name) != getattr(canonical, field_name)
+        )
+        return frozenset(mismatches)
+
+    def _trusted_source_text(self, evidence_id: str) -> Optional[str]:
+        """
+        Resolve the trusted, UNTRUNCATED source text that a submitted
+        excerpt must be a strict contiguous verbatim substring of.
+
+        get_canonical_citation_by_id() returns a Citation whose own
+        ``excerpt`` is, for normative evidence, already truncated to at
+        most 240 characters (GovernedSpecRetriever.to_citation's
+        excerpt_max_len) -- a display rendering, not the full trusted
+        source text. This resolves the raw registry record instead, via
+        the same get_evidence_by_id() the fabrication check already uses:
+        - normative evidence: GovernedEvidence.content (the full source
+          text to_citation() truncates from);
+        - boundary/governance evidence: BoundaryEvidence.excerpt (already
+          the full trusted text -- to_boundary_citation()/
+          to_governance_citation() never truncate it).
+
+        Returns None when the resolver cannot produce this raw record --
+        callers must treat that as fail-closed, the same as an unresolvable
+        canonical citation.
+        """
+        raw = self.evidence_resolver.get_evidence_by_id(evidence_id)
+        if raw is None:
+            return None
+        content = getattr(raw, "content", None)
+        if content is not None:
+            return content
+        return getattr(raw, "excerpt", None)
+
+    def _conflict_provenance_ok(self, response: FinalQAResponse) -> bool:
+        """
+        Codex review, PR #33, fresh finding on d5b82ba: GroundedAnswer
+        already enforces that a declared 'conflict' have genuinely
+        distinct competing provenance (evidence_contract.py's
+        validate_conflict_provenance(), covering UNRESOLVED_CONFLICT's
+        >=2-distinct-identities rule and the VERSION_CONFLICT/
+        AUTHORITY_MISMATCH-specific rules) -- but a benchmark ``agent_fn``
+        response reaches FinalPOC1Evaluator as a bare FinalQAResponse that
+        never passes through GroundedAnswer at all. Before this check, the
+        evaluator's conflict handling only verified that the expected
+        evidence_ids were present (``evidence_shape_correct``), so an
+        agent_fn response declaring VERSION_CONFLICT with two citations of
+        the SAME revision -- not a real version conflict -- could still be
+        scored citation_valid=True and pass the formal conflict gate. "The
+        front door has a guard, the back door doesn't."
+
+        This is a no-op (True) for non-conflict responses.
+
+        Deliberately validates against each citation's CANONICAL resolved
+        provenance (document/revision/authority_level from
+        get_canonical_citation_by_id()), never the response's own
+        submitted Citation fields -- an agent_fn is exactly the untrusted
+        input this check exists to catch, so trusting its self-reported
+        metadata here would defeat the point (mirrors
+        _canonical_field_mismatches()'s existing canonical-vs-submitted
+        verification for citation completeness).
+
+        Fails closed (returns False) when the resolver cannot verify every
+        citation's canonical provenance at all -- no
+        get_canonical_citation_by_id(), or any cited evidence_id does not
+        resolve -- consistent with _canonical_field_mismatches() treating
+        an unverifiable citation as invalid rather than as "no mismatch
+        found."
+        """
+        if response.status != "conflict":
+            return True
+        get_canonical = getattr(self.evidence_resolver, "get_canonical_citation_by_id", None)
+        if get_canonical is None:
+            return False
+        provenance_identities = []
+        for citation in response.citations:
+            canonical = get_canonical(citation.evidence_id)
+            if canonical is None:
+                return False
+            provenance_identities.append(
+                (
+                    getattr(canonical, "document", None),
+                    getattr(canonical, "revision", None),
+                    getattr(canonical, "authority_level", None),
+                )
+            )
+        return validate_conflict_provenance(response.boundary_code, provenance_identities) is None
+
     def _coerce_response(self, raw_response: Any) -> Optional[FinalQAResponse]:
         if isinstance(raw_response, FinalQAResponse):
             return raw_response
@@ -166,6 +581,91 @@ class FinalPOC1Evaluator:
             return FinalQAResponse.model_validate(raw_response)
         except ValidationError:
             return None
+
+    def _canonical_boundary_code_mismatch(self, response: FinalQAResponse) -> bool:
+        """
+        Codex review, PR #33, final batch item 3 (fresh finding on b69d7ad):
+        boundary_correct previously only ever compared
+        ``response.boundary_code`` against ``question.gold.boundary_code``
+        -- the manifest's own asserted value, never the CANONICAL
+        boundary_code actually registered for a cited boundary/governance
+        evidence_id (BoundaryEvidence.boundary_code, resolved via
+        get_evidence_by_id()). A manifest entry that mis-declared
+        boundary_code for a real registered evidence_id (e.g. pairing
+        POC1-BOUNDARY-USB4-EXCLUDED with the wrong boundary_code) would
+        still make an agreeing-but-wrong response pass every existing
+        check.
+
+        A no-op (False) for ``status == "answer"``: the USB4
+        corpus-membership carve-out is a legitimate governance ANSWER that
+        cites a BoundaryEvidence record whose own boundary_code is
+        "OUT_OF_SCOPE" -- but the answer's own contractual
+        ``response.boundary_code`` must be None (this is not an
+        abstention). Comparing those two is a category error, not a real
+        mismatch; only abstain/conflict responses are checked here.
+
+        Returns True (mismatch) when any cited evidence_id resolves to a
+        canonical record that declares its own boundary_code and that
+        boundary_code disagrees with this response's ``boundary_code``.
+        This is deterministic metadata comparison, not semantic entailment
+        -- the same class of check ``_conflict_provenance_ok`` already
+        performs for conflict provenance.
+
+        A no-op (False, "no mismatch") when a citation's evidence_id does
+        not resolve, or resolves to a record with no boundary_code
+        attribute at all (i.e. genuinely normative evidence, or a resolver
+        stub that does not model boundary_code) -- fabrication and
+        evidence-shape are already covered by ``fabricated``/
+        ``canonical_provenance_ok``/``_canonical_field_mismatches``; this
+        check only adds the boundary_code cross-check those do not
+        perform.
+        """
+        if response.status == "answer":
+            return False
+        for citation in response.citations:
+            canonical = self.evidence_resolver.get_evidence_by_id(citation.evidence_id)
+            canonical_boundary_code = getattr(canonical, "boundary_code", None)
+            if canonical_boundary_code is not None and response.boundary_code != canonical_boundary_code:
+                return True
+        return False
+
+    def _canonical_scope_mismatch(self, response: FinalQAResponse) -> bool:
+        """
+        Codex review, PR #33, final batch item 3 (fresh finding on b69d7ad):
+        the original implementation compared ``citation.scope`` against the
+        canonical scope, but production's
+        ``QAResponse.to_final_qa_response()`` always sets
+        ``FinalQACitation.scope=None`` -- so this check was always skipped
+        on the real production path, and a manifest that mis-declares
+        ``expected_scope`` for a real BoundaryEvidence-backed abstain could
+        still pass (the exact gap this check exists to close).
+
+        This now compares ``response.scope`` (not ``citation.scope``)
+        against the canonical scope, and ONLY for citations whose canonical
+        record is boundary/governance-shaped (declares a non-None
+        ``boundary_code``). Normative evidence is deliberately excluded: a
+        legitimate cross-scope answer can cite evidence from multiple
+        distinct scopes (e.g. ``response.scope="USB_HUB_COMMON"`` backed by
+        USB_2_0 + USB_3_X evidence) while correctly reporting a scope that
+        differs from either individual evidence_id's own scope -- comparing
+        every normative citation's canonical scope against
+        ``response.scope`` would misclassify that as a mismatch.
+
+        Returns True (mismatch) when a boundary/governance-shaped
+        citation's canonical scope disagrees with ``response.scope``. A
+        no-op (False) for citations with no boundary_code on their
+        canonical record, an unresolved evidence_id, or a canonical record
+        with no scope attribute at all.
+        """
+        for citation in response.citations:
+            canonical = self.evidence_resolver.get_evidence_by_id(citation.evidence_id)
+            canonical_boundary_code = getattr(canonical, "boundary_code", None)
+            if canonical_boundary_code is None:
+                continue
+            canonical_scope = getattr(canonical, "scope", None)
+            if canonical_scope is not None and response.scope != canonical_scope:
+                return True
+        return False
 
     def evaluate_response(
         self,
@@ -189,6 +689,7 @@ class FinalPOC1Evaluator:
                 boundary_correct=False,
                 required_claims_present=False,
                 forbidden_claim_detected=False,
+                claim_traceability_ok=False,
                 cited_evidence_ids=[],
             )
 
@@ -202,10 +703,34 @@ class FinalPOC1Evaluator:
             if self.evidence_resolver.get_evidence_by_id(evidence_id) is not None
         }
         fabricated = resolved_ids != set(cited_ids)
-        authority_violation = not set(cited_ids).issubset(expected_ids)
-        scope_correct = response.scope == question.expected_scope and all(
-            citation.scope in {None, question.expected_scope}
-            for citation in response.citations
+        citation_mismatches = [
+            self._canonical_field_mismatches(citation) for citation in response.citations
+        ]
+        canonical_provenance_ok = all(
+            mismatches is not None and not mismatches for mismatches in citation_mismatches
+        )
+        # authority_violation is True either when the cited evidence set
+        # falls outside what the question accepts (source-eligibility), OR
+        # when a citation's authority_level disagrees with the resolver's
+        # canonical record for that evidence_id -- e.g. a response citing
+        # the accepted evidence_id but reporting the wrong authority_level
+        # must still be counted against authority_violations_count, not
+        # just flagged via the separate citation_valid/grounded outcome
+        # (Codex review, PR #33, P2).
+        canonical_authority_mismatch = any(
+            mismatches is not None and "authority_level" in mismatches
+            for mismatches in citation_mismatches
+        )
+        authority_violation = (
+            not set(cited_ids).issubset(expected_ids) or canonical_authority_mismatch
+        )
+        scope_correct = (
+            response.scope == question.expected_scope
+            and all(
+                citation.scope in {None, question.expected_scope}
+                for citation in response.citations
+            )
+            and not self._canonical_scope_mismatch(response)
         )
         retrieval_hit_at_1 = bool(cited_ids and cited_ids[0] in expected_ids)
 
@@ -229,9 +754,24 @@ class FinalPOC1Evaluator:
             self._contains_expected(response.claims, forbidden, [])
             for forbidden in question.gold.forbidden_claims
         )
-        boundary_correct = response.boundary_code == question.gold.boundary_code
+        boundary_correct = (
+            response.boundary_code == question.gold.boundary_code
+            and not self._canonical_boundary_code_mismatch(response)
+        )
         status_correct = response.status == question.expected_status
         citation_complete = self._required_citation_fields_present(response, question)
+        claim_traceability_ok = self._claim_traceability_ok(response)
+        conflict_claim_binding_ok = self._conflict_claim_binding_ok(response, question)
+        conflict_provenance_ok = self._conflict_provenance_ok(response)
+        # GroundedAnswer rejects a response that cites the same evidence_id
+        # twice (that is not two independent pieces of evidence, it is one
+        # citation padded to look like two). Every check above that turns
+        # cited_ids into a set (fabricated/authority_violation/
+        # evidence_shape_correct) silently absorbs that duplication, so a
+        # direct FinalQAResponse from an agent_fn that bypasses QAResponse
+        # entirely could otherwise pass every other gate on a duplicated,
+        # individually-genuine citation (Codex review, PR #33, P2).
+        no_duplicate_citations = len(cited_ids) == len(set(cited_ids))
 
         if question.expected_status == "answer":
             evidence_shape_correct = bool(cited_ids) and set(cited_ids).issubset(expected_ids)
@@ -243,6 +783,9 @@ class FinalPOC1Evaluator:
             evidence_shape_correct
             and not fabricated
             and not authority_violation
+            and canonical_provenance_ok
+            and conflict_provenance_ok
+            and no_duplicate_citations
         )
         grounded = (
             status_correct
@@ -251,6 +794,8 @@ class FinalPOC1Evaluator:
             and not forbidden_claim_detected
             and boundary_correct
             and scope_correct
+            and claim_traceability_ok
+            and conflict_claim_binding_ok
         )
         passed = grounded and citation_complete
         return FinalQuestionResult(
@@ -268,6 +813,7 @@ class FinalPOC1Evaluator:
             boundary_correct=boundary_correct,
             required_claims_present=required_claims_present,
             forbidden_claim_detected=forbidden_claim_detected,
+            claim_traceability_ok=claim_traceability_ok,
             cited_evidence_ids=cited_ids,
         )
 

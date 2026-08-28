@@ -42,10 +42,57 @@ from pydantic import BaseModel, ValidationError, model_validator
 RetrievalMode = Literal["single_scope", "explicit_cross_scope"]
 
 KNOWN_DOMAINS: Tuple[str, ...] = ("USB_HUB",)
+KNOWN_RETRIEVAL_MODES: Tuple[str, ...] = ("single_scope", "explicit_cross_scope")
 
 
 class RetrievalPolicyError(ValueError):
     """Raised when a RetrievalPolicy's fields are internally inconsistent."""
+
+
+def validate_policy_inputs(
+    *,
+    domain: str,
+    retrieval_mode: RetrievalMode,
+    allowed_evidence_scopes: Optional[Tuple[str, ...]],
+) -> None:
+    """
+    Validate the domain/retrieval_mode/allowed_evidence_scopes combination
+    independent of answer_scope.
+
+    RetrievalPolicy itself cannot be constructed without an answer_scope
+    (it is a required field), which previously meant a caller could skip
+    *all* policy validation -- including an unknown domain, an unknown
+    retrieval_mode, or a retrieval_mode="explicit_cross_scope" declaration
+    missing allowed_evidence_scopes -- simply by omitting answer_scope
+    (Codex review, PR #33, P2). This function covers exactly the subset of
+    RetrievalPolicy's validation that does not depend on answer_scope, so
+    callers (qa_service.py's answer_question()) can run it unconditionally,
+    before any answer_scope-gated construction of RetrievalPolicy itself.
+
+    ``retrieval_mode``'s ``RetrievalMode`` type annotation is a
+    ``typing.Literal`` -- Python does not enforce that at runtime for a
+    plain function parameter, only pydantic's model validation does. When
+    answer_scope is omitted, RetrievalPolicy is never constructed, so an
+    invalid runtime value (e.g. retrieval_mode="bogus") would previously
+    reach only the `== "explicit_cross_scope"` branch below, silently pass,
+    and never be rejected (Codex review, PR #33, fresh finding on
+    edf8825). Membership must therefore be checked explicitly here too.
+    """
+    if domain not in KNOWN_DOMAINS:
+        raise RetrievalPolicyError(
+            f"unknown retrieval domain {domain!r}; expected one of {KNOWN_DOMAINS}"
+        )
+    if retrieval_mode not in KNOWN_RETRIEVAL_MODES:
+        raise RetrievalPolicyError(
+            f"unknown retrieval_mode {retrieval_mode!r}; expected one of "
+            f"{KNOWN_RETRIEVAL_MODES}"
+        )
+    if retrieval_mode == "explicit_cross_scope" and not allowed_evidence_scopes:
+        raise RetrievalPolicyError(
+            "explicit_cross_scope retrieval_mode requires a non-empty "
+            "allowed_evidence_scopes; the retriever will not infer cross-scope "
+            "evidence scopes on its own."
+        )
 
 
 class RetrievalPolicy(BaseModel):
@@ -70,10 +117,11 @@ class RetrievalPolicy(BaseModel):
 
     @model_validator(mode="after")
     def _validate_and_normalize(self) -> "RetrievalPolicy":
-        if self.domain not in KNOWN_DOMAINS:
-            raise RetrievalPolicyError(
-                f"unknown retrieval domain {self.domain!r}; expected one of {KNOWN_DOMAINS}"
-            )
+        validate_policy_inputs(
+            domain=self.domain,
+            retrieval_mode=self.retrieval_mode,
+            allowed_evidence_scopes=self.allowed_evidence_scopes,
+        )
 
         if self.retrieval_mode == "single_scope":
             if self.allowed_evidence_scopes is None:
@@ -85,13 +133,6 @@ class RetrievalPolicy(BaseModel):
                     f"{tuple(self.allowed_evidence_scopes)!r}. Use "
                     "retrieval_mode='explicit_cross_scope' to request additional evidence "
                     "scopes explicitly."
-                )
-        elif self.retrieval_mode == "explicit_cross_scope":
-            if not self.allowed_evidence_scopes:
-                raise RetrievalPolicyError(
-                    "explicit_cross_scope retrieval_mode requires a non-empty "
-                    "allowed_evidence_scopes; the retriever will not infer cross-scope "
-                    "evidence scopes on its own."
                 )
 
         return self

@@ -7,6 +7,8 @@ from typing import List, Dict, Any, Mapping, Optional, Tuple
 from pydantic import BaseModel
 import yaml
 from gv100h.spec_qa.contracts.retrieval_policy import RetrievalPolicy
+from gv100h.spec_qa.contracts.evidence_contract import Citation, EvidenceContractError
+from gv100h.spec_qa.contracts.poc1_acceptance_contract import BoundaryCode
 from gv100h.spec_qa.retrieval.query_normalizer import normalize_feature_selector_query
 
 
@@ -18,9 +20,47 @@ class GovernedEvidence(BaseModel):
     section: str
     title: str
     content: str
+    # Which corpus.lock.yaml source this evidence was derived from (e.g.
+    # "hub_reference"). This is the provenance link the Evidence Contract
+    # (evidence_contract.py) requires to build a Citation's document/revision
+    # fields -- an evidence entry with no traceable source cannot be cited.
+    source_id: str
     entity_type: Optional[str] = None
     selector_name: Optional[str] = None
     selector_value: Optional[int] = None
+
+
+class BoundaryEvidence(BaseModel):
+    """
+    A registered governance/corpus fact used to back an 'abstain' status's
+    *boundary* claim (docs/USB_SPEC_QA_POC1_SCOPE.md Section 5) -- e.g. "USB4
+    is excluded from the Phase 1 corpus". This is a distinct concept from
+    GovernedEvidence/EVIDENCE_REGISTRY: it is resolvable by the same resolver
+    surface (get_boundary_evidence_by_id / to_boundary_citation) but is NEVER
+    eligible as normative *answer* evidence (Codex review, PR #33, P1).
+    "registered" and "answer_eligible" are deliberately different properties
+    -- see _validate_evidence_registry_provenance's own "registered !=
+    answer_eligible" principle for EVIDENCE_REGISTRY, which this mirrors from
+    the opposite direction: a BoundaryEvidence entry is registered precisely
+    *because* its underlying source is excluded/ineligible as answer
+    evidence, not despite it.
+
+    A live QAService abstain path must cite a real BoundaryEvidence entry
+    registered here -- never fabricate an ad-hoc Citation(evidence_id=...) at
+    the call site, since FinalPOC1Evaluator would then correctly flag it as
+    an unresolvable/fabricated citation.
+    """
+
+    evidence_id: str
+    boundary_code: BoundaryCode
+    claim: str
+    scope: str
+    # Which corpus.lock.yaml source this boundary fact is derived from (e.g.
+    # "usb4") -- the same provenance-traceability requirement EVIDENCE_REGISTRY
+    # entries have, just pointing at an excluded/ineligible source instead of
+    # an answer-eligible one.
+    source_id: str
+    excerpt: str
 
 
 class GovernedSpecRetriever:
@@ -58,6 +98,7 @@ class GovernedSpecRetriever:
             section="10.16.2.1",
             title="Hub Class Feature Selectors (USB 3.x)",
             content="In USB 3.x Hub specifications, PORT_POWER feature selector value is 8 (0x0008). Used with SetPortFeature to enable VBUS power to the downstream port.",
+            source_id="hub_reference",
             entity_type="feature_selector",
             selector_name="PORT_POWER",
             selector_value=8,
@@ -70,6 +111,7 @@ class GovernedSpecRetriever:
             section="11.24.2.1",
             title="Hub Class Feature Selectors (USB 2.0)",
             content="In USB 2.0 Hub specifications, PORT_POWER feature selector value is 8 (0x0008).",
+            source_id="hub_reference",
             entity_type="feature_selector",
             selector_name="PORT_POWER",
             selector_value=8,
@@ -82,6 +124,7 @@ class GovernedSpecRetriever:
             section="10.16.2.2",
             title="Port Link State Feature Selector (USB 3.x)",
             content="PORT_LINK_STATE feature selector value is 5 (0x0005) in USB 3.x. Not applicable to USB 2.0 (USB 3.x 專屬，在 USB 2.0 架構下無效，不支援且不適用).",
+            source_id="hub_reference",
             entity_type="feature_selector",
             selector_name="PORT_LINK_STATE",
             selector_value=5,
@@ -94,6 +137,7 @@ class GovernedSpecRetriever:
             section="10.15.2.1",
             title="USB 3.x SuperSpeed Hub Descriptor",
             content="bDescriptorType is 0x2A for SuperSpeed Hub Descriptor (USB 3.x), distinguishing it from USB 2.0 Hub Descriptor (0x29). USB 3.x Hub 不能直接使用 0x29.",
+            source_id="hub_reference",
         ),
         GovernedEvidence(
             evidence_id="USB2-HUB-DESC-FORMAT",
@@ -103,7 +147,59 @@ class GovernedSpecRetriever:
             section="11.23.2.1",
             title="USB 2.0 Hub Descriptor",
             content="bDescriptorType is 0x29 for USB 2.0 Hub Descriptor. 收到 0x2A 在 USB 2.0 為未定義錯誤。",
+            source_id="hub_reference",
         )
+    ]
+
+    # First-class Boundary Evidence Registry (Codex review, PR #33, P1).
+    # Seeded only with boundary facts already proven by governed metadata --
+    # never an invented/ad-hoc ID. USB4's Phase 1 exclusion is already a
+    # declared fact in corpus.lock.yaml (sources.usb4: phase=phase_2,
+    # included=false, retrieval_status=excluded_from_phase_1); this registry
+    # entry just makes that fact resolvable as a citation.
+    #
+    # Deliberately NOT seeded here: a generic catch-all "out of scope"
+    # boundary fact, and a MISSING_EVIDENCE boundary fact.
+    #
+    # A generic entry was tried and removed (Codex review, PR #33, P1,
+    # 2nd pass): a single source's known_limits (e.g.
+    # hub_reference.known_limits: not_electrical_or_lvs_compliance_proof)
+    # only proves that ONE source doesn't cover a topic -- it does not prove
+    # the entire Phase 1 corpus lacks coverage, since Phase 1 also includes
+    # several official_raw sources (usb20_fw, usb20_se, usb32,
+    # superspeed_hub_lvs) with their own, different coverage. Citing
+    # hub_reference's ceiling as if it were a corpus-wide boundary fact would
+    # itself be an unsupported claim -- "one source's ceiling != whole
+    # corpus boundary". Until topic-specific boundary evidence (or a
+    # corpus-wide, per-topic exclusion actually declared in corpus.lock.yaml)
+    # exists, a generic unsupported-keyword query must abstain with no
+    # citation rather than fabricate one just to look complete.
+    #
+    # "No eligible evidence was found" (MISSING_EVIDENCE) is a runtime
+    # retrieval observation (a given query + scope + retrieval policy +
+    # corpus revision produced zero results), not a static corpus/governance
+    # fact -- it cannot be represented as a fixed BoundaryEvidence entry
+    # without misrepresenting a runtime observation as a corpus fact.
+    # Representing it correctly needs a runtime retrieval-boundary receipt
+    # (query/scope/policy/corpus_lock_hash/result_count=0), which is out of
+    # scope for this registry and is tracked as a follow-up rather than
+    # faked here.
+    BOUNDARY_EVIDENCE_REGISTRY: List[BoundaryEvidence] = [
+        BoundaryEvidence(
+            evidence_id="POC1-BOUNDARY-USB4-EXCLUDED",
+            boundary_code="OUT_OF_SCOPE",
+            claim=(
+                "USB4 is excluded from the Phase 1 corpus (corpus.lock.yaml "
+                "sources.usb4: phase=phase_2, included=false, "
+                "retrieval_status=excluded_from_phase_1)."
+            ),
+            scope="USB4_SPEC",
+            source_id="usb4",
+            excerpt=(
+                "corpus.lock.yaml sources.usb4: phase=phase_2, included=false, "
+                "retrieval_status=excluded_from_phase_1."
+            ),
+        ),
     ]
 
     def __init__(
@@ -120,6 +216,8 @@ class GovernedSpecRetriever:
         )
         self.corpus_lock = self._load_corpus_lock(self.corpus_lock_path)
         self.corpus_lock_validation = self.validate_corpus_lock(self.corpus_lock)
+        self._validate_evidence_registry_provenance(self.corpus_lock)
+        self._validate_boundary_evidence_registry_provenance(self.corpus_lock)
         self.require_physical_binding = require_physical_binding
         self.lock_binding_status = self.corpus_lock["status"]
         self.runtime_binding_status = "unverified"
@@ -178,6 +276,173 @@ class GovernedSpecRetriever:
             )
 
         self._refresh_qualification_state()
+
+    def _validate_evidence_registry_provenance(self, corpus_lock: Mapping[str, Any]) -> None:
+        """
+        Every EVIDENCE_REGISTRY entry must declare a source_id that is a known
+        key in corpus.lock.yaml's sources table. An evidence entry with an
+        unregistered source_id cannot be traced back to a document/revision,
+        so it can never be resolved into a Citation -- fail closed at load
+        time rather than at citation-build time.
+        """
+        known_source_ids = set(corpus_lock["sources"])
+        unknown = [
+            ev.evidence_id
+            for ev in self.EVIDENCE_REGISTRY
+            if ev.source_id not in known_source_ids
+        ]
+        if unknown:
+            raise ValueError(
+                "EVIDENCE_REGISTRY contains entries with unregistered source_id "
+                "(not present in corpus.lock.yaml sources): "
+                + ", ".join(unknown)
+            )
+
+        # Codex review, PR #33, F: BOUNDARY_EVIDENCE_REGISTRY already
+        # enforces unique evidence_id values (see
+        # _validate_boundary_evidence_registry_provenance below);
+        # EVIDENCE_REGISTRY itself had no equivalent duplicate-ID check, so
+        # a duplicated evidence_id there would silently make evidence_id
+        # resolution ambiguous (get_evidence_by_id() returning whichever
+        # entry happens to match first) instead of failing closed at load
+        # time. Checked last (after the unregistered-source-id and
+        # not-eligible-as-answer-evidence checks above/below) so a single
+        # malformed entry that also happens to duplicate an existing
+        # evidence_id is still reported under its more specific
+        # provenance error first.
+
+        # Being a *known* source_id is not the same as being *eligible as
+        # answer evidence*: corpus.lock.yaml deliberately registers excluded
+        # sources too (e.g. "usb4", phase_2/included=false) so their
+        # exclusion is itself traceable. Without this check, an
+        # EVIDENCE_REGISTRY entry could reference such a source and both
+        # query() and to_citation() would happily surface it as ordinary
+        # answer evidence -- letting an explicit negative-control source
+        # leak into answers (Codex review, PR #33, P1). A source is eligible
+        # only when it is bound to the current phase, not excluded, and its
+        # declared layer is itself marked allowed_as_answer_evidence in
+        # corpus.lock.yaml.
+        layers = corpus_lock.get("layers", {})
+        ineligible = []
+        for ev in self.EVIDENCE_REGISTRY:
+            source = corpus_lock["sources"].get(ev.source_id, {})
+            layer = layers.get(source.get("layer"), {})
+            is_eligible = (
+                source.get("phase") == "phase_1"
+                and source.get("included", True) is not False
+                and layer.get("allowed_as_answer_evidence") is True
+            )
+            if not is_eligible:
+                ineligible.append(f"{ev.evidence_id!r} (source_id={ev.source_id!r})")
+        if ineligible:
+            raise ValueError(
+                "EVIDENCE_REGISTRY contains entries whose source is not "
+                "eligible as answer evidence (must be phase_1, not excluded, "
+                "and declared on a layer with allowed_as_answer_evidence=true "
+                "in corpus.lock.yaml): " + ", ".join(ineligible)
+            )
+
+        evidence_ids = [ev.evidence_id for ev in self.EVIDENCE_REGISTRY]
+        if len(evidence_ids) != len(set(evidence_ids)):
+            raise ValueError("EVIDENCE_REGISTRY contains duplicate evidence_id values")
+
+    def _validate_boundary_evidence_registry_provenance(self, corpus_lock: Mapping[str, Any]) -> None:
+        """
+        Every BOUNDARY_EVIDENCE_REGISTRY entry must declare a source_id that
+        is a known key in corpus.lock.yaml's sources table (the same
+        traceability requirement EVIDENCE_REGISTRY has), and entries must
+        have unique evidence_id values that never collide with
+        EVIDENCE_REGISTRY's own evidence_ids -- a resolver caller must always
+        be able to tell, from the ID alone, which registry (and therefore
+        which eligibility) a resolved evidence entry belongs to.
+        """
+        known_source_ids = set(corpus_lock["sources"])
+        unknown = [
+            be.evidence_id
+            for be in self.BOUNDARY_EVIDENCE_REGISTRY
+            if be.source_id not in known_source_ids
+        ]
+        if unknown:
+            raise ValueError(
+                "BOUNDARY_EVIDENCE_REGISTRY contains entries with unregistered "
+                "source_id (not present in corpus.lock.yaml sources): "
+                + ", ".join(unknown)
+            )
+
+        boundary_ids = [be.evidence_id for be in self.BOUNDARY_EVIDENCE_REGISTRY]
+        if len(boundary_ids) != len(set(boundary_ids)):
+            raise ValueError("BOUNDARY_EVIDENCE_REGISTRY contains duplicate evidence_id values")
+
+        answer_evidence_ids = {ev.evidence_id for ev in self.EVIDENCE_REGISTRY}
+        colliding = sorted(answer_evidence_ids.intersection(boundary_ids))
+        if colliding:
+            raise ValueError(
+                "BOUNDARY_EVIDENCE_REGISTRY evidence_id values must not collide "
+                "with EVIDENCE_REGISTRY evidence_id values: " + ", ".join(colliding)
+            )
+
+    def to_citation(self, ev: GovernedEvidence, *, excerpt_max_len: int = 240) -> Citation:
+        """
+        Resolve a GovernedEvidence into a Citation per the Evidence Contract
+        (evidence_contract.py), using corpus.lock.yaml as the source of truth
+        for document/revision provenance.
+
+        corpus.lock.yaml sources come in two shapes:
+        - official_raw sources (usb20_fw, usb20_se, usb32,
+          superspeed_hub_lvs) declare document + revision directly.
+        - the hub_reference governed_reference source instead declares
+          repo + commit (no document/revision keys), so those are used as
+          the document/revision fallback.
+
+        `chapter` is derived from the evidence's own `section` field (e.g.
+        "10.16.2.1" -> chapter "10"), which is consistent with corpus.lock.yaml's
+        declared `included_chapters` per source (e.g. hub_reference-derived
+        sections such as "10.16.2.1"/"11.24.2.1" fall inside the USB 3.2
+        chapter-10 / USB 2.0 chapter-11 ranges already recorded there).
+        """
+        source = self.corpus_lock["sources"].get(ev.source_id)
+        if source is None:
+            raise EvidenceContractError(
+                f"evidence {ev.evidence_id!r} declares unregistered source_id "
+                f"{ev.source_id!r}; cannot resolve document/revision"
+            )
+
+        document = source.get("document", source.get("repo", ev.source_id))
+        revision = source.get("revision", source.get("commit", "unknown"))
+        chapter = self._derive_chapter(ev)
+
+        excerpt = ev.content
+        if excerpt_max_len and len(excerpt) > excerpt_max_len:
+            # Truncate to a plain prefix -- no appended "..." marker -- so
+            # the excerpt stays a genuine contiguous substring of the raw
+            # trusted content. FinalPOC1Evaluator._trusted_source_text()
+            # requires excerpt_value in trusted_text verbatim; an appended
+            # ellipsis character that never appears in the source would
+            # make every truncated citation fail that check.
+            excerpt = excerpt[:excerpt_max_len].rstrip()
+
+        return Citation(
+            evidence_id=ev.evidence_id,
+            document=document,
+            revision=revision,
+            chapter=chapter,
+            section=ev.section,
+            page_or_anchor=ev.section,
+            authority_level=ev.authority_level,
+            excerpt=excerpt,
+        )
+
+    @staticmethod
+    def _derive_chapter(ev: GovernedEvidence) -> str:
+        chapter = ev.section.split(".")[0].strip()
+        if not chapter or not chapter.isdigit():
+            raise EvidenceContractError(
+                f"evidence {ev.evidence_id!r} has a section {ev.section!r} that "
+                "does not start with a numeric chapter segment; cannot derive "
+                "a citation chapter"
+            )
+        return chapter
+
 
     def _refresh_qualification_state(self) -> None:
         block_reasons = list(self.corpus_lock_validation["block_reasons"])
@@ -314,8 +579,23 @@ class GovernedSpecRetriever:
                 block_reasons.append(f"{marker_path} contains pending marker")
 
         usb4 = sources.get("usb4")
-        if not isinstance(usb4, dict) or usb4.get("included") is not False:
-            raise ValueError("USB4 must be excluded from Phase 1")
+        # Codex review, PR #33, F: verify the FULL declared exclusion
+        # state, not just `included is not False` -- a corpus.lock.yaml
+        # edit that flipped `phase` to "phase_1" or `retrieval_status` away
+        # from "excluded_from_phase_1" while leaving `included: false`
+        # would still pass the narrower check even though USB4's Phase 2
+        # exclusion is no longer consistently declared.
+        if (
+            not isinstance(usb4, dict)
+            or usb4.get("included") is not False
+            or usb4.get("phase") != "phase_2"
+            or usb4.get("retrieval_status") != "excluded_from_phase_1"
+        ):
+            raise ValueError(
+                "USB4 must be excluded from Phase 1 (sources.usb4 requires "
+                "phase=phase_2, included=false, "
+                "retrieval_status=excluded_from_phase_1)"
+            )
 
         benchmark = lock.get("benchmark")
         if not isinstance(benchmark, dict) or benchmark.get("benchmark_role") != "independent_evaluation":
@@ -684,8 +964,95 @@ class GovernedSpecRetriever:
         scored_results.sort(key=lambda x: x[0], reverse=True)
         return [item[1] for item in scored_results]
 
-    def get_evidence_by_id(self, evidence_id: str) -> Optional[GovernedEvidence]:
+    def get_evidence_by_id(
+        self, evidence_id: str
+    ) -> Optional[GovernedEvidence | BoundaryEvidence]:
+        """
+        Resolve ``evidence_id`` against BOTH the answer-eligible
+        EVIDENCE_REGISTRY and the BOUNDARY_EVIDENCE_REGISTRY.
+
+        This is the resolver an evaluator uses to ask "does this evidence_id
+        correspond to a genuinely registered piece of evidence?" (fabrication
+        detection) -- a *different* question from "is this evidence eligible
+        to be retrieved and cited as answer support?", which remains query()'s
+        exclusive concern (query() only ever searches EVIDENCE_REGISTRY).
+        Conflating the two would either (a) make boundary evidence
+        unresolvable, so any evaluator that only calls get_evidence_by_id
+        cannot distinguish a real boundary citation (e.g. backing a USB4
+        abstain) from a fabricated one, or (b) make query() return boundary
+        evidence as if it could support an answer. Keeping them separate
+        methods preserves: resolvable != retrievable_as_answer (Codex review,
+        PR #33, P1).
+        """
         for ev in self.EVIDENCE_REGISTRY:
             if ev.evidence_id == evidence_id:
                 return ev
+        for be in self.BOUNDARY_EVIDENCE_REGISTRY:
+            if be.evidence_id == evidence_id:
+                return be
         return None
+
+    def get_boundary_evidence_by_id(self, evidence_id: str) -> Optional[BoundaryEvidence]:
+        for be in self.BOUNDARY_EVIDENCE_REGISTRY:
+            if be.evidence_id == evidence_id:
+                return be
+        return None
+
+    def get_canonical_citation_by_id(self, evidence_id: str) -> Optional[Citation]:
+        """
+        Resolve ``evidence_id`` to its canonical, source-of-truth Citation
+        shape -- the same document/revision/chapter/section/page_or_anchor/
+        authority_level a caller *should* have reported, independent of
+        whatever a service response or model actually submitted.
+
+        This is what FinalPOC1Evaluator uses to verify citation
+        *correctness* (submitted provenance matches the resolver's own
+        record), not just citation *completeness* (the fields were merely
+        present/non-blank). Without this, a response could submit
+        chapter="999" for a citation whose real chapter is "10" and still be
+        scored citation_complete -- completeness alone cannot catch a
+        plausible-looking but false value (Codex review, PR #33, P1).
+
+        Returns None if ``evidence_id`` is not registered at all (fabrication
+        is caught separately by the evaluator's existing resolvability
+        check). For a registered BoundaryEvidence, the canonical shape has no
+        normative fields populated (document is None) -- there is nothing to
+        verify beyond evidence_id/excerpt identity for a boundary/governance
+        citation, since GroundedAnswer already forbids normative fields on
+        those citation kinds.
+        """
+        for ev in self.EVIDENCE_REGISTRY:
+            if ev.evidence_id == evidence_id:
+                return self.to_citation(ev)
+        for be in self.BOUNDARY_EVIDENCE_REGISTRY:
+            if be.evidence_id == evidence_id:
+                return self.to_boundary_citation(be)
+        return None
+
+    def to_boundary_citation(self, be: BoundaryEvidence) -> Citation:
+        """
+        Resolve a registered BoundaryEvidence into a Citation for an
+        'abstain' response's boundary claim -- a *boundary* citation shape
+        (evidence_id + excerpt only, no normative document/revision/chapter/
+        section/page_or_anchor/authority_level fields), per
+        poc1_acceptance_contract.py's "boundary_evidence" citation mode and
+        GroundedAnswer._require_boundary_citations().
+        """
+        return Citation(
+            evidence_id=be.evidence_id, excerpt=be.excerpt, citation_kind="boundary"
+        )
+
+    def to_governance_citation(self, be: BoundaryEvidence) -> Citation:
+        """
+        Resolve a registered BoundaryEvidence into a *governance-fact*
+        Citation for a genuine "answer" about corpus/governance metadata
+        (e.g. "is USB4 included in the Phase 1 corpus?",
+        docs/USB_SPEC_QA_POC1_SCOPE.md lines 86-88) -- distinct from
+        to_boundary_citation() because the response status is "answer", not
+        "abstain": the same underlying registered fact (e.g. corpus.lock.yaml
+        sources.usb4) can license two different, non-overlapping response
+        shapes without duplicating the registry entry.
+        """
+        return Citation(
+            evidence_id=be.evidence_id, excerpt=be.excerpt, citation_kind="governance"
+        )

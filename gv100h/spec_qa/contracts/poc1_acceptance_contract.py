@@ -42,6 +42,18 @@ class CitationRequirements(BaseModel):
     excerpt_or_evidence_id: bool = False
     scope: bool = False
     boundary_code: bool = False
+    # Additive P0 provenance flags (docs/USB_SPEC_QA_POC1_SCOPE.md Section 5).
+    # Default False for backward compatibility with the existing reviewed
+    # acceptance manifest, which never declared them; a question may opt in
+    # by setting either flag True. final_evaluator.py's
+    # _required_citation_fields_present() enforces both symmetrically, the
+    # same as the other normative identity fields above: required -> must
+    # be present, and NOT required -> must be absent (a citation must not
+    # smuggle in a chapter/authority_level value under a question that
+    # never asked for one, e.g. a boundary_evidence-mode abstention)
+    # (Codex review, PR #33, P1).
+    chapter: bool = False
+    authority_level: bool = False
     mode: Literal[
         "normative_source",
         "competing_sources",
@@ -256,11 +268,26 @@ class POC1AcceptanceSet(BaseModel):
                 raise AcceptanceContractError(
                     f"question {question.question_id} grading weights must sum to 1.0"
                 )
+            # chapter/authority_level are P0 citation fields alongside the
+            # original five (docs/USB_SPEC_QA_POC1_SCOPE.md Section 5) and
+            # must be required for normative_source/competing_sources modes
+            # the same way the original five are -- CitationRequirements
+            # previously let both flags default to False even for an
+            # answer/conflict question, so a schema-1.1 manifest question
+            # could validate successfully while omitting them, and
+            # FinalPOC1Evaluator would then report citation_complete=True
+            # with no chapter/authority_level at all. They are inserted
+            # before excerpt_or_evidence_id (not appended) so
+            # normative_fields[:-1] below -- the fields an abstain question
+            # must NOT require -- stays correct without being restated
+            # (Codex review, PR #33, P1).
             normative_fields = (
                 "document",
                 "revision",
+                "chapter",
                 "section",
                 "page_or_anchor",
+                "authority_level",
                 "excerpt_or_evidence_id",
             )
             if question.usb4_negative_control and question.expected_status != "abstain":

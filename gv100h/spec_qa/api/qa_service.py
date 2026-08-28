@@ -1,8 +1,61 @@
-from typing import Dict, Any, List, Optional, Sequence, Tuple
-from pydantic import BaseModel
+import re
+from typing import Dict, Any, List, Literal, Optional, Sequence, Tuple
+from pydantic import BaseModel, Field, model_validator
 
 from gv100h.spec_qa.retrieval.governed_retriever import GovernedSpecRetriever, GovernedEvidence
-from gv100h.spec_qa.contracts.retrieval_policy import RetrievalMode, RetrievalPolicy
+from gv100h.spec_qa.contracts.retrieval_policy import RetrievalMode, RetrievalPolicy, validate_policy_inputs
+from gv100h.spec_qa.contracts.evidence_contract import AnswerStatus, Citation, GroundedAnswer
+from gv100h.spec_qa.contracts.poc1_acceptance_contract import BoundaryCode
+from gv100h.spec_qa.evaluation.final_evaluator import FinalQACitation, FinalQAResponse
+
+# Codex review, PR #33, final batch item 2: a positive ALLOWLIST of whole
+# normalized-query shapes for "is USB4 part of the Phase 1 corpus?"-style
+# corpus-membership questions, replacing the previous
+# usb4_additional_intent_markers DENYLIST. A denylist can only ever abstain
+# for markers someone thought to enumerate -- an unlisted follow-on clause
+# (e.g. "...and what speed does it support?") would have slipped straight
+# through and been misclassified as a pure membership question. Matching is
+# done with re.fullmatch() against the ENTIRE normalized query (see
+# _normalize_for_usb4_membership_match below): any additional clause, in any
+# language, makes every pattern fail to match, and the question correctly
+# falls through to the general USB4 abstain. A false negative (unnecessary
+# abstain) is the safe failure mode here, not a false positive.
+_USB4_CORPUS_MEMBERSHIP_WHOLE_QUERY_PATTERNS: Tuple["re.Pattern[str]", ...] = tuple(
+    re.compile(pattern)
+    for pattern in (
+        r"is usb4 included in (?:the )?(?:current )?(?:phase ?1 )?corpus",
+        r"is usb4 included in (?:the )?phase ?1",
+        r"is usb4 (?:in|part of) (?:the )?(?:current )?corpus",
+        r"is usb4 part of (?:the )?phase ?1",
+        r"is usb4 in (?:the )?phase ?1",
+        r"does (?:the )?phase ?1(?: corpus)? include usb4",
+        r"does (?:the )?corpus include usb4",
+        r"usb4\s*(?:是否|有沒有|有)?\s*(?:屬於|包含在|涵蓋在|有包含在|是否包含在|有沒有涵蓋)\s*"
+        r"(?:目前的?)?\s*(?:corpus|phase ?1|phase ?2)",
+        r"(?:corpus|phase ?1|phase ?2)\s*(?:是否|有沒有)?\s*(?:包含|涵蓋|有)\s*usb4",
+    )
+)
+
+
+def _normalize_for_usb4_membership_match(q_lower: str) -> str:
+    # Deterministic normalization only (no semantic rewriting): trim
+    # surrounding whitespace, drop a single trailing sentence terminator
+    # (?/？/./。/!/！), and collapse internal whitespace runs to one space,
+    # so the whole-query patterns above do not need to special-case
+    # punctuation or spacing variants.
+    stripped = re.sub(r"[?？.。!！]+$", "", q_lower.strip()).strip()
+    return re.sub(r"\s+", " ", stripped)
+
+
+# Codex review, PR #33, final batch item 1: deterministic "USB <version>"
+# detection requiring the literal "usb" token to co-occur with the version
+# number -- not a naked "2.0"/"3.x" substring check, which could match a
+# bare version-like number with no USB context at all. USB 3.0/3.1/3.2/3.x
+# are all recognized as a USB 3.x mention; `(?!\d)` prevents a longer
+# version number (e.g. a hypothetical "usb 3.10") from being misread as
+# "usb 3.1" followed by a stray "0".
+_USB_VERSION_2_0_PATTERN = re.compile(r"usb[\s_]*2(?:\.0)?(?!\d)")
+_USB_VERSION_3_X_PATTERN = re.compile(r"usb[\s_]*3(?:\.[0-2x])?(?!\d)")
 
 
 class QARequest(BaseModel):
@@ -20,6 +73,179 @@ class QAResponse(BaseModel):
     claim_level: str
     boundary: str
     is_abstain: bool
+    # Additive Evidence Contract fields (docs/USB_SPEC_QA_POC1_SCOPE.md §5).
+    # These are populated in parallel with the legacy free-text fields above
+    # so existing callers/tests keep working unchanged; new callers should
+    # prefer these structured fields over parsing `answer`/`boundary` prose.
+    # `claims` and `boundary_code` complete the contract (status/citations/
+    # evidence_ids alone were only half of GroundedAnswer's shape) so a
+    # caller can evaluate this response without re-deriving claims/boundary
+    # from the free-text `answer`/`boundary` fields.
+    status: AnswerStatus = "abstain"
+    claims: List[str] = Field(default_factory=list)
+    # One entry per ``claims`` entry -- see
+    # evidence_contract.GroundedAnswer.claim_evidence_ids for the full
+    # rationale (claim-to-evidence TRACEABILITY, not semantic entailment).
+    claim_evidence_ids: List[List[str]] = Field(default_factory=list)
+    citations: List[Citation] = Field(default_factory=list)
+    boundary_code: Optional[BoundaryCode] = None
+    evidence_ids: List[str] = Field(default_factory=list)
+    # Explicit, serialization-persistent discriminator between the
+    # pre-existing legacy API shape and a genuine structured Evidence
+    # Contract response. This exists because construction-time metadata
+    # (``model_fields_set``) cannot be used for this: it does not survive
+    # model_dump()/model_validate() or JSON round trips (see the history in
+    # `_is_abstain_matches_status` below). `contract_mode` is ordinary
+    # field data instead, so it round-trips like any other field.
+    #
+    # Every internal production constructor
+    # (GovernedQAService._build_response) sets this to "structured". The
+    # default of "legacy" exists solely so a caller building a QAResponse
+    # from only the pre-existing legacy fields (answer/scope/boundary/
+    # is_abstain, with status/boundary_code left at their defaults) keeps
+    # working unchanged and keeps round-tripping.
+    #
+    # This field is deliberately NOT trusted as the sole gate for
+    # "structured" treatment below: a caller trying to bypass the Evidence
+    # Contract could simply never set it to "structured" and keep the
+    # lenient default. The value-based fallback in
+    # `_is_abstain_matches_status` (triggering on non-empty claims/
+    # citations regardless of this flag) is what actually closes that
+    # loophole; `contract_mode="structured"` additionally catches a
+    # genuinely structured caller whose response happens to carry no
+    # claims/citations of its own (Codex review, PR #33, P2, fresh finding
+    # on 4ec68fe).
+    contract_mode: Literal["legacy", "structured"] = "legacy"
+
+    @model_validator(mode="after")
+    def _is_abstain_matches_status(self) -> "QAResponse":
+        """
+        ``is_abstain`` is a legacy boolean fail-safe PROJECTION of the
+        three-state ``status`` field, not an independent signal a caller is
+        free to set: these additive structured fields default to
+        status="abstain"/boundary_code=None, so a caller constructing
+        QAResponse from only the pre-existing legacy fields (e.g.
+        is_abstain=False, leaving status at its default) could previously
+        produce a self-contradictory payload -- status="abstain" alongside
+        is_abstain=False -- with nothing validating the combination the way
+        GroundedAnswer validates its own status/boundary shape (Codex
+        review, PR #33, P2, fresh finding on d4f3bf7).
+
+        The projection is deliberately conservative: "conflict" is not an
+        abstention, but it is also not a normal confident answer, so a
+        legacy boolean-only caller must still see is_abstain=True for it --
+        treating a live source conflict as a plain answer would be worse
+        than treating it as "not a normal answer". New callers must branch
+        on the three-state ``status`` field, not on ``is_abstain``.
+        """
+        expected_is_abstain = self.status != "answer"
+        if self.is_abstain != expected_is_abstain:
+            raise ValueError(
+                "is_abstain must be the legacy fail-safe projection of "
+                "status (False only when status == 'answer'; True for "
+                "'abstain' and 'conflict'); got status="
+                f"{self.status!r} with is_abstain={self.is_abstain!r}"
+            )
+
+        # A response is "structured" -- and therefore held to the FULL
+        # Evidence Contract, not a hand-picked subset of it -- if it
+        # declares contract_mode="structured", OR if it populates ANY of
+        # the additive Evidence Contract fields away from their legacy
+        # defaults. Populating any one of those fields is itself opting
+        # into the structured contract, regardless of what contract_mode
+        # says; see the field comment above for why contract_mode alone
+        # cannot be trusted as the sole gate.
+        #
+        # Four prior fixes here (Codex review, PR #33, P2, findings on
+        # 7c74da3, b05464f, 4ec68fe, and c186023) each hand-copied one more
+        # rule from GroundedAnswer into this validator, or widened the
+        # structured-payload check by one more field at a time (claims/
+        # citations, then nothing else) -- each fix left the remaining
+        # additive fields (claim_evidence_ids, boundary_code, evidence_ids,
+        # a non-default status) as an undetected side door: a caller could
+        # set contract_mode="legacy" with empty claims/citations, stuff a
+        # fabricated evidence_ids list, and never be routed through
+        # GroundedAnswer at all. Fix this class of gap once, not one field
+        # at a time: ANY additive field away from its legacy default marks
+        # the response as structured, with no field left unaccounted for.
+        structured_payload_present = (
+            self.status != "abstain"
+            or bool(self.claims)
+            or bool(self.claim_evidence_ids)
+            or bool(self.citations)
+            or self.boundary_code is not None
+            or bool(self.evidence_ids)
+        )
+        is_structured = self.contract_mode == "structured" or structured_payload_present
+        if is_structured:
+            GroundedAnswer(
+                status=self.status,
+                claims=list(self.claims),
+                claim_evidence_ids=[list(ids) for ids in self.claim_evidence_ids],
+                citations=list(self.citations),
+                scope=self.scope,
+                boundary=self.boundary_code,
+                evidence_ids=list(self.evidence_ids),
+            )
+        else:
+            # Legacy shape: only the narrow, pre-existing rule that predates
+            # the Evidence Contract -- a plain "answer" must never carry a
+            # boundary_code. Nothing else is enforced here, matching the
+            # pre-Evidence-Contract API surface this shape exists to
+            # preserve.
+            if self.status == "answer" and self.boundary_code is not None:
+                raise ValueError(
+                    "boundary_code must be absent when status == 'answer'; "
+                    f"got boundary_code={self.boundary_code!r}"
+                )
+            if self.status == "conflict" and self.boundary_code is None:
+                raise ValueError(
+                    "boundary_code must be populated when status == "
+                    "'conflict'"
+                )
+        return self
+
+    def to_final_qa_response(self) -> FinalQAResponse:
+        """
+        Explicit, tested projection from this runtime/API response onto the
+        evaluator's canonical schema (FinalQAResponse/FinalQACitation in
+        gv100h/spec_qa/evaluation/final_evaluator.py).
+
+        QAResponse intentionally carries more than the evaluator needs --
+        legacy free-text answer/boundary fields, cited_evidences,
+        claim_level, is_abstain, evidence_ids, and each citation's
+        runtime-only chapter/authority_level provenance -- and
+        FinalQAResponse/FinalQACitation both use extra="forbid". Passing
+        ``self.model_dump()`` straight to the evaluator is therefore
+        unreliable: every response would be rejected as an invalid shape
+        (Codex review, PR #33, P1). This method is the single explicit,
+        tested narrowing from the runtime contract to the evaluator contract
+        -- see tests/gv100h/test_m2_spec_qa.py's
+        test_full_contract_chain_* tests, which exercise this method through
+        FinalPOC1Evaluator.evaluate_response() end to end, not just as an
+        isolated schema conversion.
+        """
+        return FinalQAResponse(
+            status=self.status,
+            claims=list(self.claims),
+            claim_evidence_ids=[list(ids) for ids in self.claim_evidence_ids],
+            citations=[
+                FinalQACitation(
+                    evidence_id=citation.evidence_id,
+                    document=citation.document,
+                    revision=citation.revision,
+                    section=citation.section,
+                    page_or_anchor=citation.page_or_anchor,
+                    excerpt_or_evidence_id=citation.excerpt or citation.evidence_id,
+                    scope=None,
+                    chapter=citation.chapter,
+                    authority_level=citation.authority_level,
+                )
+                for citation in self.citations
+            ],
+            scope=self.scope,
+            boundary_code=self.boundary_code,
+        )
 
 
 class GovernedQAService:
@@ -30,6 +256,43 @@ class GovernedQAService:
 
     def __init__(self):
         self.retriever = GovernedSpecRetriever()
+
+    @staticmethod
+    def _resolve_boundary_scope(
+        answer_scope: Optional[str],
+        boundary_evidence: Any,
+    ) -> str:
+        """
+        Reconcile a caller-declared answer_scope with a registered
+        BoundaryEvidence's own governed scope, for the USB4
+        corpus-membership governance-answer branch and the USB4 abstain
+        branch below.
+
+        answer_scope is the caller's explicit Retrieval Policy declaration,
+        not a hint this service is free to reinterpret: silently replacing
+        an unrelated caller-declared answer_scope (e.g. "USB_2_0") with
+        boundary_evidence.scope (e.g. "USB4_SPEC") used to make a USB4
+        governance claim/abstention pass GroundedAnswer while still
+        mislabeling its scope, and it rewrote the caller's declared intent
+        without their knowledge (Codex review, PR #33, fresh finding on
+        88200c5). This fails closed instead of guessing: an absent
+        answer_scope defers to the evidence's governed scope, a matching
+        answer_scope proceeds normally, and a conflicting answer_scope is
+        rejected with a deterministic ValueError rather than silently
+        coerced -- evidence may prove a caller's declared scope is wrong,
+        but it must not silently rewrite it.
+        """
+        if answer_scope is None:
+            return boundary_evidence.scope
+        if answer_scope != boundary_evidence.scope:
+            raise ValueError(
+                f"answer_scope {answer_scope!r} conflicts with the governed "
+                f"scope {boundary_evidence.scope!r} of boundary evidence "
+                f"{boundary_evidence.evidence_id!r}; GovernedQAService does "
+                "not silently override a caller-declared answer_scope with "
+                "the evidence's own scope."
+            )
+        return answer_scope
 
     def answer_question(
         self,
@@ -42,37 +305,40 @@ class GovernedQAService:
     ) -> QAResponse:
         q_lower = query_text.lower()
 
-        # Check for explicitly unsupported / out-of-scope queries
-        unsupported_keywords = [
-            "xhci", "eeprom", "眼圖", "抖動", "usbcore", "pcie", "穿透通道",
-            "pam3", "99.99", "乙太網路", "40gbps", "informative 附錄"
-        ]
-        for uk in unsupported_keywords:
-            if uk in q_lower:
-                return QAResponse(
-                    answer="現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論與權威違規 (Abstain)。",
-                    scope=answer_scope or "OUT_OF_SCOPE",
-                    cited_evidences=[],
-                    claim_level="abstain_no_evidence",
-                    boundary="Exceeds governed knowledge surface of usb-if-hub-spec-reference.",
-                    is_abstain=True
-                )
-
-        # allowed_evidence_scopes is only meaningful paired with an
-        # answer_scope: RetrievalPolicy requires answer_scope to construct
-        # the policy at all, and single_scope/explicit_cross_scope both
-        # derive their eligibility from it. Silently dropping an explicitly
-        # declared allowed_evidence_scopes restriction (by falling through to
-        # an unscoped RetrievalPolicy=None query) would let the retriever
-        # cite evidence outside the caller's declared hard boundary -- reject
-        # the combination instead of silently widening retrieval.
-        if answer_scope is None and allowed_evidence_scopes:
+        # `is not None` (not truthiness) so an explicitly empty
+        # allowed_evidence_scopes=[] is still treated as "provided" and
+        # rejected here rather than silently passing through as if it had
+        # been omitted (Codex review, PR #33, fresh finding on 90a6e1a).
+        if answer_scope is None and allowed_evidence_scopes is not None:
             raise ValueError(
                 "allowed_evidence_scopes was provided without answer_scope; "
                 "GovernedQAService requires answer_scope to build a scope-restricting "
                 "RetrievalPolicy. Provide answer_scope, or omit allowed_evidence_scopes "
                 "to run a fully unscoped query."
             )
+
+        # The domain/retrieval_mode/allowed_evidence_scopes-shape checks that
+        # do NOT depend on answer_scope must run unconditionally too --
+        # RetrievalPolicy itself cannot be constructed without answer_scope
+        # (it is a required field there), so calling
+        # answer_question("USB4 ...", domain="HID") with no answer_scope
+        # previously skipped policy validation entirely and still returned a
+        # normal abstention. validate_policy_inputs() covers exactly the
+        # answer_scope-independent subset (unknown domain,
+        # explicit_cross_scope without allowed_evidence_scopes); the
+        # RetrievalPolicy construction below still separately validates the
+        # answer_scope-dependent part (single_scope's derived/matched
+        # allowed_evidence_scopes) once answer_scope is known (Codex review,
+        # PR #33, P2).
+        validate_policy_inputs(
+            domain=domain,
+            retrieval_mode=retrieval_mode,
+            allowed_evidence_scopes=(
+                tuple(allowed_evidence_scopes)
+                if allowed_evidence_scopes is not None
+                else None
+            ),
+        )
 
         # RetrievalPolicy is only constructed when the caller declares an
         # answer_scope. `domain`/`retrieval_mode`/`allowed_evidence_scopes` are
@@ -84,50 +350,435 @@ class GovernedQAService:
                 answer_scope=answer_scope,
                 retrieval_mode=retrieval_mode,
                 allowed_evidence_scopes=(
-                    tuple(allowed_evidence_scopes) if allowed_evidence_scopes else None
+                    tuple(allowed_evidence_scopes)
+                    if allowed_evidence_scopes is not None
+                    else None
                 ),
             )
             if answer_scope is not None
             else None
         )
+
+        # USB4 is a Phase 2 exclusion, BUT docs/USB_SPEC_QA_POC1_SCOPE.md
+        # lines 86-88 carve out one explicit exception: a question that is
+        # *only* asking whether USB4 is included in the current corpus is a
+        # genuine, answerable governance/corpus-membership fact, not an
+        # out-of-scope USB4 topic question. This must not be modeled as a
+        # fake USB4 normative-spec citation -- it is grounded in
+        # corpus.lock.yaml's own membership metadata, cited with
+        # citation_kind="governance" (Codex review, PR #33, P1).
+        #
+        # Intent matching is deliberately narrow: the ENTIRE normalized
+        # question must match one of the whole-query corpus-membership
+        # sentence shapes in _USB4_CORPUS_MEMBERSHIP_WHOLE_QUERY_PATTERNS
+        # (module level, see its docstring for why this replaces the
+        # previous additional-intent denylist). Any extra clause -- a
+        # compound question naming USB4 membership AND something else
+        # substantive, e.g. "Is USB4 included in the Phase 1 corpus, and
+        # what tunneling does it support?" -- makes every pattern fail to
+        # fullmatch, so it falls through to the general USB4 abstain below,
+        # same as any other USB4 topic question carrying additional intent
+        # (Codex review, PR #33, P2/final batch item 2).
+        normalized_query_for_usb4_membership = _normalize_for_usb4_membership_match(q_lower)
+        is_usb4_corpus_membership_question = any(
+            pattern.fullmatch(normalized_query_for_usb4_membership)
+            for pattern in _USB4_CORPUS_MEMBERSHIP_WHOLE_QUERY_PATTERNS
+        )
+        if is_usb4_corpus_membership_question:
+            boundary_evidence = self.retriever.get_boundary_evidence_by_id(
+                "POC1-BOUNDARY-USB4-EXCLUDED"
+            )
+            if boundary_evidence is None:
+                raise RuntimeError(
+                    "expected boundary evidence 'POC1-BOUNDARY-USB4-EXCLUDED' "
+                    "is not registered in BOUNDARY_EVIDENCE_REGISTRY"
+                )
+            governance_citation = self.retriever.to_governance_citation(boundary_evidence)
+            claim = (
+                "USB4 is not included in the Phase 1 corpus; it is a declared "
+                "Phase 2 source (corpus.lock.yaml sources.usb4: phase=phase_2, "
+                "included=false, retrieval_status=excluded_from_phase_1)."
+            )
+            return self._build_response(
+                answer=claim,
+                scope=self._resolve_boundary_scope(answer_scope, boundary_evidence),
+                cited_evidences=[],
+                claim_level="governance_fact_answer",
+                boundary=(
+                    "Governance fact answer: corpus.lock.yaml sources.usb4 "
+                    "membership metadata (not a USB4 normative-spec citation)."
+                ),
+                is_abstain=False,
+                status="answer",
+                claims=[claim],
+                claim_evidence_ids=[[governance_citation.evidence_id]],
+                citations=[governance_citation],
+            )
+
+        # USB4 is a registered Phase 2 exclusion (corpus.lock.yaml
+        # sources.usb4: phase=phase_2, included=false) -- a query about USB4
+        # must abstain with a real, registered boundary claim/citation
+        # resolved from GovernedSpecRetriever.BOUNDARY_EVIDENCE_REGISTRY, not
+        # an empty claims/citations abstain (Codex review, PR #33, P1). This
+        # is checked before the generic unsupported_keywords list below
+        # because it has real, registered boundary evidence backing it; the
+        # generic list (still) does not.
+        if "usb4" in q_lower:
+            boundary_evidence = self.retriever.get_boundary_evidence_by_id(
+                "POC1-BOUNDARY-USB4-EXCLUDED"
+            )
+            if boundary_evidence is None:
+                raise RuntimeError(
+                    "expected boundary evidence 'POC1-BOUNDARY-USB4-EXCLUDED' "
+                    "is not registered in BOUNDARY_EVIDENCE_REGISTRY"
+                )
+            boundary_citation = self.retriever.to_boundary_citation(boundary_evidence)
+            return self._build_response(
+                answer=(
+                    "現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論"
+                    f"，超出範圍 (Abstain)：{boundary_evidence.claim}"
+                ),
+                scope=self._resolve_boundary_scope(answer_scope, boundary_evidence),
+                cited_evidences=[],
+                claim_level="abstain_boundary_claim",
+                boundary=(
+                    "Exceeds governed knowledge surface of "
+                    "usb-if-hub-spec-reference (USB4 excluded from Phase 1 corpus)."
+                ),
+                is_abstain=True,
+                status="abstain",
+                claims=[boundary_evidence.claim],
+                claim_evidence_ids=[[boundary_citation.evidence_id]],
+                citations=[boundary_citation],
+                boundary_code=boundary_evidence.boundary_code,
+            )
+
+        # Check for explicitly unsupported / out-of-scope queries. Deliberately
+        # claims=[]/citations=[] (both defaulted by _build_response), same
+        # reasoning as the MISSING_EVIDENCE abstain below: a generic keyword
+        # match here does not correspond to any single registered corpus/
+        # governance fact. A generic BoundaryEvidence entry backed by
+        # hub_reference.known_limits was tried and removed (Codex review,
+        # PR #33, P1, 2nd pass) -- known_limits only proves ONE source
+        # (hub_reference) doesn't cover a topic, not that the ENTIRE Phase 1
+        # corpus (which also includes usb20_fw/usb20_se/usb32/
+        # superspeed_hub_lvs, each with their own coverage) lacks it; citing
+        # it as if it were a corpus-wide boundary fact would itself be an
+        # unsupported inferential leap. Until real topic-specific boundary
+        # evidence exists, abstain with no citation rather than fabricate one.
+        unsupported_keywords = [
+            "xhci", "eeprom", "眼圖", "抖動", "usbcore", "pcie", "穿透通道",
+            "pam3", "99.99", "乙太網路", "40gbps", "informative 附錄"
+        ]
+        for uk in unsupported_keywords:
+            if uk in q_lower:
+                return self._build_response(
+                    answer="現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論與權威違規 (Abstain)。",
+                    scope=answer_scope or "OUT_OF_SCOPE",
+                    cited_evidences=[],
+                    claim_level="abstain_no_evidence",
+                    boundary="Exceeds governed knowledge surface of usb-if-hub-spec-reference.",
+                    is_abstain=True,
+                    status="abstain",
+                    boundary_code="OUT_OF_SCOPE",
+                )
+
         evidences = self.retriever.query(query_text, retrieval_policy=retrieval_policy)
 
-        # Abstention if no evidence found
+        # Abstention if no evidence found. Deliberately claims=[]/citations=[]
+        # (both defaulted by _build_response): "no eligible evidence was
+        # found for this query" is a runtime retrieval observation (a given
+        # query + scope + retrieval policy + corpus revision produced zero
+        # results), not a static corpus/governance fact -- unlike the USB4
+        # branch above, there is no registered BoundaryEvidence to cite here,
+        # and fabricating one would misrepresent a runtime observation as a
+        # corpus fact. GroundedAnswer already permits an abstain with no
+        # claims/citations, so this remains contract-valid as-is. Backing
+        # this with a real citation needs a runtime retrieval-boundary
+        # receipt (query/scope/policy/corpus_lock_hash/result_count=0),
+        # which is a follow-up, not implemented here (Codex review, PR #33,
+        # P1 -- tracked as a prerequisite, not silently worked around).
         if not evidences:
-            return QAResponse(
+            return self._build_response(
                 answer="現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論 (Abstain)。",
                 scope=answer_scope or "OUT_OF_SCOPE",
                 cited_evidences=[],
                 claim_level="abstain_no_evidence",
                 boundary="Exceeds governed knowledge surface of usb-if-hub-spec-reference.",
-                is_abstain=True
+                is_abstain=True,
+                status="abstain",
+                boundary_code="MISSING_EVIDENCE",
             )
 
         # Synthesize multi-evidence or single evidence answer
         primary_ev = evidences[0]
+        cited = evidences[:2]
+        citations = [self.retriever.to_citation(ev) for ev in cited]
+        cited_evidence_ids = [ev.evidence_id for ev in cited]
+        cited_scopes = {ev.scope for ev in cited}
+
+        # A comparison claim (e.g. "PORT_POWER is 8 in both USB 2.0 and USB
+        # 3.x") is a claim ABOUT every scope it names -- it must never be
+        # certified from evidence covering only one of those scopes. Before
+        # this fix, these sentences were appended whenever the question text
+        # matched a comparison keyword, regardless of which scopes were
+        # actually retrieved: under retrieval_mode="single_scope" +
+        # answer_scope="USB_3_X", the retriever's hard eligibility gate
+        # excludes USB_2_0 evidence entirely, yet the branch below still
+        # asserted a USB_2_0 fact and bound it to the USB_3_X-only
+        # cited_evidence_ids. claim_evidence_ids only proves claim-to-evidence
+        # TRACEABILITY (the cited IDs exist and are legitimately citable) --
+        # it does not, and is not meant to, prove the cited evidence's
+        # CONTENT semantically covers every half of a cross-scope claim, so
+        # GroundedAnswer cannot catch this class of gap; it must be closed
+        # here, at claim synthesis (Codex review, PR #33, P1, fresh finding
+        # on 6a97962).
+        #
+        # Fix: each comparison sentence is only synthesized when every scope
+        # it is a claim about is actually present among the cited evidence's
+        # own scopes. If the question asks for a cross-scope comparison but
+        # retrieval -- whether due to a single_scope policy or merely
+        # incomplete corpus coverage -- did not produce evidence for every
+        # compared scope, this fails closed to an abstain instead of
+        # silently certifying an incomplete/overbroad comparison.
+        CROSS_SCOPE_COMPARISON_SCOPES = frozenset({"USB_2_0", "USB_3_X"})
+        # Codex review, PR #33, P2, fresh finding: a generic yes/no marker
+        # ("是否") alone must never be enough to trigger cross-version
+        # comparison mode. A single-scope question like "USB 3.x 的
+        # PORT_POWER 是否為 8？" only names ONE version, so it must be
+        # answered normally -- not misclassified into a two-version
+        # comparison that then wrongly abstains for "missing" USB_2_0
+        # evidence it was never actually asked to compare against. Require
+        # the question to genuinely name BOTH USB 2.0 and USB 3.x before
+        # any comparison-topic detection below can fire.
+        # Codex review, PR #33, final batch item 1: naked substring checks
+        # like "2.0" in q_lower / "3.x" in q_lower have two problems --
+        # they can match a bare version-like number with no "USB" context
+        # at all (e.g. an unrelated "section 3.0" reference), and they only
+        # ever recognized 3.0/3.x, silently missing USB 3.1/3.2 (e.g. "USB
+        # 2.0 與 USB 3.2 的 PORT_POWER 是否相同？" never triggered
+        # has_cross_version_intent and silently fell through to the
+        # single-scope answer path for only one version). Both version
+        # checks now require the literal "usb" token to co-occur with the
+        # version number (deterministic regex, not a tokenizer/NLP model),
+        # and 3.0/3.1/3.2/3.x are all recognized as USB 3.x for comparison
+        # purposes.
+        mentions_usb2 = bool(_USB_VERSION_2_0_PATTERN.search(q_lower))
+        mentions_usb3 = bool(_USB_VERSION_3_X_PATTERN.search(q_lower))
+        has_cross_version_intent = mentions_usb2 and mentions_usb3
+
+        wants_descriptor_comparison = False
+        wants_port_power_comparison = False
+        if has_cross_version_intent and (
+            "相同" in q_lower or "區分" in q_lower or "差異" in q_lower or "是否" in q_lower
+        ):
+            wants_descriptor_comparison = (
+                "descriptor" in q_lower or "0x2a" in q_lower or "0x29" in q_lower or "描述符" in q_lower
+            )
+            wants_port_power_comparison = "port_power" in q_lower
+
+        # Codex review, PR #33, P1, fresh finding: the compound-comparison
+        # guard previously only counted descriptor/PORT_POWER, but the
+        # PORT_LINK_STATE "支援/有效" summary further below synthesizes an
+        # independent extra claim from the SAME cited evidence -- a
+        # question naming PORT_LINK_STATE alongside descriptor or
+        # PORT_POWER could still smuggle two synthesized topics past the
+        # old two-topic-only check. Rather than build a topic x scope
+        # reasoning matrix, every topic that synthesizes its own extra
+        # claim is counted uniformly here; more than one such topic in the
+        # same question fails closed to an abstain (same scope-freeze
+        # decision as before, now applied to every synthesis topic, not
+        # just two of them).
+        wants_port_link_state_summary = (
+            ("支援" in q_lower or "有效" in q_lower)
+            and "port_link_state" in q_lower
+            and ("2.0" in q_lower or answer_scope == "USB_2_0")
+        )
+        requested_topic_count = sum(
+            (
+                wants_descriptor_comparison,
+                wants_port_power_comparison,
+                wants_port_link_state_summary,
+            )
+        )
+
+        # Compound comparisons naming more than one topic in the same
+        # question (e.g. "descriptor 與 PORT_POWER 是否相同?") would require
+        # a topic x scope evidence matrix and per-topic claim binding to
+        # certify correctly. That is query-planning/reasoning-engine scope,
+        # not the "answers must have traceable evidence" contract this PR
+        # is responsible for -- PR #33's scope is explicitly frozen to
+        # single-topic comparisons; compound comparisons fail closed to an
+        # abstain instead of growing a bespoke reasoning engine one topic
+        # at a time (Codex review, PR #33, P1: scope freeze decision).
+        if requested_topic_count > 1:
+            return self._build_response(
+                answer=(
+                    "現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論 (Abstain)："
+                    "此問題同時比較多個主題（compound comparison），目前系統僅支援單一主題的"
+                    "跨版本比較，請將問題拆成每次只詢問一個主題。"
+                ),
+                scope=answer_scope or "OUT_OF_SCOPE",
+                cited_evidences=[],
+                claim_level="abstain_unsupported_compound_comparison",
+                boundary=(
+                    "Compound multi-topic comparisons are out of scope for "
+                    "this deterministic evidence-contract prototype; only a "
+                    "single comparison topic per question is certified. Ask "
+                    "about one topic (e.g. descriptor OR PORT_POWER) at a "
+                    "time."
+                ),
+                is_abstain=True,
+                status="abstain",
+                boundary_code="OUT_OF_SCOPE",
+            )
+
+        comparison_claims: List[str] = []
+        if wants_descriptor_comparison:
+            comparison_claims.append(
+                "總結：USB 2.0 (0x29) 與 USB 3.x (0x2A) 描述符不同，兩者不能混用；USB 2.0 收到 0x2A 為未定義。"
+            )
+        if wants_port_power_comparison:
+            comparison_claims.append(
+                "總結：PORT_POWER 特徵選擇器在 USB 2.0 與 USB 3.x 皆為 8 (0x0008)，兩者相同無差異。"
+            )
+
+        if comparison_claims and not CROSS_SCOPE_COMPARISON_SCOPES.issubset(cited_scopes):
+            missing_scopes = sorted(CROSS_SCOPE_COMPARISON_SCOPES - cited_scopes)
+            return self._build_response(
+                answer=(
+                    "現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論 (Abstain)："
+                    f"此跨版本比較需要 {sorted(CROSS_SCOPE_COMPARISON_SCOPES)} 的證據，"
+                    f"但 retrieval_mode={retrieval_mode!r} 下僅取得 {sorted(cited_scopes)} "
+                    f"的證據，缺少 {missing_scopes}。"
+                ),
+                scope=answer_scope or "OUT_OF_SCOPE",
+                cited_evidences=[],
+                claim_level="abstain_insufficient_comparison_evidence",
+                boundary=(
+                    "Cross-scope comparison requires evidence from every "
+                    f"scope being compared; retrieval under retrieval_mode="
+                    f"{retrieval_mode!r} only produced evidence for "
+                    f"{sorted(cited_scopes)}, missing {missing_scopes}. Use "
+                    "retrieval_mode='explicit_cross_scope' with "
+                    "allowed_evidence_scopes covering every compared scope "
+                    "to answer this question."
+                ),
+                is_abstain=True,
+                status="abstain",
+                boundary_code="MISSING_EVIDENCE",
+            )
+
+        # Codex review, PR #33, P2, fresh finding: when this is NOT a
+        # legitimate cross-scope comparison (comparison_claims empty),
+        # cited evidence spanning more than one scope must never be
+        # reported under a single primary_ev.scope label while still
+        # citing another scope's evidence too -- that mislabels a
+        # single-scope answer as if it also covered a scope it never
+        # claimed to compare. Restrict cited evidence down to the primary
+        # scope instead of silently answering with more scopes than were
+        # ever claimed. This narrows the same scope-safety rule already
+        # enforced for comparisons above; it does not add a new topic x
+        # scope reasoning engine.
+        if not comparison_claims and len(cited_scopes) > 1:
+            cited = [ev for ev in cited if ev.scope == primary_ev.scope]
+            citations = [self.retriever.to_citation(ev) for ev in cited]
+            cited_evidence_ids = [ev.evidence_id for ev in cited]
+
         answer_parts = []
-        for ev in evidences[:2]:
+        claim_evidence_ids: List[List[str]] = []
+        for ev in cited:
             answer_parts.append(f"【條款 {ev.section} ({ev.title})】：{ev.content}")
+            claim_evidence_ids.append([ev.evidence_id])
 
-        # Add comparative notes for version confusion queries
-        if "支援" in q_lower or "有效" in q_lower:
-            if "port_link_state" in q_lower and ("2.0" in q_lower or answer_scope == "USB_2_0"):
-                answer_parts.append("總結：USB 2.0 Hub 不支援且不適用 PORT_LINK_STATE (0x0005)，此為 USB 3.x 專屬特徵選擇器，在 USB 2.0 下無效。")
+        # Add comparative notes for version confusion queries. Each summary
+        # claim below is derived from (and only from) the evidence already
+        # cited above, so it is bound to every evidence_id in
+        # cited_evidence_ids -- never to a fabricated or unrelated
+        # evidence_id (Codex review, PR #33, P1, fresh finding on d4f3bf7).
+        if wants_port_link_state_summary:
+            answer_parts.append("總結：USB 2.0 Hub 不支援且不適用 PORT_LINK_STATE (0x0005)，此為 USB 3.x 專屬特徵選擇器，在 USB 2.0 下無效。")
+            claim_evidence_ids.append(list(cited_evidence_ids))
 
-        if "相同" in q_lower or "區分" in q_lower or "差異" in q_lower or "是否" in q_lower:
-            if "descriptor" in q_lower or "0x2a" in q_lower or "0x29" in q_lower or "描述符" in q_lower:
-                answer_parts.append("總結：USB 2.0 (0x29) 與 USB 3.x (0x2A) 描述符不同，兩者不能混用；USB 2.0 收到 0x2A 為未定義。")
-            if "port_power" in q_lower:
-                answer_parts.append("總結：PORT_POWER 特徵選擇器在 USB 2.0 與 USB 3.x 皆為 8 (0x0008)，兩者相同無差異。")
+        # Reaching this point already proves CROSS_SCOPE_COMPARISON_SCOPES is
+        # covered by cited_scopes (checked above), so these are safe to
+        # append unconditionally now.
+        for comparison_claim in comparison_claims:
+            answer_parts.append(comparison_claim)
+            claim_evidence_ids.append(list(cited_evidence_ids))
 
         full_answer = "\n".join(answer_parts)
 
-        return QAResponse(
+        return self._build_response(
             answer=full_answer,
             scope=primary_ev.scope if not answer_scope else answer_scope,
-            cited_evidences=evidences[:2],
+            cited_evidences=cited,
             claim_level=primary_ev.claim_level,
             boundary="Strictly bounded by in-scope governed evidence.",
-            is_abstain=False
+            is_abstain=False,
+            status="answer",
+            claims=answer_parts,
+            claim_evidence_ids=claim_evidence_ids,
+            citations=citations,
         )
+
+    def _build_response(
+        self,
+        *,
+        answer: str,
+        scope: str,
+        cited_evidences: List[GovernedEvidence],
+        claim_level: str,
+        boundary: str,
+        is_abstain: bool,
+        status: AnswerStatus,
+        claims: Optional[List[str]] = None,
+        claim_evidence_ids: Optional[List[List[str]]] = None,
+        citations: Optional[List[Citation]] = None,
+        boundary_code: Optional[BoundaryCode] = None,
+    ) -> QAResponse:
+        """
+        Construct a QAResponse and self-validate its structured Evidence
+        Contract fields (status/claims/citations/evidence_ids/scope/boundary)
+        against GroundedAnswer before returning -- this is a fail-closed
+        check: if this service ever builds a response that violates the
+        Answer and Evidence Contract (docs/USB_SPEC_QA_POC1_SCOPE.md §5),
+        it raises instead of silently returning a non-compliant response.
+
+        The validated claims/citations/scope/boundary_code/evidence_ids are
+        all carried through onto the returned QAResponse -- the response is
+        the complete evaluated contract, not just the fields that happened
+        to be convenient to expose.
+        """
+        claims = claims or []
+        claim_evidence_ids = claim_evidence_ids or []
+        citations = citations or []
+        evidence_ids = [c.evidence_id for c in citations]
+
+        GroundedAnswer(
+            status=status,
+            claims=claims,
+            claim_evidence_ids=claim_evidence_ids,
+            citations=citations,
+            scope=scope,
+            boundary=boundary_code,
+            evidence_ids=evidence_ids,
+        )
+
+        return QAResponse(
+            answer=answer,
+            scope=scope,
+            cited_evidences=cited_evidences,
+            claim_level=claim_level,
+            boundary=boundary,
+            is_abstain=is_abstain,
+            status=status,
+            claims=claims,
+            claim_evidence_ids=claim_evidence_ids,
+            citations=citations,
+            boundary_code=boundary_code,
+            evidence_ids=evidence_ids,
+            contract_mode="structured",
+        )
+
 
