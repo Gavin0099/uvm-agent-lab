@@ -70,15 +70,28 @@ class QAResponse(BaseModel):
                 "'abstain' and 'conflict'); got status="
                 f"{self.status!r} with is_abstain={self.is_abstain!r}"
             )
-        expects_boundary_code = self.status != "answer"
-        has_boundary_code = self.boundary_code is not None
-        if expects_boundary_code != has_boundary_code:
-            raise ValueError(
-                "boundary_code must be populated exactly when status is "
-                "'abstain' or 'conflict', and absent when status == "
-                f"'answer'; got status={self.status!r} with "
-                f"boundary_code={self.boundary_code!r}"
-            )
+        # boundary_code has no legacy-safe default: BoundaryCode is a closed
+        # set of specific reasons (see poc1_acceptance_contract.BoundaryCode),
+        # with no generic "unspecified" member to fall back on. A caller that
+        # never engages with the additive contract at all (status and
+        # boundary_code both left at their defaults, "abstain"/None) is not
+        # asserting a self-contradictory payload -- it is exactly the
+        # previously-valid legacy abstention this additive design was meant
+        # to keep working (Codex review, PR #33, P2, fresh finding on
+        # 7c74da3, following the earlier legacy-answer finding on d4f3bf7).
+        # This check therefore only activates once a caller explicitly opts
+        # into the new contract by setting status and/or boundary_code
+        # itself; a purely legacy call (is_abstain only) is left alone.
+        if "status" in self.model_fields_set or "boundary_code" in self.model_fields_set:
+            expects_boundary_code = self.status != "answer"
+            has_boundary_code = self.boundary_code is not None
+            if expects_boundary_code != has_boundary_code:
+                raise ValueError(
+                    "boundary_code must be populated exactly when status is "
+                    "'abstain' or 'conflict', and absent when status == "
+                    f"'answer'; got status={self.status!r} with "
+                    f"boundary_code={self.boundary_code!r}"
+                )
         return self
 
     def to_final_qa_response(self) -> FinalQAResponse:

@@ -2758,3 +2758,47 @@ def test_qa_response_rejects_missing_boundary_code_for_abstain_status():
                 boundary="Exceeds governed knowledge surface.",
             )
         )
+
+
+@pytest.mark.unit
+def test_qa_response_legacy_only_construction_preserves_abstain_default():
+    # Codex review, PR #33, P2, fresh finding on 7c74da3: a caller supplying
+    # only the pre-existing legacy fields (no status/boundary_code at all)
+    # inherits status="abstain"/boundary_code=None by default -- this must
+    # still construct successfully, since it is exactly the previously-valid
+    # legacy abstention the additive contract fields were meant to preserve,
+    # not a self-contradictory payload. BoundaryCode has no generic
+    # "unspecified" member a caller could supply even if forced to.
+    response = QAResponse(
+        answer="",
+        scope="USB_3_X",
+        cited_evidences=[],
+        claim_level="abstain",
+        boundary="Exceeds governed knowledge surface.",
+        is_abstain=True,
+    )
+    assert response.status == "abstain"
+    assert response.boundary_code is None
+    assert response.is_abstain is True
+
+
+@pytest.mark.unit
+def test_qa_response_legacy_only_construction_still_enforces_is_abstain_projection():
+    # The boundary_code consistency check being gated on explicit
+    # status/boundary_code use (see previous test) must not weaken the
+    # unconditional is_abstain/status projection check from the earlier
+    # d4f3bf7 finding: a legacy-only caller claiming is_abstain=False (an
+    # answer) while leaving status at its "abstain" default is still a
+    # self-contradictory payload and must still be rejected.
+    with pytest.raises(
+        ValidationError,
+        match="is_abstain must be the legacy fail-safe projection",
+    ):
+        QAResponse(
+            answer="some answer",
+            scope="USB_3_X",
+            cited_evidences=[],
+            claim_level="answer",
+            boundary="",
+            is_abstain=False,
+        )
