@@ -2725,12 +2725,12 @@ def test_qa_response_rejects_is_abstain_false_for_conflict_status():
 
 @pytest.mark.unit
 def test_qa_response_rejects_boundary_code_present_for_answer_status():
-    # boundary_code must be absent exactly when status == "answer" -- a
-    # confident answer must not simultaneously carry a boundary_code
-    # signaling abstention/conflict.
+    # boundary_code must be absent when status == "answer" -- a confident
+    # answer must not simultaneously carry a boundary_code signaling
+    # abstention/conflict.
     with pytest.raises(
         ValidationError,
-        match="boundary_code must be populated exactly when status is",
+        match="boundary_code must be absent when status == 'answer'",
     ):
         QAResponse(
             **_qa_response_kwargs(
@@ -2742,22 +2742,43 @@ def test_qa_response_rejects_boundary_code_present_for_answer_status():
 
 
 @pytest.mark.unit
-def test_qa_response_rejects_missing_boundary_code_for_abstain_status():
-    # The reverse: status="abstain" (with is_abstain correctly True) must
-    # still populate a boundary_code -- an abstention with no boundary_code
-    # gives a caller no machine-readable reason for the abstention.
+def test_qa_response_rejects_missing_boundary_code_for_conflict_status():
+    # "conflict" has no legacy default path -- nothing constructs it
+    # implicitly -- so it can safely keep a strict requirement: a live
+    # source conflict with no stated reason is not a meaningful signal.
     with pytest.raises(
         ValidationError,
-        match="boundary_code must be populated exactly when status is",
+        match="boundary_code must be populated when status == 'conflict'",
     ):
         QAResponse(
             **_qa_response_kwargs(
                 is_abstain=True,
-                status="abstain",
+                status="conflict",
                 boundary_code=None,
-                boundary="Exceeds governed knowledge surface.",
+                boundary="Two sources disagree.",
             )
         )
+
+
+@pytest.mark.unit
+def test_qa_response_allows_missing_boundary_code_for_abstain_status():
+    # Codex review, PR #33, P2, fresh finding on b05464f: a prior fix gated
+    # the boundary_code requirement on `model_fields_set` to distinguish a
+    # legacy-default abstention from an explicit new-contract one, but that
+    # metadata does not survive a model_dump()/model_validate() round trip
+    # (see the round-trip tests below), so the check now allows
+    # status="abstain" with boundary_code=None outright -- explicitly, not
+    # just via defaults -- rather than depend on construction history.
+    response = QAResponse(
+        **_qa_response_kwargs(
+            is_abstain=True,
+            status="abstain",
+            boundary_code=None,
+            boundary="Exceeds governed knowledge surface.",
+        )
+    )
+    assert response.status == "abstain"
+    assert response.boundary_code is None
 
 
 @pytest.mark.unit
@@ -2802,3 +2823,47 @@ def test_qa_response_legacy_only_construction_still_enforces_is_abstain_projecti
             boundary="",
             is_abstain=False,
         )
+
+
+@pytest.mark.unit
+def test_qa_response_legacy_abstention_survives_model_dump_round_trip():
+    # The exact scenario from the b05464f finding: a legacy-only
+    # construction must remain valid after a plain model_dump() ->
+    # model_validate() round trip, not just at initial construction. A
+    # `model_fields_set`-gated check would fail here because model_dump()
+    # re-presents every field (including ones still at their default
+    # value) as explicitly set on revalidation.
+    original = QAResponse(
+        answer="",
+        scope="USB_3_X",
+        cited_evidences=[],
+        claim_level="abstain",
+        boundary="Exceeds governed knowledge surface.",
+        is_abstain=True,
+    )
+    dumped = original.model_dump()
+    assert dumped["status"] == "abstain"
+    assert dumped["boundary_code"] is None
+
+    round_tripped = QAResponse.model_validate(dumped)
+    assert round_tripped.status == "abstain"
+    assert round_tripped.boundary_code is None
+    assert round_tripped.is_abstain is True
+
+
+@pytest.mark.unit
+def test_qa_response_legacy_abstention_survives_json_round_trip():
+    # Same guarantee over a JSON round trip (model_dump_json ->
+    # model_validate_json), the shape an actual API boundary would use.
+    original = QAResponse(
+        answer="",
+        scope="USB_3_X",
+        cited_evidences=[],
+        claim_level="abstain",
+        boundary="Exceeds governed knowledge surface.",
+        is_abstain=True,
+    )
+    round_tripped = QAResponse.model_validate_json(original.model_dump_json())
+    assert round_tripped.status == "abstain"
+    assert round_tripped.boundary_code is None
+    assert round_tripped.is_abstain is True

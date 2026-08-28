@@ -72,26 +72,39 @@ class QAResponse(BaseModel):
             )
         # boundary_code has no legacy-safe default: BoundaryCode is a closed
         # set of specific reasons (see poc1_acceptance_contract.BoundaryCode),
-        # with no generic "unspecified" member to fall back on. A caller that
-        # never engages with the additive contract at all (status and
-        # boundary_code both left at their defaults, "abstain"/None) is not
-        # asserting a self-contradictory payload -- it is exactly the
-        # previously-valid legacy abstention this additive design was meant
-        # to keep working (Codex review, PR #33, P2, fresh finding on
-        # 7c74da3, following the earlier legacy-answer finding on d4f3bf7).
-        # This check therefore only activates once a caller explicitly opts
-        # into the new contract by setting status and/or boundary_code
-        # itself; a purely legacy call (is_abstain only) is left alone.
-        if "status" in self.model_fields_set or "boundary_code" in self.model_fields_set:
-            expects_boundary_code = self.status != "answer"
-            has_boundary_code = self.boundary_code is not None
-            if expects_boundary_code != has_boundary_code:
-                raise ValueError(
-                    "boundary_code must be populated exactly when status is "
-                    "'abstain' or 'conflict', and absent when status == "
-                    f"'answer'; got status={self.status!r} with "
-                    f"boundary_code={self.boundary_code!r}"
-                )
+        # with no generic "unspecified" member to fall back on. A prior fix
+        # here gated this check on `model_fields_set` to distinguish a
+        # legacy-only caller (status/boundary_code left at their defaults)
+        # from one that explicitly opted into the new contract fields (Codex
+        # review, PR #33, P2, fresh finding on 7c74da3). `model_fields_set`
+        # is constructor-time metadata, not part of the serialized data: a
+        # plain `model_dump()`/`model_validate()` or JSON round trip of that
+        # exact legacy-constructed instance re-presents every field
+        # (including ones still at their default value) as explicitly set,
+        # so the same "previously-valid legacy abstention" failed to survive
+        # a round trip -- it must not be used to encode transient
+        # construction provenance for an invariant that has to hold for a
+        # coherently serialized contract too (Codex review, PR #33, P2,
+        # fresh finding on b05464f).
+        #
+        # The invariant is therefore expressed purely on field values, with
+        # no dependency on how the object was built: "answer" must never
+        # carry a boundary_code (mirrors GroundedAnswer), "conflict" always
+        # requires one (a live source conflict with no stated reason is not
+        # a meaningful signal, and nothing defaults into "conflict" -- it is
+        # never the unqualified legacy path), and "abstain" leaves
+        # boundary_code optional -- both a generic legacy abstention
+        # (boundary_code=None) and a new-contract abstention with a specific
+        # reason are valid, round-trip-stable shapes.
+        if self.status == "answer" and self.boundary_code is not None:
+            raise ValueError(
+                "boundary_code must be absent when status == 'answer'; got "
+                f"boundary_code={self.boundary_code!r}"
+            )
+        if self.status == "conflict" and self.boundary_code is None:
+            raise ValueError(
+                "boundary_code must be populated when status == 'conflict'"
+            )
         return self
 
     def to_final_qa_response(self) -> FinalQAResponse:
