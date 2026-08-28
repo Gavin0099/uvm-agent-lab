@@ -99,30 +99,34 @@ class QAResponse(BaseModel):
 
         # A response is "structured" -- and therefore held to the FULL
         # Evidence Contract, not a hand-picked subset of it -- if it
-        # declares contract_mode="structured", OR if it carries any
-        # claims/citations at all (populating those fields is itself
-        # opting into the structured contract, regardless of what
-        # contract_mode says; see the field comment above for why
-        # contract_mode alone cannot be trusted as the sole gate).
+        # declares contract_mode="structured", OR if it populates ANY of
+        # the additive Evidence Contract fields away from their legacy
+        # defaults. Populating any one of those fields is itself opting
+        # into the structured contract, regardless of what contract_mode
+        # says; see the field comment above for why contract_mode alone
+        # cannot be trusted as the sole gate.
         #
-        # Three prior fixes here (Codex review, PR #33, P2, findings on
-        # 7c74da3, b05464f, and 4ec68fe) each hand-copied one more rule from
-        # GroundedAnswer into this validator -- first "conflict requires
-        # boundary_code", then "abstain requires boundary_code unless
-        # legacy". That is exactly the pattern that kept producing fresh
-        # findings: every rule copied here is a rule that can independently
-        # drift from GroundedAnswer's real definition. A structured response
-        # must satisfy the actual, single Evidence Contract instead: project
-        # this response's structured fields onto GroundedAnswer and let it
-        # be the only place that defines what a valid answer/abstain/
-        # conflict looks like (claim-evidence traceability, duplicate-
-        # citation rejection, citation-kind rules, and the boundary_code
-        # rules all included, for free, with no second copy to maintain).
-        is_structured = (
-            self.contract_mode == "structured"
+        # Four prior fixes here (Codex review, PR #33, P2, findings on
+        # 7c74da3, b05464f, 4ec68fe, and c186023) each hand-copied one more
+        # rule from GroundedAnswer into this validator, or widened the
+        # structured-payload check by one more field at a time (claims/
+        # citations, then nothing else) -- each fix left the remaining
+        # additive fields (claim_evidence_ids, boundary_code, evidence_ids,
+        # a non-default status) as an undetected side door: a caller could
+        # set contract_mode="legacy" with empty claims/citations, stuff a
+        # fabricated evidence_ids list, and never be routed through
+        # GroundedAnswer at all. Fix this class of gap once, not one field
+        # at a time: ANY additive field away from its legacy default marks
+        # the response as structured, with no field left unaccounted for.
+        structured_payload_present = (
+            self.status != "abstain"
             or bool(self.claims)
+            or bool(self.claim_evidence_ids)
             or bool(self.citations)
+            or self.boundary_code is not None
+            or bool(self.evidence_ids)
         )
+        is_structured = self.contract_mode == "structured" or structured_payload_present
         if is_structured:
             GroundedAnswer(
                 status=self.status,
