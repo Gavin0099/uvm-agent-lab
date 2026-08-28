@@ -373,7 +373,22 @@ class GovernedQAService:
             and any(pattern in q_lower for pattern in usb4_corpus_membership_patterns)
             and any(marker in q_lower for marker in usb4_corpus_context_markers)
         )
-        if is_usb4_corpus_membership_question:
+        # Codex review, PR #33, P2, fresh finding: corpus-membership intent
+        # must be the SOLE intent of the question. A compound query naming
+        # USB4 membership AND something else substantive (e.g. "USB4 是否
+        # 在 Phase 1 corpus，並且 tunneling 支援什麼？") must not be answered
+        # as if only the membership half were asked under status="answer" --
+        # it falls through to the general USB4 abstain below instead, same
+        # as any other USB4 topic question carrying additional intent.
+        usb4_additional_intent_markers = (
+            "支援", "有效", "相同", "區分", "差異",
+            "tunnel", "tunneling", "通道", "穿隧",
+            "port_power", "port_link_state", "descriptor",
+        )
+        usb4_has_additional_intent = any(
+            marker in q_lower for marker in usb4_additional_intent_markers
+        )
+        if is_usb4_corpus_membership_question and not usb4_has_additional_intent:
             boundary_evidence = self.retriever.get_boundary_evidence_by_id(
                 "POC1-BOUNDARY-USB4-EXCLUDED"
             )
@@ -531,13 +546,55 @@ class GovernedQAService:
         # compared scope, this fails closed to an abstain instead of
         # silently certifying an incomplete/overbroad comparison.
         CROSS_SCOPE_COMPARISON_SCOPES = frozenset({"USB_2_0", "USB_3_X"})
+        # Codex review, PR #33, P2, fresh finding: a generic yes/no marker
+        # ("是否") alone must never be enough to trigger cross-version
+        # comparison mode. A single-scope question like "USB 3.x 的
+        # PORT_POWER 是否為 8？" only names ONE version, so it must be
+        # answered normally -- not misclassified into a two-version
+        # comparison that then wrongly abstains for "missing" USB_2_0
+        # evidence it was never actually asked to compare against. Require
+        # the question to genuinely name BOTH USB 2.0 and USB 3.x before
+        # any comparison-topic detection below can fire.
+        mentions_usb2 = "2.0" in q_lower or "usb2" in q_lower or "usb_2_0" in q_lower
+        mentions_usb3 = (
+            "3.x" in q_lower or "3.0" in q_lower or "usb3" in q_lower or "usb_3_x" in q_lower
+        )
+        has_cross_version_intent = mentions_usb2 and mentions_usb3
+
         wants_descriptor_comparison = False
         wants_port_power_comparison = False
-        if "相同" in q_lower or "區分" in q_lower or "差異" in q_lower or "是否" in q_lower:
+        if has_cross_version_intent and (
+            "相同" in q_lower or "區分" in q_lower or "差異" in q_lower or "是否" in q_lower
+        ):
             wants_descriptor_comparison = (
                 "descriptor" in q_lower or "0x2a" in q_lower or "0x29" in q_lower or "描述符" in q_lower
             )
             wants_port_power_comparison = "port_power" in q_lower
+
+        # Codex review, PR #33, P1, fresh finding: the compound-comparison
+        # guard previously only counted descriptor/PORT_POWER, but the
+        # PORT_LINK_STATE "支援/有效" summary further below synthesizes an
+        # independent extra claim from the SAME cited evidence -- a
+        # question naming PORT_LINK_STATE alongside descriptor or
+        # PORT_POWER could still smuggle two synthesized topics past the
+        # old two-topic-only check. Rather than build a topic x scope
+        # reasoning matrix, every topic that synthesizes its own extra
+        # claim is counted uniformly here; more than one such topic in the
+        # same question fails closed to an abstain (same scope-freeze
+        # decision as before, now applied to every synthesis topic, not
+        # just two of them).
+        wants_port_link_state_summary = (
+            ("支援" in q_lower or "有效" in q_lower)
+            and "port_link_state" in q_lower
+            and ("2.0" in q_lower or answer_scope == "USB_2_0")
+        )
+        requested_topic_count = sum(
+            (
+                wants_descriptor_comparison,
+                wants_port_power_comparison,
+                wants_port_link_state_summary,
+            )
+        )
 
         # Compound comparisons naming more than one topic in the same
         # question (e.g. "descriptor 與 PORT_POWER 是否相同?") would require
@@ -548,7 +605,7 @@ class GovernedQAService:
         # single-topic comparisons; compound comparisons fail closed to an
         # abstain instead of growing a bespoke reasoning engine one topic
         # at a time (Codex review, PR #33, P1: scope freeze decision).
-        if wants_descriptor_comparison and wants_port_power_comparison:
+        if requested_topic_count > 1:
             return self._build_response(
                 answer=(
                     "現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論 (Abstain)："
@@ -606,6 +663,22 @@ class GovernedQAService:
                 boundary_code="MISSING_EVIDENCE",
             )
 
+        # Codex review, PR #33, P2, fresh finding: when this is NOT a
+        # legitimate cross-scope comparison (comparison_claims empty),
+        # cited evidence spanning more than one scope must never be
+        # reported under a single primary_ev.scope label while still
+        # citing another scope's evidence too -- that mislabels a
+        # single-scope answer as if it also covered a scope it never
+        # claimed to compare. Restrict cited evidence down to the primary
+        # scope instead of silently answering with more scopes than were
+        # ever claimed. This narrows the same scope-safety rule already
+        # enforced for comparisons above; it does not add a new topic x
+        # scope reasoning engine.
+        if not comparison_claims and len(cited_scopes) > 1:
+            cited = [ev for ev in cited if ev.scope == primary_ev.scope]
+            citations = [self.retriever.to_citation(ev) for ev in cited]
+            cited_evidence_ids = [ev.evidence_id for ev in cited]
+
         answer_parts = []
         claim_evidence_ids: List[List[str]] = []
         for ev in cited:
@@ -617,10 +690,9 @@ class GovernedQAService:
         # cited above, so it is bound to every evidence_id in
         # cited_evidence_ids -- never to a fabricated or unrelated
         # evidence_id (Codex review, PR #33, P1, fresh finding on d4f3bf7).
-        if "支援" in q_lower or "有效" in q_lower:
-            if "port_link_state" in q_lower and ("2.0" in q_lower or answer_scope == "USB_2_0"):
-                answer_parts.append("總結：USB 2.0 Hub 不支援且不適用 PORT_LINK_STATE (0x0005)，此為 USB 3.x 專屬特徵選擇器，在 USB 2.0 下無效。")
-                claim_evidence_ids.append(list(cited_evidence_ids))
+        if wants_port_link_state_summary:
+            answer_parts.append("總結：USB 2.0 Hub 不支援且不適用 PORT_LINK_STATE (0x0005)，此為 USB 3.x 專屬特徵選擇器，在 USB 2.0 下無效。")
+            claim_evidence_ids.append(list(cited_evidence_ids))
 
         # Reaching this point already proves CROSS_SCOPE_COMPARISON_SCOPES is
         # covered by cited_scopes (checked above), so these are safe to

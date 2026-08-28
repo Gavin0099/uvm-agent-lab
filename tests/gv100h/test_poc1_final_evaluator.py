@@ -856,6 +856,38 @@ def test_final_evaluator_rejects_conflict_with_single_claim_bound_to_both_eviden
     assert result.passed is False
 
 
+def test_final_evaluator_rejects_conflict_with_two_claims_bound_to_same_evidence_id(
+    tmp_path: Path,
+):
+    # Codex review, PR #33, P1, fresh finding: the exploit this guards
+    # against passes the OLDER checks even with two distinct claim
+    # strings. claims=["claim-a-49 claim-b-49", "unrelated"] packs BOTH
+    # required assertions into the first claim, and claim_evidence_ids=
+    # [["EVIDENCE-49-A"], ["EVIDENCE-49-A"]] binds each of the two claims
+    # to a subset of citations=[EVIDENCE-49-A, EVIDENCE-49-B]. len(claims)
+    # == len(claim_evidence_ids) == 2, each is a subset of the cited ids,
+    # and there are 2 distinct normalized claim strings -- so
+    # _claim_traceability_ok's >=2-distinct-claims rule alone accepts this.
+    # But EVIDENCE-49-B backs nothing, and once the first required
+    # assertion consumes claims[0], the second required assertion has no
+    # OTHER claim left to match against (claims[1] is "unrelated") --
+    # _conflict_claim_binding_ok must catch this even though
+    # _claim_traceability_ok alone does not.
+    manifest, path = _write_manifest(tmp_path)
+    resolver = SyntheticEvidenceResolver(manifest)
+    evaluator = FinalPOC1Evaluator(str(path), evidence_resolver=resolver)
+
+    response = copy.deepcopy(_response(49))
+    response["claims"] = ["claim-a-49 claim-b-49", "unrelated"]
+    response["claim_evidence_ids"] = [["EVIDENCE-49-A"], ["EVIDENCE-49-A"]]
+
+    result = evaluator.evaluate_response(evaluator.manifest.questions[48], response)
+
+    assert result.claim_traceability_ok is True
+    assert result.grounded is False
+    assert result.passed is False
+
+
 def test_final_evaluator_rejects_whitespace_only_excerpt(tmp_path: Path):
     # Codex review, PR #33, P2, fresh finding on e3de202: a whitespace-only
     # excerpt_or_evidence_id (e.g. " ") is not None and is a substring of

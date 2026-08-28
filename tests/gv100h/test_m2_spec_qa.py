@@ -708,6 +708,8 @@ def test_qa_evaluator_marks_tampered_receipt_as_mismatch(tmp_path):
         ("invalid_binding", "invalid binding_status"),
         ("invalid_hash_algorithm", "content hash algorithm does not match binding contract"),
         ("include_usb4", "USB4 must be excluded"),
+        ("usb4_wrong_phase", "USB4 must be excluded"),
+        ("usb4_wrong_retrieval_status", "USB4 must be excluded"),
         ("answer_from_evaluation", "evaluation_only layer must not be answer evidence"),
         ("missing_pending_policy", "pending_markers_block is incomplete"),
     ],
@@ -730,6 +732,15 @@ def test_poc1_corpus_lock_rejects_invalid_contract(tmp_path, mutation, expected_
         lock["sources"]["hub_reference"]["content_hash_algorithm"] = "sha256_sorted_content_bytes_v1"
     elif mutation == "include_usb4":
         lock["sources"]["usb4"]["included"] = True
+    elif mutation == "usb4_wrong_phase":
+        # Codex review, PR #33, F: registered/included=false alone is not
+        # enough -- usb4 must also declare phase=phase_2 and
+        # retrieval_status=excluded_from_phase_1, so a lock that merely
+        # flips phase while leaving included=false untouched must still be
+        # rejected as an invalid USB4 exclusion contract.
+        lock["sources"]["usb4"]["phase"] = "phase_1"
+    elif mutation == "usb4_wrong_retrieval_status":
+        lock["sources"]["usb4"]["retrieval_status"] = "included_in_phase_1"
     elif mutation == "answer_from_evaluation":
         lock["layers"]["evaluation_only"]["allowed_as_answer_evidence"] = True
     elif mutation == "missing_pending_policy":
@@ -1074,6 +1085,68 @@ def test_governed_qa_service_compound_comparison_abstains_even_with_full_evidenc
 
 
 @pytest.mark.unit
+def test_governed_qa_service_port_power_comparison_plus_port_link_state_is_compound_abstain():
+    # Codex review, PR #33, P1, fresh finding: the compound-comparison guard
+    # previously only counted descriptor/PORT_POWER. A question combining a
+    # legitimate PORT_POWER comparison with an independent PORT_LINK_STATE
+    # "支援" summary synthesizes two extra topics from the same cited
+    # evidence and must abstain too -- not just the descriptor+PORT_POWER
+    # combination.
+    service = GovernedQAService()
+    resp = service.answer_question(
+        "USB 2.0 與 USB 3.x 的 PORT_POWER 是否相同，且 USB 2.0 是否支援 PORT_LINK_STATE？",
+        "USB_HUB_COMMON",
+        retrieval_mode="explicit_cross_scope",
+        allowed_evidence_scopes=["USB_2_0", "USB_3_X"],
+    )
+    assert resp.status == "abstain"
+    assert resp.claim_level == "abstain_unsupported_compound_comparison"
+    assert resp.boundary_code == "OUT_OF_SCOPE"
+
+
+@pytest.mark.unit
+def test_governed_qa_service_single_version_shi_fou_question_is_not_misclassified_as_comparison():
+    # Codex review, PR #33, P2, fresh finding: a generic yes/no marker
+    # ("是否") alone must not trigger cross-version comparison mode. This
+    # question names only USB 3.x, not USB 2.0, so it must be answered
+    # normally instead of wrongly abstaining for "missing" USB_2_0 evidence
+    # it was never actually asked to compare against.
+    service = GovernedQAService()
+    resp = service.answer_question("USB 3.x 的 PORT_POWER 是否為 8？", "USB_3_X")
+    assert resp.status == "answer"
+    assert resp.is_abstain is False
+
+
+@pytest.mark.unit
+def test_governed_qa_service_unscoped_multi_scope_evidence_restricts_citations_to_primary_scope():
+    # Codex review, PR #33, P2, fresh finding: an unscoped query whose
+    # retrieved evidence spans multiple scopes (USB_2_0 + USB_3_X) must not
+    # report a single primary_ev.scope while still citing the other
+    # scope's evidence too. When this is not a legitimate cross-scope
+    # comparison, cited evidence is restricted to the primary scope.
+    service = GovernedQAService()
+    resp = service.answer_question("PORT_POWER feature selector value")
+    assert resp.status == "answer"
+    cited_scopes = {ev.scope for ev in resp.cited_evidences}
+    assert cited_scopes == {resp.scope}
+
+
+@pytest.mark.unit
+def test_qa_service_usb4_compound_membership_and_feature_question_abstains():
+    # Codex review, PR #33, P2, fresh finding: USB4 corpus-membership intent
+    # must be the SOLE intent of the question. A compound query naming
+    # membership AND another substantive USB4 topic (tunneling support)
+    # must abstain instead of answering only the membership half under
+    # status="answer".
+    service = GovernedQAService()
+    resp = service.answer_question(
+        "Is USB4 included in the Phase 1 corpus, and what tunneling does it support?"
+    )
+    assert resp.status == "abstain"
+    assert resp.boundary_code == "OUT_OF_SCOPE"
+
+
+@pytest.mark.unit
 def test_governed_qa_service_rejects_allowed_evidence_scopes_without_answer_scope():
     # Codex review regression (PR #31, P1): QARequest permits declaring
     # allowed_evidence_scopes without answer_scope, but RetrievalPolicy
@@ -1203,6 +1276,22 @@ def test_governed_retriever_rejects_answer_evidence_from_excluded_source():
     bad_evidence.source_id = "usb4"
     retriever.EVIDENCE_REGISTRY = retriever.EVIDENCE_REGISTRY + [bad_evidence]
     with pytest.raises(ValueError, match="not eligible as answer evidence"):
+        retriever._validate_evidence_registry_provenance(retriever.corpus_lock)
+
+
+@pytest.mark.unit
+def test_governed_retriever_rejects_duplicate_evidence_registry_ids():
+    # Codex review, PR #33, F: BOUNDARY_EVIDENCE_REGISTRY already enforces
+    # unique evidence_id values; EVIDENCE_REGISTRY itself had no equivalent
+    # duplicate-ID check, so get_evidence_by_id() resolution could silently
+    # become ambiguous instead of failing closed at load time. This entry
+    # is a legitimate, eligible source (same source_id as an existing
+    # entry) -- it is rejected purely for duplicating an evidence_id, not
+    # for any unregistered/ineligible-source reason.
+    retriever = GovernedSpecRetriever()
+    duplicate_evidence = copy.deepcopy(retriever.EVIDENCE_REGISTRY[0])
+    retriever.EVIDENCE_REGISTRY = retriever.EVIDENCE_REGISTRY + [duplicate_evidence]
+    with pytest.raises(ValueError, match="duplicate evidence_id"):
         retriever._validate_evidence_registry_provenance(retriever.corpus_lock)
 
 

@@ -254,6 +254,61 @@ class FinalPOC1Evaluator:
                 return False
         return True
 
+    def _conflict_claim_binding_ok(
+        self, response: FinalQAResponse, question: AcceptanceQuestion
+    ) -> bool:
+        """
+        Codex review, PR #33, P1, fresh finding: a conflict response could
+        still pass every check above -- including the >=2-distinct-claims
+        rule in ``_claim_traceability_ok`` -- while never actually binding
+        the manifest's required conflicting assertions to distinct
+        competing evidence. Example exploit: ``claims=["required A",
+        "unrelated"]``, ``claim_evidence_ids=[["E1"], ["E1"]]``,
+        ``citations=[E1, E2]``. This has 2 distinct claim strings, each
+        bound to a subset of the cited ids, so the existing checks accept
+        it -- but E2 backs nothing, and only ONE competing evidence_id is
+        actually bound to any claim; the manifest's second required
+        assertion may not even appear anywhere in the claims at all
+        because ``required_claims_present`` only searches the claims
+        JOINED together, not per-claim.
+
+        This requires each of the question's required (``GoldClaim.required
+        is True``) gold assertions to resolve to a DIFFERENT response claim
+        entry (deterministic string containment via ``_contains_expected``,
+        never semantic matching), and the UNION of those matched claims'
+        bound evidence_ids to cover every gold ``competing_evidence_ids``
+        entry. This is a no-op (True) for non-conflict responses.
+        """
+        if response.status != "conflict":
+            return True
+        if len(response.claims) != len(response.claim_evidence_ids):
+            return False
+        required_assertions = [
+            claim.assertion for claim in question.gold.required_claims if claim.required
+        ]
+        if len(required_assertions) < 2:
+            return False
+        matched_indices: List[int] = []
+        for assertion in required_assertions:
+            match = next(
+                (
+                    index
+                    for index, claim in enumerate(response.claims)
+                    if index not in matched_indices
+                    and self._contains_expected(
+                        [claim], assertion, question.gold.acceptable_variants
+                    )
+                ),
+                None,
+            )
+            if match is None:
+                return False
+            matched_indices.append(match)
+        covered_ids: set = set()
+        for index in matched_indices:
+            covered_ids.update(response.claim_evidence_ids[index])
+        return set(question.gold.competing_evidence_ids).issubset(covered_ids)
+
     @staticmethod
     def _required_citation_fields_present(
         response: FinalQAResponse,
@@ -614,6 +669,7 @@ class FinalPOC1Evaluator:
         status_correct = response.status == question.expected_status
         citation_complete = self._required_citation_fields_present(response, question)
         claim_traceability_ok = self._claim_traceability_ok(response)
+        conflict_claim_binding_ok = self._conflict_claim_binding_ok(response, question)
         conflict_provenance_ok = self._conflict_provenance_ok(response)
         # GroundedAnswer rejects a response that cites the same evidence_id
         # twice (that is not two independent pieces of evidence, it is one
@@ -647,6 +703,7 @@ class FinalPOC1Evaluator:
             and boundary_correct
             and scope_correct
             and claim_traceability_ok
+            and conflict_claim_binding_ok
         )
         passed = grounded and citation_complete
         return FinalQuestionResult(

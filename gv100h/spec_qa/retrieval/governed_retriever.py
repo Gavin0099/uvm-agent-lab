@@ -298,6 +298,19 @@ class GovernedSpecRetriever:
                 + ", ".join(unknown)
             )
 
+        # Codex review, PR #33, F: BOUNDARY_EVIDENCE_REGISTRY already
+        # enforces unique evidence_id values (see
+        # _validate_boundary_evidence_registry_provenance below);
+        # EVIDENCE_REGISTRY itself had no equivalent duplicate-ID check, so
+        # a duplicated evidence_id there would silently make evidence_id
+        # resolution ambiguous (get_evidence_by_id() returning whichever
+        # entry happens to match first) instead of failing closed at load
+        # time. Checked last (after the unregistered-source-id and
+        # not-eligible-as-answer-evidence checks above/below) so a single
+        # malformed entry that also happens to duplicate an existing
+        # evidence_id is still reported under its more specific
+        # provenance error first.
+
         # Being a *known* source_id is not the same as being *eligible as
         # answer evidence*: corpus.lock.yaml deliberately registers excluded
         # sources too (e.g. "usb4", phase_2/included=false) so their
@@ -328,6 +341,10 @@ class GovernedSpecRetriever:
                 "and declared on a layer with allowed_as_answer_evidence=true "
                 "in corpus.lock.yaml): " + ", ".join(ineligible)
             )
+
+        evidence_ids = [ev.evidence_id for ev in self.EVIDENCE_REGISTRY]
+        if len(evidence_ids) != len(set(evidence_ids)):
+            raise ValueError("EVIDENCE_REGISTRY contains duplicate evidence_id values")
 
     def _validate_boundary_evidence_registry_provenance(self, corpus_lock: Mapping[str, Any]) -> None:
         """
@@ -562,8 +579,23 @@ class GovernedSpecRetriever:
                 block_reasons.append(f"{marker_path} contains pending marker")
 
         usb4 = sources.get("usb4")
-        if not isinstance(usb4, dict) or usb4.get("included") is not False:
-            raise ValueError("USB4 must be excluded from Phase 1")
+        # Codex review, PR #33, F: verify the FULL declared exclusion
+        # state, not just `included is not False` -- a corpus.lock.yaml
+        # edit that flipped `phase` to "phase_1" or `retrieval_status` away
+        # from "excluded_from_phase_1" while leaving `included: false`
+        # would still pass the narrower check even though USB4's Phase 2
+        # exclusion is no longer consistently declared.
+        if (
+            not isinstance(usb4, dict)
+            or usb4.get("included") is not False
+            or usb4.get("phase") != "phase_2"
+            or usb4.get("retrieval_status") != "excluded_from_phase_1"
+        ):
+            raise ValueError(
+                "USB4 must be excluded from Phase 1 (sources.usb4 requires "
+                "phase=phase_2, included=false, "
+                "retrieval_status=excluded_from_phase_1)"
+            )
 
         benchmark = lock.get("benchmark")
         if not isinstance(benchmark, dict) or benchmark.get("benchmark_role") != "independent_evaluation":
