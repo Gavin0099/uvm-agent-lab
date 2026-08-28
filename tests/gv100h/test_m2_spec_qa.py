@@ -2152,6 +2152,61 @@ def test_grounded_answer_authority_mismatch_rejects_same_authority_different_rev
 
 
 @pytest.mark.unit
+def test_grounded_answer_rejects_duplicate_evidence_ids_for_a_single_citation():
+    # Codex review, PR #33, P2: set(cited_ids) == set(evidence_ids) collapses
+    # duplicates on both sides before comparing, so evidence_ids=["E", "E"]
+    # against a single citation of "E" previously passed -- set(["E"]) ==
+    # set(["E", "E"]). "evidence_ids must exactly match citations" should
+    # mean both lists are duplicate-free and denote the same ID set, not
+    # merely that their deduplicated sets agree; a duplicate here would
+    # inflate evidence counts for any consumer reading evidence_ids directly.
+    with pytest.raises(EvidenceContractError, match="evidence_ids must not contain duplicate entries"):
+        GroundedAnswer(
+            status="answer",
+            claims=["A claim backed by evidence E."],
+            claim_evidence_ids=[["USB3-FEAT-PORT_POWER"]],
+            citations=[
+                Citation(
+                    evidence_id="USB3-FEAT-PORT_POWER",
+                    document="usb32-rev1.1",
+                    revision="1.0",
+                    chapter="10",
+                    section="10.16.2.1",
+                    page_or_anchor="10.16.2.1",
+                    authority_level="authoritative",
+                ),
+            ],
+            evidence_ids=["USB3-FEAT-PORT_POWER", "USB3-FEAT-PORT_POWER"],
+            scope="USB_3_X",
+        )
+
+
+@pytest.mark.unit
+def test_grounded_answer_allows_non_duplicated_evidence_ids_matching_citations():
+    # Control for the regression above: a single citation of "E" with a
+    # single, non-duplicated evidence_ids=["E"] must still pass.
+    answer = GroundedAnswer(
+        status="answer",
+        claims=["A claim backed by evidence E."],
+        claim_evidence_ids=[["USB3-FEAT-PORT_POWER"]],
+        citations=[
+            Citation(
+                evidence_id="USB3-FEAT-PORT_POWER",
+                document="usb32-rev1.1",
+                revision="1.0",
+                chapter="10",
+                section="10.16.2.1",
+                page_or_anchor="10.16.2.1",
+                authority_level="authoritative",
+            ),
+        ],
+        evidence_ids=["USB3-FEAT-PORT_POWER"],
+        scope="USB_3_X",
+    )
+    assert answer.evidence_ids == ["USB3-FEAT-PORT_POWER"]
+
+
+@pytest.mark.unit
 def test_final_qa_citation_preserves_chapter_and_authority_level():
     # Commit C item 3: to_final_qa_response() must no longer silently drop
     # chapter/authority_level -- the P0 provenance fields

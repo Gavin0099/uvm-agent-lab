@@ -308,15 +308,30 @@ class GroundedAnswer(BaseModel):
     def _check_contract(self) -> "GroundedAnswer":
         cited_ids = [citation.evidence_id for citation in self.citations]
 
+        # Uniqueness is checked on citations and evidence_ids independently,
+        # before the set-equality check below, so the semantics stay
+        # unambiguous: "exactly match" means both lists are duplicate-free
+        # AND denote the same ID set -- not merely that their deduplicated
+        # sets happen to agree. Without the evidence_ids half of this,
+        # citations=[Citation("E")] + evidence_ids=["E", "E"] passed:
+        # set(["E"]) == set(["E", "E"]), so the duplicate silently survived
+        # into a "validated" response and would inflate evidence counts for
+        # any consumer reading evidence_ids directly (Codex review, PR #33,
+        # P2). Uniqueness on citations alone does not imply uniqueness on
+        # evidence_ids, since the two lists are declared independently.
+        if len(cited_ids) != len(set(cited_ids)):
+            raise EvidenceContractError(
+                "citations must not cite the same evidence_id more than once"
+            )
+        if len(self.evidence_ids) != len(set(self.evidence_ids)):
+            raise EvidenceContractError(
+                "evidence_ids must not contain duplicate entries"
+            )
         if set(cited_ids) != set(self.evidence_ids):
             raise EvidenceContractError(
                 "evidence_ids must exactly match the evidence_id set referenced "
                 f"by citations; citations declared {sorted(set(cited_ids))!r}, "
                 f"evidence_ids declared {sorted(set(self.evidence_ids))!r}"
-            )
-        if len(cited_ids) != len(set(cited_ids)):
-            raise EvidenceContractError(
-                "citations must not cite the same evidence_id more than once"
             )
 
         # Per-claim evidence traceability (Codex review, PR #33, P1, fresh
