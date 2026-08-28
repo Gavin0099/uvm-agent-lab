@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spec QA Operator UI — development shell</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="header">
+    <div>
+      <p class="kicker">Operator UI / development shell</p>
+      <h1>USB Hub Spec QA</h1>
+      <p class="claim">Operator UI only — not POC-1 qualification, not Gate 4, not a complete Spec Bot.</p>
+    </div>
+    <span class="pill">Frozen QAResponse</span>
+  </header>
+
+  <main class="layout">
+    <section class="panel">
+      <h2>Question</h2>
+      <label>
+        Query
+        <textarea id="question" rows="4" placeholder="Which USB 3.x Hub Class feature selector has value 8?"></textarea>
+      </label>
+      <div class="row">
+        <label>
+          answer_scope
+          <select id="answerScope">
+            <option value="USB_3_X">USB_3_X</option>
+            <option value="USB_2_0">USB_2_0</option>
+            <option value="USB_HUB_COMMON">USB_HUB_COMMON</option>
+            <option value="USB4_SPEC">USB4_SPEC</option>
+          </select>
+        </label>
+        <label>
+          retrieval_mode
+          <select id="retrievalMode">
+            <option value="single_scope">single_scope</option>
+            <option value="explicit_cross_scope">explicit_cross_scope</option>
+          </select>
+        </label>
+      </div>
+      <label>
+        allowed_evidence_scopes (comma-separated, required for explicit_cross_scope)
+        <input id="allowedScopes" type="text" placeholder="USB_2_0, USB_3_X">
+      </label>
+      <div class="row">
+        <label>
+          source
+          <select id="source">
+            <option value="fixture">fixture (default)</option>
+            <option value="service">GovernedQAService</option>
+          </select>
+        </label>
+        <label>
+          fixture
+          <select id="fixture">
+            <option value="answered">answered</option>
+            <option value="abstain">abstain</option>
+            <option value="conflict">conflict</option>
+          </select>
+        </label>
+      </div>
+      <button id="askBtn" type="button">Ask</button>
+      <p class="hint">Default path uses frozen fixtures. Service mode calls existing GovernedQAService and does not invent PDF anchors.</p>
+    </section>
+
+    <section class="panel result" id="resultPanel">
+      <h2>Result</h2>
+      <div id="statusRow" class="status unknown">waiting</div>
+      <p id="explainer" class="explainer" hidden></p>
+      <h3>Answer</h3>
+      <p id="answerText" class="answer">—</p>
+      <h3>Scope</h3>
+      <p id="scopeText">—</p>
+      <h3>Claims</h3>
+      <ul id="claims"></ul>
+      <h3>Evidence</h3>
+      <div id="citations"></div>
+      <h3>Boundary</h3>
+      <p id="boundaryCode">—</p>
+      <p id="boundaryReason" class="muted">—</p>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
