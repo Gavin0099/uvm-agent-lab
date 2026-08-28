@@ -17,7 +17,12 @@ SourceMode = Literal["fixture", "service"]
 
 class OperatorQAAdapter:
     def __init__(self, *, service: Optional[GovernedQAService] = None) -> None:
-        self._service = service or GovernedQAService()
+        self._service = service
+
+    def _get_service(self) -> GovernedQAService:
+        if self._service is None:
+            self._service = GovernedQAService()
+        return self._service
 
     def ask(
         self,
@@ -32,7 +37,7 @@ class OperatorQAAdapter:
         if source == "fixture":
             resp = get_fixture(fixture)
             return to_operator_view(resp, source="fixture")
-        resp = self._service.answer_question(
+        resp = self._get_service().answer_question(
             question,
             answer_scope=answer_scope,
             retrieval_mode=retrieval_mode,  # type: ignore[arg-type]
@@ -48,7 +53,7 @@ class OperatorQAAdapter:
         retrieval_mode: str = "single_scope",
         allowed_evidence_scopes: Optional[Sequence[str]] = None,
     ) -> QAResponse:
-        return self._service.answer_question(
+        return self._get_service().answer_question(
             question,
             answer_scope=answer_scope,
             retrieval_mode=retrieval_mode,  # type: ignore[arg-type]

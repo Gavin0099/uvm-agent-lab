@@ -65,4 +65,27 @@ button { cursor: pointer; background: #1d4ed8; border: 0; font-weight: 600; }
 .citation { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin: 8px 0; }
 .answer { white-space: pre-wrap; }
 ul { padding-left: 18px; }
+.hint.warn { color: var(--abstain); }
+.source-banner {
+  display: block;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-weight: 700;
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+.source-banner.waiting { background: #243049; color: var(--muted); }
+.source-banner.fixture {
+  background: rgba(245,158,11,0.12);
+  border-color: rgba(245,158,11,0.45);
+  color: var(--abstain);
+}
+.source-banner.service {
+  background: rgba(16,185,129,0.12);
+  border-color: rgba(16,185,129,0.35);
+  color: var(--answer);
+}
+label.disabled, textarea:disabled, select:disabled, input:disabled { opacity: 0.55; }
 @media (max-width: 900px) { .layout, .row { grid-template-columns: 1fr; } }

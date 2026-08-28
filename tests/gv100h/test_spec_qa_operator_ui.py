@@ -90,16 +90,44 @@ def test_adapter_fixture_path_does_not_require_question():
 
 @pytest.mark.unit
 def test_html_shell_is_labeled_operator_ui():
-    html = (OperatorUIHandler.__init__.__globals__["UI_DIR"] / "index.html").read_text(encoding="utf-8")
+    ui_dir = OperatorUIHandler.__init__.__globals__["UI_DIR"]
+    html = (ui_dir / "index.html").read_text(encoding="utf-8")
     assert "Operator UI / development shell" in html
     assert "not POC-1 qualification" in html
     assert "explicit_cross_scope" in html
+    assert "Fixture mode ignores query" in html
+    assert "DATA SOURCE" in html
+    assert 'id="dataSource"' in html
 
 
 @pytest.mark.unit
-def test_api_qa_returns_fixture_payload(monkeypatch):
+def test_app_js_renders_response_as_text_not_html():
+    js = (OperatorUIHandler.__init__.__globals__["UI_DIR"] / "app.js").read_text(encoding="utf-8")
+    assert "innerHTML" not in js
+    assert "createElement" in js
+    assert "textContent" in js
+    assert "Query is NOT evaluated." in js
+    assert "GovernedQAService" in js
+
+
+@pytest.mark.unit
+def test_adapter_fixture_path_does_not_construct_service(monkeypatch):
+    def boom(*args, **kwargs):
+        raise AssertionError("GovernedQAService must not be constructed in fixture mode")
+
+    monkeypatch.setattr(
+        "gv100h.spec_qa.operator_ui.adapter.GovernedQAService",
+        boom,
+    )
+    adapter = OperatorQAAdapter()
+    view = adapter.ask("Warm Reset 可以在哪些 state 發出？", source="fixture", fixture="answered")
+    assert view.source == "fixture"
+    assert view.status == "answer"
+
+
+@pytest.mark.unit
+def test_api_qa_returns_fixture_payload():
     from http.server import HTTPServer
-    from gv100h.spec_qa.operator_ui import server as ui_server
 
     adapter = OperatorQAAdapter()
     httpd = HTTPServer(("127.0.0.1", 0), lambda *args, **kwargs: OperatorUIHandler(*args, adapter=adapter, **kwargs))
@@ -118,6 +146,7 @@ def test_api_qa_returns_fixture_payload(monkeypatch):
         payload = json.loads(resp.read().decode("utf-8"))
         assert resp.status == 200
         assert payload["status"] == "answer"
+        assert payload["source"] == "fixture"
         assert payload["citations"][0]["pdf_href"] is None
         assert payload["citations"][0]["has_pdf_anchor"] is False
     finally:

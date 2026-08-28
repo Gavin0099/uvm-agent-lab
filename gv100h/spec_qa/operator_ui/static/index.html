@@ -19,6 +19,7 @@
   <main class="layout">
     <section class="panel">
       <h2>Question</h2>
+      <p id="fixtureIgnoreHint" class="hint warn">Fixture mode ignores query. Canned presentation data is shown; the question is NOT evaluated.</p>
       <label>
         Query
         <textarea id="question" rows="4" placeholder="Which USB 3.x Hub Class feature selector has value 8?"></textarea>
@@ -68,6 +69,8 @@
 
     <section class="panel result" id="resultPanel">
       <h2>Result</h2>
+      <h3>DATA SOURCE</h3>
+      <div id="dataSource" class="source-banner waiting">waiting</div>
       <div id="statusRow" class="status unknown">waiting</div>
       <p id="explainer" class="explainer" hidden></p>
       <h3>Answer</h3>
