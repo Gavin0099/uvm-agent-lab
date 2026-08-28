@@ -950,6 +950,106 @@ def test_governed_qa_service_usb4_abstains_with_real_registered_boundary_evidenc
 
 
 @pytest.mark.unit
+def test_governed_qa_service_port_power_comparison_passes_with_explicit_cross_scope_both_scopes():
+    # Comparison-scope-coverage fix (Codex review, PR #33, P1, fresh finding
+    # on 6a97962): a cross-scope PORT_POWER comparison claim may only be
+    # synthesized when evidence from every scope it is a claim about was
+    # actually retrieved. explicit_cross_scope declaring both USB_2_0 and
+    # USB_3_X is exactly that case, so the comparison sentence is certified.
+    service = GovernedQAService()
+    resp = service.answer_question(
+        "PORT_POWER 的選擇器在 USB 2.0 與 USB 3.x 是否皆為 8？",
+        "USB_HUB_COMMON",
+        retrieval_mode="explicit_cross_scope",
+        allowed_evidence_scopes=["USB_2_0", "USB_3_X"],
+    )
+    assert resp.status == "answer"
+    assert any("皆為 8" in claim for claim in resp.claims)
+    cited_ids = {c.evidence_id for c in resp.citations}
+    assert {"USB2-FEAT-PORT_POWER", "USB3-FEAT-PORT_POWER"}.issubset(cited_ids)
+
+
+@pytest.mark.unit
+def test_governed_qa_service_port_power_comparison_abstains_with_only_usb3_evidence():
+    # Under retrieval_mode="single_scope" (the default) + answer_scope=
+    # "USB_3_X", the retriever's hard eligibility gate excludes USB_2_0
+    # evidence entirely, so only USB3-FEAT-PORT_POWER is ever retrieved.
+    # Before this fix, the PORT_POWER comparison sentence ("...在 USB 2.0
+    # 與 USB 3.x 皆為 8...") was still synthesized and bound to that
+    # USB_3_X-only evidence, certifying a claim about USB_2_0 the service
+    # never actually retrieved evidence for. claim_evidence_ids only proves
+    # traceability (the cited ID exists and is legitimately citable), not
+    # that the cited evidence's content covers both compared scopes, so
+    # GroundedAnswer could not catch this class of gap (Codex review,
+    # PR #33, P1, fresh finding on 6a97962).
+    service = GovernedQAService()
+    resp = service.answer_question(
+        "PORT_POWER 的選擇器在 USB 2.0 與 USB 3.x 是否皆為 8？",
+        "USB_3_X",
+    )
+    assert resp.status == "abstain"
+    # Distinguishes this from the plain "no evidence at all" abstain path,
+    # which shares the same MISSING_EVIDENCE boundary_code but a different
+    # claim_level -- USB3-FEAT-PORT_POWER evidence *was* retrieved here, it
+    # was just insufficient to certify a two-scope comparison claim.
+    assert resp.claim_level == "abstain_insufficient_comparison_evidence"
+    assert resp.boundary_code == "MISSING_EVIDENCE"
+    assert resp.claims == []
+    assert resp.citations == []
+    assert not any("皆為 8" in part for part in resp.answer.split("\n"))
+
+
+@pytest.mark.unit
+def test_governed_qa_service_port_power_comparison_abstains_with_only_usb2_evidence():
+    # Mirror of the USB_3_X-only case above: a single_scope query restricted
+    # to USB_2_0 must not certify a comparison claim about USB_3_X either.
+    service = GovernedQAService()
+    resp = service.answer_question(
+        "PORT_POWER 的選擇器在 USB 2.0 與 USB 3.x 是否皆為 8？",
+        "USB_2_0",
+    )
+    assert resp.status == "abstain"
+    assert resp.claim_level == "abstain_insufficient_comparison_evidence"
+    assert resp.boundary_code == "MISSING_EVIDENCE"
+    assert resp.claims == []
+    assert resp.citations == []
+
+
+@pytest.mark.unit
+def test_governed_qa_service_descriptor_comparison_abstains_under_single_scope():
+    # The same comparison-scope-coverage principle must apply to the
+    # descriptor (0x29/0x2A) comparison branch, not just PORT_POWER (Codex
+    # review, PR #33, P1: "descriptor 的比較也應該一起套用同一原則").
+    service = GovernedQAService()
+    resp = service.answer_question(
+        "USB 2.0 與 USB 3.x 的 Hub Descriptor bDescriptorType 是否相同？",
+        "USB_3_X",
+    )
+    assert resp.status == "abstain"
+    assert resp.claim_level == "abstain_insufficient_comparison_evidence"
+    assert resp.boundary_code == "MISSING_EVIDENCE"
+    assert resp.claims == []
+
+
+@pytest.mark.unit
+def test_governed_qa_service_descriptor_comparison_passes_with_explicit_cross_scope_both_scopes():
+    service = GovernedQAService()
+    resp = service.answer_question(
+        "USB 2.0 與 USB 3.x 的 Hub Descriptor bDescriptorType 是否相同？",
+        "USB_HUB_COMMON",
+        retrieval_mode="explicit_cross_scope",
+        allowed_evidence_scopes=["USB_2_0", "USB_3_X"],
+    )
+    assert resp.status == "answer"
+    assert any(
+        "不同" in claim and "0x29" in claim and "0x2A" in claim
+        for claim in resp.claims
+    )
+    cited_ids = {c.evidence_id for c in resp.citations}
+    assert {"USB2-HUB-DESC-FORMAT", "USB3-HUB-DESC-FORMAT"}.issubset(cited_ids)
+
+
+@pytest.mark.unit
 def test_governed_qa_service_rejects_allowed_evidence_scopes_without_answer_scope():
     # Codex review regression (PR #31, P1): QARequest permits declaring
     # allowed_evidence_scopes without answer_scope, but RetrievalPolicy

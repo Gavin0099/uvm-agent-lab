@@ -504,6 +504,69 @@ class GovernedQAService:
         cited = evidences[:2]
         citations = [self.retriever.to_citation(ev) for ev in cited]
         cited_evidence_ids = [ev.evidence_id for ev in cited]
+        cited_scopes = {ev.scope for ev in cited}
+
+        # A comparison claim (e.g. "PORT_POWER is 8 in both USB 2.0 and USB
+        # 3.x") is a claim ABOUT every scope it names -- it must never be
+        # certified from evidence covering only one of those scopes. Before
+        # this fix, these sentences were appended whenever the question text
+        # matched a comparison keyword, regardless of which scopes were
+        # actually retrieved: under retrieval_mode="single_scope" +
+        # answer_scope="USB_3_X", the retriever's hard eligibility gate
+        # excludes USB_2_0 evidence entirely, yet the branch below still
+        # asserted a USB_2_0 fact and bound it to the USB_3_X-only
+        # cited_evidence_ids. claim_evidence_ids only proves claim-to-evidence
+        # TRACEABILITY (the cited IDs exist and are legitimately citable) --
+        # it does not, and is not meant to, prove the cited evidence's
+        # CONTENT semantically covers every half of a cross-scope claim, so
+        # GroundedAnswer cannot catch this class of gap; it must be closed
+        # here, at claim synthesis (Codex review, PR #33, P1, fresh finding
+        # on 6a97962).
+        #
+        # Fix: each comparison sentence is only synthesized when every scope
+        # it is a claim about is actually present among the cited evidence's
+        # own scopes. If the question asks for a cross-scope comparison but
+        # retrieval -- whether due to a single_scope policy or merely
+        # incomplete corpus coverage -- did not produce evidence for every
+        # compared scope, this fails closed to an abstain instead of
+        # silently certifying an incomplete/overbroad comparison.
+        CROSS_SCOPE_COMPARISON_SCOPES = frozenset({"USB_2_0", "USB_3_X"})
+        comparison_claims: List[str] = []
+        if "相同" in q_lower or "區分" in q_lower or "差異" in q_lower or "是否" in q_lower:
+            if "descriptor" in q_lower or "0x2a" in q_lower or "0x29" in q_lower or "描述符" in q_lower:
+                comparison_claims.append(
+                    "總結：USB 2.0 (0x29) 與 USB 3.x (0x2A) 描述符不同，兩者不能混用；USB 2.0 收到 0x2A 為未定義。"
+                )
+            if "port_power" in q_lower:
+                comparison_claims.append(
+                    "總結：PORT_POWER 特徵選擇器在 USB 2.0 與 USB 3.x 皆為 8 (0x0008)，兩者相同無差異。"
+                )
+
+        if comparison_claims and not CROSS_SCOPE_COMPARISON_SCOPES.issubset(cited_scopes):
+            missing_scopes = sorted(CROSS_SCOPE_COMPARISON_SCOPES - cited_scopes)
+            return self._build_response(
+                answer=(
+                    "現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論 (Abstain)："
+                    f"此跨版本比較需要 {sorted(CROSS_SCOPE_COMPARISON_SCOPES)} 的證據，"
+                    f"但 retrieval_mode={retrieval_mode!r} 下僅取得 {sorted(cited_scopes)} "
+                    f"的證據，缺少 {missing_scopes}。"
+                ),
+                scope=answer_scope or "OUT_OF_SCOPE",
+                cited_evidences=[],
+                claim_level="abstain_insufficient_comparison_evidence",
+                boundary=(
+                    "Cross-scope comparison requires evidence from every "
+                    f"scope being compared; retrieval under retrieval_mode="
+                    f"{retrieval_mode!r} only produced evidence for "
+                    f"{sorted(cited_scopes)}, missing {missing_scopes}. Use "
+                    "retrieval_mode='explicit_cross_scope' with "
+                    "allowed_evidence_scopes covering every compared scope "
+                    "to answer this question."
+                ),
+                is_abstain=True,
+                status="abstain",
+                boundary_code="MISSING_EVIDENCE",
+            )
 
         answer_parts = []
         claim_evidence_ids: List[List[str]] = []
@@ -521,13 +584,12 @@ class GovernedQAService:
                 answer_parts.append("總結：USB 2.0 Hub 不支援且不適用 PORT_LINK_STATE (0x0005)，此為 USB 3.x 專屬特徵選擇器，在 USB 2.0 下無效。")
                 claim_evidence_ids.append(list(cited_evidence_ids))
 
-        if "相同" in q_lower or "區分" in q_lower or "差異" in q_lower or "是否" in q_lower:
-            if "descriptor" in q_lower or "0x2a" in q_lower or "0x29" in q_lower or "描述符" in q_lower:
-                answer_parts.append("總結：USB 2.0 (0x29) 與 USB 3.x (0x2A) 描述符不同，兩者不能混用；USB 2.0 收到 0x2A 為未定義。")
-                claim_evidence_ids.append(list(cited_evidence_ids))
-            if "port_power" in q_lower:
-                answer_parts.append("總結：PORT_POWER 特徵選擇器在 USB 2.0 與 USB 3.x 皆為 8 (0x0008)，兩者相同無差異。")
-                claim_evidence_ids.append(list(cited_evidence_ids))
+        # Reaching this point already proves CROSS_SCOPE_COMPARISON_SCOPES is
+        # covered by cited_scopes (checked above), so these are safe to
+        # append unconditionally now.
+        for comparison_claim in comparison_claims:
+            answer_parts.append(comparison_claim)
+            claim_evidence_ids.append(list(cited_evidence_ids))
 
         full_answer = "\n".join(answer_parts)
 
