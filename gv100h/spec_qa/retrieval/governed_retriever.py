@@ -396,7 +396,13 @@ class GovernedSpecRetriever:
 
         excerpt = ev.content
         if excerpt_max_len and len(excerpt) > excerpt_max_len:
-            excerpt = excerpt[: excerpt_max_len - 1].rstrip() + "\u2026"
+            # Truncate to a plain prefix -- no appended "..." marker -- so
+            # the excerpt stays a genuine contiguous substring of the raw
+            # trusted content. FinalPOC1Evaluator._trusted_source_text()
+            # requires excerpt_value in trusted_text verbatim; an appended
+            # ellipsis character that never appears in the source would
+            # make every truncated citation fail that check.
+            excerpt = excerpt[:excerpt_max_len].rstrip()
 
         return Citation(
             evidence_id=ev.evidence_id,

@@ -1230,6 +1230,25 @@ def test_governed_retriever_to_citation_truncates_long_excerpts():
 
 
 @pytest.mark.unit
+def test_governed_retriever_to_citation_truncated_excerpt_is_verbatim_substring():
+    # A previously-fixed P2: to_citation() used to append a synthesized
+    # "..." marker after truncating, which is not part of the raw source
+    # text -- FinalPOC1Evaluator._trusted_source_text() requires a
+    # submitted excerpt to be a strict contiguous substring of the raw,
+    # untruncated evidence content, so every truncated citation would fail
+    # that check. Truncation must be a plain prefix, with no characters
+    # appended that don't appear in the source.
+    retriever = GovernedSpecRetriever()
+    ev = retriever.get_evidence_by_id("USB3-FEAT-PORT_POWER")
+    citation = retriever.to_citation(ev, excerpt_max_len=10)
+    assert citation.excerpt is not None
+    assert len(ev.content) > 10
+    assert citation.excerpt in ev.content
+    assert "\u2026" not in citation.excerpt
+    assert "..." not in citation.excerpt
+
+
+@pytest.mark.unit
 def test_governed_qa_service_answer_populates_evidence_contract_fields():
     # An "answer" response must expose status/claims/citations/scope/
     # evidence_ids per the Evidence Contract, in addition to the legacy
