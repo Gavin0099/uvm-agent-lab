@@ -1,0 +1,23 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.13, pytest-9.1.1, pluggy-1.6.0 -- /private/tmp/uvm-spec-qa-cli-venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/sw1/Desktop/uvm-agent-lab
+configfile: pyproject.toml
+plugins: cov-7.1.0
+collecting ... collected 13 items
+
+tests/gv100h/test_spec_qa_operator_ui.py::test_fixtures_satisfy_grounded_answer_contract[answered] PASSED [  7%]
+tests/gv100h/test_spec_qa_operator_ui.py::test_fixtures_satisfy_grounded_answer_contract[abstain] PASSED [ 15%]
+tests/gv100h/test_spec_qa_operator_ui.py::test_fixtures_satisfy_grounded_answer_contract[conflict] PASSED [ 23%]
+tests/gv100h/test_spec_qa_operator_ui.py::test_fixture_evidence_ids_are_synthetic_and_disjoint_from_production PASSED [ 30%]
+tests/gv100h/test_spec_qa_operator_ui.py::test_answered_view_shows_section_and_authority_badges_without_pdf_href PASSED [ 38%]
+tests/gv100h/test_spec_qa_operator_ui.py::test_abstain_view_explains_governance_not_ignorance PASSED [ 46%]
+tests/gv100h/test_spec_qa_operator_ui.py::test_conflict_view_keeps_boundary_code PASSED [ 53%]
+tests/gv100h/test_spec_qa_operator_ui.py::test_frozen_fields_are_explicit PASSED [ 61%]
+tests/gv100h/test_spec_qa_operator_ui.py::test_adapter_fixture_path_does_not_require_question PASSED [ 69%]
+tests/gv100h/test_spec_qa_operator_ui.py::test_html_shell_is_labeled_operator_ui PASSED [ 76%]
+tests/gv100h/test_spec_qa_operator_ui.py::test_app_js_renders_response_as_text_not_html PASSED [ 84%]
+tests/gv100h/test_spec_qa_operator_ui.py::test_adapter_fixture_path_does_not_construct_service PASSED [ 92%]
+tests/gv100h/test_spec_qa_operator_ui.py::test_api_qa_returns_fixture_payload PASSED [100%]
+
+============================== 13 passed in 0.62s ==============================
