@@ -1,3 +1,4 @@
+import re
 from typing import Dict, Any, List, Literal, Optional, Sequence, Tuple
 from pydantic import BaseModel, Field, model_validator
 
@@ -6,6 +7,55 @@ from gv100h.spec_qa.contracts.retrieval_policy import RetrievalMode, RetrievalPo
 from gv100h.spec_qa.contracts.evidence_contract import AnswerStatus, Citation, GroundedAnswer
 from gv100h.spec_qa.contracts.poc1_acceptance_contract import BoundaryCode
 from gv100h.spec_qa.evaluation.final_evaluator import FinalQACitation, FinalQAResponse
+
+# Codex review, PR #33, final batch item 2: a positive ALLOWLIST of whole
+# normalized-query shapes for "is USB4 part of the Phase 1 corpus?"-style
+# corpus-membership questions, replacing the previous
+# usb4_additional_intent_markers DENYLIST. A denylist can only ever abstain
+# for markers someone thought to enumerate -- an unlisted follow-on clause
+# (e.g. "...and what speed does it support?") would have slipped straight
+# through and been misclassified as a pure membership question. Matching is
+# done with re.fullmatch() against the ENTIRE normalized query (see
+# _normalize_for_usb4_membership_match below): any additional clause, in any
+# language, makes every pattern fail to match, and the question correctly
+# falls through to the general USB4 abstain. A false negative (unnecessary
+# abstain) is the safe failure mode here, not a false positive.
+_USB4_CORPUS_MEMBERSHIP_WHOLE_QUERY_PATTERNS: Tuple["re.Pattern[str]", ...] = tuple(
+    re.compile(pattern)
+    for pattern in (
+        r"is usb4 included in (?:the )?(?:current )?(?:phase ?1 )?corpus",
+        r"is usb4 included in (?:the )?phase ?1",
+        r"is usb4 (?:in|part of) (?:the )?(?:current )?corpus",
+        r"is usb4 part of (?:the )?phase ?1",
+        r"is usb4 in (?:the )?phase ?1",
+        r"does (?:the )?phase ?1(?: corpus)? include usb4",
+        r"does (?:the )?corpus include usb4",
+        r"usb4\s*(?:是否|有沒有|有)?\s*(?:屬於|包含在|涵蓋在|有包含在|是否包含在|有沒有涵蓋)\s*"
+        r"(?:目前的?)?\s*(?:corpus|phase ?1|phase ?2)",
+        r"(?:corpus|phase ?1|phase ?2)\s*(?:是否|有沒有)?\s*(?:包含|涵蓋|有)\s*usb4",
+    )
+)
+
+
+def _normalize_for_usb4_membership_match(q_lower: str) -> str:
+    # Deterministic normalization only (no semantic rewriting): trim
+    # surrounding whitespace, drop a single trailing sentence terminator
+    # (?/？/./。/!/！), and collapse internal whitespace runs to one space,
+    # so the whole-query patterns above do not need to special-case
+    # punctuation or spacing variants.
+    stripped = re.sub(r"[?？.。!！]+$", "", q_lower.strip()).strip()
+    return re.sub(r"\s+", " ", stripped)
+
+
+# Codex review, PR #33, final batch item 1: deterministic "USB <version>"
+# detection requiring the literal "usb" token to co-occur with the version
+# number -- not a naked "2.0"/"3.x" substring check, which could match a
+# bare version-like number with no USB context at all. USB 3.0/3.1/3.2/3.x
+# are all recognized as a USB 3.x mention; `(?!\d)` prevents a longer
+# version number (e.g. a hypothetical "usb 3.10") from being misread as
+# "usb 3.1" followed by a stray "0".
+_USB_VERSION_2_0_PATTERN = re.compile(r"usb[\s_]*2(?:\.0)?(?!\d)")
+_USB_VERSION_3_X_PATTERN = re.compile(r"usb[\s_]*3(?:\.[0-2x])?(?!\d)")
 
 
 class QARequest(BaseModel):
@@ -318,77 +368,23 @@ class GovernedQAService:
         # corpus.lock.yaml's own membership metadata, cited with
         # citation_kind="governance" (Codex review, PR #33, P1).
         #
-        # Intent matching is deliberately narrow (whole membership-question
-        # patterns), not a broad substring/marker list: a marker list
-        # containing single generic words like "included"/"包含" also
-        # matches ordinary substantive USB4 feature questions (e.g. "What
-        # features are included in USB4?"), misclassifying them as
-        # corpus-membership questions and returning a governance answer
-        # instead of the required Phase-1-exclusion abstain (Codex review,
-        # PR #33, P2).
-        usb4_corpus_membership_patterns = (
-            "usb4 included in",
-            "usb4 in the current corpus",
-            "usb4 part of the current corpus",
-            "usb4 part of phase 1",
-            "usb4 in phase 1",
-            "usb4 in phase1",
-            "phase 1 include usb4",
-            "phase1 include usb4",
-            "phase 1 corpus include usb4",
-            "corpus include usb4",
-            "corpus 有包含 usb4",
-            "corpus 包含 usb4",
-            "corpus 有 usb4",
-            "corpus 是否包含 usb4",
-            "phase 1 是否包含 usb4",
-            "phase 1 有包含 usb4",
-            "屬於 phase 1",
-            "屬於目前 corpus",
-            "usb4 屬於",
-            "usb4 有包含在",
-            "usb4 是否包含在",
-            "usb4 有沒有涵蓋",
-            "涵蓋 usb4",
+        # Intent matching is deliberately narrow: the ENTIRE normalized
+        # question must match one of the whole-query corpus-membership
+        # sentence shapes in _USB4_CORPUS_MEMBERSHIP_WHOLE_QUERY_PATTERNS
+        # (module level, see its docstring for why this replaces the
+        # previous additional-intent denylist). Any extra clause -- a
+        # compound question naming USB4 membership AND something else
+        # substantive, e.g. "Is USB4 included in the Phase 1 corpus, and
+        # what tunneling does it support?" -- makes every pattern fail to
+        # fullmatch, so it falls through to the general USB4 abstain below,
+        # same as any other USB4 topic question carrying additional intent
+        # (Codex review, PR #33, P2/final batch item 2).
+        normalized_query_for_usb4_membership = _normalize_for_usb4_membership_match(q_lower)
+        is_usb4_corpus_membership_question = any(
+            pattern.fullmatch(normalized_query_for_usb4_membership)
+            for pattern in _USB4_CORPUS_MEMBERSHIP_WHOLE_QUERY_PATTERNS
         )
-        # A bare pattern like "usb4 included in" also matches an ordinary
-        # hub-capability question (e.g. "Is USB4 included in this hub's
-        # supported-protocol list?"), which is asking about the hub, not
-        # about the corpus -- and must still abstain as a generic USB4
-        # topic question, not be answered as a corpus-membership fact
-        # (Codex review, PR #33, fresh finding on edf8825). Require an
-        # explicit corpus/phase qualifier to co-occur in the question
-        # rather than treating any single membership-shaped phrase alone as
-        # sufficient; every pattern above except the bare "usb4 included
-        # in" already carries such a qualifier itself.
-        usb4_corpus_context_markers = (
-            "corpus",
-            "phase 1",
-            "phase1",
-            "phase 2",
-            "phase2",
-        )
-        is_usb4_corpus_membership_question = (
-            "usb4" in q_lower
-            and any(pattern in q_lower for pattern in usb4_corpus_membership_patterns)
-            and any(marker in q_lower for marker in usb4_corpus_context_markers)
-        )
-        # Codex review, PR #33, P2, fresh finding: corpus-membership intent
-        # must be the SOLE intent of the question. A compound query naming
-        # USB4 membership AND something else substantive (e.g. "USB4 是否
-        # 在 Phase 1 corpus，並且 tunneling 支援什麼？") must not be answered
-        # as if only the membership half were asked under status="answer" --
-        # it falls through to the general USB4 abstain below instead, same
-        # as any other USB4 topic question carrying additional intent.
-        usb4_additional_intent_markers = (
-            "支援", "有效", "相同", "區分", "差異",
-            "tunnel", "tunneling", "通道", "穿隧",
-            "port_power", "port_link_state", "descriptor",
-        )
-        usb4_has_additional_intent = any(
-            marker in q_lower for marker in usb4_additional_intent_markers
-        )
-        if is_usb4_corpus_membership_question and not usb4_has_additional_intent:
+        if is_usb4_corpus_membership_question:
             boundary_evidence = self.retriever.get_boundary_evidence_by_id(
                 "POC1-BOUNDARY-USB4-EXCLUDED"
             )
@@ -555,10 +551,20 @@ class GovernedQAService:
         # evidence it was never actually asked to compare against. Require
         # the question to genuinely name BOTH USB 2.0 and USB 3.x before
         # any comparison-topic detection below can fire.
-        mentions_usb2 = "2.0" in q_lower or "usb2" in q_lower or "usb_2_0" in q_lower
-        mentions_usb3 = (
-            "3.x" in q_lower or "3.0" in q_lower or "usb3" in q_lower or "usb_3_x" in q_lower
-        )
+        # Codex review, PR #33, final batch item 1: naked substring checks
+        # like "2.0" in q_lower / "3.x" in q_lower have two problems --
+        # they can match a bare version-like number with no "USB" context
+        # at all (e.g. an unrelated "section 3.0" reference), and they only
+        # ever recognized 3.0/3.x, silently missing USB 3.1/3.2 (e.g. "USB
+        # 2.0 與 USB 3.2 的 PORT_POWER 是否相同？" never triggered
+        # has_cross_version_intent and silently fell through to the
+        # single-scope answer path for only one version). Both version
+        # checks now require the literal "usb" token to co-occur with the
+        # version number (deterministic regex, not a tokenizer/NLP model),
+        # and 3.0/3.1/3.2/3.x are all recognized as USB 3.x for comparison
+        # purposes.
+        mentions_usb2 = bool(_USB_VERSION_2_0_PATTERN.search(q_lower))
+        mentions_usb3 = bool(_USB_VERSION_3_X_PATTERN.search(q_lower))
         has_cross_version_intent = mentions_usb2 and mentions_usb3
 
         wants_descriptor_comparison = False

@@ -558,6 +558,64 @@ def test_final_evaluator_rejects_normative_citation_for_canonically_boundary_evi
     assert result.passed is False
 
 
+def test_final_evaluator_rejects_boundary_code_disagreeing_with_canonical_record(
+    tmp_path: Path,
+):
+    # Codex review, PR #33, final batch item 3: boundary_correct previously
+    # only ever compared response.boundary_code against
+    # question.gold.boundary_code -- the manifest's own asserted value,
+    # never the CANONICAL boundary_code actually registered for the cited
+    # boundary evidence_id (BoundaryEvidence.boundary_code). A manifest
+    # that (mis)declares boundary_code for a real registered evidence_id
+    # must not let an agreeing-but-canonically-wrong response pass just
+    # because it agrees with that wrong manifest value.
+    manifest, path = _write_manifest(tmp_path)
+    resolver = SyntheticEvidenceResolver(manifest)
+    resolver._canonical_citations["BOUNDARY-50"] = SimpleNamespace(
+        document=None,
+        revision=None,
+        chapter=None,
+        section=None,
+        page_or_anchor=None,
+        authority_level=None,
+        boundary_code="MISSING_EVIDENCE",
+        scope="USB4_SPEC",
+    )
+    evaluator = FinalPOC1Evaluator(str(path), evidence_resolver=resolver)
+
+    result = evaluator.evaluate_response(evaluator.manifest.questions[49], _response(50))
+
+    assert result.boundary_correct is False
+    assert result.passed is False
+
+
+def test_final_evaluator_rejects_citation_scope_disagreeing_with_canonical_record(
+    tmp_path: Path,
+):
+    # Mirrors the boundary_code check above for scope (Codex review, PR
+    # #33, final batch item 3): scope_correct previously only ever compared
+    # against question.expected_scope, never the cited evidence_id's own
+    # canonically registered scope (BoundaryEvidence.scope).
+    manifest, path = _write_manifest(tmp_path)
+    resolver = SyntheticEvidenceResolver(manifest)
+    resolver._canonical_citations["BOUNDARY-50"] = SimpleNamespace(
+        document=None,
+        revision=None,
+        chapter=None,
+        section=None,
+        page_or_anchor=None,
+        authority_level=None,
+        boundary_code="OUT_OF_SCOPE",
+        scope="USB_HUB_COMMON",
+    )
+    evaluator = FinalPOC1Evaluator(str(path), evidence_resolver=resolver)
+
+    result = evaluator.evaluate_response(evaluator.manifest.questions[49], _response(50))
+
+    assert result.scope_correct is False
+    assert result.passed is False
+
+
 def test_final_evaluator_fails_closed_when_resolver_lacks_canonical_lookup(tmp_path: Path):
     # Codex review, PR #33, fresh finding on ad0542c: a resolver that only
     # implements get_evidence_by_id() must not give boundary-shaped

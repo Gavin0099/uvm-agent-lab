@@ -582,6 +582,67 @@ class FinalPOC1Evaluator:
         except ValidationError:
             return None
 
+    def _canonical_boundary_code_mismatch(self, response: FinalQAResponse) -> bool:
+        """
+        Codex review, PR #33, final batch item 3: boundary_correct
+        previously only ever compared ``response.boundary_code`` against
+        ``question.gold.boundary_code`` -- the manifest's own asserted
+        value, never the CANONICAL boundary_code actually registered for a
+        cited boundary/governance evidence_id (BoundaryEvidence.boundary_code,
+        resolved via get_evidence_by_id()). A manifest entry that
+        mis-declared boundary_code for a real registered evidence_id (e.g.
+        pairing POC1-BOUNDARY-USB4-EXCLUDED with the wrong boundary_code)
+        would still make an agreeing-but-wrong response pass every existing
+        check.
+
+        Returns True (mismatch) when any cited evidence_id resolves to a
+        canonical record that declares its own boundary_code and that
+        boundary_code disagrees with this response's ``boundary_code``.
+        This is deterministic metadata comparison, not semantic entailment
+        -- the same class of check ``_conflict_provenance_ok`` already
+        performs for conflict provenance.
+
+        A no-op (False, "no mismatch") when a citation's evidence_id does
+        not resolve, or resolves to a record with no boundary_code
+        attribute at all (i.e. genuinely normative evidence, or a resolver
+        stub that does not model boundary_code) -- fabrication and
+        evidence-shape are already covered by ``fabricated``/
+        ``canonical_provenance_ok``/``_canonical_field_mismatches``; this
+        check only adds the boundary_code cross-check those do not
+        perform.
+        """
+        for citation in response.citations:
+            canonical = self.evidence_resolver.get_evidence_by_id(citation.evidence_id)
+            canonical_boundary_code = getattr(canonical, "boundary_code", None)
+            if canonical_boundary_code is not None and response.boundary_code != canonical_boundary_code:
+                return True
+        return False
+
+    def _canonical_scope_mismatch(self, response: FinalQAResponse) -> bool:
+        """
+        Codex review, PR #33, final batch item 3: scope_correct previously
+        only ever compared against ``question.expected_scope``, never the
+        CANONICAL scope actually registered for a cited evidence_id
+        (BoundaryEvidence.scope/GovernedEvidence.scope, resolved via
+        get_evidence_by_id()). Mirrors
+        ``_canonical_boundary_code_mismatch``'s rationale for scope instead
+        of boundary_code.
+
+        Returns True (mismatch) when a citation declares its own ``scope``
+        and that scope disagrees with the canonical record's scope for that
+        evidence_id, when the canonical record declares one. A no-op
+        (False) for a citation with no submitted scope, an unresolved
+        evidence_id, or a canonical record with no scope attribute at all.
+        """
+        for citation in response.citations:
+            if citation.scope is None:
+                continue
+            canonical = self.evidence_resolver.get_evidence_by_id(citation.evidence_id)
+            canonical_scope = getattr(canonical, "scope", None)
+            if canonical_scope is not None and citation.scope != canonical_scope:
+                return True
+        return False
+
     def evaluate_response(
         self,
         question: AcceptanceQuestion,
@@ -639,9 +700,13 @@ class FinalPOC1Evaluator:
         authority_violation = (
             not set(cited_ids).issubset(expected_ids) or canonical_authority_mismatch
         )
-        scope_correct = response.scope == question.expected_scope and all(
-            citation.scope in {None, question.expected_scope}
-            for citation in response.citations
+        scope_correct = (
+            response.scope == question.expected_scope
+            and all(
+                citation.scope in {None, question.expected_scope}
+                for citation in response.citations
+            )
+            and not self._canonical_scope_mismatch(response)
         )
         retrieval_hit_at_1 = bool(cited_ids and cited_ids[0] in expected_ids)
 
@@ -665,7 +730,10 @@ class FinalPOC1Evaluator:
             self._contains_expected(response.claims, forbidden, [])
             for forbidden in question.gold.forbidden_claims
         )
-        boundary_correct = response.boundary_code == question.gold.boundary_code
+        boundary_correct = (
+            response.boundary_code == question.gold.boundary_code
+            and not self._canonical_boundary_code_mismatch(response)
+        )
         status_correct = response.status == question.expected_status
         citation_complete = self._required_citation_fields_present(response, question)
         claim_traceability_ok = self._claim_traceability_ok(response)

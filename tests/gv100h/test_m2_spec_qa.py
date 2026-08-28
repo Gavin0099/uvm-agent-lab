@@ -1118,6 +1118,49 @@ def test_governed_qa_service_single_version_shi_fou_question_is_not_misclassifie
 
 
 @pytest.mark.unit
+def test_governed_qa_service_usb_3_2_is_recognized_as_usb_3_x_for_comparison():
+    # Codex review, PR #33, final batch item 1: the old mentions_usb3 check
+    # only ever recognized "3.x"/"3.0"/"usb3"/"usb_3_x" -- USB 3.1/3.2 never
+    # triggered has_cross_version_intent, so a genuine cross-version
+    # comparison naming USB 3.2 silently fell through to a single-scope
+    # answer instead of the required comparison path. USB 3.2 must be
+    # recognized the same way "3.x" already is.
+    service = GovernedQAService()
+    resp = service.answer_question(
+        "USB 2.0 與 USB 3.2 的 Hub Descriptor bDescriptorType 是否相同？",
+        "USB_HUB_COMMON",
+        retrieval_mode="explicit_cross_scope",
+        allowed_evidence_scopes=["USB_2_0", "USB_3_X"],
+    )
+    assert resp.status == "answer"
+    assert any(
+        "不同" in claim and "0x29" in claim and "0x2A" in claim
+        for claim in resp.claims
+    )
+    cited_ids = {c.evidence_id for c in resp.citations}
+    assert {"USB2-HUB-DESC-FORMAT", "USB3-HUB-DESC-FORMAT"}.issubset(cited_ids)
+
+
+@pytest.mark.unit
+def test_governed_qa_service_bare_version_number_without_usb_prefix_does_not_trigger_comparison():
+    # Codex review, PR #33, final batch item 1: version detection must
+    # require the literal "usb" token to co-occur with the version number,
+    # not a naked "2.0"/"3.x" substring check. A bare "2.0" that is not
+    # attached to "USB" (e.g. referring to some other revision number) must
+    # not be misread as a USB 2.0 mention and wrongly trigger cross-version
+    # comparison mode -- under the old substring check this query would
+    # have incorrectly entered the two-scope PORT_POWER comparison path and
+    # abstained for "missing" USB_2_0 evidence it was never actually asked
+    # to compare against.
+    service = GovernedQAService()
+    resp = service.answer_question(
+        "USB 3.x 版本 2.0 的 PORT_POWER 是否為 8？", "USB_3_X"
+    )
+    assert resp.status == "answer"
+    assert resp.is_abstain is False
+
+
+@pytest.mark.unit
 def test_governed_qa_service_unscoped_multi_scope_evidence_restricts_citations_to_primary_scope():
     # Codex review, PR #33, P2, fresh finding: an unscoped query whose
     # retrieved evidence spans multiple scopes (USB_2_0 + USB_3_X) must not
@@ -1142,6 +1185,35 @@ def test_qa_service_usb4_compound_membership_and_feature_question_abstains():
     resp = service.answer_question(
         "Is USB4 included in the Phase 1 corpus, and what tunneling does it support?"
     )
+    assert resp.status == "abstain"
+    assert resp.boundary_code == "OUT_OF_SCOPE"
+
+
+@pytest.mark.unit
+def test_qa_service_usb4_compound_membership_and_unlisted_topic_question_abstains():
+    # Codex review, PR #33, final batch item 2: the previous
+    # usb4_additional_intent_markers DENYLIST only caught follow-on clauses
+    # naming one of a fixed set of enumerated words (tunnel/支援/相同/...).
+    # "speed" was never on that list, so a compound question naming
+    # membership AND speed would have slipped through the denylist and been
+    # misclassified as a pure membership question under the old
+    # implementation. The new whole-query ALLOWLIST correctly abstains
+    # regardless of which extra words follow, because any additional clause
+    # makes every canonical pattern fail to fullmatch.
+    service = GovernedQAService()
+    resp = service.answer_question(
+        "Is USB4 included in the Phase 1 corpus, and what speed does it support?"
+    )
+    assert resp.status == "abstain"
+    assert resp.boundary_code == "OUT_OF_SCOPE"
+
+
+@pytest.mark.unit
+def test_qa_service_usb4_compound_membership_and_unlisted_chinese_topic_abstains():
+    # Chinese-language mirror of the above: an unlisted follow-on clause
+    # ("速度" / speed) after a genuine membership phrase must also abstain.
+    service = GovernedQAService()
+    resp = service.answer_question("USB4 是否包含在 phase 1，而且它的速度是多少？")
     assert resp.status == "abstain"
     assert resp.boundary_code == "OUT_OF_SCOPE"
 
