@@ -616,6 +616,104 @@ def test_final_evaluator_rejects_citation_scope_disagreeing_with_canonical_recor
     assert result.passed is False
 
 
+def test_final_evaluator_rejects_response_scope_disagreeing_with_canonical_record_when_citation_scope_is_none(
+    tmp_path: Path,
+):
+    # Codex review, PR #33, final batch item 3, fresh finding on b69d7ad:
+    # production's QAResponse.to_final_qa_response() always sets
+    # FinalQACitation.scope=None, so the original _canonical_scope_mismatch
+    # (which only ever compared citation.scope) was silently skipped on
+    # every real production response -- the exact gap this check exists to
+    # close was still open. A manifest whose expected_scope is wrong for a
+    # BoundaryEvidence-backed abstain, agreed by response.scope, must still
+    # be caught via response.scope against the evidence's own canonical
+    # scope, independent of citation.scope.
+    manifest, path = _write_manifest(tmp_path)
+    resolver = SyntheticEvidenceResolver(manifest)
+    resolver._canonical_citations["BOUNDARY-50"] = SimpleNamespace(
+        document=None,
+        revision=None,
+        chapter=None,
+        section=None,
+        page_or_anchor=None,
+        authority_level=None,
+        boundary_code="OUT_OF_SCOPE",
+        scope="USB4_SPEC",
+    )
+    evaluator = FinalPOC1Evaluator(str(path), evidence_resolver=resolver)
+    # Mutating the already-loaded (and already-validated) question in place
+    # -- not re-writing the manifest file -- deliberately bypasses
+    # POC1AcceptanceSet.validate_contract(), which would otherwise reject a
+    # wrong expected_scope for this question (it is usb4_negative_control,
+    # which validate_contract() requires to have expected_scope=="USB4_SPEC").
+    # This test targets evaluate_response()'s runtime behavior only.
+    evaluator.manifest.questions[49].expected_scope = "WRONG_SCOPE"
+
+    response = _response(50)
+    response["scope"] = "WRONG_SCOPE"  # agrees with the wrong gold expected_scope
+    response["citations"][0]["scope"] = None  # mirrors production's always-None citation.scope
+
+    result = evaluator.evaluate_response(evaluator.manifest.questions[49], response)
+
+    assert result.scope_correct is False
+    assert result.passed is False
+
+
+def test_final_evaluator_answer_status_is_not_penalized_for_canonical_boundary_code(
+    tmp_path: Path,
+):
+    # Codex review, PR #33, final batch item 3, fresh finding on b69d7ad:
+    # the USB4 corpus-membership carve-out is a legitimate governance
+    # ANSWER that cites a BoundaryEvidence record whose own canonical
+    # boundary_code is "OUT_OF_SCOPE" -- but the answer's own contractual
+    # response.boundary_code must be None (this is not an abstention).
+    # _canonical_boundary_code_mismatch() must not compare those two and
+    # wrongly penalize a legitimate governance answer just because its
+    # underlying evidence happens to carry a non-None canonical
+    # boundary_code.
+    manifest, path = _write_manifest(tmp_path)
+    resolver = SyntheticEvidenceResolver(manifest)
+    resolver._canonical_citations["BOUNDARY-50"] = SimpleNamespace(
+        document=None,
+        revision=None,
+        chapter=None,
+        section=None,
+        page_or_anchor=None,
+        authority_level=None,
+        boundary_code="OUT_OF_SCOPE",
+        scope="USB4_SPEC",
+    )
+    evaluator = FinalPOC1Evaluator(str(path), evidence_resolver=resolver)
+    # Reshape the already-loaded question 50 into a governance-answer
+    # question in place (see the scope test above for why this bypasses
+    # validate_contract() deliberately, targeting evaluate_response()'s
+    # runtime behavior only).
+    question = evaluator.manifest.questions[49]
+    question.expected_status = "answer"
+    question.gold.accepted_evidence_ids = ["BOUNDARY-50"]
+    question.gold.boundary_code = None
+
+    response = {
+        "status": "answer",
+        "claims": ["usb4 is excluded from the phase 1 corpus"],
+        "claim_evidence_ids": [["BOUNDARY-50"]],
+        "citations": [
+            {
+                "evidence_id": "BOUNDARY-50",
+                "excerpt_or_evidence_id": "BOUNDARY-50",
+                "scope": None,
+            }
+        ],
+        "scope": "USB4_SPEC",
+        "boundary_code": None,
+    }
+
+    result = evaluator.evaluate_response(question, response)
+
+    assert result.boundary_correct is True
+    assert result.scope_correct is True
+
+
 def test_final_evaluator_fails_closed_when_resolver_lacks_canonical_lookup(tmp_path: Path):
     # Codex review, PR #33, fresh finding on ad0542c: a resolver that only
     # implements get_evidence_by_id() must not give boundary-shaped

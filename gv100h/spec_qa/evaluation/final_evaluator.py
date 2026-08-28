@@ -584,16 +584,25 @@ class FinalPOC1Evaluator:
 
     def _canonical_boundary_code_mismatch(self, response: FinalQAResponse) -> bool:
         """
-        Codex review, PR #33, final batch item 3: boundary_correct
-        previously only ever compared ``response.boundary_code`` against
-        ``question.gold.boundary_code`` -- the manifest's own asserted
-        value, never the CANONICAL boundary_code actually registered for a
-        cited boundary/governance evidence_id (BoundaryEvidence.boundary_code,
-        resolved via get_evidence_by_id()). A manifest entry that
-        mis-declared boundary_code for a real registered evidence_id (e.g.
-        pairing POC1-BOUNDARY-USB4-EXCLUDED with the wrong boundary_code)
-        would still make an agreeing-but-wrong response pass every existing
+        Codex review, PR #33, final batch item 3 (fresh finding on b69d7ad):
+        boundary_correct previously only ever compared
+        ``response.boundary_code`` against ``question.gold.boundary_code``
+        -- the manifest's own asserted value, never the CANONICAL
+        boundary_code actually registered for a cited boundary/governance
+        evidence_id (BoundaryEvidence.boundary_code, resolved via
+        get_evidence_by_id()). A manifest entry that mis-declared
+        boundary_code for a real registered evidence_id (e.g. pairing
+        POC1-BOUNDARY-USB4-EXCLUDED with the wrong boundary_code) would
+        still make an agreeing-but-wrong response pass every existing
         check.
+
+        A no-op (False) for ``status == "answer"``: the USB4
+        corpus-membership carve-out is a legitimate governance ANSWER that
+        cites a BoundaryEvidence record whose own boundary_code is
+        "OUT_OF_SCOPE" -- but the answer's own contractual
+        ``response.boundary_code`` must be None (this is not an
+        abstention). Comparing those two is a category error, not a real
+        mismatch; only abstain/conflict responses are checked here.
 
         Returns True (mismatch) when any cited evidence_id resolves to a
         canonical record that declares its own boundary_code and that
@@ -611,6 +620,8 @@ class FinalPOC1Evaluator:
         check only adds the boundary_code cross-check those do not
         perform.
         """
+        if response.status == "answer":
+            return False
         for citation in response.citations:
             canonical = self.evidence_resolver.get_evidence_by_id(citation.evidence_id)
             canonical_boundary_code = getattr(canonical, "boundary_code", None)
@@ -620,26 +631,39 @@ class FinalPOC1Evaluator:
 
     def _canonical_scope_mismatch(self, response: FinalQAResponse) -> bool:
         """
-        Codex review, PR #33, final batch item 3: scope_correct previously
-        only ever compared against ``question.expected_scope``, never the
-        CANONICAL scope actually registered for a cited evidence_id
-        (BoundaryEvidence.scope/GovernedEvidence.scope, resolved via
-        get_evidence_by_id()). Mirrors
-        ``_canonical_boundary_code_mismatch``'s rationale for scope instead
-        of boundary_code.
+        Codex review, PR #33, final batch item 3 (fresh finding on b69d7ad):
+        the original implementation compared ``citation.scope`` against the
+        canonical scope, but production's
+        ``QAResponse.to_final_qa_response()`` always sets
+        ``FinalQACitation.scope=None`` -- so this check was always skipped
+        on the real production path, and a manifest that mis-declares
+        ``expected_scope`` for a real BoundaryEvidence-backed abstain could
+        still pass (the exact gap this check exists to close).
 
-        Returns True (mismatch) when a citation declares its own ``scope``
-        and that scope disagrees with the canonical record's scope for that
-        evidence_id, when the canonical record declares one. A no-op
-        (False) for a citation with no submitted scope, an unresolved
-        evidence_id, or a canonical record with no scope attribute at all.
+        This now compares ``response.scope`` (not ``citation.scope``)
+        against the canonical scope, and ONLY for citations whose canonical
+        record is boundary/governance-shaped (declares a non-None
+        ``boundary_code``). Normative evidence is deliberately excluded: a
+        legitimate cross-scope answer can cite evidence from multiple
+        distinct scopes (e.g. ``response.scope="USB_HUB_COMMON"`` backed by
+        USB_2_0 + USB_3_X evidence) while correctly reporting a scope that
+        differs from either individual evidence_id's own scope -- comparing
+        every normative citation's canonical scope against
+        ``response.scope`` would misclassify that as a mismatch.
+
+        Returns True (mismatch) when a boundary/governance-shaped
+        citation's canonical scope disagrees with ``response.scope``. A
+        no-op (False) for citations with no boundary_code on their
+        canonical record, an unresolved evidence_id, or a canonical record
+        with no scope attribute at all.
         """
         for citation in response.citations:
-            if citation.scope is None:
-                continue
             canonical = self.evidence_resolver.get_evidence_by_id(citation.evidence_id)
+            canonical_boundary_code = getattr(canonical, "boundary_code", None)
+            if canonical_boundary_code is None:
+                continue
             canonical_scope = getattr(canonical, "scope", None)
-            if canonical_scope is not None and citation.scope != canonical_scope:
+            if canonical_scope is not None and response.scope != canonical_scope:
                 return True
         return False
 
