@@ -40,21 +40,23 @@ HTML presentation, interaction.
 DENY: QAResponse, GovernedQAService, retrieval, React, Tailwind, UI
 frameworks, API contract changes, fake PDF anchors.
 
-## Review order (fix CRITICAL first)
+## Review order (structure first)
 
-1. **Accessibility**: text contrast, visible focus, labels not placeholder-only,
-   heading order, color not the only status signal, `prefers-reduced-motion`.
-2. **Touch / interaction**: primary control ≥44px, Ask disabled while
-   in-flight, errors next to the failing control.
-3. **Forms / disclosure**: `answer_scope`, `retrieval_mode`,
-   `allowed_evidence_scopes` must not occupy the first visual layer.
-   Fixture vs service is a mode chip, not a schema lesson.
-4. **Layout**: no 50/50 split that leaves the question pane empty and
-   dumps the result pane. Answer is the hero. Evidence starts collapsed.
-5. **Copy**: engineer language first; governance strings remain available
-   but folded.
-6. **Skip unless relevant**: charts, native-app navigation, icon-pack
-   rewrites, dark/light dual-theme as a blocker.
+Adapted from
+[pascalorg/skills web-design](https://github.com/pascalorg/skills/blob/main/web-design/SKILL.md)
+tiering and ui-ux-pro-max. Do not start with palette.
+
+1. **Structure / hierarchy**: first layer is Ask → Answer → Source.
+   Fail if 50/50 schema viewer remains.
+2. **Typography / density**: answer is the largest readable block.
+3. **Color / contrast**: 4.5:1 body; one semantic accent per state.
+4. **Components / disclosure**: Advanced, Evidence, Governance collapsed.
+5. **Accessibility / interaction**: visible focus, Ask ≥44px, in-flight
+   disabled, labels not placeholder-only.
+6. **Motion / polish**: last, and only after structure passes.
+
+This skill still does not approve from source. After the punch-list,
+`frontend-visual-qa` must run against screenshots.
 
 ## Anti-patterns for this shell
 

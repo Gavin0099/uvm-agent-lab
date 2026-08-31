@@ -11,11 +11,11 @@ branch should be `feat/spec-qa-operator-ui-redesign`.
 
 Skills used:
 
-1. `.agents/skills/frontend-design/SKILL.md` (direction / IA)
-2. `.agents/skills/ui-ux-review/SKILL.md` (second-pass UX review)
+1. `.agents/skills/frontend-design/SKILL.md` (direction / IA / Thinking Gate)
+2. `.agents/skills/ui-ux-review/SKILL.md` (structure-first critique)
+3. `.agents/skills/frontend-visual-qa/SKILL.md` (screenshot / rendered UI)
 
-Baseline: merged Operator UI shell from PR #35
-(`gv100h/spec_qa/operator_ui/static/{index.html,styles.css,app.js}`).
+Living language (not implemented CSS): `docs/operator-ui/DESIGN.md`.
 
 ---
 

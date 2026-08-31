@@ -544,58 +544,50 @@ repository root.
 <!-- governance:key=operator_ui_presentation -->
 
 Operator UI (`gv100h/spec_qa/operator_ui/`) is a Machine B development
-shell. Presentation work is not a color-only CSS task and is not a
-stack rewrite. Skill files existing under `.agents/skills/` is not
-enough; this routing is what agents must follow.
+shell. Skill files existing is not enough; follow this routing.
 
 When modifying `gv100h/spec_qa/operator_ui/static/**`:
 
-1. Read `.agents/skills/frontend-design/SKILL.md` before proposing
-   presentation changes.
-2. Produce or update the IA/UX proposal
-   (`docs/operator-ui-ia-ux-redesign.md`) before implementation.
+1. Read `.agents/skills/frontend-design/SKILL.md` and fill the
+   Frontend Thinking Gate before proposing. Audit the current
+   rendered page first; do not start with palette.
+2. Produce or update `docs/operator-ui-ia-ux-redesign.md` and keep
+   `docs/operator-ui/DESIGN.md` as the living language. Do not dump
+   those docs into this file.
 3. Do not modify `QAResponse`, `/api/qa`, retrieval, or
    `GovernedQAService` contracts.
-4. After implementation, read `.agents/skills/ui-ux-review/SKILL.md`.
-5. Review screenshot or rendered UI, not source code only. Suggested
-   viewports: Desktop 1440×900, Laptop 1280×800, Mobile 390×844.
-
-Required sequence:
+4. After implementation, read `.agents/skills/ui-ux-review/SKILL.md`
+   (structure first, polish last).
+5. Read `.agents/skills/frontend-visual-qa/SKILL.md` and review
+   screenshot or rendered UI, not source code only. Viewports:
+   Desktop 1440×900, Laptop 1280×800, Mobile 390×844.
 
 ```text
 UI change
-  → .agents/skills/frontend-design/SKILL.md
-  → IA/UX proposal (accepted)
+  → frontend-design (Thinking Gate)
+  → IA proposal + DESIGN.md
   → implementation
-  → .agents/skills/ui-ux-review/SKILL.md
-  → screenshot / rendered-UI review
+  → ui-ux-review
+  → frontend-visual-qa (screenshots)
   → PR
 ```
 
-The first Codex/agent task on this surface is an Information
-Architecture / UX redesign proposal. Do not start by “making CSS
-prettier.” Current frozen proposal: `docs/operator-ui-ia-ux-redesign.md`.
-
 First visual layer is only **Ask → Answer → Source**. Schema fields
-(`answer_scope`, `retrieval_mode`, `allowed_evidence_scopes`,
-`boundary_code`, `claim_evidence_ids`, `evidence_ids`, `synthetic-v1`)
-stay available under Advanced / Evidence / Governance. Do not keep the
-50/50 schema-viewer layout.
+stay under Advanced / Evidence / Governance. Do not keep the 50/50
+schema-viewer layout.
 
-ALLOW: information architecture, typography, spacing, hierarchy,
-responsive layout, accessibility, CSS, HTML presentation, interaction.
+ALLOW: IA, typography, spacing, hierarchy, responsive, accessibility,
+CSS, HTML presentation, interaction.
 
-DENY: `QAResponse` field changes, `GovernedQAService`, retrieval,
-React, Tailwind, shadcn, Vite, any UI framework, `/api/qa` contract
-changes, fabricated PDF anchors.
+DENY: QAResponse, GovernedQAService, retrieval, React, Tailwind,
+shadcn, Vite, UI frameworks, `/api/qa` contract, fabricated PDF
+anchors.
 
-Keep the PR #35 stack: HTML, CSS, vanilla JS, Python HTTP server.
-Fixture honesty strings and text-node rendering stay unless the same
-slice updates `tests/gv100h/test_spec_qa_operator_ui.py`.
+Keep HTML, CSS, vanilla JS, Python HTTP server. Fixture honesty
+strings stay unless tests change in the same slice.
 
 `tests/gv100h/test_operator_ui_presentation_workflow.py` locks that
-this routing and proposal exist. It does **not** prove UX quality.
+this routing exists. It does **not** prove UX quality.
 
-Do not treat `ui-ux-review` as the lead designer. Do not mix this
-workflow/docs freeze with a large `static/` rewrite. Do not claim live
-Spec QA, POC-1, or Gate 4 from a presentation change.
+Do not mix this workflow freeze with a large `static/` rewrite. Next
+implementation branch: `feat/spec-qa-operator-ui-redesign`.
