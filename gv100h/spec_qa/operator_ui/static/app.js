@@ -55,13 +55,15 @@ const DISPLAY_CLAIM = {
 const FIRST_LAYER_NOTE = {
   conflict: "這不是缺少資料，而是目前展示的來源彼此衝突。系統不會自行選擇其中一方作為答案。",
   conflict_service: "這不是缺少資料，而是現有來源彼此衝突。系統不會自行選擇其中一方作為答案。",
-  out_of_scope: "這是目前資料範圍的限制，不代表 USB4 規格本身沒有答案。",
+  out_of_scope: "這是目前資料範圍的限制，不代表該規格本身沒有答案。",
+  out_of_scope_usb4: "這是目前資料範圍的限制，不代表 USB4 規格本身沒有答案。",
   missing_evidence: "目前缺少足以支持結論的證據。",
 };
 
 const BOUNDARY_REASON_LABEL = {
   AUTHORITY_MISMATCH: "多個來源的權威層級不一致，因此無法認證單一結論。",
-  OUT_OF_SCOPE: "USB4 不在目前可查詢的 Phase 1 資料範圍內。",
+  OUT_OF_SCOPE: "目前範圍不在可查詢的 Phase 1 資料範圍內。",
+  OUT_OF_SCOPE_USB4: "USB4 不在目前可查詢的 Phase 1 資料範圍內。",
   MISSING_EVIDENCE: "目前缺少足以支持結論的證據。",
 };
 
@@ -86,8 +88,17 @@ function textEl(tag, text, className) {
   return el;
 }
 
-function presentAnswer(text) {
+function isUsb4Scope(view) {
+  return Boolean(view && view.scope === "USB4_SPEC");
+}
+
+function presentAnswer(text, view) {
   if (!text) return EMPTY_ANSWER;
+  if (text === "現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論 (Abstain)。") {
+    return isUsb4Scope(view)
+      ? "USB4 不在目前可查詢的 Phase 1 規格資料範圍內，因此系統不會根據未納入的規格內容推測答案。"
+      : "目前範圍不在可查詢的 Phase 1 規格資料範圍內，因此系統不會根據未納入的規格內容推測答案。";
+  }
   return DISPLAY_ANSWER[text] || text;
 }
 
@@ -183,7 +194,9 @@ function renderSourceSummary(view) {
   }
   if (kind === "out_of_scope") {
     kicker.textContent = "範圍依據";
-    title.textContent = "Phase 1 corpus · USB4 未納入";
+    title.textContent = isUsb4Scope(view)
+      ? "Phase 1 corpus · USB4 未納入"
+      : `Phase 1 corpus · ${view.scope || "目前範圍"} 未納入`;
     return;
   }
   if (kind === "missing_evidence") {
@@ -320,13 +333,16 @@ function render(view) {
   if (kind === "conflict" && view.source !== "fixture") {
     note = FIRST_LAYER_NOTE.conflict_service;
   }
+  if (kind === "out_of_scope") {
+    note = isUsb4Scope(view) ? FIRST_LAYER_NOTE.out_of_scope_usb4 : FIRST_LAYER_NOTE.out_of_scope;
+  }
   if (note) {
     explainer.hidden = false;
     explainer.textContent = note;
   } else {
     explainer.hidden = true;
   }
-  answer.textContent = presentAnswer(view.answer);
+  answer.textContent = presentAnswer(view.answer, view);
   answer.className = view.answer ? "answer" : "answer is-empty";
   if (kind === "conflict" && note) {
     answer.parentNode.insertBefore(answer, explainer);
@@ -341,7 +357,13 @@ function render(view) {
   if (view.boundary_code) {
     boundaryBlock.hidden = false;
     $("boundaryCode").textContent = view.boundary_code;
-    $("boundaryReason").textContent = BOUNDARY_REASON_LABEL[view.boundary_code] || view.boundary || "—";
+    if (view.boundary_code === "OUT_OF_SCOPE") {
+      $("boundaryReason").textContent = isUsb4Scope(view)
+        ? BOUNDARY_REASON_LABEL.OUT_OF_SCOPE_USB4
+        : (view.boundary || BOUNDARY_REASON_LABEL.OUT_OF_SCOPE);
+    } else {
+      $("boundaryReason").textContent = BOUNDARY_REASON_LABEL[view.boundary_code] || view.boundary || "—";
+    }
   } else {
     boundaryBlock.hidden = true;
   }
@@ -397,7 +419,43 @@ function syncRetrievalHint() {
   if (!hint) return;
   const mode = $("retrievalMode").value;
   hint.textContent = RETRIEVAL_HINT[mode] || RETRIEVAL_HINT.single_scope;
-  $("allowedScopesField").hidden = mode !== "explicit_cross_scope";
+  const cross = mode === "explicit_cross_scope";
+  $("allowedScopesField").hidden = !cross;
+  if (!cross) $("allowedScopes").value = "";
+}
+
+function allowedEvidenceScopes() {
+  if ($("retrievalMode").value !== "explicit_cross_scope") return null;
+  const allowedRaw = $("allowedScopes").value.trim();
+  return allowedRaw ? allowedRaw.split(",").map((s) => s.trim()).filter(Boolean) : null;
+}
+
+function resetResultView(message) {
+  $("statusRow").className = "status conflict";
+  $("statusRow").textContent = STATUS_LABEL.error;
+  $("dataSource").className = "source-banner waiting";
+  $("dataSource").textContent = "error";
+  $("explainer").hidden = true;
+  $("explainer").textContent = "";
+  $("answerText").textContent = message || "request failed";
+  $("answerText").className = "answer";
+  $("sourceKicker").textContent = "來源";
+  $("sourceLine").textContent = "尚無來源";
+  $("sourceMeta").hidden = true;
+  $("sourceOpen").hidden = true;
+  $("sourceOpen").removeAttribute("href");
+  clearNode($("citations"));
+  clearNode($("developerCitations"));
+  $("evidenceCount").textContent = "";
+  $("evidenceSummary").textContent = "查看引用原文";
+  $("evidenceDesc").textContent = "條文摘錄";
+  $("scopeText").textContent = "—";
+  clearNode($("claims"));
+  $("boundaryBlock").hidden = true;
+  $("boundaryCode").textContent = "—";
+  $("boundaryReason").textContent = "—";
+  $("evidenceFold").open = false;
+  $("governanceFold").open = true;
 }
 
 $("askBtn").addEventListener("click", async () => {
@@ -405,12 +463,11 @@ $("askBtn").addEventListener("click", async () => {
   const askError = $("askError");
   askError.hidden = true;
   askBtn.disabled = true;
-  const allowedRaw = $("allowedScopes").value.trim();
   const body = {
     question: $("question").value,
     answer_scope: $("answerScope").value,
     retrieval_mode: $("retrievalMode").value,
-    allowed_evidence_scopes: allowedRaw ? allowedRaw.split(",").map((s) => s.trim()).filter(Boolean) : null,
+    allowed_evidence_scopes: allowedEvidenceScopes(),
     source: $("source").value,
     fixture: $("fixture").value,
   };
@@ -422,27 +479,17 @@ $("askBtn").addEventListener("click", async () => {
     });
     const data = await resp.json();
     if (!resp.ok) {
-      $("statusRow").className = "status conflict";
-      $("statusRow").textContent = STATUS_LABEL.error;
-      $("dataSource").className = "source-banner waiting";
-      $("dataSource").textContent = "error";
-      $("answerText").textContent = data.error || "request failed";
-      $("answerText").className = "answer";
-      $("sourceLine").textContent = "尚無來源";
-      $("governanceFold").open = true;
+      resetResultView(data.error || "request failed");
       askError.hidden = false;
       askError.textContent = data.error || "request failed";
       return;
     }
     render(data);
   } catch (err) {
+    const message = err && err.message ? err.message : "request failed";
+    resetResultView(message);
     askError.hidden = false;
-    askError.textContent = err && err.message ? err.message : "request failed";
-    $("statusRow").className = "status conflict";
-    $("statusRow").textContent = STATUS_LABEL.error;
-    $("answerText").textContent = "request failed";
-    $("answerText").className = "answer";
-    $("governanceFold").open = true;
+    askError.textContent = message;
   } finally {
     askBtn.disabled = false;
   }

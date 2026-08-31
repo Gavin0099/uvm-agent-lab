@@ -233,6 +233,11 @@ def test_app_js_renders_response_as_text_not_html():
     assert "目前展示的來源彼此衝突" in js
     assert "範例來源 A 將" not in js
     assert "USB 2.0 Hub Specification" in js
+    assert "resetResultView" in js
+    assert "allowedEvidenceScopes" in js
+    assert "isUsb4Scope" in js
+    assert "out_of_scope_usb4" in js
+    assert "目前範圍不在可查詢的 Phase 1 規格資料範圍內" in js
 
 
 @pytest.mark.unit
