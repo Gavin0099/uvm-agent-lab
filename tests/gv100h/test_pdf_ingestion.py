@@ -302,15 +302,22 @@ def test_resolve_source_locator_rejects_absolute_relative_path_escape(tmp_path):
     root_dir = tmp_path / "raw_root"
     root_dir.mkdir()
     outside_file = tmp_path / "outside.pdf"
-    absolute_relative_path = str(outside_file)
-    if not absolute_relative_path.startswith("/"):
-        # Force a POSIX-style absolute segment regardless of host platform
-        # path separator conventions, matching the locator's forward-slash
-        # convention (mirrors the equivalent CorpusSourceResolver test).
-        absolute_relative_path = "/" + absolute_relative_path.replace("\\", "/").lstrip("/")
+    # The locator format is "env://<VAR>/<relative_path>": the parser splits
+    # off <VAR> at the *first* "/" it sees, so that one "/" is a deliberate
+    # separator, not part of <relative_path> itself. To make <relative_path>
+    # equal to the host OS's own native absolute-path spelling of
+    # outside_file (e.g. "/tmp/x/outside.pdf" on POSIX, or
+    # "C:/Users/x/outside.pdf" on Windows), it must be placed *after* that
+    # one separator verbatim -- not have its own leading "/" folded into the
+    # single separator, which would silently turn it into an in-bounds
+    # relative path on POSIX (Path("/tmp/x").is_absolute() is True, but
+    # Path("tmp/x").is_absolute() is False) while still working "by
+    # accident" on Windows (a drive letter is absolute with or without a
+    # leading "/").
+    native_absolute_path = str(outside_file).replace("\\", "/")
     with pytest.raises(PdfIngestionError, match="absolute|escapes its source root"):
         resolve_source_locator(
-            f"env://USB_SPEC_QA_RAW_ROOT{absolute_relative_path}", raw_root=root_dir
+            f"env://USB_SPEC_QA_RAW_ROOT/{native_absolute_path}", raw_root=root_dir
         )
 
 
