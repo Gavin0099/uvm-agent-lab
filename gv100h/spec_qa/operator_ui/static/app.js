@@ -438,6 +438,17 @@ function allowedEvidenceScopes() {
   return allowedRaw ? allowedRaw.split(",").map((s) => s.trim()).filter(Boolean) : null;
 }
 
+let requestGeneration = 0;
+let activeController = null;
+
+function invalidatePendingRequest() {
+  requestGeneration += 1;
+  if (activeController) {
+    activeController.abort();
+    activeController = null;
+  }
+}
+
 function resetResultView(message) {
   $("statusRow").className = "status conflict";
   $("statusRow").textContent = STATUS_LABEL.error;
@@ -467,6 +478,8 @@ function resetResultView(message) {
 }
 
 function resetWaitingView() {
+  invalidatePendingRequest();
+  $("askBtn").disabled = false;
   $("askError").hidden = true;
   $("statusRow").className = "status unknown";
   $("statusRow").textContent = STATUS_LABEL.unknown;
@@ -498,6 +511,10 @@ function resetWaitingView() {
 $("askBtn").addEventListener("click", async () => {
   const askBtn = $("askBtn");
   const askError = $("askError");
+  invalidatePendingRequest();
+  const generation = requestGeneration;
+  const controller = new AbortController();
+  activeController = controller;
   askError.hidden = true;
   askBtn.disabled = true;
   const body = {
@@ -513,8 +530,11 @@ $("askBtn").addEventListener("click", async () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
+    if (generation !== requestGeneration) return;
     const data = await resp.json();
+    if (generation !== requestGeneration) return;
     if (!resp.ok) {
       resetResultView(data.error || "request failed");
       askError.hidden = false;
@@ -523,12 +543,17 @@ $("askBtn").addEventListener("click", async () => {
     }
     render(data);
   } catch (err) {
+    if (generation !== requestGeneration) return;
+    if (err && err.name === "AbortError") return;
     const message = err && err.message ? err.message : "request failed";
     resetResultView(message);
     askError.hidden = false;
     askError.textContent = message;
   } finally {
-    askBtn.disabled = false;
+    if (generation === requestGeneration) {
+      askBtn.disabled = false;
+      if (activeController === controller) activeController = null;
+    }
   }
 });
 
@@ -537,7 +562,12 @@ $("fixture").addEventListener("change", () => {
   if ($("source").value === "fixture") applyFixtureQuestion();
   resetWaitingView();
 });
-$("retrievalMode").addEventListener("change", syncRetrievalHint);
+$("answerScope").addEventListener("change", resetWaitingView);
+$("allowedScopes").addEventListener("change", resetWaitingView);
+$("retrievalMode").addEventListener("change", () => {
+  syncRetrievalHint();
+  resetWaitingView();
+});
 $("question").addEventListener("input", autosizeQuestion);
 $("advancedFold").open = false;
 syncFixtureMode();

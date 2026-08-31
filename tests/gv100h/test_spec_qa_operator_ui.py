@@ -244,6 +244,32 @@ def test_app_js_renders_response_as_text_not_html():
 
 
 @pytest.mark.unit
+def test_app_js_drops_stale_responses_after_mode_or_fixture_change():
+    js = (OperatorUIHandler.__init__.__globals__["UI_DIR"] / "app.js").read_text(encoding="utf-8")
+    _reset_fn, _, remainder = js.partition("function resetWaitingView()")
+    reset_body, _, ask_and_rest = remainder.partition('$("askBtn").addEventListener("click"')
+    ask_body = ask_and_rest.split('$("source").addEventListener("change"', 1)[0]
+    assert "function invalidatePendingRequest()" in js
+    assert "new AbortController()" in js
+    assert "requestGeneration" in js
+    assert "invalidatePendingRequest()" in reset_body
+    assert '$("askBtn").disabled = false' in reset_body
+    assert "signal: controller.signal" in ask_body
+    assert ask_body.index("generation !== requestGeneration") < ask_body.index("render(data)")
+    assert "AbortError" in ask_body
+    assert "if (generation === requestGeneration)" in ask_body
+    fixture_listener = js.split('$("fixture").addEventListener("change"', 1)[1]
+    assert "resetWaitingView()" in fixture_listener.split("});", 1)[0]
+    sync_fn = js.split("function syncFixtureMode()", 1)[1].split("function autosizeQuestion()", 1)[0]
+    assert "resetWaitingView()" in sync_fn
+    assert '$("answerScope").addEventListener("change", resetWaitingView)' in js
+    assert '$("allowedScopes").addEventListener("change", resetWaitingView)' in js
+    retrieval_listener = js.split('$("retrievalMode").addEventListener("change"', 1)[1]
+    assert "syncRetrievalHint()" in retrieval_listener.split("});", 1)[0]
+    assert "resetWaitingView()" in retrieval_listener.split("});", 1)[0]
+
+
+@pytest.mark.unit
 def test_adapter_fixture_path_does_not_construct_service(monkeypatch):
     def boom(*args, **kwargs):
         raise AssertionError("GovernedQAService must not be constructed in fixture mode")
