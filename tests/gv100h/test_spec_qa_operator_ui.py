@@ -240,6 +240,7 @@ def test_app_js_renders_response_as_text_not_html():
     assert "這次查詢超出目前可認證範圍" in js
     assert "目前缺少足以支持結論的證據，因此暫不提供結論。" in js
     assert "Phase 1 corpus · ${view.scope" not in js
+    assert "resetWaitingView" in js
 
 
 @pytest.mark.unit

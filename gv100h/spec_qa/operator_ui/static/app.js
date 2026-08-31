@@ -412,6 +412,7 @@ function syncFixtureMode() {
     }
   }
   $("fixture").disabled = !fixtureMode;
+  resetWaitingView();
 }
 
 function autosizeQuestion() {
@@ -465,6 +466,35 @@ function resetResultView(message) {
   $("governanceFold").open = true;
 }
 
+function resetWaitingView() {
+  $("askError").hidden = true;
+  $("statusRow").className = "status unknown";
+  $("statusRow").textContent = STATUS_LABEL.unknown;
+  $("dataSource").className = "source-banner waiting";
+  $("dataSource").textContent = "waiting";
+  $("explainer").hidden = true;
+  $("explainer").textContent = "";
+  $("answerText").textContent = EMPTY_ANSWER;
+  $("answerText").className = "answer is-empty";
+  $("sourceKicker").textContent = "來源";
+  $("sourceLine").textContent = "尚無來源";
+  $("sourceMeta").hidden = true;
+  $("sourceOpen").hidden = true;
+  $("sourceOpen").removeAttribute("href");
+  clearNode($("citations"));
+  clearNode($("developerCitations"));
+  $("evidenceCount").textContent = "";
+  $("evidenceSummary").textContent = "查看引用原文";
+  $("evidenceDesc").textContent = "條文摘錄";
+  $("scopeText").textContent = "—";
+  clearNode($("claims"));
+  $("boundaryBlock").hidden = true;
+  $("boundaryCode").textContent = "—";
+  $("boundaryReason").textContent = "—";
+  $("evidenceFold").open = false;
+  $("governanceFold").open = false;
+}
+
 $("askBtn").addEventListener("click", async () => {
   const askBtn = $("askBtn");
   const askError = $("askError");
@@ -505,6 +535,7 @@ $("askBtn").addEventListener("click", async () => {
 $("source").addEventListener("change", syncFixtureMode);
 $("fixture").addEventListener("change", () => {
   if ($("source").value === "fixture") applyFixtureQuestion();
+  resetWaitingView();
 });
 $("retrievalMode").addEventListener("change", syncRetrievalHint);
 $("question").addEventListener("input", autosizeQuestion);
