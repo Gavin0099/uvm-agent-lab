@@ -405,6 +405,28 @@ def validate_pyproject_toml_diff(
         )
     )
 
+    # build-system.requires is a dependency-bearing array outside the two
+    # PEP 621 dependency arrays: packages listed there are installed by the
+    # build backend when running e.g. "pip install .", so an unapproved or
+    # direct-reference entry there bypasses the allowlist just as surely as
+    # one in project.dependencies. Checked independently of
+    # strict_additive_only for the same reason project.dependencies is: in
+    # lenient (CI-wide) mode the "outside optional-dependencies must be
+    # identical" whole-document check above is skipped entirely, so without
+    # this explicit check a lenient invocation would never inspect
+    # build-system.requires at all.
+    base_build_requires = base_doc.get("build-system", {}).get("requires") or []
+    head_build_requires = head_doc.get("build-system", {}).get("requires") or []
+    violations.extend(
+        _diff_dependency_array(
+            base_build_requires,
+            head_build_requires,
+            allowed,
+            strict_additive_only=strict_additive_only,
+            label="build-system.requires",
+        )
+    )
+
     return ValidationResult(is_valid=not violations, violations=violations)
 
 

@@ -190,6 +190,57 @@ def test_pyproject_build_system_change_fails():
     assert any("outside [project.optional-dependencies]" in v for v in result.violations)
 
 
+def test_pyproject_lenient_mode_rejects_unapproved_build_system_requires_addition():
+    """Regression for a Codex P1 finding: in lenient mode the "outside
+    optional-dependencies must be identical" whole-document check above is
+    skipped entirely, so without an explicit, unconditional check on
+    build-system.requires, a lenient (CI-wide) invocation would let an
+    unapproved package slip in through the build backend's own requirements
+    -- which pip installs and executes during "pip install .", exactly like
+    an unapproved entry in project.dependencies."""
+    base_with_build_system = BASE_PYPROJECT + '\n[build-system]\nrequires = ["setuptools>=61.0"]\n'
+    head = base_with_build_system.replace(
+        'requires = ["setuptools>=61.0"]',
+        'requires = ["setuptools>=61.0", "requests>=2.31.0"]',
+    )
+    result = validate_pyproject_toml_diff(
+        base_with_build_system, head, ALLOWED, strict_additive_only=False
+    )
+    assert not result.is_valid
+    assert any(
+        "build-system.requires added entry" in v and "not an approved addition" in v
+        for v in result.violations
+    )
+
+
+def test_pyproject_lenient_mode_rejects_direct_url_in_build_system_requires():
+    base_with_build_system = BASE_PYPROJECT + '\n[build-system]\nrequires = ["setuptools>=61.0"]\n'
+    head = base_with_build_system.replace(
+        'requires = ["setuptools>=61.0"]',
+        'requires = ["setuptools>=61.0", "pdfplumber @ https://attacker.invalid/pkg.whl"]',
+    )
+    result = validate_pyproject_toml_diff(
+        base_with_build_system, head, ALLOWED, strict_additive_only=False
+    )
+    assert not result.is_valid
+    assert any(
+        "build-system.requires added entry" in v and "direct URL/source reference" in v
+        for v in result.violations
+    )
+
+
+def test_pyproject_lenient_mode_allows_approved_build_system_requires_addition():
+    base_with_build_system = BASE_PYPROJECT + '\n[build-system]\nrequires = ["setuptools>=61.0"]\n'
+    head = base_with_build_system.replace(
+        'requires = ["setuptools>=61.0"]',
+        'requires = ["setuptools>=61.0", "pdfplumber>=0.10"]',
+    )
+    result = validate_pyproject_toml_diff(
+        base_with_build_system, head, ALLOWED, strict_additive_only=False
+    )
+    assert result.is_valid, result.violations
+
+
 def test_pyproject_no_change_passes():
     result = validate_pyproject_toml_diff(BASE_PYPROJECT, BASE_PYPROJECT, ALLOWED)
     assert result.is_valid
