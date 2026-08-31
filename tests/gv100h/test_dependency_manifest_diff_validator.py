@@ -608,7 +608,7 @@ def test_pyproject_lenient_mode_rejects_same_name_addition_alongside_untouched_e
     result = validate_pyproject_toml_diff(base, head, ALLOWED, strict_additive_only=False)
     assert not result.is_valid
     assert any(
-        "project.dependencies added entry" in v and "not an approved addition" in v
+        "project.dependencies added entry" in v and "declares extras" in v
         for v in result.violations
     )
 
@@ -644,7 +644,7 @@ def test_pyproject_lenient_mode_rejects_extra_after_same_name_version_bump():
     )
     result = validate_pyproject_toml_diff(base, head, ALLOWED, strict_additive_only=False)
     assert not result.is_valid
-    assert any("pydantic[email]" in v and "not an approved addition" in v for v in result.violations)
+    assert any("pydantic[email]" in v and "declares extras" in v for v in result.violations)
 
 
 def test_requirements_txt_lenient_mode_rejects_extra_pin_after_same_name_version_bump():
@@ -673,7 +673,7 @@ def test_pyproject_lenient_mode_rejects_extras_replacement_of_removed_entry():
     result = validate_pyproject_toml_diff(base, head, ALLOWED, strict_additive_only=False)
     assert not result.is_valid
     assert any(
-        "project.dependencies added entry" in v and "not an approved addition" in v
+        "project.dependencies added entry" in v and "declares extras" in v
         for v in result.violations
     )
 
@@ -683,7 +683,7 @@ def test_requirements_txt_lenient_mode_rejects_extras_replacement_of_removed_lin
     head = "pydantic[email]>=2.6.0\n"
     result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
     assert not result.is_valid
-    assert any("not an approved addition" in v for v in result.violations)
+    assert any("declares extras" in v for v in result.violations)
 
 
 def test_pyproject_lenient_mode_limits_same_identity_exemption_to_one_removal():
@@ -760,6 +760,120 @@ def test_tomllib_import_falls_back_to_tomli_on_python_3_10(monkeypatch):
         assert validator_module.tomllib.__name__ == "tomllib"
 
 
+def test_requirements_txt_rejects_extras_on_allowlisted_package():
+    """Regression for the round-6 Codex P1 finding: a brand-new addition
+    that declares extras on an otherwise-allowlisted package name (e.g.
+    "fpdf2[crypto]>=2.7") must be rejected -- extras install additional
+    transitive dependencies that were never reviewed through the trust-root
+    allowlist, even though "fpdf2" alone is approved."""
+    base = "pyyaml>=6.0.1\n"
+    head = "pyyaml>=6.0.1\nfpdf2[crypto]>=2.7\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("declares extras" in v for v in result.violations)
+
+    strict_result = validate_requirements_txt_diff(base, head, ALLOWED)
+    assert not strict_result.is_valid
+    assert any("declares extras" in v for v in strict_result.violations)
+
+
+def test_pyproject_rejects_extras_on_allowlisted_package():
+    base = BASE_PYPROJECT
+    head = BASE_PYPROJECT.replace(
+        'dependencies = ["pyyaml>=6.0.1"]',
+        'dependencies = ["pyyaml>=6.0.1", "fpdf2[crypto]>=2.7"]',
+    )
+    result = validate_pyproject_toml_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any(
+        "project.dependencies added entry" in v and "declares extras" in v
+        for v in result.violations
+    )
+
+
+def test_requirements_txt_canonicalizes_package_name_case_before_allowlist_check():
+    """Regression for the round-6 Codex P2 finding: Python distribution
+    names are case-insensitive (PEP 503) and pip resolves "PDFPlumber" to
+    the same project as the allowlisted "pdfplumber"; a raw string
+    comparison rejected the differently-cased spelling as unapproved."""
+    base = "pyyaml>=6.0.1\n"
+    head = "pyyaml>=6.0.1\nPDFPlumber>=0.10\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert result.is_valid, result.violations
+
+    strict_result = validate_requirements_txt_diff(base, head, ALLOWED)
+    assert strict_result.is_valid, strict_result.violations
+
+
+def test_pyproject_canonicalizes_package_name_case_before_allowlist_check():
+    base = BASE_PYPROJECT
+    head = BASE_PYPROJECT.replace(
+        'dependencies = ["pyyaml>=6.0.1"]',
+        'dependencies = ["pyyaml>=6.0.1", "PDFPlumber>=0.10"]',
+    )
+    result = validate_pyproject_toml_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert result.is_valid, result.violations
+
+
+def test_requirements_txt_unapproved_addition_still_rejected_regardless_of_case():
+    base = "pyyaml>=6.0.1\n"
+    head = "pyyaml>=6.0.1\nRequests>=2.31.0\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("not an approved addition" in v for v in result.violations)
+
+
+def test_requirements_txt_joins_hash_pinned_line_continuation():
+    """Regression for the round-6 Codex P2 finding: an approved, pinned
+    requirement using pip's standard multiline hash form (a trailing "\\"
+    followed by an indented "--hash=..." continuation) is ONE logical
+    requirement to pip, not two. Splitting the continuation into a separate
+    physical line made it look like an unapproved "package"."""
+    base = "pyyaml>=6.0.1\n"
+    head = (
+        "pyyaml>=6.0.1\n"
+        "pdfplumber==0.11.0 \\\n"
+        "    --hash=sha256:"
+        + "0" * 64
+        + "\n"
+    )
+    result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert result.is_valid, result.violations
+
+    strict_result = validate_requirements_txt_diff(base, head, ALLOWED)
+    assert strict_result.is_valid, strict_result.violations
+
+
+def test_requirements_txt_hash_continuation_of_unapproved_package_still_fails():
+    """The continuation-join must not become a bypass: an unapproved
+    package split across a hash continuation is still rejected as a single
+    joined, unapproved requirement."""
+    base = "pyyaml>=6.0.1\n"
+    head = (
+        "pyyaml>=6.0.1\n"
+        "requests==2.31.0 \\\n"
+        "    --hash=sha256:"
+        + "0" * 64
+        + "\n"
+    )
+    result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("not an approved addition" in v for v in result.violations)
+
+
+def test_requirements_txt_hash_continuation_unchanged_does_not_fail_strict_mode():
+    """A hash-pinned continuation that survives unchanged from base to head
+    must not be misread as a removed-then-different logical line."""
+    text = (
+        "pdfplumber==0.11.0 \\\n"
+        "    --hash=sha256:"
+        + "0" * 64
+        + "\n"
+    )
+    result = validate_requirements_txt_diff(text, text, ALLOWED)
+    assert result.is_valid, result.violations
+
+
 def test_requirements_txt_lenient_mode_rejects_spaced_extras_replacement():
     """Regression for the round-8 Codex P1 finding: PEP 508 permits
     whitespace before the extras marker ("pydantic [email]>=2.6"). Without
@@ -771,7 +885,7 @@ def test_requirements_txt_lenient_mode_rejects_spaced_extras_replacement():
     head = "pydantic [email]>=2.6.0\n"
     result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
     assert not result.is_valid
-    assert any("not an approved addition" in v for v in result.violations)
+    assert any("declares extras" in v for v in result.violations)
 
 
 def test_pyproject_lenient_mode_rejects_spaced_extras_replacement():
@@ -791,7 +905,7 @@ def test_pyproject_lenient_mode_rejects_spaced_extras_replacement():
     )
     assert not result.is_valid
     assert any(
-        "project.dependencies added entry" in v and "not an approved addition" in v
+        "project.dependencies added entry" in v and "declares extras" in v
         for v in result.violations
     )
 

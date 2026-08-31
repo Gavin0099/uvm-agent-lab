@@ -89,6 +89,20 @@ def _package_name(dependency_spec: str) -> str:
     return name if bracket_index == -1 else name[:bracket_index]
 
 
+_NAME_NORMALIZE_RE = re.compile(r"[-_.]+")
+
+
+def _normalize_package_name(name: str) -> str:
+    """Canonicalizes a name per PEP 503 (lowercase; runs of "-"/"_"/"."
+    collapsed to a single "-"), the same normalization pip/PyPI use to
+    resolve distribution names. Without this, an approved package written
+    with different case or separators (e.g. "PDFPlumber" for an allowlisted
+    "pdfplumber") was rejected as unapproved even though pip resolves both
+    to the identical project.
+    """
+    return _NAME_NORMALIZE_RE.sub("-", name).lower()
+
+
 # PEP 508 permits whitespace between the package name and the extras
 # marker (e.g. "pydantic [email]>=2.6"); without \s* here, that whitespace
 # form's extras were invisible to _package_identity(), so "pydantic>=2.5"
@@ -105,7 +119,7 @@ def _package_identity(dependency_spec: str) -> "tuple[str, frozenset]":
     dependencies) and must not be treated as an in-place version
     replacement of the plain package.
     """
-    name = _package_name(dependency_spec)
+    name = _normalize_package_name(_package_name(dependency_spec))
     extras_match = _EXTRAS_RE.match(dependency_spec)
     if not extras_match:
         return (name, frozenset())
@@ -123,6 +137,29 @@ def _strip_inline_comment(line: str) -> str:
     cannot be misread as part of the dependency spec.
     """
     return _INLINE_COMMENT_RE.sub("", line).strip()
+
+
+def _join_line_continuations(text: str) -> List[str]:
+    """Joins pip-style requirements-file line continuations (a trailing
+    backslash) into one logical line -- e.g. a hash-pinned entry split
+    across ``"pdfplumber==0.11.0 \\"`` and an indented
+    ``"--hash=sha256:..."`` continuation is ONE requirement, not two.
+    Splitting them naively made the hash continuation look like a separate,
+    unapproved "package" and rejected an otherwise-approved requirement.
+    """
+    logical_lines: List[str] = []
+    pending: Optional[str] = None
+    for raw in text.splitlines():
+        piece = raw.strip()
+        combined = f"{pending} {piece}".strip() if pending is not None else piece
+        if combined.endswith("\\"):
+            pending = combined[:-1].rstrip()
+            continue
+        pending = None
+        logical_lines.append(combined)
+    if pending is not None:
+        logical_lines.append(pending)
+    return logical_lines
 
 
 _DIRECT_REFERENCE_SUBSTRINGS = ("://", "git+", "hg+", "svn+", "bzr+")
@@ -167,6 +204,7 @@ def validate_requirements_txt_diff(
     manifest edits are not frozen by a task-specific allowlist.
     """
     allowed = set(allowed_packages)
+    normalized_allowed = {_normalize_package_name(p) for p in allowed}
     # Comment-only lines carry no install-time meaning in pip's requirements
     # file format and must never be treated as a dependency spec: Codex
     # reproduced a false-positive rejection of a documentation-only addition
@@ -183,17 +221,24 @@ def validate_requirements_txt_diff(
     # ordinary, already-approved requirement as if it were an unapproved
     # direct source. Strip it the same way pip itself does (a "#" at the
     # start of the line or preceded by whitespace begins a comment).
+    #
+    # A trailing-backslash line continuation (e.g. a hash-pinned entry split
+    # across "pdfplumber==0.11.0 \\" and an indented "--hash=...") is ONE
+    # logical requirement to pip, joined here before comment stripping so
+    # the continuation is never treated as a separate, unapproved package.
+    base_logical = _join_line_continuations(base_text)
+    head_logical = _join_line_continuations(head_text)
     base_lines = [
         stripped
-        for line in base_text.splitlines()
-        if line.strip() and not line.strip().startswith("#")
+        for line in base_logical
+        if line and not line.startswith("#")
         for stripped in [_strip_inline_comment(line)]
         if stripped
     ]
     head_lines = [
         stripped
-        for line in head_text.splitlines()
-        if line.strip() and not line.strip().startswith("#")
+        for line in head_logical
+        if line and not line.startswith("#")
         for stripped in [_strip_inline_comment(line)]
         if stripped
     ]
@@ -245,19 +290,32 @@ def validate_requirements_txt_diff(
             if direct_ref_reason is not None:
                 violations.append(f"requirements.txt: added line {direct_ref_reason}")
                 continue
+            identity = _package_identity(line)
             # In lenient mode only, a genuine one-for-one replacement of a
             # removed same-identity line (e.g. "pyyaml>=6.0.1" ->
             # "pyyaml>=7.0.0") is a version-only modification, not a
             # brand-new package -- lenient mode's "not this task's concern"
             # policy for modifications already covers it. This must NEVER
             # apply in strict mode regardless.
-            if not strict_additive_only:
-                identity = _package_identity(line)
-                if removed_identity_budget.get(identity, 0) > 0:
-                    removed_identity_budget[identity] -= 1
-                    continue
+            if not strict_additive_only and removed_identity_budget.get(identity, 0) > 0:
+                removed_identity_budget[identity] -= 1
+                continue
+            # Extras (e.g. "fpdf2[crypto]") install additional transitive
+            # dependencies the trust-root allowlist never reviewed, even
+            # when the base package name is itself allowlisted. Reject any
+            # addition that declares extras outright rather than trying to
+            # extend the allowlist schema to per-extras identities.
+            if identity[1]:
+                violations.append(
+                    f"requirements.txt: added line {line!r} declares extras "
+                    f"{sorted(identity[1])!r}, which the trust-root allowlist "
+                    "does not cover -- extras install additional, unreviewed "
+                    "transitive dependencies; add the plain package spec "
+                    "without extras"
+                )
+                continue
             package = _package_name(line)
-            if package not in allowed:
+            if _normalize_package_name(package) not in normalized_allowed:
                 violations.append(
                     f"requirements.txt: added line {line!r} is not an approved "
                     f"addition (package {package!r} not in allowlist {sorted(allowed)})"
@@ -314,6 +372,7 @@ def _diff_dependency_array(
        regardless of any package-identity overlap with base.
     """
     violations: List[str] = []
+    normalized_allowed = {_normalize_package_name(p) for p in allowed}
     base_set = set(base_deps)
     head_set = set(head_deps)
     # A package identity (name + extras) only earns exemption "budget" for
@@ -350,13 +409,25 @@ def _diff_dependency_array(
         if direct_ref_reason is not None:
             violations.append(f"pyproject.toml: {label} added entry {direct_ref_reason}")
             continue
-        if not strict_additive_only:
-            identity = _package_identity(dep)
-            if removed_identity_budget.get(identity, 0) > 0:
-                removed_identity_budget[identity] -= 1
-                continue
+        identity = _package_identity(dep)
+        if not strict_additive_only and removed_identity_budget.get(identity, 0) > 0:
+            removed_identity_budget[identity] -= 1
+            continue
+        # Extras (e.g. "fpdf2[crypto]") install additional transitive
+        # dependencies the trust-root allowlist never reviewed, even when
+        # the base package name is itself allowlisted. Reject any addition
+        # that declares extras outright rather than extending the allowlist
+        # schema to per-extras identities.
+        if identity[1]:
+            violations.append(
+                f"pyproject.toml: {label} added entry {dep!r} declares extras "
+                f"{sorted(identity[1])!r}, which the trust-root allowlist does "
+                "not cover -- extras install additional, unreviewed transitive "
+                "dependencies; add the plain package spec without extras"
+            )
+            continue
         package = _package_name(dep)
-        if package not in allowed:
+        if _normalize_package_name(package) not in normalized_allowed:
             violations.append(
                 f"pyproject.toml: {label} added entry {dep!r} is not an "
                 f"approved addition (package {package!r} not in allowlist "
