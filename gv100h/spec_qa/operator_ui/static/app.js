@@ -95,9 +95,16 @@ function isUsb4Scope(view) {
 function presentAnswer(text, view) {
   if (!text) return EMPTY_ANSWER;
   if (text === "現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論 (Abstain)。") {
-    return isUsb4Scope(view)
-      ? "USB4 不在目前可查詢的 Phase 1 規格資料範圍內，因此系統不會根據未納入的規格內容推測答案。"
-      : "目前範圍不在可查詢的 Phase 1 規格資料範圍內，因此系統不會根據未納入的規格內容推測答案。";
+    const kind = view ? uiKind(view) : "";
+    if (kind === "out_of_scope") {
+      return isUsb4Scope(view)
+        ? "USB4 不在目前可查詢的 Phase 1 規格資料範圍內，因此系統不會根據未納入的規格內容推測答案。"
+        : "這次查詢超出目前可認證範圍，因此系統不會推測答案。";
+    }
+    if (kind === "missing_evidence") {
+      return "目前缺少足以支持結論的證據，因此暫不提供結論。";
+    }
+    return text;
   }
   return DISPLAY_ANSWER[text] || text;
 }
@@ -196,7 +203,7 @@ function renderSourceSummary(view) {
     kicker.textContent = "範圍依據";
     title.textContent = isUsb4Scope(view)
       ? "Phase 1 corpus · USB4 未納入"
-      : `Phase 1 corpus · ${view.scope || "目前範圍"} 未納入`;
+      : (view.boundary || "這次查詢超出目前可認證範圍");
     return;
   }
   if (kind === "missing_evidence") {
