@@ -4,88 +4,142 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Spec QA Operator UI — development shell</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=15">
 </head>
 <body>
   <header class="header">
-    <div>
-      <p class="kicker">Operator UI / development shell</p>
-      <h1>USB Hub Spec QA</h1>
-      <p class="claim">Operator UI only — not POC-1 qualification, not Gate 4, not a complete Spec Bot.</p>
+    <div class="header-copy">
+      <h1>USB Spec QA</h1>
+      <p class="lede">以可追溯來源詢問 USB 規格。</p>
     </div>
-    <span class="pill">Frozen QAResponse</span>
+    <div class="header-meta">
+      <span class="mode-badge" id="devChip">本機</span>
+      <span class="mode-badge is-fixture" id="fixtureChip" title="範例資料；問題不會被評分">範例</span>
+    </div>
   </header>
 
-  <main class="layout">
-    <section class="panel">
-      <h2>Question</h2>
-      <p id="fixtureIgnoreHint" class="hint warn">Fixture mode ignores query. Canned presentation data is shown; the question is NOT evaluated.</p>
-      <label>
-        Query
-        <textarea id="question" rows="4" placeholder="Which USB 3.x Hub Class feature selector has value 8?"></textarea>
-      </label>
-      <div class="row">
-        <label>
-          answer_scope
-          <select id="answerScope">
-            <option value="USB_3_X">USB_3_X</option>
-            <option value="USB_2_0">USB_2_0</option>
-            <option value="USB_HUB_COMMON">USB_HUB_COMMON</option>
-            <option value="USB4_SPEC">USB4_SPEC</option>
-          </select>
-        </label>
-        <label>
-          retrieval_mode
-          <select id="retrievalMode">
-            <option value="single_scope">single_scope</option>
-            <option value="explicit_cross_scope">explicit_cross_scope</option>
-          </select>
-        </label>
+  <main class="workbench">
+    <section class="card ask" aria-labelledby="askHeading">
+      <div class="card-head">
+        <h2 id="askHeading">提問</h2>
       </div>
-      <label>
-        allowed_evidence_scopes (comma-separated, required for explicit_cross_scope)
-        <input id="allowedScopes" type="text" placeholder="USB_2_0, USB_3_X">
-      </label>
-      <div class="row">
-        <label>
-          source
-          <select id="source">
-            <option value="fixture">fixture (default)</option>
-            <option value="service">GovernedQAService</option>
-          </select>
-        </label>
-        <label>
-          fixture
-          <select id="fixture">
-            <option value="answered">answered</option>
-            <option value="abstain">abstain</option>
-            <option value="conflict">conflict</option>
-          </select>
-        </label>
+      <label class="question-label" for="question">問題</label>
+      <div class="ask-row">
+        <textarea id="question" rows="1" readonly placeholder="USB 3.x Hub Class 的 PORT_POWER feature selector 值是多少？">USB 3.x Hub Class 的 PORT_POWER feature selector 值是多少？</textarea>
+        <button id="askBtn" type="button">預覽範例</button>
       </div>
-      <button id="askBtn" type="button">Ask</button>
-      <p class="hint">Default path uses frozen fixtures. Service mode calls existing GovernedQAService and does not invent PDF anchors.</p>
+      <p id="askError" class="ask-error" hidden></p>
+
+      <details class="fold" id="advancedFold">
+        <summary>
+          <span class="fold-title">進階設定</span>
+        </summary>
+        <div class="fold-body">
+          <div class="row">
+            <label>
+              規格範圍
+              <select id="answerScope">
+                <option value="USB_3_X">USB 3.x</option>
+                <option value="USB_2_0">USB 2.0</option>
+                <option value="USB_HUB_COMMON">USB Hub 共用</option>
+                <option value="USB4_SPEC">USB4</option>
+              </select>
+            </label>
+            <label>
+              搜尋範圍
+              <select id="retrievalMode">
+                <option value="single_scope">單一範圍</option>
+                <option value="explicit_cross_scope">跨規格範圍</option>
+              </select>
+            </label>
+          </div>
+          <p id="retrievalHint" class="hint">只在目前選定的 USB 規格範圍內查找證據。</p>
+          <label id="allowedScopesField" hidden>
+            允許的證據範圍
+            <input id="allowedScopes" type="text" placeholder="USB_2_0, USB_3_X">
+          </label>
+          <div class="row">
+            <label>
+              資料模式
+              <select id="source">
+                <option value="fixture">範例資料</option>
+                <option value="service">實際查詢服務</option>
+              </select>
+            </label>
+            <label id="fixtureField">
+              範例結果
+              <select id="fixture">
+                <option value="answered">正常回答</option>
+                <option value="abstain">超出目前範圍</option>
+                <option value="conflict">來源衝突</option>
+              </select>
+            </label>
+          </div>
+          <p class="hint">預設顯示凍結範例。實際查詢服務會呼叫既有 GovernedQAService，不會捏造 PDF 錨點。</p>
+        </div>
+      </details>
     </section>
 
-    <section class="panel result" id="resultPanel">
-      <h2>Result</h2>
-      <h3>DATA SOURCE</h3>
-      <div id="dataSource" class="source-banner waiting">waiting</div>
-      <div id="statusRow" class="status unknown">waiting</div>
+    <section class="card paper" id="resultPanel" aria-labelledby="answerHeading">
+      <div class="card-head">
+        <h2 id="answerHeading">回答</h2>
+        <div id="statusRow" class="status unknown">等待中</div>
+      </div>
       <p id="explainer" class="explainer" hidden></p>
-      <h3>Answer</h3>
-      <p id="answerText" class="answer">—</p>
-      <h3>Scope</h3>
-      <p id="scopeText">—</p>
-      <h3>Claims</h3>
-      <ul id="claims"></ul>
-      <h3>Evidence</h3>
-      <div id="citations"></div>
-      <h3>Boundary</h3>
-      <p id="boundaryCode">—</p>
-      <p id="boundaryReason" class="muted">—</p>
+      <p id="answerText" class="answer is-empty">輸入 USB 規格問題後，這裡會顯示有依據的回答。</p>
+      <div class="source-block">
+        <p class="source-kicker" id="sourceKicker">來源</p>
+        <p id="sourceLine" class="source-title">尚無來源</p>
+        <p id="sourceMeta" class="source-meta" hidden></p>
+        <a id="sourceOpen" class="source-open" hidden>開啟來源 ↗</a>
+      </div>
+
+      <div class="details">
+        <details class="fold" id="evidenceFold">
+          <summary>
+            <span class="fold-copy">
+              <span id="evidenceSummary" class="fold-title">查看引用原文</span>
+              <span id="evidenceDesc" class="fold-desc">條文摘錄</span>
+            </span>
+            <span id="evidenceCount" class="fold-count"></span>
+          </summary>
+          <div id="citations" class="fold-body"></div>
+        </details>
+        <details class="fold" id="governanceFold">
+          <summary>
+            <span class="fold-copy">
+              <span class="fold-title">技術詳細資訊</span>
+              <span class="fold-desc">證據編號、來源與治理欄位</span>
+            </span>
+          </summary>
+          <div class="fold-body">
+            <h3>開發模式</h3>
+            <p id="devModeCopy">目前使用範例資料，問題不會送入實際檢索服務。</p>
+            <p class="muted">此介面僅供 Operator UI 開發與呈現驗證。</p>
+            <p id="fixtureIgnoreHint" hidden>Fixture mode ignores query. Canned presentation data is shown; the question is NOT evaluated.</p>
+            <h3>回應契約</h3>
+            <p class="muted">Frozen QAResponse</p>
+            <span hidden>DATA SOURCE</span>
+            <div id="dataSource" class="source-banner waiting">waiting</div>
+            <div id="developerCitations"></div>
+            <h3>查詢範圍</h3>
+            <p id="scopeText">—</p>
+            <h3>主張</h3>
+            <ul id="claims"></ul>
+            <div id="boundaryBlock" hidden>
+              <h3>判定代碼</h3>
+              <p id="boundaryCode">—</p>
+              <p id="boundaryReason" class="muted">—</p>
+            </div>
+          </div>
+        </details>
+      </div>
     </section>
   </main>
-  <script src="app.js"></script>
+  <footer class="about">
+    <p>Operator UI / development shell</p>
+    <p>Operator UI only — not POC-1 qualification, not Gate 4, not a complete Spec Bot.</p>
+  </footer>
+  <script src="app.js?v=15"></script>
 </body>
 </html>
