@@ -85,6 +85,64 @@ def test_direct_construction_rejects_chapter_section_mismatch():
         )
 
 
+def test_direct_construction_rejects_forged_chunk_id():
+    chunk = _build_chunk()
+    with pytest.raises(GovernedChunkError, match="is not derived from this chunk's own"):
+        GovernedChunk(
+            chunk_id="usb32:99.99.99:p.999:0:" + chunk.content_sha256[:12],
+            source_id=chunk.source_id,
+            document=chunk.document,
+            revision=chunk.revision,
+            chapter=chunk.chapter,
+            section=chunk.section,
+            page_or_anchor=chunk.page_or_anchor,
+            authority_level=chunk.authority_level,
+            chunk_kind=chunk.chunk_kind,
+            content=chunk.content,
+            content_sha256=chunk.content_sha256,
+        )
+
+
+def test_direct_construction_rejects_non_numeric_chunk_id_index_segment():
+    chunk = _build_chunk()
+    forged_chunk_id = (
+        f"{chunk.source_id}:{chunk.section}:{chunk.page_or_anchor}:"
+        f"not-an-index:{chunk.content_sha256[:12]}"
+    )
+    with pytest.raises(GovernedChunkError, match="index segment"):
+        GovernedChunk(
+            chunk_id=forged_chunk_id,
+            source_id=chunk.source_id,
+            document=chunk.document,
+            revision=chunk.revision,
+            chapter=chunk.chapter,
+            section=chunk.section,
+            page_or_anchor=chunk.page_or_anchor,
+            authority_level=chunk.authority_level,
+            chunk_kind=chunk.chunk_kind,
+            content=chunk.content,
+            content_sha256=chunk.content_sha256,
+        )
+
+
+def test_direct_construction_accepts_a_chunk_id_matching_this_chunks_own_identity():
+    chunk = _build_chunk()
+    rehydrated = GovernedChunk(
+        chunk_id=chunk.chunk_id,
+        source_id=chunk.source_id,
+        document=chunk.document,
+        revision=chunk.revision,
+        chapter=chunk.chapter,
+        section=chunk.section,
+        page_or_anchor=chunk.page_or_anchor,
+        authority_level=chunk.authority_level,
+        chunk_kind=chunk.chunk_kind,
+        content=chunk.content,
+        content_sha256=chunk.content_sha256,
+    )
+    assert rehydrated.chunk_id == chunk.chunk_id
+
+
 @pytest.mark.parametrize("blank_field", ["document", "revision", "section", "page_or_anchor", "content"])
 def test_blank_required_fields_are_rejected(blank_field):
     with pytest.raises(GovernedChunkError):

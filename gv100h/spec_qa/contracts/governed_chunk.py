@@ -15,6 +15,7 @@ this module is a pure schema/validation layer. It must not import from
 contract, not the other way around.
 """
 import hashlib
+import re
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
@@ -22,6 +23,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from gv100h.spec_qa.contracts.evidence_contract import AuthorityLevel, Citation
 
 ChunkKind = Literal["paragraph", "table", "heading_only"]
+
+_CHUNK_ID_INDEX_SEGMENT = re.compile(r"^\d+$")
 
 
 class GovernedChunkError(ValueError):
@@ -91,6 +94,36 @@ class GovernedChunk(BaseModel):
             raise GovernedChunkError(
                 f"chapter {self.chapter!r} does not match the leading numeric segment of "
                 f"section {self.section!r}"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _chunk_id_matches_derived_identity(self) -> "GovernedChunk":
+        """
+        ``chunk_id`` is part of a chunk's evidence identity, not just an
+        opaque label -- a citation's ``evidence_id`` (``to_citation()``
+        below) is only as trustworthy as the ``chunk_id`` it echoes. This
+        cross-checks ``chunk_id`` against this same chunk's own
+        ``source_id``/``section``/``page_or_anchor``/``content_sha256`` (the
+        same components ``build()`` derives it from) so a ``GovernedChunk``
+        constructed directly with an unrelated/forged ``chunk_id`` -- e.g.
+        rehydrated from an untrusted JSON/vector-DB/cache record -- is
+        rejected the same way a forged ``content_sha256`` already is,
+        instead of only being checked on the ``build()`` path.
+        """
+        prefix = f"{self.source_id}:{self.section}:{self.page_or_anchor}:"
+        suffix = f":{self.content_sha256[:12]}"
+        if not (self.chunk_id.startswith(prefix) and self.chunk_id.endswith(suffix)):
+            raise GovernedChunkError(
+                f"chunk_id {self.chunk_id!r} is not derived from this chunk's own "
+                "source_id/section/page_or_anchor/content_sha256 "
+                f"(expected {prefix}<index>{suffix})"
+            )
+        index_segment = self.chunk_id[len(prefix) : -len(suffix)]
+        if not _CHUNK_ID_INDEX_SEGMENT.match(index_segment):
+            raise GovernedChunkError(
+                f"chunk_id {self.chunk_id!r} index segment {index_segment!r} is not a "
+                "non-negative integer"
             )
         return self
 
