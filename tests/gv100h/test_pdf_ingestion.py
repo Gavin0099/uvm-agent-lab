@@ -289,6 +289,40 @@ def test_resolve_source_locator_rejects_unsupported_format():
         resolve_source_locator("https://example.com/usb32.pdf")
 
 
+def test_resolve_source_locator_rejects_dotdot_traversal_escape(tmp_path):
+    root_dir = tmp_path / "raw_root"
+    root_dir.mkdir()
+    with pytest.raises(PdfIngestionError, match="escapes its source root"):
+        resolve_source_locator(
+            "env://USB_SPEC_QA_RAW_ROOT/../outside.pdf", raw_root=root_dir
+        )
+
+
+def test_resolve_source_locator_rejects_absolute_relative_path_escape(tmp_path):
+    root_dir = tmp_path / "raw_root"
+    root_dir.mkdir()
+    outside_file = tmp_path / "outside.pdf"
+    absolute_relative_path = str(outside_file)
+    if not absolute_relative_path.startswith("/"):
+        # Force a POSIX-style absolute segment regardless of host platform
+        # path separator conventions, matching the locator's forward-slash
+        # convention (mirrors the equivalent CorpusSourceResolver test).
+        absolute_relative_path = "/" + absolute_relative_path.replace("\\", "/").lstrip("/")
+    with pytest.raises(PdfIngestionError, match="absolute|escapes its source root"):
+        resolve_source_locator(
+            f"env://USB_SPEC_QA_RAW_ROOT{absolute_relative_path}", raw_root=root_dir
+        )
+
+
+def test_resolve_source_locator_accepts_normal_file_within_root(tmp_path):
+    root_dir = tmp_path / "raw_root"
+    (root_dir / "subdir").mkdir(parents=True)
+    resolved = resolve_source_locator(
+        "env://USB_SPEC_QA_RAW_ROOT/subdir/usb32.pdf", raw_root=root_dir
+    )
+    assert resolved == (root_dir / "subdir" / "usb32.pdf").resolve()
+
+
 def test_is_source_eligible_as_answer_evidence_respects_layer_and_phase():
     lock = _corpus_lock("env://USB_SPEC_QA_RAW_ROOT/usb32.pdf", "0" * 64)
     assert is_source_eligible_as_answer_evidence("usb32_synth", lock) is True

@@ -29,6 +29,7 @@ from typing import Any, FrozenSet, List, Mapping, Optional, Sequence, Tuple
 
 import pdfplumber
 
+from gv100h.spec_qa.contracts.corpus_source_resolver import resolve_contained_path
 from gv100h.spec_qa.contracts.evidence_contract import AuthorityLevel
 from gv100h.spec_qa.contracts.governed_chunk import GovernedChunk
 
@@ -290,6 +291,12 @@ def resolve_source_locator(source_locator: str, *, raw_root: Optional[Path] = No
     an explicit ``raw_root`` override or the ``VARNAME`` environment
     variable. Fails closed (raises) rather than silently skipping a source
     whose raw PDF isn't available in the current environment.
+
+    The resolved path is required to stay contained under its root (rejects
+    ``..`` traversal, an absolute relative-path segment, or a symlink that
+    escapes the root) via the same ``resolve_contained_path`` primitive
+    ``CorpusSourceResolver`` uses -- this is the same raw-corpus trust
+    boundary in both places, enforced once instead of twice.
     """
     import os
 
@@ -298,16 +305,21 @@ def resolve_source_locator(source_locator: str, *, raw_root: Optional[Path] = No
         raise PdfIngestionError(f"unsupported source_locator format: {source_locator!r}")
     rel_path = match.group("rel")
     if raw_root is not None:
-        return Path(raw_root) / rel_path
-    var_name = match.group("var")
-    base = os.environ.get(var_name)
-    if not base:
-        raise PdfIngestionError(
-            f"source_locator {source_locator!r} requires environment variable "
-            f"{var_name!r}, which is not set -- the raw PDF corpus is not bound "
-            "in this environment"
-        )
-    return Path(base) / rel_path
+        root = Path(raw_root)
+    else:
+        var_name = match.group("var")
+        base = os.environ.get(var_name)
+        if not base:
+            raise PdfIngestionError(
+                f"source_locator {source_locator!r} requires environment variable "
+                f"{var_name!r}, which is not set -- the raw PDF corpus is not bound "
+                "in this environment"
+            )
+        root = Path(base)
+    try:
+        return resolve_contained_path(root, rel_path)
+    except ValueError as exc:
+        raise PdfIngestionError(f"source_locator {source_locator!r}: {exc}") from None
 
 
 def ingest_source_from_corpus_lock(

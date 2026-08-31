@@ -58,6 +58,39 @@ class CorpusSourceResolverError(ValueError):
     """Raised when an env:// corpus source locator cannot be fail-closed resolved."""
 
 
+def resolve_contained_path(root: Path, relative_path: str) -> Path:
+    """Resolve ``relative_path`` under ``root``, fail-closed against escape.
+
+    Shared containment primitive: rejects an absolute ``relative_path``
+    outright, then resolves ``root / relative_path`` and requires the result
+    to still be located under ``root.resolve()`` (catching ``..`` traversal
+    and symlinks that point outside ``root``). Raises ``ValueError`` -- not
+    ``CorpusSourceResolverError`` -- so callers outside this module (e.g.
+    ``pdf_ingestion.py``, which must not depend on this module's own
+    exception type for its own error contract) can wrap it in their own
+    fail-closed error type instead of leaking this module's.
+
+    This is the one containment check used by both ``CorpusSourceResolver``
+    (below) and the raw-PDF ingestion pipeline's own locator resolution, so
+    the trust boundary around ``env://``-rooted corpus paths is enforced in
+    exactly one place.
+    """
+    root = Path(root).resolve()
+    if Path(relative_path).is_absolute():
+        raise ValueError(
+            f"relative_path {relative_path!r} is absolute, which is not allowed "
+            f"under root {root}"
+        )
+    resolved_path = (root / relative_path).resolve()
+    try:
+        resolved_path.relative_to(root)
+    except ValueError:
+        raise ValueError(
+            f"resolved path escapes its source root {root}: {resolved_path}"
+        ) from None
+    return resolved_path
+
+
 class CorpusSourceResolver:
     """Resolves ``env://`` corpus source locators to verified filesystem paths.
 
@@ -188,19 +221,11 @@ class CorpusSourceResolver:
             )
 
         root = Path(env_value).resolve()
-        if Path(relative_path).is_absolute():
-            raise CorpusSourceResolverError(
-                f"source {source_id!r} locator {locator!r} has an absolute relative "
-                f"path segment, which is not allowed: {relative_path!r}"
-            )
-
-        resolved_path = (root / relative_path).resolve()
         try:
-            resolved_path.relative_to(root)
-        except ValueError:
+            resolved_path = resolve_contained_path(root, relative_path)
+        except ValueError as exc:
             raise CorpusSourceResolverError(
-                f"source {source_id!r} resolved path escapes its source root "
-                f"{root}: {resolved_path}"
+                f"source {source_id!r} locator {locator!r}: {exc}"
             ) from None
 
         if not resolved_path.is_file():
