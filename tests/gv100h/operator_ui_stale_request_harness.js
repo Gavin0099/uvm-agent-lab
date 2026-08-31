@@ -52,6 +52,7 @@ class El {
     this.open = false;
     this.parentNode = null;
     this.href = "";
+    this.title = "";
   }
 
   get firstChild() {
@@ -208,6 +209,8 @@ async function runRenderedThenModeChange() {
   elements.source.dispatchEvent({ type: "change" });
   await tick();
   assert.strictEqual(elements.fixtureChip.textContent, "服務");
+  assert.notStrictEqual(elements.fixtureChip.title, "範例資料；問題不會被評分");
+  assert.ok(elements.fixtureChip.title.includes("實際查詢服務"));
   assert.strictEqual(elements.answerText.textContent, EMPTY_ANSWER);
   assert.strictEqual(elements.dataSource.textContent, "waiting");
   await resolveOldest(pending, STALE_PAYLOAD);

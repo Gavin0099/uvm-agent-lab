@@ -77,6 +77,19 @@ const RETRIEVAL_HINT = {
   explicit_cross_scope: "可同時查找 USB 2.0、USB 3.x 等多個已允許範圍。",
 };
 
+const MODE_BADGE_TITLE = {
+  fixture: "範例資料；問題不會被評分",
+  service: "實際查詢服務；問題會送入既有 GovernedQAService。",
+};
+
+function setModeBadge(fixtureMode) {
+  const chip = $("fixtureChip");
+  chip.hidden = false;
+  chip.className = fixtureMode ? "mode-badge is-fixture" : "mode-badge is-service";
+  chip.textContent = fixtureMode ? "範例" : "服務";
+  chip.title = fixtureMode ? MODE_BADGE_TITLE.fixture : MODE_BADGE_TITLE.service;
+}
+
 function clearNode(node) {
   while (node.firstChild) node.removeChild(node.firstChild);
 }
@@ -292,21 +305,16 @@ function renderCitations(view) {
 
 function renderSource(view) {
   const banner = $("dataSource");
-  const chip = $("fixtureChip");
   if (view.source === "fixture") {
     banner.className = "source-banner fixture";
     banner.textContent = "fixture\nQuery is NOT evaluated.";
-    chip.hidden = false;
-    chip.className = "mode-badge is-fixture";
-    chip.textContent = "範例";
+    setModeBadge(true);
     return;
   }
   if (view.source === "service") {
     banner.className = "source-banner service";
     banner.textContent = "GovernedQAService";
-    chip.hidden = false;
-    chip.className = "mode-badge is-service";
-    chip.textContent = "服務";
+    setModeBadge(false);
     return;
   }
   banner.className = "source-banner waiting";
@@ -392,10 +400,7 @@ function syncFixtureMode() {
   $("devModeCopy").textContent = fixtureMode
     ? "目前使用範例資料，問題不會送入實際檢索服務。"
     : "目前會呼叫既有 GovernedQAService，不會捏造 PDF 錨點。";
-  const chip = $("fixtureChip");
-  chip.hidden = false;
-  chip.className = fixtureMode ? "mode-badge is-fixture" : "mode-badge is-service";
-  chip.textContent = fixtureMode ? "範例" : "服務";
+  setModeBadge(fixtureMode);
   $("askBtn").textContent = fixtureMode ? "預覽範例" : "提問";
   QUERY_FIELD_IDS.forEach((id) => {
     $(id).disabled = fixtureMode;
