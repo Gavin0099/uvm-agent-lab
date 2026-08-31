@@ -44,6 +44,20 @@ class ScopeGuardrail:
         except Exception as e:
             return None, f"Path resolution failed for '{target_path}': {str(e)}"
 
+    def normalize_relative_path(self, target_path: str) -> Optional[str]:
+        """Public wrapper around the canonical-relative resolution used by
+        ``check_path_access()``, so callers that need to compare a raw
+        (possibly ``./``-prefixed, absolute, or backslash-separated) path
+        against a fixed set of guarded filenames use the same normalization
+        the scope gate itself uses, instead of a naive string match that a
+        differently-formatted equivalent path can silently bypass.
+
+        Returns the lowercased, POSIX-style, base_dir-relative path, or
+        ``None`` if the path could not be resolved/escapes base_dir.
+        """
+        rel, err = self._resolve_canonical_relative(target_path)
+        return rel if err is None else None
+
     def check_path_access(self, target_path: str, action: str = "write") -> Tuple[bool, GovernanceReport]:
         report = GovernanceReport()
         clean_rel, escape_err = self._resolve_canonical_relative(target_path)

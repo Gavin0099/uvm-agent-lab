@@ -1,0 +1,601 @@
+"""Tests for validators/dependency_manifest_diff_validator.py.
+
+Covers the two enforcement surfaces described in the module docstring:
+requirements.txt line-level additive-only diffing, and pyproject.toml
+structural diffing scoped to [project.optional-dependencies].
+"""
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from validators.dependency_manifest_diff_validator import (  # noqa: E402
+    load_allowed_packages,
+    validate_manifests_against_ref,
+    validate_pyproject_toml_diff,
+    validate_requirements_txt_diff,
+)
+
+ALLOWED = ["pdfplumber", "fpdf2"]
+
+
+# ---------------------------------------------------------------------------
+# requirements.txt
+# ---------------------------------------------------------------------------
+
+
+def test_requirements_txt_additive_only_change_passes():
+    base = "pyyaml>=6.0.1\njsonschema>=4.20.0\n"
+    head = "pyyaml>=6.0.1\njsonschema>=4.20.0\npdfplumber>=0.10\nfpdf2>=2.7.0\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED)
+    assert result.is_valid, result.violations
+
+
+def test_requirements_txt_removed_line_fails():
+    base = "pyyaml>=6.0.1\njsonschema>=4.20.0\n"
+    head = "pyyaml>=6.0.1\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED)
+    assert not result.is_valid
+    assert any("removed or modified" in v for v in result.violations)
+
+
+def test_requirements_txt_modified_line_fails():
+    base = "pyyaml>=6.0.1\n"
+    head = "pyyaml>=7.0.0\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED)
+    assert not result.is_valid
+    assert any("removed or modified" in v for v in result.violations)
+
+
+def test_requirements_txt_unapproved_addition_fails():
+    base = "pyyaml>=6.0.1\n"
+    head = "pyyaml>=6.0.1\nrequests>=2.31.0\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED)
+    assert not result.is_valid
+    assert any("not an approved addition" in v for v in result.violations)
+
+
+def test_requirements_txt_no_change_passes():
+    base = "pyyaml>=6.0.1\n"
+    head = "pyyaml>=6.0.1\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED)
+    assert result.is_valid
+
+
+def test_requirements_txt_direct_url_reference_fails_even_if_name_allowed():
+    base = "pyyaml>=6.0.1\n"
+    head = "pyyaml>=6.0.1\npdfplumber @ https://attacker.invalid/pkg.whl\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED)
+    assert not result.is_valid
+    assert any("direct URL/source reference" in v for v in result.violations)
+
+
+def test_requirements_txt_vcs_reference_fails_even_if_name_allowed():
+    base = "pyyaml>=6.0.1\n"
+    head = "pyyaml>=6.0.1\ngit+https://github.com/attacker/pdfplumber.git\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED)
+    assert not result.is_valid
+    assert any("direct URL/VCS source" in v for v in result.violations)
+
+
+def test_requirements_txt_lenient_mode_ignores_removed_line_but_checks_additions():
+    base = "pyyaml>=6.0.1\njsonschema>=4.20.0\n"
+    head = "pyyaml>=6.0.1\n"  # jsonschema removed: not this task's concern in lenient mode
+    result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert result.is_valid, result.violations
+
+
+def test_requirements_txt_lenient_mode_still_rejects_unapproved_addition():
+    base = "pyyaml>=6.0.1\n"
+    head = "pyyaml>=7.0.0\nrequests>=2.31.0\n"  # modified line + unapproved addition
+    result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("not an approved addition" in v for v in result.violations)
+    assert not any("removed or modified" in v for v in result.violations)
+
+
+# ---------------------------------------------------------------------------
+# pyproject.toml
+# ---------------------------------------------------------------------------
+
+BASE_PYPROJECT = """
+[project]
+name = "uvm-agent-lab"
+version = "0.1.0"
+dependencies = ["pyyaml>=6.0.1"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+"""
+
+
+def test_pyproject_new_group_with_allowed_packages_passes():
+    head = BASE_PYPROJECT + '\npdf = ["pdfplumber>=0.10", "fpdf2>=2.7.0"]\n'
+    # Insert the new group correctly under [project.optional-dependencies]
+    head = BASE_PYPROJECT.replace(
+        'dev = ["pytest>=8.0.0"]',
+        'dev = ["pytest>=8.0.0"]\npdf = ["pdfplumber>=0.10", "fpdf2>=2.7.0"]',
+    )
+    result = validate_pyproject_toml_diff(BASE_PYPROJECT, head, ALLOWED)
+    assert result.is_valid, result.violations
+
+
+def test_pyproject_existing_group_gains_allowed_entry_passes():
+    head = BASE_PYPROJECT.replace(
+        'dev = ["pytest>=8.0.0"]',
+        'dev = ["pytest>=8.0.0", "pdfplumber>=0.10"]',
+    )
+    result = validate_pyproject_toml_diff(BASE_PYPROJECT, head, ALLOWED)
+    assert result.is_valid, result.violations
+
+
+def test_pyproject_existing_group_gains_unapproved_entry_fails():
+    head = BASE_PYPROJECT.replace(
+        'dev = ["pytest>=8.0.0"]',
+        'dev = ["pytest>=8.0.0", "requests>=2.31.0"]',
+    )
+    result = validate_pyproject_toml_diff(BASE_PYPROJECT, head, ALLOWED)
+    assert not result.is_valid
+    assert any("not an approved addition" in v for v in result.violations)
+
+
+def test_pyproject_new_group_with_unapproved_package_fails():
+    head = BASE_PYPROJECT.replace(
+        'dev = ["pytest>=8.0.0"]',
+        'dev = ["pytest>=8.0.0"]\npdf = ["requests>=2.31.0"]',
+    )
+    result = validate_pyproject_toml_diff(BASE_PYPROJECT, head, ALLOWED)
+    assert not result.is_valid
+    assert any("not an approved addition" in v for v in result.violations)
+
+
+def test_pyproject_removed_existing_entry_fails():
+    head = BASE_PYPROJECT.replace('dev = ["pytest>=8.0.0"]', "dev = []")
+    result = validate_pyproject_toml_diff(BASE_PYPROJECT, head, ALLOWED)
+    assert not result.is_valid
+    assert any("removed or modified" in v for v in result.violations)
+
+
+def test_pyproject_removed_optional_group_fails():
+    head = BASE_PYPROJECT.replace('dev = ["pytest>=8.0.0"]\n', "")
+    result = validate_pyproject_toml_diff(BASE_PYPROJECT, head, ALLOWED)
+    assert not result.is_valid
+    assert any("was removed" in v for v in result.violations)
+
+
+def test_pyproject_unrelated_section_change_fails():
+    head = BASE_PYPROJECT.replace(
+        'dependencies = ["pyyaml>=6.0.1"]',
+        'dependencies = ["pyyaml>=6.0.1", "click>=8.0"]',
+    )
+    result = validate_pyproject_toml_diff(BASE_PYPROJECT, head, ALLOWED)
+    assert not result.is_valid
+    assert any("outside [project.optional-dependencies]" in v for v in result.violations)
+
+
+def test_pyproject_build_system_change_fails():
+    head = BASE_PYPROJECT + "\n[build-system]\nrequires = [\"setuptools>=61.0\"]\n"
+    result = validate_pyproject_toml_diff(BASE_PYPROJECT, head, ALLOWED)
+    assert not result.is_valid
+    assert any("outside [project.optional-dependencies]" in v for v in result.violations)
+
+
+def test_pyproject_no_change_passes():
+    result = validate_pyproject_toml_diff(BASE_PYPROJECT, BASE_PYPROJECT, ALLOWED)
+    assert result.is_valid
+
+
+def test_pyproject_direct_url_reference_fails_even_if_name_allowed():
+    head = BASE_PYPROJECT.replace(
+        'dev = ["pytest>=8.0.0"]',
+        'dev = ["pytest>=8.0.0", "pdfplumber @ https://attacker.invalid/pkg.whl"]',
+    )
+    result = validate_pyproject_toml_diff(BASE_PYPROJECT, head, ALLOWED)
+    assert not result.is_valid
+    assert any("direct URL/source reference" in v for v in result.violations)
+
+
+def test_pyproject_lenient_mode_ignores_unrelated_section_change():
+    head = BASE_PYPROJECT.replace(
+        'dependencies = ["pyyaml>=6.0.1"]',
+        'dependencies = ["pyyaml>=7.0.0"]',
+    )
+    result = validate_pyproject_toml_diff(BASE_PYPROJECT, head, ALLOWED, strict_additive_only=False)
+    assert result.is_valid, result.violations
+
+
+def test_pyproject_lenient_mode_still_rejects_unapproved_new_entry():
+    head = BASE_PYPROJECT.replace(
+        'dependencies = ["pyyaml>=6.0.1"]',
+        'dependencies = ["pyyaml>=7.0.0"]',
+    ).replace(
+        'dev = ["pytest>=8.0.0"]',
+        'dev = ["pytest>=8.0.0", "requests>=2.31.0"]',
+    )
+    result = validate_pyproject_toml_diff(BASE_PYPROJECT, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("not an approved addition" in v for v in result.violations)
+    assert not any("outside [project.optional-dependencies]" in v for v in result.violations)
+
+
+def test_pyproject_lenient_mode_still_rejects_unapproved_addition_to_main_dependencies():
+    """Regression for the P2 Codex finding: lenient mode's "skip changes
+    outside optional-dependencies" must not let an unapproved package slip
+    into project.dependencies (the main, non-optional array) unvalidated."""
+    head = BASE_PYPROJECT.replace(
+        'dependencies = ["pyyaml>=6.0.1"]',
+        'dependencies = ["pyyaml>=6.0.1", "requests>=2.31.0"]',
+    )
+    result = validate_pyproject_toml_diff(BASE_PYPROJECT, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("project.dependencies added entry" in v and "not an approved addition" in v for v in result.violations)
+
+
+def test_pyproject_lenient_mode_rejects_direct_url_in_main_dependencies():
+    head = BASE_PYPROJECT.replace(
+        'dependencies = ["pyyaml>=6.0.1"]',
+        'dependencies = ["pyyaml>=6.0.1", "pdfplumber @ https://attacker.invalid/pkg.whl"]',
+    )
+    result = validate_pyproject_toml_diff(BASE_PYPROJECT, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("project.dependencies added entry" in v and "direct URL/source reference" in v for v in result.violations)
+
+
+def test_pyproject_lenient_mode_version_bump_of_existing_main_dependency_passes():
+    """A version-only change to an already-present main dependency is a
+    modification, not a new unreviewed package -- it must not be flagged as
+    an unapproved addition just because its full literal spec string
+    changed."""
+    head = BASE_PYPROJECT.replace(
+        'dependencies = ["pyyaml>=6.0.1"]',
+        'dependencies = ["pyyaml>=7.0.0"]',
+    )
+    result = validate_pyproject_toml_diff(BASE_PYPROJECT, head, ALLOWED, strict_additive_only=False)
+    assert result.is_valid, result.violations
+
+
+def test_pyproject_lenient_mode_rejects_same_name_direct_url_replacement_in_main_dependencies():
+    """Regression for the P1 Codex finding: replacing an already-present
+    package with a same-named direct URL/VCS reference
+    (e.g. "pyyaml @ https://attacker.invalid/pkg.whl") must still be
+    rejected in lenient mode -- the package-name match used to permit
+    version bumps must not also permit a source-swap bypass."""
+    head = BASE_PYPROJECT.replace(
+        'dependencies = ["pyyaml>=6.0.1"]',
+        'dependencies = ["pyyaml @ https://attacker.invalid/pkg.whl"]',
+    )
+    result = validate_pyproject_toml_diff(BASE_PYPROJECT, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any(
+        "project.dependencies added entry" in v and "direct URL/source reference" in v
+        for v in result.violations
+    )
+
+
+def test_pyproject_lenient_mode_rejects_same_name_direct_url_replacement_in_optional_group():
+    head = BASE_PYPROJECT.replace(
+        'dev = ["pytest>=8.0.0"]',
+        'dev = ["pytest @ https://attacker.invalid/pkg.whl"]',
+    )
+    result = validate_pyproject_toml_diff(BASE_PYPROJECT, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any(
+        "optional-dependencies" in v and "direct URL/source reference" in v
+        for v in result.violations
+    )
+
+
+def test_pyproject_lenient_mode_version_bump_of_existing_optional_dependency_passes():
+    """Regression for the P2 Codex finding: a version-only change to an
+    already-present optional-dependency entry (e.g. "pytest>=8.0.0" ->
+    "pytest>=9.0.0") must not be rejected as an unapproved new package in
+    lenient mode -- it is a modification, which lenient mode's "not this
+    task's concern" policy explicitly permits."""
+    head = BASE_PYPROJECT.replace(
+        'dev = ["pytest>=8.0.0"]',
+        'dev = ["pytest>=9.0.0"]',
+    )
+    result = validate_pyproject_toml_diff(BASE_PYPROJECT, head, ALLOWED, strict_additive_only=False)
+    assert result.is_valid, result.violations
+
+
+
+# ---------------------------------------------------------------------------
+# allowlist loading
+# ---------------------------------------------------------------------------
+
+
+def test_load_allowed_packages_by_task(tmp_path):
+    allowlist = tmp_path / "allowlist.json"
+    allowlist.write_text(
+        json.dumps(
+            {
+                "tasks": {
+                    "GV100H-M2-DEPS": {"allowed_packages": ["pdfplumber", "fpdf2"]},
+                    "OTHER-TASK": {"allowed_packages": ["numpy"]},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert set(load_allowed_packages(allowlist, task_id="GV100H-M2-DEPS")) == {
+        "pdfplumber",
+        "fpdf2",
+    }
+    assert set(load_allowed_packages(allowlist)) == {"pdfplumber", "fpdf2", "numpy"}
+
+
+def test_load_allowed_packages_unknown_task_raises(tmp_path):
+    allowlist = tmp_path / "allowlist.json"
+    allowlist.write_text(json.dumps({"tasks": {}}), encoding="utf-8")
+    with pytest.raises(KeyError):
+        load_allowed_packages(allowlist, task_id="NOPE")
+
+
+# ---------------------------------------------------------------------------
+# ref-based integration (uses a throwaway temp git repo, not this repo)
+# ---------------------------------------------------------------------------
+
+
+def _init_repo(repo_dir: Path) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=repo_dir, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo_dir, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo_dir, check=True)
+
+
+def test_validate_manifests_against_ref_detects_unapproved_change(tmp_path):
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    _init_repo(repo_dir)
+
+    (repo_dir / "requirements.txt").write_text("pyyaml>=6.0.1\n", encoding="utf-8")
+    (repo_dir / "pyproject.toml").write_text(BASE_PYPROJECT, encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=repo_dir, check=True)
+
+    # Additive-only change: should pass.
+    (repo_dir / "requirements.txt").write_text(
+        "pyyaml>=6.0.1\npdfplumber>=0.10\n", encoding="utf-8"
+    )
+    allowlist = repo_dir / "allowlist.json"
+    allowlist.write_text(
+        json.dumps({"tasks": {"T": {"allowed_packages": ["pdfplumber"]}}}),
+        encoding="utf-8",
+    )
+    passing = validate_manifests_against_ref(
+        "HEAD", allowlist, task_id="T", repo_root=repo_dir
+    )
+    assert passing.is_valid, passing.violations
+
+    # Unapproved change: should fail.
+    (repo_dir / "requirements.txt").write_text(
+        "pyyaml>=6.0.1\nrequests>=2.31.0\n", encoding="utf-8"
+    )
+    failing = validate_manifests_against_ref(
+        "HEAD", allowlist, task_id="T", repo_root=repo_dir
+    )
+    assert not failing.is_valid
+    assert any("not an approved addition" in v for v in failing.violations)
+
+
+# ---------------------------------------------------------------------------
+# strict-mode same-name-addition and Python 3.10 (tomli fallback) coverage
+# ---------------------------------------------------------------------------
+
+
+def test_pyproject_strict_mode_rejects_same_name_addition_alongside_untouched_entry():
+    """Regression for the round-5 Codex P1 finding: in STRICT (task-scoped)
+    mode, an added entry must be allowlist-checked even if its package name
+    matches an untouched existing entry -- e.g. adding "pytest<1" alongside
+    an unmodified "pytest>=8.0.0" is a genuine new addition (the old entry
+    is not being replaced), not a version-bump modification, and must not
+    silently pass just because the package name is already present."""
+    head = BASE_PYPROJECT.replace(
+        'dev = ["pytest>=8.0.0"]',
+        'dev = ["pytest>=8.0.0", "pytest<1"]',
+    )
+    result = validate_pyproject_toml_diff(BASE_PYPROJECT, head, ALLOWED, strict_additive_only=True)
+    assert not result.is_valid
+    assert any("not an approved addition" in v for v in result.violations)
+
+
+def test_requirements_txt_strict_mode_rejects_same_name_addition_alongside_untouched_entry():
+    base = "pyyaml>=6.0.1\n"
+    head = "pyyaml>=6.0.1\npyyaml<5\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=True)
+    assert not result.is_valid
+    assert any("not an approved addition" in v for v in result.violations)
+
+
+def test_requirements_txt_lenient_mode_version_bump_of_existing_dependency_passes():
+    """Regression for the round-5 Codex P2 finding: a version-only change
+    to an already-present requirements.txt line (e.g. "pyyaml>=6.0.1" ->
+    "pyyaml>=7.0.0") must not be rejected as an unapproved new package in
+    lenient mode."""
+    base = "pyyaml>=6.0.1\n"
+    head = "pyyaml>=7.0.0\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert result.is_valid, result.violations
+
+
+def test_pyproject_lenient_mode_rejects_same_name_addition_alongside_untouched_entry():
+    """Regression for the round-6 Codex P2 finding: the lenient-mode
+    same-name exemption must require the OLD entry to have actually been
+    removed, not just share a package name with something still present.
+    Adding "pydantic[email]" alongside an untouched "pydantic>=2.5.0" is a
+    genuine new addition (extra transitive deps, installed before this
+    gate could reject it) and must still be allowlist-checked even in
+    lenient mode."""
+    base = BASE_PYPROJECT.replace(
+        'dependencies = ["pyyaml>=6.0.1"]',
+        'dependencies = ["pyyaml>=6.0.1", "pydantic>=2.5.0"]',
+    )
+    head = base.replace(
+        'dependencies = ["pyyaml>=6.0.1", "pydantic>=2.5.0"]',
+        'dependencies = ["pyyaml>=6.0.1", "pydantic>=2.5.0", "pydantic[email]"]',
+    )
+    result = validate_pyproject_toml_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any(
+        "project.dependencies added entry" in v and "not an approved addition" in v
+        for v in result.violations
+    )
+
+
+def test_pyproject_lenient_mode_rejects_same_name_addition_in_optional_group_alongside_untouched_entry():
+    head = BASE_PYPROJECT.replace(
+        'dev = ["pytest>=8.0.0"]',
+        'dev = ["pytest>=8.0.0", "pytest<1"]',
+    )
+    result = validate_pyproject_toml_diff(BASE_PYPROJECT, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("not an approved addition" in v for v in result.violations)
+
+
+def test_requirements_txt_lenient_mode_rejects_same_name_addition_alongside_untouched_entry():
+    base = "pytest>=8.0.0\n"
+    head = "pytest>=8.0.0\npytest<1\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("not an approved addition" in v for v in result.violations)
+
+
+def test_pyproject_lenient_mode_rejects_extra_after_same_name_version_bump():
+    """A version bump consumes one replacement. Adding pydantic[email] in
+    the same diff is a second same-name addition and must still fail."""
+    base = BASE_PYPROJECT.replace(
+        'dependencies = ["pyyaml>=6.0.1"]',
+        'dependencies = ["pyyaml>=6.0.1", "pydantic>=2.5.0"]',
+    )
+    head = BASE_PYPROJECT.replace(
+        'dependencies = ["pyyaml>=6.0.1"]',
+        'dependencies = ["pyyaml>=6.0.1", "pydantic>=3.0", "pydantic[email]"]',
+    )
+    result = validate_pyproject_toml_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("pydantic[email]" in v and "not an approved addition" in v for v in result.violations)
+
+
+def test_requirements_txt_lenient_mode_rejects_extra_pin_after_same_name_version_bump():
+    base = "pyyaml>=6.0.1\n"
+    head = "pyyaml>=7.0.0\npyyaml<8\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("not an approved addition" in v for v in result.violations)
+
+
+def test_pyproject_lenient_mode_rejects_extras_replacement_of_removed_entry():
+    """Regression for the round-7 Codex P1 finding: replacing a removed
+    entry with a same-named entry that ADDS an extras marker (e.g.
+    "pydantic>=2.5" -> "pydantic[email]>=2.6") is not a version-only
+    replacement -- extras change what actually gets installed (extra
+    transitive dependencies) -- and must still be allowlist-checked even
+    though the plain package name was "removed"."""
+    base = BASE_PYPROJECT.replace(
+        'dependencies = ["pyyaml>=6.0.1"]',
+        'dependencies = ["pyyaml>=6.0.1", "pydantic>=2.5.0"]',
+    )
+    head = base.replace(
+        'dependencies = ["pyyaml>=6.0.1", "pydantic>=2.5.0"]',
+        'dependencies = ["pyyaml>=6.0.1", "pydantic[email]>=2.6.0"]',
+    )
+    result = validate_pyproject_toml_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any(
+        "project.dependencies added entry" in v and "not an approved addition" in v
+        for v in result.violations
+    )
+
+
+def test_requirements_txt_lenient_mode_rejects_extras_replacement_of_removed_line():
+    base = "pydantic>=2.5.0\n"
+    head = "pydantic[email]>=2.6.0\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("not an approved addition" in v for v in result.violations)
+
+
+def test_pyproject_lenient_mode_limits_same_identity_exemption_to_one_removal():
+    """Regression for the round-7 Codex P1 finding: removing ONE old
+    same-identity entry must exempt at most ONE replacement, not an
+    unlimited number of new same-named entries."""
+    base = BASE_PYPROJECT
+    head = BASE_PYPROJECT.replace(
+        'dev = ["pytest>=8.0.0"]',
+        'dev = ["pytest>=9.0.0", "pytest<10"]',
+    )
+    result = validate_pyproject_toml_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("not an approved addition" in v for v in result.violations)
+
+
+def test_requirements_txt_lenient_mode_limits_same_identity_exemption_to_one_removal():
+    base = "pytest>=8.0.0\n"
+    head = "pytest>=9.0.0\npytest<10\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("not an approved addition" in v for v in result.violations)
+
+
+def test_tomllib_import_falls_back_to_tomli_on_python_3_10(monkeypatch):
+    """Regression for the round-5 Codex P2 finding: pyproject.toml declares
+    "requires-python = >=3.10", but stdlib tomllib does not exist before
+    3.11. Simulate that by blocking the tomllib import and reloading the
+    module, then verify it falls back to importing something named
+    'tomli' instead of every pyproject validation permanently raising
+    RuntimeError.
+
+    The real 'tomli' backport is only installed via the
+    "python_version < 3.11" marker on pyproject.toml/requirements.txt, so
+    it is legitimately absent under this repo's own CI (3.12+). Rather than
+    depend on that optional package actually being installed, inject a
+    minimal stand-in 'tomli' module (backed by the real stdlib tomllib's
+    parser) so this test deterministically exercises the fallback-import
+    code path in every environment, not just ones with tomli installed.
+    """
+    import builtins
+    import importlib
+    import sys
+    import types
+
+    import validators.dependency_manifest_diff_validator as validator_module
+
+    real_tomllib = importlib.import_module("tomllib")
+    fake_tomli = types.ModuleType("tomli")
+    fake_tomli.loads = real_tomllib.loads
+    fake_tomli.TOMLDecodeError = real_tomllib.TOMLDecodeError
+
+    real_import = builtins.__import__
+
+    def _blocking_import(name, *args, **kwargs):
+        if name == "tomllib":
+            raise ModuleNotFoundError("simulated: no module named 'tomllib'")
+        if name == "tomli":
+            return fake_tomli
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _blocking_import)
+    monkeypatch.setitem(sys.modules, "tomli", fake_tomli)
+    try:
+        importlib.reload(validator_module)
+        assert validator_module.tomllib is fake_tomli
+        result = validator_module.validate_pyproject_toml_diff(
+            BASE_PYPROJECT, BASE_PYPROJECT, ALLOWED
+        )
+        assert result.is_valid, result.violations
+    finally:
+        monkeypatch.undo()
+        importlib.reload(validator_module)
+        assert validator_module.tomllib.__name__ == "tomllib"
+
+

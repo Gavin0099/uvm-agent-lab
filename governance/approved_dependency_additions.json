@@ -1,0 +1,20 @@
+{
+  "schema": "approved-dependency-additions.v1",
+  "description": "Reviewable allowlist of package names each governance task may additively introduce into pyproject.toml / requirements.txt. Enforced by validators/dependency_manifest_diff_validator.py. Adding an entry here is itself a reviewable governance change.",
+  "tasks": {
+    "GV100H-M2-DEPS": {
+      "description": "PDF ingestion dependencies for gv100h/spec_qa (raw-PDF corpus chunking).",
+      "allowed_packages": [
+        "pdfplumber",
+        "fpdf2"
+      ]
+    },
+    "GOVERNANCE-VALIDATOR-INFRA": {
+      "description": "Infrastructure dependencies required by the governance/validator tooling itself (e.g. TOML parsing backport for Python versions the repo declares support for but that lack the stdlib module). Not tied to a single feature task.",
+      "allowed_packages": [
+        "tomli"
+      ]
+    }
+  }
+}
+
