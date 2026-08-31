@@ -1,5 +1,8 @@
 import json
+import shutil
+import subprocess
 from http.client import HTTPConnection
+from pathlib import Path
 from threading import Thread
 
 import pytest
@@ -245,114 +248,20 @@ def test_app_js_renders_response_as_text_not_html():
 
 @pytest.mark.unit
 def test_app_js_drops_stale_responses_after_mode_or_fixture_change():
-    js = (OperatorUIHandler.__init__.__globals__["UI_DIR"] / "app.js").read_text(encoding="utf-8")
-    empty = "輸入 USB 規格問題後，這裡會顯示有依據的回答。"
-    stale_answer = "STALE_ANSWER_MUST_NOT_RENDER"
-    controls = ("source", "fixture", "answerScope", "retrievalMode", "allowedScopes")
-
-    def listener_body(control):
-        marker = f'$("{control}").addEventListener("change"'
-        assert marker in js, control
-        after = js.split(marker, 1)[1]
-        nxt = after.find(".addEventListener")
-        return after if nxt < 0 else after[:nxt]
-
-    sync_fn = js.split("function syncFixtureMode()", 1)[1].split("function autosizeQuestion()", 1)[0]
-    assert "resetWaitingView()" in sync_fn
-    ask_body = js.split('$("askBtn").addEventListener("click"', 1)[1].split('$("source").addEventListener("change"', 1)[0]
-    assert "invalidatePendingRequest()" in ask_body
-    assert "signal: controller.signal" in ask_body
-    assert ask_body.index("generation !== requestGeneration") < ask_body.index("render(data)")
-    reset_body = js.split("function resetWaitingView()", 1)[1].split('$("askBtn").addEventListener("click"', 1)[0]
-    assert "invalidatePendingRequest()" in reset_body
-    assert "EMPTY_ANSWER" in reset_body
-    assert 'dataSource").textContent = "waiting"' in reset_body or '$("dataSource").textContent = "waiting"' in reset_body
-    assert f'const EMPTY_ANSWER = "{empty}";' in js or f"const EMPTY_ANSWER = '{empty}';" in js
-
-    for control in controls:
-        body = listener_body(control)
-        if control == "source":
-            assert "syncFixtureMode" in body
-        else:
-            assert "resetWaitingView" in body
-
-    class Pending:
-        def __init__(self, ui, generation):
-            self.ui = ui
-            self.generation = generation
-            self.aborted = False
-
-        def resolve(self):
-            if self.aborted or self.generation != self.ui.generation:
-                return
-            self.ui.answer = stale_answer
-            self.ui.data_source = "fixture"
-
-    class Ui:
-        def __init__(self):
-            self.generation = 0
-            self.active = None
-            self.answer = empty
-            self.data_source = "waiting"
-            self.badge = "範例"
-            self.source = "fixture"
-
-        def invalidate(self):
-            self.generation += 1
-            if self.active is not None:
-                self.active.aborted = True
-                self.active = None
-
-        def reset_waiting(self):
-            self.invalidate()
-            self.answer = empty
-            self.data_source = "waiting"
-
-        def click_ask(self):
-            self.invalidate()
-            pending = Pending(self, self.generation)
-            self.active = pending
-            return pending
-
-        def change(self, control, value=None):
-            body = listener_body(control)
-            if "syncFixtureMode" in body:
-                self.source = value
-                self.badge = "範例" if self.source == "fixture" else "服務"
-                assert "resetWaitingView()" in sync_fn
-                self.reset_waiting()
-                return
-            assert "resetWaitingView" in body, control
-            self.reset_waiting()
-
-    for control, value in (
-        ("source", "service"),
-        ("fixture", "conflict"),
-        ("answerScope", "USB_2_0"),
-        ("retrievalMode", "explicit_cross_scope"),
-        ("allowedScopes", "USB_2_0, USB_3_X"),
-    ):
-        ui = Ui()
-        pending = ui.click_ask()
-        ui.change(control, value)
-        assert ui.answer == empty
-        assert ui.data_source == "waiting"
-        pending.resolve()
-        assert ui.answer == empty, control
-        assert ui.data_source == "waiting", control
-        assert stale_answer not in ui.answer
-
-    ui = Ui()
-    rendered = ui.click_ask()
-    ui.answer = stale_answer
-    ui.data_source = "fixture"
-    ui.badge = "範例"
-    ui.change("source", "service")
-    assert ui.badge == "服務"
-    assert ui.answer == empty
-    rendered.resolve()
-    assert ui.answer == empty
-    assert ui.data_source == "waiting"
+    ui_dir = OperatorUIHandler.__init__.__globals__["UI_DIR"]
+    app_js = ui_dir / "app.js"
+    harness = Path(__file__).with_name("operator_ui_stale_request_harness.js")
+    node = shutil.which("node") or shutil.which("nodejs")
+    assert node, "node is required to execute the Operator UI stale-response sequence against app.js"
+    proc = subprocess.run(
+        [node, str(harness), str(app_js)],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+    assert "PASS" in proc.stdout
 
 
 @pytest.mark.unit
