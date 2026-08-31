@@ -160,8 +160,10 @@ function humanDocument(citation, view, index) {
   if (kind === "conflict" && fixture) {
     return index === 1 ? "範例來源 B" : "範例來源 A";
   }
+  if (citation && citation.citation_kind === "governance") return "治理／corpus 中繼資料";
   const doc = citation && citation.document;
   if (!doc || doc === "operator-ui-fixture") {
+    if (!fixture) return "治理／corpus 中繼資料";
     if (view.scope === "USB_3_X") return "USB 3.x Hub Specification";
     if (view.scope === "USB_2_0") return "USB 2.0 Specification";
     if (view.scope === "USB4_SPEC") return "USB4 Specification";
@@ -298,7 +300,7 @@ function renderCitations(view) {
     appendDlRow(item, "修訂版本", citation.revision);
     appendDlRow(item, "引用類型", citation.citation_kind);
     appendDlRow(item, "QA 回應來源", view.source);
-    appendDlRow(item, "範例資料來源", citation.document);
+    appendDlRow(item, view.source === "fixture" ? "範例資料來源" : "文件來源", citation.document || "—");
     developer.appendChild(item);
   });
 }
@@ -411,10 +413,8 @@ function syncFixtureMode() {
     applyFixtureQuestion();
   } else {
     $("question").placeholder = SERVICE_PLACEHOLDER;
-    if (!($("question").value || "").trim()) {
-      $("question").value = "";
-      autosizeQuestion();
-    }
+    $("question").value = "";
+    autosizeQuestion();
   }
   $("fixture").disabled = !fixtureMode;
   resetWaitingView();

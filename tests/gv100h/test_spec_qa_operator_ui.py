@@ -248,6 +248,10 @@ def test_app_js_renders_response_as_text_not_html():
     assert "setModeBadge" in js
     assert "chip.title" in js
     assert "實際查詢服務；問題會送入既有 GovernedQAService。" in js
+    assert "治理／corpus 中繼資料" in js
+    assert "文件來源" in js
+    assert 'citation_kind === "governance"' in js
+    assert '$("question").value = "";' in js.split("SERVICE_PLACEHOLDER", 1)[1].split("function autosizeQuestion()", 1)[0]
 
 
 @pytest.mark.unit
