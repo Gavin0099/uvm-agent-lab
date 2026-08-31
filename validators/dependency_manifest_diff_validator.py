@@ -543,12 +543,26 @@ def main(argv: Optional[List[str]] = None) -> int:
             "direct-reference/VCS-sourced additions"
         ),
     )
+    parser.add_argument(
+        "--repo-root",
+        default=str(PROJECT_ROOT),
+        help=(
+            "repository root to read requirements.txt/pyproject.toml from and "
+            "to run 'git show' in (default: this script's own repo). Must be "
+            "set explicitly when running a copy of this script extracted to a "
+            "path outside the repo (e.g. a trusted base-ref copy fetched via "
+            "'git show' into a temp file), since PROJECT_ROOT is otherwise "
+            "derived from __file__ and would silently point at the temp "
+            "file's directory instead of the actual checkout."
+        ),
+    )
     args = parser.parse_args(argv)
 
     result = validate_manifests_against_ref(
         args.base_ref,
         Path(args.allowlist),
         task_id=args.task,
+        repo_root=Path(args.repo_root),
         strict_additive_only=not args.lenient,
     )
     if result.is_valid:

@@ -71,6 +71,19 @@ jobs:
               echo "[FAIL] This PR changes pyproject.toml and/or requirements.txt, but governance/approved_dependency_additions.json could not be read from base ref $BASE_REF; refusing to fall back to the PR-controlled allowlist. Merge a dedicated bootstrap change first (policy + validator + CI wiring only, no manifest dependency additions), then retry."
               exit 1
             fi
+            # Likewise execute the validator SCRIPT itself from BASE_REF,
+            # not the checked-out PR tip: otherwise a PR that replaces
+            # validators/dependency_manifest_diff_validator.py with a
+            # no-op stub (in addition to an unapproved manifest change)
+            # would have that tampered copy run instead of the real gate,
+            # passing regardless of the manifest content. Trusting the
+            # allowlist data from BASE_REF is not sufficient if the code
+            # that reads it can be rewritten by the same PR under review.
+            TRUSTED_VALIDATOR="$(mktemp --suffix=.py)"
+            if ! git show "$BASE_REF:validators/dependency_manifest_diff_validator.py" > "$TRUSTED_VALIDATOR" 2>/dev/null; then
+              echo "[FAIL] This PR changes pyproject.toml and/or requirements.txt, but validators/dependency_manifest_diff_validator.py could not be read from base ref $BASE_REF; refusing to fall back to the PR-controlled validator script. Merge a dedicated bootstrap change first (policy + validator + CI wiring only, no manifest dependency additions), then retry."
+              exit 1
+            fi
             # --lenient: this generic CI gate cannot attribute a diff to a
             # single dependency-authorization task (e.g. GV100H-M2-DEPS), so
             # it must not freeze every other task's legitimate manifest
@@ -79,7 +92,7 @@ jobs:
             # GovernanceRuntimeBridge uses the strict additive-only mode.
             # Runs before "Install dependencies" so an unapproved dependency
             # is rejected before pip ever installs/builds it.
-            python validators/dependency_manifest_diff_validator.py --base-ref "$BASE_REF" --allowlist "$TRUSTED_ALLOWLIST" --lenient
+            python "$TRUSTED_VALIDATOR" --base-ref "$BASE_REF" --allowlist "$TRUSTED_ALLOWLIST" --repo-root "$(pwd)" --lenient
           elif [ -n "$BASE_REF" ]; then
             echo "[SKIP] Neither pyproject.toml nor requirements.txt changed relative to $BASE_REF; nothing for this gate to validate."
           fi

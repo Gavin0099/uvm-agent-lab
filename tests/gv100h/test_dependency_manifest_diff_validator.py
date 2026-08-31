@@ -439,6 +439,65 @@ def test_validate_manifests_against_ref_detects_unapproved_change(tmp_path):
     assert any("not an approved addition" in v for v in failing.violations)
 
 
+def test_cli_repo_root_flag_targets_explicit_repo_not_script_location(tmp_path):
+    """Regression for a Codex P1 on the CI wiring (not this module's default
+    behavior): CI runs a copy of this script extracted via 'git show' into a
+    mktemp path outside the repo, so it can execute a trusted base-ref
+    version rather than the PR's own (possibly tampered) copy. Without an
+    explicit --repo-root override, PROJECT_ROOT (derived from __file__)
+    would silently resolve to the temp copy's own directory instead of the
+    real checkout, breaking requirements.txt/pyproject.toml resolution and
+    'git show' ref lookups. This proves --repo-root makes that override
+    work when the script runs from an unrelated location."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    _init_repo(repo_dir)
+    (repo_dir / "requirements.txt").write_text("pyyaml>=6.0.1\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=repo_dir, check=True)
+
+    (repo_dir / "requirements.txt").write_text(
+        "pyyaml>=6.0.1\nrequests>=2.31.0\n", encoding="utf-8"
+    )
+    allowlist = repo_dir / "allowlist.json"
+    allowlist.write_text(
+        json.dumps({"tasks": {"T": {"allowed_packages": ["pdfplumber"]}}}),
+        encoding="utf-8",
+    )
+
+    # Copy the validator script somewhere unrelated to repo_dir, simulating
+    # a 'git show BASE_REF:validators/...py' extraction into a mktemp file.
+    script_copy_dir = tmp_path / "elsewhere"
+    script_copy_dir.mkdir()
+    script_copy = script_copy_dir / "trusted_validator.py"
+    script_copy.write_text(
+        (PROJECT_ROOT / "validators" / "dependency_manifest_diff_validator.py").read_text(
+            encoding="utf-8"
+        ),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(script_copy),
+            "--base-ref",
+            "HEAD",
+            "--allowlist",
+            str(allowlist),
+            "--task",
+            "T",
+            "--repo-root",
+            str(repo_dir),
+            "--lenient",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert "not an approved addition" in result.stdout
+
+
 # ---------------------------------------------------------------------------
 # strict-mode same-name-addition and Python 3.10 (tomli fallback) coverage
 # ---------------------------------------------------------------------------
