@@ -136,6 +136,63 @@ def test_html_shell_is_labeled_operator_ui():
     assert "Fixture mode ignores query" in html
     assert "DATA SOURCE" in html
     assert 'id="dataSource"' in html
+    assert "單一範圍" in html
+    assert "跨規格範圍" in html
+    assert "範例資料" in html
+    assert "實際查詢服務" in html
+    assert "正常回答" in html
+    assert ">single_scope<" not in html
+    assert ">answered<" not in html
+    assert "開發模式" in html
+    assert "判定代碼" in html
+    assert "邊界代碼" not in html
+
+
+@pytest.mark.unit
+def test_html_shell_uses_ask_answer_source_hierarchy():
+    ui_dir = OperatorUIHandler.__init__.__globals__["UI_DIR"]
+    html = (ui_dir / "index.html").read_text(encoding="utf-8")
+    css = (ui_dir / "styles.css").read_text(encoding="utf-8")
+    assert 'id="advancedFold"' in html
+    assert 'id="evidenceFold"' in html
+    assert 'id="governanceFold"' in html
+    assert 'id="sourceLine"' in html
+    assert 'id="askBtn"' in html
+    assert "class=\"workbench\"" in html or "class='workbench'" in html
+    assert "輸入 USB 規格問題後，這裡會顯示有依據的回答。" in html
+    assert "進階設定" in html
+    assert "查看引用原文" in html
+    assert "技術詳細資訊" in html
+    assert "預覽範例" in html
+    assert "USB 3.x Hub Class 的 PORT_POWER feature selector 值是多少？" in html
+    assert "下游埠可以在哪些 link state 發出 Warm Reset？" not in html
+    assert 'id="developerCitations"' in html
+    assert 'id="fixtureIgnoreHint"' in html
+    assert html.index('id="governanceFold"') < html.index('id="fixtureIgnoreHint"')
+    assert "以可追溯來源詢問 USB 規格。" in html
+    assert "證據明細" not in html
+    assert "邊界與治理" not in html
+    assert ".card" in css
+    assert "--space-1:" in css
+    assert "appearance: none" in css
+    assert "Inter" in css or "Geist" in css
+    assert "Iowan Old Style" not in css
+    ask_at = html.index('id="askHeading"')
+    answer_at = html.index('id="answerHeading"')
+    source_at = html.index('id="sourceLine"')
+    advanced_at = html.index('id="advancedFold"')
+    evidence_at = html.index('id="evidenceFold"')
+    governance_at = html.index('id="governanceFold"')
+    data_source_at = html.index("DATA SOURCE")
+    assert ask_at < answer_at < source_at
+    assert ask_at < advanced_at < answer_at
+    assert answer_at < evidence_at < governance_at
+    assert data_source_at > governance_at
+    assert ".workbench" in css
+    assert ".paper" in css
+    assert ".layout" not in css
+    assert "--paper:" in css
+    assert "#0b1020" not in css
 
 
 @pytest.mark.unit
@@ -146,6 +203,36 @@ def test_app_js_renders_response_as_text_not_html():
     assert "textContent" in js
     assert "Query is NOT evaluated." in js
     assert "GovernedQAService" in js
+    assert "evidenceSummary" in js
+    assert "askBtn.disabled" in js
+    assert "sourceLine" in js
+    assert "developerCitations" in js
+    assert "USB 3.x Hub Class 的 PORT_POWER feature selector 值為 8（0x0008）。" in js
+    assert "範例回答：" not in js
+    assert "governanceFold" in js
+    assert "shouldOpenGovernance" in js
+    assert "FIXTURE_QUESTIONS" in js
+    assert "預覽範例" in js
+    assert 'parts.join(" · ")' in js
+    assert "權威來源" in js
+    assert "RETRIEVAL_HINT" in js
+    assert "超出目前範圍" in js
+    assert "衝突來源" in js
+    assert "AUTHORITY_MISMATCH" in js
+    assert "uiKind" in js
+    assert "範例來源：" in js
+    assert "PORT_POWER feature selector 值為 8（0x0008）。" in js
+    assert "Phase 1 corpus" in js
+    assert "allowedScopesField" in js
+    assert "boundaryBlock" in js
+    assert "USB4 Specification 未包含於目前可查詢的 Phase 1 corpus。" in js
+    assert "2 個模擬來源" in js
+    assert "模擬：" in js
+    assert "simulatedSpecName" in js
+    assert "PORT_POWER 被視為權威性的 Hub Class selector，值為 8。" in js
+    assert "目前展示的來源彼此衝突" in js
+    assert "範例來源 A 將" not in js
+    assert "USB 2.0 Hub Specification" in js
 
 
 @pytest.mark.unit
