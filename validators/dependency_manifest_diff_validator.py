@@ -149,8 +149,24 @@ def validate_requirements_txt_diff(
     manifest edits are not frozen by a task-specific allowlist.
     """
     allowed = set(allowed_packages)
-    base_lines = [line.strip() for line in base_text.splitlines() if line.strip()]
-    head_lines = [line.strip() for line in head_text.splitlines() if line.strip()]
+    # Comment-only lines carry no install-time meaning in pip's requirements
+    # file format and must never be treated as a dependency spec: Codex
+    # reproduced a false-positive rejection of a documentation-only addition
+    # like "# pin parser dependencies" being misread as an unapproved
+    # package (its "package name" became the whole comment text). Excluded
+    # entirely from both the strict-mode survival check and the added-line
+    # allowlist check, in both modes, since a comment can never introduce or
+    # remove an installed package either way.
+    base_lines = [
+        line.strip()
+        for line in base_text.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    head_lines = [
+        line.strip()
+        for line in head_text.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
 
     head_counts: Dict[str, int] = {}
     for line in head_lines:

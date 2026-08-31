@@ -45,6 +45,24 @@ jobs:
             echo "[SKIP] No base commit available to diff against; skipping dependency manifest diff validation."
             BASE_REF=""
           fi
+          # Defense-in-depth, not a complete fix: GitHub executes a
+          # pull_request-triggered workflow using the definition from the
+          # PR's own branch, so a PR can rewrite or gut this very step
+          # (while keeping this job's required-check name) in the same PR
+          # that adds an unapproved dependency, bypassing the BASE_REF
+          # trust extraction entirely -- Codex reproduced this after the
+          # validator/allowlist trust-root fixes above. This check narrows
+          # that window by refusing to proceed when a PR changes both a
+          # manifest and this workflow directory, but it cannot fully close
+          # it: a PR could still remove this exact check along with
+          # everything else in the same edit. The durable fix is a
+          # repository-level control (e.g. CODEOWNERS + required review for
+          # .github/workflows/**) that this workflow file cannot enforce on
+          # itself.
+          if [ -n "$BASE_REF" ] && ! git diff --quiet "$BASE_REF" -- pyproject.toml requirements.txt && ! git diff --quiet "$BASE_REF" -- .github/workflows/; then
+            echo "[FAIL] This PR changes both a dependency manifest (pyproject.toml/requirements.txt) and .github/workflows/**. Combining a manifest change with a CI workflow change in the same PR is not permitted, since this step's own BASE_REF trust extraction can be bypassed by a PR that also rewrites the enclosing workflow. Split the workflow change into its own PR that does not touch the manifests, get it reviewed and merged first, then retry the manifest change alone."
+            exit 1
+          fi
           if [ -n "$BASE_REF" ] && ! git diff --quiet "$BASE_REF" -- pyproject.toml requirements.txt; then
             # Only reached when this PR actually changes pyproject.toml
             # and/or requirements.txt: a PR that touches neither has

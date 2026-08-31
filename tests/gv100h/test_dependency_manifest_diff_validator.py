@@ -62,6 +62,30 @@ def test_requirements_txt_unapproved_addition_fails():
     assert any("not an approved addition" in v for v in result.violations)
 
 
+def test_requirements_txt_added_comment_line_passes():
+    """Regression for a Codex P2 finding: a documentation-only comment line
+    has no install-time meaning and must not be treated as a dependency
+    spec. Reproduced with "# pin parser dependencies", which was previously
+    rejected as an unapproved package because its "package name" became the
+    entire comment text."""
+    base = "pyyaml>=6.0.1\n"
+    head = "pyyaml>=6.0.1\n# pin parser dependencies\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED)
+    assert result.is_valid, result.violations
+
+    lenient_result = validate_requirements_txt_diff(
+        base, head, ALLOWED, strict_additive_only=False
+    )
+    assert lenient_result.is_valid, lenient_result.violations
+
+
+def test_requirements_txt_removed_comment_line_does_not_fail_strict_mode():
+    base = "# pin parser dependencies\npyyaml>=6.0.1\n"
+    head = "pyyaml>=6.0.1\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED)
+    assert result.is_valid, result.violations
+
+
 def test_requirements_txt_no_change_passes():
     base = "pyyaml>=6.0.1\n"
     head = "pyyaml>=6.0.1\n"
