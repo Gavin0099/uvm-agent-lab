@@ -427,6 +427,34 @@ def validate_pyproject_toml_diff(
         )
     )
 
+    # PEP 621 lets a project mark "dependencies" (or an optional-dependencies
+    # group) as build-backend-resolved via project.dynamic instead of listing
+    # them literally in this file -- e.g. setuptools' own
+    # [tool.setuptools.dynamic].dependencies can point at an arbitrary
+    # external file. This validator only ever inspects the literal arrays
+    # above, so it has no way to enumerate or allowlist packages sourced
+    # that way, backend-agnostically, for every declared or possible build
+    # backend. Reproduced by Codex: in lenient mode, moving
+    # project.dependencies to dynamic and adding a
+    # [tool.setuptools.dynamic] pointer to an attacker-controlled file
+    # passed validation because the (now empty/absent) static array showed
+    # no unapproved addition. Fail closed unconditionally rather than trying
+    # to special-case every backend's dynamic-source mechanism.
+    head_dynamic = set(head_doc.get("project", {}).get("dynamic") or [])
+    dynamic_dependency_fields = {"dependencies", "optional-dependencies"}
+    dynamic_deps_declared = head_dynamic & dynamic_dependency_fields
+    if dynamic_deps_declared:
+        violations.append(
+            "pyproject.toml: project.dynamic declares "
+            f"{sorted(dynamic_deps_declared)} as build-backend-resolved; this "
+            "validator cannot inspect dependencies sourced outside "
+            "project.dependencies/project.optional-dependencies (e.g. "
+            "[tool.setuptools.dynamic] or an equivalent backend mechanism "
+            "pointing at an external file), so any pyproject.toml declaring "
+            "dynamic dependencies is rejected -- declare dependencies "
+            "statically instead"
+        )
+
     return ValidationResult(is_valid=not violations, violations=violations)
 
 

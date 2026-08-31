@@ -241,6 +241,33 @@ def test_pyproject_lenient_mode_allows_approved_build_system_requires_addition()
     assert result.is_valid, result.violations
 
 
+def test_pyproject_lenient_mode_rejects_dynamic_dependencies():
+    """Regression for a Codex P1 finding: --lenient mode only inspected the
+    three hard-coded static arrays (project.dependencies,
+    project.optional-dependencies, build-system.requires). A PR could move
+    project.dependencies to project.dynamic and point
+    [tool.setuptools.dynamic].dependencies at an arbitrary external file
+    (e.g. deps.txt) whose contents this validator never reads, letting an
+    unapproved package be installed once setuptools resolves it -- while
+    the static array check saw only a removal (ignored in lenient mode)."""
+    head = BASE_PYPROJECT.replace(
+        'dependencies = ["pyyaml>=6.0.1"]',
+        (
+            'dynamic = ["dependencies"]\n\n'
+            "[tool.setuptools.dynamic]\n"
+            'dependencies = {file = ["deps.txt"]}'
+        ),
+    )
+    result = validate_pyproject_toml_diff(
+        BASE_PYPROJECT, head, ALLOWED, strict_additive_only=False
+    )
+    assert not result.is_valid
+    assert any("project.dynamic" in v and "dependencies" in v for v in result.violations)
+
+    strict_result = validate_pyproject_toml_diff(BASE_PYPROJECT, head, ALLOWED)
+    assert not strict_result.is_valid
+
+
 def test_pyproject_no_change_passes():
     result = validate_pyproject_toml_diff(BASE_PYPROJECT, BASE_PYPROJECT, ALLOWED)
     assert result.is_valid
