@@ -1119,3 +1119,67 @@ def test_requirements_txt_inline_comment_change_only_does_not_fail_strict_mode()
     assert result.is_valid, result.violations
 
 
+def test_requirements_txt_rejects_local_directory_path_same_name_as_allowed():
+    """Regression for the round-9 Codex P1 finding: a bare local directory
+    reference (e.g. "pdfplumber/", relative to the repo root, potentially
+    containing attacker-controlled build metadata added in the SAME PR) was
+    previously treated as the allowlisted "pdfplumber" package because
+    _package_name() only reads the leading token and neither "@" nor a
+    URL/VCS marker was present."""
+    base = "pyyaml>=6.0.1\n"
+    head = "pyyaml>=6.0.1\npdfplumber/\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("local filesystem path" in v for v in result.violations)
+
+    strict_result = validate_requirements_txt_diff(base, head, ALLOWED)
+    assert not strict_result.is_valid
+
+
+def test_requirements_txt_rejects_relative_path_reference():
+    base = "pyyaml>=6.0.1\n"
+    head = "pyyaml>=6.0.1\n./local_pdfplumber\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("local filesystem path" in v for v in result.violations)
+
+
+def test_requirements_txt_rejects_local_wheel_archive_path():
+    base = "pyyaml>=6.0.1\n"
+    head = "pyyaml>=6.0.1\ndist/pdfplumber-1.0-py3-none-any.whl\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("local filesystem path" in v for v in result.violations)
+
+
+def test_requirements_txt_rejects_bare_wheel_filename_without_path_separator():
+    """Even without a path separator, a bare wheel/archive filename is a
+    local file reference to pip, not a PyPI package specifier."""
+    base = "pyyaml>=6.0.1\n"
+    head = "pyyaml>=6.0.1\npdfplumber-1.0-py3-none-any.whl\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("local archive file" in v for v in result.violations)
+
+
+def test_requirements_txt_ordinary_version_specifier_is_not_rejected_as_local_path():
+    base = "pyyaml>=6.0.1\n"
+    head = "pyyaml>=6.0.1\npdfplumber>=0.10,!=0.11\n"
+    result = validate_requirements_txt_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert result.is_valid, result.violations
+
+
+def test_pyproject_rejects_local_directory_path_in_dependencies():
+    base = BASE_PYPROJECT
+    head = BASE_PYPROJECT.replace(
+        'dependencies = ["pyyaml>=6.0.1"]',
+        'dependencies = ["pyyaml>=6.0.1", "pdfplumber/"]',
+    )
+    result = validate_pyproject_toml_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any(
+        "project.dependencies added entry" in v and "local filesystem path" in v
+        for v in result.violations
+    )
+
+

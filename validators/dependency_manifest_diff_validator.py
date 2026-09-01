@@ -184,6 +184,33 @@ def _rejects_direct_reference_source(dependency_spec: str) -> Optional[str]:
     return None
 
 
+_LOCAL_PATH_MARKERS = ("/", "\\")
+_LOCAL_ARCHIVE_SUFFIXES = (".whl", ".tar.gz", ".tar.bz2", ".tar.xz", ".tar", ".zip")
+
+
+def _rejects_local_path_source(dependency_spec: str) -> Optional[str]:
+    """Returns a violation reason if ``dependency_spec`` looks like a local
+    filesystem path (a project directory or sdist/wheel archive) rather
+    than a PyPI package specifier, else ``None``.
+
+    PEP 508 distribution names never contain ``/`` or ``\\``, but pip's own
+    requirements-file parser also accepts local project directories and
+    archive files as install sources (see ``pip install --help``'s "Local
+    project directories" support) -- neither form matches
+    ``_rejects_direct_reference_source()``'s URL/VCS markers.
+    ``_package_name()`` only reads the leading token, so
+    ``"pdfplumber/"`` (a repo-local directory, potentially containing
+    attacker-controlled build metadata added in the SAME PR) was
+    previously treated as the allowlisted ``pdfplumber`` package.
+    """
+    spec = dependency_spec.strip()
+    if any(marker in spec for marker in _LOCAL_PATH_MARKERS):
+        return f"{spec!r} looks like a local filesystem path, not a PyPI package specifier"
+    if spec.lower().endswith(_LOCAL_ARCHIVE_SUFFIXES):
+        return f"{spec!r} looks like a local archive file, not a PyPI package specifier"
+    return None
+
+
 def validate_requirements_txt_diff(
     base_text: str,
     head_text: str,
@@ -289,6 +316,10 @@ def validate_requirements_txt_diff(
             direct_ref_reason = _rejects_direct_reference_source(line)
             if direct_ref_reason is not None:
                 violations.append(f"requirements.txt: added line {direct_ref_reason}")
+                continue
+            local_path_reason = _rejects_local_path_source(line)
+            if local_path_reason is not None:
+                violations.append(f"requirements.txt: added line {local_path_reason}")
                 continue
             identity = _package_identity(line)
             # In lenient mode only, a genuine one-for-one replacement of a
@@ -408,6 +439,10 @@ def _diff_dependency_array(
         direct_ref_reason = _rejects_direct_reference_source(dep)
         if direct_ref_reason is not None:
             violations.append(f"pyproject.toml: {label} added entry {direct_ref_reason}")
+            continue
+        local_path_reason = _rejects_local_path_source(dep)
+        if local_path_reason is not None:
+            violations.append(f"pyproject.toml: {label} added entry {local_path_reason}")
             continue
         identity = _package_identity(dep)
         if not strict_additive_only and removed_identity_budget.get(identity, 0) > 0:
