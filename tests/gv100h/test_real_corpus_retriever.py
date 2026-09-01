@@ -284,3 +284,22 @@ def test_evaluate_retrieval_rejects_malformed_cases(chunks):
     retriever = real_corpus_retriever.GovernedChunkBM25Retriever(chunks)
     with pytest.raises(ValueError, match="id, query, and target"):
         evaluate_retrieval(retriever, [{"id": "missing-target"}])
+
+
+@pytest.mark.parametrize(
+    "target",
+    [{}, {"secton": "6.9.3"}, {"page": "p.135"}],
+)
+def test_evaluate_retrieval_rejects_underspecified_or_unknown_targets(chunks, target):
+    retriever = real_corpus_retriever.GovernedChunkBM25Retriever(chunks)
+    case = {"id": "bad-target", "query": "Warm Reset", "target": target}
+    with pytest.raises(ValueError, match="recognized constraint|unknown constraints"):
+        evaluate_retrieval(retriever, [case])
+
+
+def test_hit_score_keeps_full_precision_but_serializes_rounded_score(chunks):
+    retriever = real_corpus_retriever.GovernedChunkBM25Retriever(chunks)
+    hit = retriever.query("Warm Reset", top_k=1)[0]
+
+    assert hit.score != round(hit.score, 6) or hit.score == 0
+    assert hit.as_record()["score"] == round(hit.score, 6)

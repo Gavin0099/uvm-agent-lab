@@ -35,6 +35,9 @@ _TOKEN_PATTERN = re.compile(r"\w+(?:[.-]\w+)*", re.UNICODE)
 _SECTION_CAPTION_PATTERN = re.compile(
     r"^\s*(?:Table|Figure)\s+\d+(?:[-.]\d+)*\b.*$", re.IGNORECASE
 )
+_TARGET_FIELDS = frozenset(
+    {"source_id", "section", "section_prefix", "page_or_anchor", "chapter", "chunk_kind"}
+)
 
 
 @dataclass(frozen=True)
@@ -48,7 +51,7 @@ class GovernedChunkRetrievalHit:
     def as_record(self) -> Dict[str, Any]:
         """Return a small metadata-rich record for inspection or adapters."""
         return {
-            "score": self.score,
+            "score": round(self.score, 6),
             "matched_terms": self.matched_terms,
             "chunk_id": self.chunk.chunk_id,
             "source_id": self.chunk.source_id,
@@ -127,7 +130,7 @@ def _hit_metadata(hit: GovernedChunkRetrievalHit, rank: int) -> Dict[str, Any]:
     chunk = hit.chunk
     return {
         "rank": rank,
-        "score": hit.score,
+        "score": round(hit.score, 6),
         "matched_terms": list(hit.matched_terms),
         "chunk_id": chunk.chunk_id,
         "source_id": chunk.source_id,
@@ -164,6 +167,16 @@ def evaluate_retrieval(
         target = case.get("target")
         if not case_id or not query.strip() or not isinstance(target, Mapping):
             raise ValueError("each retrieval case requires id, query, and target")
+        unknown_target_fields = set(target) - _TARGET_FIELDS
+        if unknown_target_fields:
+            raise ValueError(
+                "each retrieval target contains unknown constraints: "
+                f"{sorted(unknown_target_fields)}"
+            )
+        if not (set(target) & _TARGET_FIELDS):
+            raise ValueError(
+                "each retrieval target requires at least one recognized constraint"
+            )
 
         hits = retriever.query(
             query,
@@ -344,7 +357,7 @@ class GovernedChunkBM25Retriever:
                 ranked.append(
                     GovernedChunkRetrievalHit(
                         chunk=self._chunks[index],
-                        score=round(score, 6),
+                        score=score,
                         matched_terms=tuple(matched_terms),
                     )
                 )
