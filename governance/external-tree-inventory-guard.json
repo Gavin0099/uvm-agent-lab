@@ -1,7 +1,0 @@
-{
-  "schema": "external-tree-inventory-guard-identities.v1",
-  "repository_identities": [
-    "https://github.com/Gavin0099/uvm-agent-lab.git",
-    "@repository-root"
-  ]
-}
