@@ -186,12 +186,14 @@ def test_page_events_drops_usb_page_furniture_and_toc_entries():
             {"text": "June 2022 Specification", "top": 49.0, "bottom": 59.0},
             {"text": "6.9.3 Warm Reset ................................................................................. 104", "top": 74.0, "bottom": 84.0},
             {"text": "6.9.3 Warm Reset", "top": 90.0, "bottom": 100.0},
+            {"text": "Valid values are 0, 1, ... 15", "top": 120.0, "bottom": 130.0},
             {"text": "Copyright © 2022 USB 3.0 Promoter Group. All rights reserved.", "top": 746.0, "bottom": 756.0},
         ],
     )
     events = pdf_ingestion._page_events(page)
     assert [(kind, payload) for _, kind, payload in events] == [
         ("line", "6.9.3 Warm Reset"),
+        ("line", "Valid values are 0, 1, ... 15"),
     ]
 
 

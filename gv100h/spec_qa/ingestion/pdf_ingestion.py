@@ -42,7 +42,10 @@ _HEADING_PATTERN = re.compile(r"^(?P<section>\d+(?:\.\d+)*)\s+(?P<title>\S.*)$")
 _CHAPTER_RANGE_PATTERN = re.compile(r"^(?P<start>\d+)-(?P<end>\d+)$")
 
 _PAGE_EDGE_TOLERANCE = 65.0
-_TOC_ENTRY_PATTERN = re.compile(r"\.{3,}\s*(?:\d+|[ivxlcdm]+)\s*$", re.IGNORECASE)
+_TOC_ENTRY_PATTERN = re.compile(
+    r"^\d+(?:\.\d+)*\s+\S.*\.{3,}\s*(?:\d+|[ivxlcdm]+)\s*$",
+    re.IGNORECASE,
+)
 _PAGE_FURNITURE_PATTERNS = (
     re.compile(r"^Revision\s+.+Universal Serial Bus", re.IGNORECASE),
     re.compile(r"^June\s+\d{4}\s+Specification$", re.IGNORECASE),
@@ -146,7 +149,7 @@ def _page_events(page: "pdfplumber.page.Page") -> List[Tuple[float, str, Any]]:
             continue
         if _is_page_furniture(text, top=top, bottom=bottom, page_height=page.height):
             continue
-        if _TOC_ENTRY_PATTERN.search(text):
+        if _TOC_ENTRY_PATTERN.match(text):
             continue
         events.append((top, "line", text))
     for table in tables:
