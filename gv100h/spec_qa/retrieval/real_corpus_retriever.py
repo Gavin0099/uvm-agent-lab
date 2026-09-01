@@ -36,7 +36,15 @@ _SECTION_CAPTION_PATTERN = re.compile(
     r"^\s*(?:Table|Figure)\s+\d+(?:[-.]\d+)*\b.*$", re.IGNORECASE
 )
 _TARGET_FIELDS = frozenset(
-    {"source_id", "section", "section_prefix", "page_or_anchor", "chapter", "chunk_kind"}
+    {
+        "chunk_id",
+        "source_id",
+        "section",
+        "section_prefix",
+        "page_or_anchor",
+        "chapter",
+        "chunk_kind",
+    }
 )
 
 
@@ -111,6 +119,8 @@ def _index_text(chunk: GovernedChunk, context: str) -> str:
 
 
 def _matches_target(chunk: GovernedChunk, target: Mapping[str, Any]) -> bool:
+    if "chunk_id" in target and chunk.chunk_id != target["chunk_id"]:
+        return False
     if "source_id" in target and chunk.source_id != target["source_id"]:
         return False
     if "section" in target and chunk.section != target["section"]:
@@ -202,7 +212,10 @@ def evaluate_retrieval(
                 "id": case_id,
                 "target_rank": target_rank,
                 "hit_count": len(hits),
-                "top_hits": [_hit_metadata(hit, rank) for rank, hit in enumerate(hits, 1)],
+                "top_hits": [
+                    _hit_metadata(hit, rank)
+                    for rank, hit in enumerate(hits[:top_k], 1)
+                ],
             }
         )
 

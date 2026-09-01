@@ -260,6 +260,64 @@ def test_evaluate_retrieval_reports_recall_and_mrr_without_content(chunks):
     )
 
 
+def test_selector_targets_distinguish_same_metadata_chunks():
+    power = _chunk(
+        source_id="usb32",
+        section="10.16.2.10",
+        page="p.483",
+        content="PORT_POWER feature selector value is 8.",
+        index=10,
+    )
+    link_state = _chunk(
+        source_id="usb32",
+        section="10.16.2.10",
+        page="p.483",
+        content="PORT_LINK_STATE feature selector value is 5.",
+        index=11,
+    )
+    retriever = real_corpus_retriever.GovernedChunkBM25Retriever(
+        [power, link_state]
+    )
+    cases = [
+        {
+            "id": "power",
+            "query": "PORT_POWER feature selector value",
+            "allowed_source_ids": ["usb32"],
+            "target": {"chunk_id": power.chunk_id},
+        },
+        {
+            "id": "link-state",
+            "query": "PORT_LINK_STATE feature selector value",
+            "allowed_source_ids": ["usb32"],
+            "target": {"chunk_id": link_state.chunk_id},
+        },
+    ]
+
+    summary = evaluate_retrieval(retriever, cases, top_k=1)
+
+    assert [row["target_rank"] for row in summary["cases"]] == [1, 1]
+    assert [
+        row["top_hits"][0]["chunk_id"] for row in summary["cases"]
+    ] == [power.chunk_id, link_state.chunk_id]
+
+
+def test_evaluate_retrieval_respects_requested_top_k_output(chunks):
+    retriever = real_corpus_retriever.GovernedChunkBM25Retriever(chunks)
+    cases = [
+        {
+            "id": "warm-reset",
+            "query": "Warm Reset",
+            "allowed_source_ids": ["usb32"],
+            "target": {"section": "6.9.3"},
+        }
+    ]
+
+    summary = evaluate_retrieval(retriever, cases, top_k=1)
+
+    assert summary["cases"][0]["hit_count"] == 3
+    assert len(summary["cases"][0]["top_hits"]) == 1
+
+
 def test_evaluate_retrieval_keeps_missed_target_visible(chunks):
     retriever = real_corpus_retriever.GovernedChunkBM25Retriever(chunks)
     cases = [
