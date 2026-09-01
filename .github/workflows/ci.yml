@@ -26,6 +26,95 @@ jobs:
           python-version: "3.12"
           cache: "pip"
 
+      - name: Run Dependency Manifest Diff Validator
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          ZERO_SHA="0000000000000000000000000000000000000000"
+          if [ -n "${PR_BASE_SHA:-}" ]; then
+            BASE_REF="$PR_BASE_SHA"
+          elif [ -n "${PUSH_BEFORE_SHA:-}" ] && [ "$PUSH_BEFORE_SHA" != "$ZERO_SHA" ] && git rev-parse --verify -q "$PUSH_BEFORE_SHA" >/dev/null; then
+            # Covers the whole pushed commit range, not just the tip commit,
+            # so a manifest change in an earlier pushed commit followed by an
+            # unrelated tip commit is still inspected.
+            BASE_REF="$PUSH_BEFORE_SHA"
+          elif git rev-parse --verify -q HEAD^ >/dev/null; then
+            BASE_REF="HEAD^"
+          else
+            echo "[SKIP] No base commit available to diff against; skipping dependency manifest diff validation."
+            BASE_REF=""
+          fi
+          # Defense-in-depth, not a complete fix: GitHub executes a
+          # pull_request-triggered workflow using the definition from the
+          # PR's own branch, so a PR can rewrite or gut this very step
+          # (while keeping this job's required-check name) in the same PR
+          # that adds an unapproved dependency, bypassing the BASE_REF
+          # trust extraction entirely -- Codex reproduced this after the
+          # validator/allowlist trust-root fixes above. This check narrows
+          # that window by refusing to proceed when a PR changes both a
+          # manifest and this workflow directory, but it cannot fully close
+          # it: a PR could still remove this exact check along with
+          # everything else in the same edit. The durable fix is a
+          # repository-level control (e.g. CODEOWNERS + required review for
+          # .github/workflows/**) that this workflow file cannot enforce on
+          # itself.
+          if [ -n "$BASE_REF" ] && ! git diff --quiet "$BASE_REF" -- pyproject.toml requirements.txt && ! git diff --quiet "$BASE_REF" -- .github/workflows/; then
+            echo "[FAIL] This PR changes both a dependency manifest (pyproject.toml/requirements.txt) and .github/workflows/**. Combining a manifest change with a CI workflow change in the same PR is not permitted, since this step's own BASE_REF trust extraction can be bypassed by a PR that also rewrites the enclosing workflow. Split the workflow change into its own PR that does not touch the manifests, get it reviewed and merged first, then retry the manifest change alone."
+            exit 1
+          fi
+          if [ -n "$BASE_REF" ] && ! git diff --quiet "$BASE_REF" -- pyproject.toml requirements.txt; then
+            # Only reached when this PR actually changes pyproject.toml
+            # and/or requirements.txt: a PR that touches neither has
+            # nothing for this gate to validate, regardless of whether the
+            # base branch has a trust root yet, so it is skipped rather
+            # than forced through an artificial bootstrap fallback.
+            #
+            # Read the allowlist from BASE_REF, not the checked-out PR tip:
+            # otherwise a PR that edits both a manifest AND
+            # governance/approved_dependency_additions.json could add its
+            # own package to the allowlist and approve itself before that
+            # policy change has been separately reviewed. There is no
+            # bootstrap fallback: an absent allowlist at BASE_REF is not
+            # evidence the proposed policy is trustworthy, it is only
+            # evidence there is no prior policy to check the PR's own copy
+            # against, so it fails closed unconditionally. The trust root
+            # (this file, the validator, and this CI wiring) must be
+            # established on the base branch by its own, separately
+            # reviewed and merged bootstrap change that adds no manifest
+            # dependencies of its own, before any PR that changes the
+            # manifests can rely on it.
+            TRUSTED_ALLOWLIST="$(mktemp)"
+            if ! git show "$BASE_REF:governance/approved_dependency_additions.json" > "$TRUSTED_ALLOWLIST" 2>/dev/null; then
+              echo "[FAIL] This PR changes pyproject.toml and/or requirements.txt, but governance/approved_dependency_additions.json could not be read from base ref $BASE_REF; refusing to fall back to the PR-controlled allowlist. Merge a dedicated bootstrap change first (policy + validator + CI wiring only, no manifest dependency additions), then retry."
+              exit 1
+            fi
+            # Likewise execute the validator SCRIPT itself from BASE_REF,
+            # not the checked-out PR tip: otherwise a PR that replaces
+            # validators/dependency_manifest_diff_validator.py with a
+            # no-op stub (in addition to an unapproved manifest change)
+            # would have that tampered copy run instead of the real gate,
+            # passing regardless of the manifest content. Trusting the
+            # allowlist data from BASE_REF is not sufficient if the code
+            # that reads it can be rewritten by the same PR under review.
+            TRUSTED_VALIDATOR="$(mktemp --suffix=.py)"
+            if ! git show "$BASE_REF:validators/dependency_manifest_diff_validator.py" > "$TRUSTED_VALIDATOR" 2>/dev/null; then
+              echo "[FAIL] This PR changes pyproject.toml and/or requirements.txt, but validators/dependency_manifest_diff_validator.py could not be read from base ref $BASE_REF; refusing to fall back to the PR-controlled validator script. Merge a dedicated bootstrap change first (policy + validator + CI wiring only, no manifest dependency additions), then retry."
+              exit 1
+            fi
+            # --lenient: this generic CI gate cannot attribute a diff to a
+            # single dependency-authorization task (e.g. GV100H-M2-DEPS), so
+            # it must not freeze every other task's legitimate manifest
+            # edits. It still rejects unapproved or direct-reference/VCS
+            # dependency additions; only the real task-scoped enforcement in
+            # GovernanceRuntimeBridge uses the strict additive-only mode.
+            # Runs before "Install dependencies" so an unapproved dependency
+            # is rejected before pip ever installs/builds it.
+            python "$TRUSTED_VALIDATOR" --base-ref "$BASE_REF" --allowlist "$TRUSTED_ALLOWLIST" --repo-root "$(pwd)" --lenient
+          elif [ -n "$BASE_REF" ]; then
+            echo "[SKIP] Neither pyproject.toml nor requirements.txt changed relative to $BASE_REF; nothing for this gate to validate."
+          fi
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip

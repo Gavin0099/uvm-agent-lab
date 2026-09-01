@@ -91,6 +91,37 @@ tasks:
       - "benchmarks/golden_private/"
       - ".git/"
 
+  GV100H-M2-DEPS:
+    description: >
+      M2-DEPS: PDF ingestion dependency authorization. A separate slice from
+      GV100H-M2 itself because pyproject.toml and requirements.txt are
+      shared, repo-wide manifests: ScopeGuardrail only checks path
+      membership, not diff content, so granting M2 direct write access to
+      these files would let an M2-scoped change silently touch unrelated
+      dependencies, build config, or project metadata. Any change under this
+      task must additionally pass
+      validators/dependency_manifest_diff_validator.py against the
+      allowlist in governance/approved_dependency_additions.json, which is
+      the only place package additions for this task are authorized. This
+      task does not extend or rely on any allowed_paths precedent from
+      GV100H-M0 or GV100H-M2 (GV100H-M0's own precedent is "pyproject.toml"
+      only, not "requirements.txt"). Enforcement surfaces: CI runs the
+      validator in --lenient mode on every PR/push that touches the
+      manifests; GovernanceRuntimeBridge.post_task_check() runs it in
+      strict additive mode when a caller invokes that method. There is
+      currently no production session/task orchestrator that calls
+      post_task_check; runtime-wide strict closeout is not claimed.
+    allowed_paths:
+      - "pyproject.toml"
+      - "requirements.txt"
+    forbidden_paths:
+      - "rtl/"
+      - "additional/"
+      - "benchmarks/golden_private/"
+      - ".git/"
+    validators:
+      - "validators/dependency_manifest_diff_validator.py"
+
   GV100H-M3:
     description: "M3: POC-2 VS Code Local Coding Agent (Admission, Tasks, Governance A/B)"
     allowed_paths:
