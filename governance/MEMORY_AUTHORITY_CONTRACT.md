@@ -1,10 +1,10 @@
 # Memory Authority Contract
 
-> Version: 1.1.0
+> Version: 1.1.1
 > Written: 2026-04-30
-> Amended: 2026-07-04
+> Amended: 2026-08-21
 > Status: ACTIVE - warning mode with active-window completion blocker candidate
-> Authority: Memory Authority Enforcement Plan v0.3 (session 2026-04-30), amended by v1.1.0 canonical-writer alignment
+> Authority: Memory Authority Enforcement Plan v0.3 (session 2026-04-30), amended by v1.1.1 commit-resolution alignment
 
 ---
 
@@ -46,9 +46,9 @@ old-format memory entries as acceptable new records.
 - `governance_tools/memory_record.py` emits `record_format_version`, `writer`,
   `commit`, `commit_hash`, `session_id`, `memory_binding`, `test_evidence`,
   `next_step`, and `plan_reconciliation`.
-- `governance_tools/memory_record.py` sets `memory_binding: bound` only when the
-  supplied commit string matches a hash-like regex; other values are written as
-  `memory_binding: unbound`.
+- `governance_tools.memory_record` sets `memory_binding: bound` only when the
+  supplied commit resolves to a local Git commit object; hash-shaped values
+  that do not resolve are written as `memory_binding: unbound`.
 - `governance_tools/memory_authority_guard.py` detects `non_canonical_writer`,
   old-format entries after the canonical-writer cutoff, and active-window
   non-canonical writer violations.
@@ -96,6 +96,28 @@ callers do not collapse report-only success into authority-clean semantics.
 - no hook, CI, pre-push, closeout, or gate-policy behavior change;
 - no historical memory debt cleanup;
 - no semantic truth verification.
+
+### 0.3 v1.1.1 - Commit Resolution Semantics
+
+**Name of change**: align the documented binding rule with the runtime
+provenance implementation.
+
+**Rationale**: `memory_binding: bound` is not assigned from hash shape alone.
+The canonical writer resolves the supplied commit through the local Git
+worktree; a hash-shaped value that is not a Git commit object remains unbound.
+
+**Evidence**:
+
+- `governance_tools.memory_provenance.resolve_memory_binding` calls Git commit
+  existence validation before returning `bound`.
+- A real merge commit resolves to `bound`; a nonexistent SHA of the same shape
+  resolves to `unbound`.
+
+**Non-claims**:
+
+- `bound` does not prove remote push, review approval, or semantic truth.
+- This amendment changes contract wording only; it does not change writer,
+  guard, workflow, hook, or enforcement behavior.
 
 ---
 
@@ -150,9 +172,9 @@ themselves.
 
 - `writer: governance_tools.memory_record` proves canonical writer format, not
   semantic correctness.
-- `memory_binding: bound` means the current writer classified the `commit` value
-  as hash-like. It does not prove the commit exists on a remote, was reviewed,
-  was pushed, or that the memory statement is true.
+- `memory_binding: bound` means the current writer resolved the `commit` value
+  to a local Git commit object. It does not prove the commit exists on a remote,
+  was reviewed, was pushed, or that the memory statement is true.
 - `memory_binding: unbound` is not automatically invalid. Runtime observations
   and other non-source records may be valid observation evidence when explicitly
   labeled and claim-bounded.
