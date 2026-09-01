@@ -1,5 +1,6 @@
 import hashlib
 import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
@@ -21,6 +22,7 @@ from gv100h.spec_qa.ingestion.pdf_ingestion import (
     search_chunks,
     verify_source_hash,
 )
+import gv100h.spec_qa.ingestion.pdf_ingestion as pdf_ingestion
 
 # Synthetic PDF layout (built with fpdf2, since real licensed USB-IF spec PDFs
 # are not available in this sandbox):
@@ -159,6 +161,40 @@ def test_chunk_pdf_derives_sections_pages_and_kinds(synthetic_pdf):
     assert table_chunk.page_or_anchor == "p.1"
     for row in _TABLE_ROWS:
         assert " | ".join(row) in table_chunk.content
+
+
+def test_chunk_pdf_skips_blank_table_detections(synthetic_pdf, monkeypatch):
+    monkeypatch.setattr(
+        pdf_ingestion,
+        "_page_events",
+        lambda page: [
+            (0.0, "line", "10.1 Nonempty Section"),
+            (1.0, "table", [[""], ["  "]]),
+        ],
+    )
+    chunks = _chunk_pdf(synthetic_pdf)
+    assert chunks
+    assert all(chunk.chunk_kind == "heading_only" for chunk in chunks)
+
+
+def test_page_events_drops_usb_page_furniture_and_toc_entries():
+    page = SimpleNamespace(
+        height=792.0,
+        find_tables=lambda: [],
+        extract_text_lines=lambda layout=False: [
+            {"text": "Revision 1.1 - 104 - Universal Serial Bus 3.2", "top": 37.0, "bottom": 47.0},
+            {"text": "June 2022 Specification", "top": 49.0, "bottom": 59.0},
+            {"text": "6.9.3 Warm Reset ................................................................................. 104", "top": 74.0, "bottom": 84.0},
+            {"text": "6.9.3 Warm Reset", "top": 90.0, "bottom": 100.0},
+            {"text": "Valid values are 0, 1, ... 15", "top": 120.0, "bottom": 130.0},
+            {"text": "Copyright © 2022 USB 3.0 Promoter Group. All rights reserved.", "top": 746.0, "bottom": 756.0},
+        ],
+    )
+    events = pdf_ingestion._page_events(page)
+    assert [(kind, payload) for _, kind, payload in events] == [
+        ("line", "6.9.3 Warm Reset"),
+        ("line", "Valid values are 0, 1, ... 15"),
+    ]
 
 
 def test_chunk_pdf_chunk_ids_are_unique(synthetic_pdf):
