@@ -321,17 +321,21 @@ def test_env_root_absolute_relative_path_escape_fails_closed(tmp_path):
     outside_content = b"outside root bytes\n"
     outside_file = tmp_path / "outside.pdf"
     outside_file.write_bytes(outside_content)
-    # "env://ROOT//outside.pdf" parses to an absolute relative_path segment
-    # (a leading "/"), which must not be allowed to override the env root.
-    absolute_relative_path = str(outside_file)
-    if not absolute_relative_path.startswith("/"):
-        # Force a POSIX-style absolute segment regardless of host platform
-        # path separator conventions, matching the locator's forward-slash
-        # convention.
-        absolute_relative_path = "/" + absolute_relative_path.replace("\\", "/").lstrip("/")
+    # The locator format is "env://<VAR>/<relative_path>": parsing splits
+    # off <VAR> at the *first* "/", which is a deliberate separator, not
+    # part of <relative_path> itself. To make <relative_path> equal to the
+    # host OS's own native absolute-path spelling of outside_file (e.g.
+    # "/tmp/x/outside.pdf" on POSIX, or "C:/Users/x/outside.pdf" on
+    # Windows), it must follow that one separator verbatim -- not have its
+    # own leading "/" folded into the single separator, which would
+    # silently turn it into an in-bounds relative path on POSIX
+    # (Path("/tmp/x").is_absolute() is True, but Path("tmp/x").is_absolute()
+    # is False) while still working "by accident" on Windows (a drive
+    # letter is absolute with or without a leading "/").
+    native_absolute_path = str(outside_file).replace("\\", "/")
     lock = _lock_with_source(
         "usb32",
-        locator=f"env://USB_SPEC_QA_RAW_ROOT{absolute_relative_path}",
+        locator=f"env://USB_SPEC_QA_RAW_ROOT/{native_absolute_path}",
         content_sha256=hashlib.sha256(outside_content).hexdigest(),
     )
     resolver = CorpusSourceResolver(lock, env={"USB_SPEC_QA_RAW_ROOT": str(root_dir)})
