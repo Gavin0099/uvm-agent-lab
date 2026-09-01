@@ -437,6 +437,73 @@ def _diff_dependency_array(
     return violations
 
 
+def _validate_dependency_groups(
+    base_doc: Dict[str, Any],
+    head_doc: Dict[str, Any],
+    allowed: set,
+    *,
+    strict_additive_only: bool,
+) -> List[str]:
+    """PEP 735 ``[dependency-groups]`` is a dependency-bearing table
+    entirely outside the two PEP 621 arrays and outside
+    ``build-system.requires``: entries are installed via
+    ``pip install --group <name>``, so an unapproved or direct-reference
+    entry there bypasses the allowlist just as surely as one in
+    ``project.dependencies``. Each group's plain-string entries are
+    validated with the same rules as any other dependency array. A
+    ``{"include-group": "<name>"}`` entry (PEP 735's cross-group inclusion)
+    is a structural pointer, not a raw dependency spec -- it is only
+    checked for referencing a group that actually exists in this revision.
+    Any other entry shape fails closed as unreviewable.
+    """
+    violations: List[str] = []
+    base_groups = base_doc.get("dependency-groups") or {}
+    head_groups = head_doc.get("dependency-groups") or {}
+
+    for group_name, head_entries in head_groups.items():
+        base_entries = base_groups.get(group_name, [])
+        string_base = [e for e in base_entries if isinstance(e, str)]
+        string_head: List[str] = []
+        for entry in head_entries:
+            if isinstance(entry, str):
+                string_head.append(entry)
+                continue
+            if isinstance(entry, dict) and set(entry.keys()) == {"include-group"}:
+                referenced = entry["include-group"]
+                if referenced not in head_groups:
+                    violations.append(
+                        f"pyproject.toml: dependency-groups[{group_name!r}] "
+                        f"include-group references {referenced!r}, which "
+                        "does not exist in this revision's [dependency-groups]"
+                    )
+                continue
+            violations.append(
+                f"pyproject.toml: dependency-groups[{group_name!r}] entry "
+                f"{entry!r} is not a recognized PEP 735 form (a plain "
+                "requirement string or {'include-group': <name>}) and "
+                "cannot be reviewed"
+            )
+        violations.extend(
+            _diff_dependency_array(
+                string_base,
+                string_head,
+                allowed,
+                strict_additive_only=strict_additive_only,
+                label=f"dependency-groups[{group_name!r}]",
+            )
+        )
+
+    if strict_additive_only:
+        for group_name in base_groups:
+            if group_name not in head_groups:
+                violations.append(
+                    f"pyproject.toml: dependency-groups group {group_name!r} "
+                    "was removed"
+                )
+
+    return violations
+
+
 def validate_pyproject_toml_diff(
     base_text: str,
     head_text: str,
@@ -541,6 +608,18 @@ def validate_pyproject_toml_diff(
             allowed,
             strict_additive_only=strict_additive_only,
             label="build-system.requires",
+        )
+    )
+
+    # PEP 735 [dependency-groups] is a THIRD dependency-bearing table outside
+    # the two PEP 621 arrays and outside build-system.requires: entries are
+    # installed via "pip install --group <name>", so an unapproved or
+    # direct-reference entry there bypasses the allowlist identically.
+    # Checked independently of strict_additive_only for the same reason as
+    # project.dependencies/build-system.requires above.
+    violations.extend(
+        _validate_dependency_groups(
+            base_doc, head_doc, allowed, strict_additive_only=strict_additive_only
         )
     )
 

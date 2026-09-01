@@ -874,6 +874,101 @@ def test_requirements_txt_hash_continuation_unchanged_does_not_fail_strict_mode(
     assert result.is_valid, result.violations
 
 
+def test_pyproject_dependency_groups_rejects_unapproved_addition_in_lenient_mode():
+    """Regression for the round-7 Codex P1 finding: PEP 735
+    [dependency-groups] entries are installed via "pip install --group
+    <name>" but were never inspected at all, so an unapproved addition to a
+    brand-new group passed lenient (CI-wide) validation."""
+    base = BASE_PYPROJECT
+    head = BASE_PYPROJECT + (
+        "\n[dependency-groups]\n"
+        'docs = ["unapproved-package>=1"]\n'
+    )
+    result = validate_pyproject_toml_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any(
+        "dependency-groups" in v and "not an approved addition" in v
+        for v in result.violations
+    )
+
+    strict_result = validate_pyproject_toml_diff(base, head, ALLOWED)
+    assert not strict_result.is_valid
+
+
+def test_pyproject_dependency_groups_allows_approved_addition():
+    base = BASE_PYPROJECT
+    head = BASE_PYPROJECT + (
+        "\n[dependency-groups]\n"
+        'docs = ["pdfplumber>=0.10"]\n'
+    )
+    result = validate_pyproject_toml_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert result.is_valid, result.violations
+
+
+def test_pyproject_dependency_groups_rejects_direct_url_even_if_name_allowed():
+    base = BASE_PYPROJECT
+    head = BASE_PYPROJECT + (
+        "\n[dependency-groups]\n"
+        'docs = ["pdfplumber @ https://attacker.invalid/pkg.whl"]\n'
+    )
+    result = validate_pyproject_toml_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("direct URL/source reference" in v for v in result.violations)
+
+
+def test_pyproject_dependency_groups_rejects_extras_on_allowlisted_package():
+    base = BASE_PYPROJECT
+    head = BASE_PYPROJECT + (
+        "\n[dependency-groups]\n"
+        'docs = ["fpdf2[crypto]>=2.7"]\n'
+    )
+    result = validate_pyproject_toml_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("declares extras" in v for v in result.violations)
+
+
+def test_pyproject_dependency_groups_include_group_reference_to_existing_group_passes():
+    base = BASE_PYPROJECT
+    head = BASE_PYPROJECT + (
+        "\n[dependency-groups]\n"
+        'docs = ["pdfplumber>=0.10"]\n'
+        'all = [{include-group = "docs"}]\n'
+    )
+    result = validate_pyproject_toml_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert result.is_valid, result.violations
+
+
+def test_pyproject_dependency_groups_include_group_reference_to_missing_group_fails():
+    base = BASE_PYPROJECT
+    head = BASE_PYPROJECT + (
+        "\n[dependency-groups]\n"
+        'all = [{include-group = "nonexistent"}]\n'
+    )
+    result = validate_pyproject_toml_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("include-group" in v and "nonexistent" in v for v in result.violations)
+
+
+def test_pyproject_dependency_groups_unrecognized_entry_shape_fails_closed():
+    base = BASE_PYPROJECT
+    head = BASE_PYPROJECT + (
+        "\n[dependency-groups]\n"
+        'docs = [{unexpected-key = "whatever"}]\n'
+    )
+    result = validate_pyproject_toml_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("not a recognized PEP 735 form" in v for v in result.violations)
+
+
+def test_pyproject_dependency_groups_existing_group_survives_strict_mode():
+    base = BASE_PYPROJECT + (
+        "\n[dependency-groups]\n"
+        'docs = ["pdfplumber>=0.10"]\n'
+    )
+    result = validate_pyproject_toml_diff(base, base, ALLOWED)
+    assert result.is_valid, result.violations
+
+
 def test_requirements_txt_lenient_mode_rejects_spaced_extras_replacement():
     """Regression for the round-8 Codex P1 finding: PEP 508 permits
     whitespace before the extras marker ("pydantic [email]>=2.6"). Without
