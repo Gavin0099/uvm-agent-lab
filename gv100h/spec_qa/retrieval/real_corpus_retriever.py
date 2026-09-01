@@ -174,11 +174,19 @@ def evaluate_retrieval(
     query_top_k = max(len(retriever), 5)
 
     for case in cases:
-        case_id = str(case.get("id", ""))
-        query = str(case.get("query", ""))
+        raw_case_id = case.get("id")
+        raw_query = case.get("query")
         target = case.get("target")
-        if not case_id or not query.strip() or not isinstance(target, Mapping):
+        if (
+            not isinstance(raw_case_id, str)
+            or not raw_case_id.strip()
+            or not isinstance(raw_query, str)
+            or not raw_query.strip()
+            or not isinstance(target, Mapping)
+        ):
             raise ValueError("each retrieval case requires id, query, and target")
+        case_id = raw_case_id
+        query = raw_query
         unknown_target_fields = set(target) - _TARGET_FIELDS
         if unknown_target_fields:
             raise ValueError(

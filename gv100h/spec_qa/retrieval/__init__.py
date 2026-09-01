@@ -19,11 +19,8 @@ _LAZY_REAL_CORPUS_EXPORTS = frozenset(
 )
 
 __all__ = [
-	"GovernedChunkBM25Retriever",
-	"GovernedChunkRetrievalHit",
 	"GovernedEvidence",
 	"GovernedSpecRetriever",
-	"evaluate_retrieval",
 ]
 
 

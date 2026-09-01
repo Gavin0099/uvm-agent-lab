@@ -249,6 +249,31 @@ assert GovernedSpecRetriever.__name__ == "GovernedSpecRetriever"
     assert result.returncode == 0, result.stderr
 
 
+def test_wildcard_retrieval_import_does_not_require_optional_pdf_stack():
+    code = """
+import builtins
+
+real_import = builtins.__import__
+
+def blocking_import(name, *args, **kwargs):
+    if name == "pdfplumber":
+        raise ModuleNotFoundError("simulated missing optional pdf extra")
+    return real_import(name, *args, **kwargs)
+
+builtins.__import__ = blocking_import
+from gv100h.spec_qa.retrieval import *
+assert GovernedSpecRetriever.__name__ == "GovernedSpecRetriever"
+assert "GovernedChunkBM25Retriever" not in globals()
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_evaluate_retrieval_reports_recall_and_mrr_without_content(chunks):
     retriever = real_corpus_retriever.GovernedChunkBM25Retriever(chunks)
     cases = [
@@ -367,6 +392,20 @@ def test_evaluate_retrieval_rejects_malformed_cases(chunks):
     retriever = real_corpus_retriever.GovernedChunkBM25Retriever(chunks)
     with pytest.raises(ValueError, match="id, query, and target"):
         evaluate_retrieval(retriever, [{"id": "missing-target"}])
+
+
+@pytest.mark.parametrize("field", ["id", "query"])
+def test_evaluate_retrieval_rejects_null_case_fields(chunks, field):
+    retriever = real_corpus_retriever.GovernedChunkBM25Retriever(chunks)
+    case = {
+        "id": "valid-id",
+        "query": "Warm Reset",
+        "target": {"section": "6.9.3"},
+    }
+    case[field] = None
+
+    with pytest.raises(ValueError, match="id, query, and target"):
+        evaluate_retrieval(retriever, [case])
 
 
 @pytest.mark.parametrize(

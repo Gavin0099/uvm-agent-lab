@@ -48,8 +48,11 @@
     "query": "hub suspend resume port state",
     "allowed_source_ids": ["usb20_se"],
     "target": {
+      "chunk_id": "usb20_se:7.1.7.7:p.184:290:fec41ddc7434030185a6888e7992530c9ca3718d2d89c33a9499c40c0c82d5a2",
       "source_id": "usb20_se",
-      "chapter": "7"
+      "section": "7.1.7.7",
+      "page_or_anchor": "p.184",
+      "chunk_kind": "paragraph"
     }
   },
   {
