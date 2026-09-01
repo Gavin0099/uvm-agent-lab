@@ -437,6 +437,43 @@ def _diff_dependency_array(
     return violations
 
 
+def _resolve_dependency_group_closure(
+    groups: Dict[str, List[Any]],
+    group_name: str,
+    *,
+    _visiting: Optional[frozenset] = None,
+) -> List[str]:
+    """Recursively resolves a PEP 735 dependency-groups entry into its flat
+    list of plain-string requirement specs, following ``include-group``
+    pointers transitively -- e.g. resolving group ``"all"`` that includes
+    group ``"legacy"`` must surface ``"legacy"``'s own entries too, since
+    ``pip install --group all`` installs everything ``"legacy"`` would.
+    An unresolvable reference (missing or cyclical target -- both invalid
+    PEP 735, reported separately by the caller's own shape/existence check)
+    simply contributes nothing further to the closure rather than raising,
+    so this always terminates and never double-reports.
+    """
+    if _visiting is None:
+        _visiting = frozenset()
+    if group_name in _visiting or group_name not in groups:
+        return []
+    _visiting = _visiting | {group_name}
+    resolved: List[str] = []
+    for entry in groups[group_name]:
+        if isinstance(entry, str):
+            resolved.append(entry)
+        elif isinstance(entry, dict) and set(entry.keys()) == {"include-group"}:
+            resolved.extend(
+                _resolve_dependency_group_closure(
+                    groups, entry["include-group"], _visiting=_visiting
+                )
+            )
+        # Any other entry shape is flagged separately by the caller's
+        # per-entry shape check and contributes nothing to the closure here
+        # (never guessed at or treated as a dependency spec).
+    return resolved
+
+
 def _validate_dependency_groups(
     base_doc: Dict[str, Any],
     head_doc: Dict[str, Any],
@@ -449,24 +486,25 @@ def _validate_dependency_groups(
     ``build-system.requires``: entries are installed via
     ``pip install --group <name>``, so an unapproved or direct-reference
     entry there bypasses the allowlist just as surely as one in
-    ``project.dependencies``. Each group's plain-string entries are
-    validated with the same rules as any other dependency array. A
-    ``{"include-group": "<name>"}`` entry (PEP 735's cross-group inclusion)
-    is a structural pointer, not a raw dependency spec -- it is only
-    checked for referencing a group that actually exists in this revision.
-    Any other entry shape fails closed as unreviewable.
+    ``project.dependencies``. A ``{"include-group": "<name>"}`` entry
+    (PEP 735's cross-group inclusion) is a structural pointer, not a raw
+    dependency spec; any other entry shape fails closed as unreviewable.
+
+    Each group is compared by its fully RESOLVED dependency closure
+    (following ``include-group`` pointers transitively), not merely its own
+    direct entries -- otherwise re-pointing an ``include-group`` reference
+    at a *different*, already-existing-but-unapproved group changes what
+    ``pip install --group <name>`` actually installs without that group's
+    own literal entries ever changing, which a direct-entries-only diff
+    would silently miss.
     """
     violations: List[str] = []
     base_groups = base_doc.get("dependency-groups") or {}
     head_groups = head_doc.get("dependency-groups") or {}
 
     for group_name, head_entries in head_groups.items():
-        base_entries = base_groups.get(group_name, [])
-        string_base = [e for e in base_entries if isinstance(e, str)]
-        string_head: List[str] = []
         for entry in head_entries:
             if isinstance(entry, str):
-                string_head.append(entry)
                 continue
             if isinstance(entry, dict) and set(entry.keys()) == {"include-group"}:
                 referenced = entry["include-group"]
@@ -483,13 +521,17 @@ def _validate_dependency_groups(
                 "requirement string or {'include-group': <name>}) and "
                 "cannot be reviewed"
             )
+
+    for group_name in set(base_groups) | set(head_groups):
+        base_closure = _resolve_dependency_group_closure(base_groups, group_name)
+        head_closure = _resolve_dependency_group_closure(head_groups, group_name)
         violations.extend(
             _diff_dependency_array(
-                string_base,
-                string_head,
+                base_closure,
+                head_closure,
                 allowed,
                 strict_additive_only=strict_additive_only,
-                label=f"dependency-groups[{group_name!r}]",
+                label=f"dependency-groups[{group_name!r}] resolved closure",
             )
         )
 
@@ -622,6 +664,36 @@ def validate_pyproject_toml_diff(
             base_doc, head_doc, allowed, strict_additive_only=strict_additive_only
         )
     )
+
+    # PEP 517/518 build backends can introduce ADDITIONAL requirements at
+    # build time via hooks such as get_requires_for_build_wheel(), entirely
+    # outside the static build-system.requires array this validator can
+    # read. Codex reproduced an in-tree backend -- declared via
+    # build-system.backend-path, whose source is part of the SAME PR --
+    # whose hook returned an unallowlisted package, so a later
+    # "pip install ." bypassed this trust root even though
+    # build-system.requires itself was untouched. This validator has no way
+    # to execute or introspect a backend's hooks (backend-agnostically, for
+    # every possible backend), so any change to WHICH backend is used or
+    # where its in-tree source is loaded from is rejected outright, in both
+    # modes, rather than trying to special-case every backend's dynamic
+    # requirement mechanism.
+    base_build_system = base_doc.get("build-system", {}) or {}
+    head_build_system = head_doc.get("build-system", {}) or {}
+    base_backend = base_build_system.get("build-backend")
+    head_backend = head_build_system.get("build-backend")
+    base_backend_path = base_build_system.get("backend-path")
+    head_backend_path = head_build_system.get("backend-path")
+    if base_backend != head_backend or base_backend_path != head_backend_path:
+        violations.append(
+            "pyproject.toml: build-system.build-backend/backend-path changed "
+            f"(build-backend {base_backend!r} -> {head_backend!r}, "
+            f"backend-path {base_backend_path!r} -> {head_backend_path!r}) -- "
+            "a build backend's hooks can introduce additional, unreviewed "
+            "requirements at build time that this validator cannot inspect, "
+            "so any change to which backend is used or where its source is "
+            "loaded from is rejected outright"
+        )
 
     # PEP 621 lets a project mark "dependencies" (or an optional-dependencies
     # group) as build-backend-resolved via project.dynamic instead of listing

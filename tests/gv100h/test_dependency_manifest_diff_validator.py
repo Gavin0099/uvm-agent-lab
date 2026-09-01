@@ -969,6 +969,88 @@ def test_pyproject_dependency_groups_existing_group_survives_strict_mode():
     assert result.is_valid, result.violations
 
 
+def test_pyproject_dependency_groups_repointing_include_group_to_unapproved_group_fails():
+    """Regression for the round-8 Codex P1 finding: an include-group entry
+    that starts pointing at a DIFFERENT, already-existing-but-unapproved
+    group must still be rejected, even though neither group's own direct
+    entries changed -- what "pip install --group all" resolves to did
+    change, because the resolved closure (not just direct entries) is what
+    matters."""
+    base = BASE_PYPROJECT + (
+        "\n[dependency-groups]\n"
+        'safe = ["pdfplumber>=0.10"]\n'
+        'legacy = ["unapproved-package>=1"]\n'
+        'all = [{include-group = "safe"}]\n'
+    )
+    head = BASE_PYPROJECT + (
+        "\n[dependency-groups]\n"
+        'safe = ["pdfplumber>=0.10"]\n'
+        'legacy = ["unapproved-package>=1"]\n'
+        'all = [{include-group = "legacy"}]\n'
+    )
+    result = validate_pyproject_toml_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any(
+        "dependency-groups" in v and "not an approved addition" in v
+        for v in result.violations
+    )
+
+
+def test_pyproject_dependency_groups_transitive_include_resolves_nested_group():
+    """A group that includes a group which itself includes a THIRD group
+    must surface the third group's entries too."""
+    base = BASE_PYPROJECT + (
+        "\n[dependency-groups]\n"
+        'leaf = ["pdfplumber>=0.10"]\n'
+        'mid = [{include-group = "leaf"}]\n'
+        'top = [{include-group = "mid"}]\n'
+    )
+    result = validate_pyproject_toml_diff(base, base, ALLOWED, strict_additive_only=False)
+    assert result.is_valid, result.violations
+
+    head = base.replace('leaf = ["pdfplumber>=0.10"]', 'leaf = ["unapproved-package>=1"]')
+    result = validate_pyproject_toml_diff(base, head, ALLOWED, strict_additive_only=False)
+    assert not result.is_valid
+    assert any("not an approved addition" in v for v in result.violations)
+
+
+def test_pyproject_lenient_mode_rejects_build_backend_change():
+    """Regression for the round-8 Codex P1 finding: changing which build
+    backend is used (or where an in-tree backend's source is loaded from)
+    can introduce additional, unreviewed requirements via the backend's own
+    hooks (e.g. get_requires_for_build_wheel()) that this validator cannot
+    inspect, even though build-system.requires itself stays untouched."""
+    base_with_build_system = (
+        BASE_PYPROJECT
+        + '\n[build-system]\nrequires = ["setuptools>=61.0"]\n'
+        'build-backend = "setuptools.build_meta"\n'
+    )
+    head = base_with_build_system.replace(
+        'build-backend = "setuptools.build_meta"',
+        'build-backend = "_custom_backend"\nbackend-path = ["."]',
+    )
+    result = validate_pyproject_toml_diff(
+        base_with_build_system, head, ALLOWED, strict_additive_only=False
+    )
+    assert not result.is_valid
+    assert any("build-backend/backend-path changed" in v for v in result.violations)
+
+    strict_result = validate_pyproject_toml_diff(base_with_build_system, head, ALLOWED)
+    assert not strict_result.is_valid
+
+
+def test_pyproject_unchanged_build_backend_does_not_fail():
+    base_with_build_system = (
+        BASE_PYPROJECT
+        + '\n[build-system]\nrequires = ["setuptools>=61.0"]\n'
+        'build-backend = "setuptools.build_meta"\n'
+    )
+    result = validate_pyproject_toml_diff(
+        base_with_build_system, base_with_build_system, ALLOWED, strict_additive_only=False
+    )
+    assert result.is_valid, result.violations
+
+
 def test_requirements_txt_lenient_mode_rejects_spaced_extras_replacement():
     """Regression for the round-8 Codex P1 finding: PEP 508 permits
     whitespace before the extras marker ("pydantic [email]>=2.6"). Without
