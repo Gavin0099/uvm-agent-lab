@@ -41,6 +41,18 @@ _HEADING_PATTERN = re.compile(r"^(?P<section>\d+(?:\.\d+)*)\s+(?P<title>\S.*)$")
 # number ("6") or an inclusive range ("8-11").
 _CHAPTER_RANGE_PATTERN = re.compile(r"^(?P<start>\d+)-(?P<end>\d+)$")
 
+_PAGE_EDGE_TOLERANCE = 65.0
+_TOC_ENTRY_PATTERN = re.compile(r"\.{3,}\s*(?:\d+|[ivxlcdm]+)\s*$", re.IGNORECASE)
+_PAGE_FURNITURE_PATTERNS = (
+    re.compile(r"^Revision\s+.+Universal Serial Bus", re.IGNORECASE),
+    re.compile(r"^June\s+\d{4}\s+Specification$", re.IGNORECASE),
+    re.compile(r"^Universal Serial Bus Specification Revision\b", re.IGNORECASE),
+    re.compile(r"^Copyright\b", re.IGNORECASE),
+    re.compile(r"^SS Hub.*Compliance", re.IGNORECASE),
+    re.compile(r"^Preface\s+\d{2}/\d{2}/\d{4}$", re.IGNORECASE),
+    re.compile(r"^\d{2}/\d{2}/\d{4}$"),
+)
+
 # A source's PDF-ingestible locator scheme. Kept as its own check (not
 # folded into ``is_source_eligible_as_answer_evidence``) because
 # "eligible as answer evidence" and "is a PDF this pipeline can ingest" are
@@ -126,14 +138,42 @@ def _page_events(page: "pdfplumber.page.Page") -> List[Tuple[float, str, Any]]:
     events: List[Tuple[float, str, Any]] = []
     for line in page.extract_text_lines(layout=False):
         text = (line.get("text") or "").strip()
-        if text and not _within_any_table(line["top"]):
-            events.append((line["top"], "line", text))
+        top = line.get("top")
+        bottom = line.get("bottom")
+        if not text or top is None or bottom is None:
+            continue
+        if _within_any_table(top):
+            continue
+        if _is_page_furniture(text, top=top, bottom=bottom, page_height=page.height):
+            continue
+        if _TOC_ENTRY_PATTERN.search(text):
+            continue
+        events.append((top, "line", text))
     for table in tables:
         rows = table.extract()
         if rows:
             events.append((table.bbox[1], "table", rows))
     events.sort(key=lambda event: event[0])
     return events
+
+
+def _is_page_furniture(
+    text: str,
+    *,
+    top: float,
+    bottom: float,
+    page_height: float,
+) -> bool:
+    """Identifies fixed USB-spec page headers/footers without removing
+    ordinary body text that happens to contain the same words away from the
+    page edges."""
+    at_top = top <= _PAGE_EDGE_TOLERANCE
+    at_bottom = bottom >= page_height - _PAGE_EDGE_TOLERANCE
+    if not (at_top or at_bottom):
+        return False
+    if at_bottom and re.fullmatch(r"(?:\d+|[ivxlcdm]+)", text, re.IGNORECASE):
+        return True
+    return any(pattern.match(text) for pattern in _PAGE_FURNITURE_PATTERNS)
 
 
 def _serialize_table(rows: List[List[Optional[str]]]) -> str:
@@ -233,7 +273,9 @@ def chunk_pdf(
                     paragraph_buffer = []
                     if current_section is None:
                         continue
-                    _emit(current_section, page_or_anchor, "table", _serialize_table(payload))
+                    table_content = _serialize_table(payload)
+                    if table_content.strip():
+                        _emit(current_section, page_or_anchor, "table", table_content)
             _flush_paragraph(paragraph_buffer, page_or_anchor)
 
     if not chunks:
