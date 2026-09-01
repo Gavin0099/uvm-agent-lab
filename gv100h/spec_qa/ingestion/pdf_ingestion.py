@@ -335,6 +335,14 @@ def ingest_source_from_corpus_lock(
     source = corpus_lock.get("sources", {}).get(source_id)
     if not isinstance(source, dict):
         raise PdfIngestionError(f"unknown source_id (not in corpus.lock.yaml): {source_id!r}")
+    if not is_source_eligible_as_answer_evidence(source_id, corpus_lock):
+        raise PdfIngestionError(
+            f"source {source_id!r} is not eligible as Phase-1 answer evidence"
+        )
+    if not is_official_raw_pdf_source(source_id, corpus_lock):
+        raise PdfIngestionError(
+            f"source {source_id!r} is not an official_raw env:// PDF source"
+        )
     document = source.get("document")
     revision = source.get("revision")
     if not document or not revision:

@@ -15,6 +15,7 @@ this module is a pure schema/validation layer. It must not import from
 contract, not the other way around.
 """
 import hashlib
+import json
 import re
 from typing import Literal
 
@@ -88,6 +89,13 @@ class GovernedChunk(BaseModel):
             )
         return self
 
+    @field_validator("content", mode="after")
+    @classmethod
+    def _content_must_not_be_whitespace_only(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("content must not be blank or whitespace-only")
+        return value
+
     @model_validator(mode="after")
     def _chapter_matches_section(self) -> "GovernedChunk":
         if self.chapter != self._derive_chapter(self.section):
@@ -102,30 +110,77 @@ class GovernedChunk(BaseModel):
         """
         ``chunk_id`` is part of a chunk's evidence identity, not just an
         opaque label -- a citation's ``evidence_id`` (``to_citation()``
-        below) is only as trustworthy as the ``chunk_id`` it echoes. This
-        cross-checks ``chunk_id`` against this same chunk's own
-        ``source_id``/``section``/``page_or_anchor``/``content_sha256`` (the
-        same components ``build()`` derives it from) so a ``GovernedChunk``
-        constructed directly with an unrelated/forged ``chunk_id`` -- e.g.
-        rehydrated from an untrusted JSON/vector-DB/cache record -- is
-        rejected the same way a forged ``content_sha256`` already is,
-        instead of only being checked on the ``build()`` path.
+        below) is only as trustworthy as the ``chunk_id`` it echoes. Recompute
+        it from the complete provenance tuple so a change to document,
+        revision, authority, or any other identity field cannot retain the
+        same evidence ID.
         """
         prefix = f"{self.source_id}:{self.section}:{self.page_or_anchor}:"
-        suffix = f":{self.content_sha256[:12]}"
-        if not (self.chunk_id.startswith(prefix) and self.chunk_id.endswith(suffix)):
+        if not self.chunk_id.startswith(prefix):
             raise GovernedChunkError(
                 f"chunk_id {self.chunk_id!r} is not derived from this chunk's own "
                 "source_id/section/page_or_anchor/content_sha256 "
-                f"(expected {prefix}<index>{suffix})"
+                f"(expected {prefix}<index>:<full-provenance-digest>)"
             )
-        index_segment = self.chunk_id[len(prefix) : -len(suffix)]
-        if not _CHUNK_ID_INDEX_SEGMENT.match(index_segment):
+        index_segment, separator, _digest = self.chunk_id[len(prefix) :].partition(":")
+        if not separator or not _CHUNK_ID_INDEX_SEGMENT.match(index_segment):
             raise GovernedChunkError(
                 f"chunk_id {self.chunk_id!r} index segment {index_segment!r} is not a "
                 "non-negative integer"
             )
+        expected = self._derive_chunk_id(
+            source_id=self.source_id,
+            document=self.document,
+            revision=self.revision,
+            chapter=self.chapter,
+            section=self.section,
+            page_or_anchor=self.page_or_anchor,
+            authority_level=self.authority_level,
+            chunk_kind=self.chunk_kind,
+            content_sha256=self.content_sha256,
+            index=int(index_segment),
+        )
+        if self.chunk_id != expected:
+            raise GovernedChunkError(
+                f"chunk_id {self.chunk_id!r} is not derived from this chunk's own "
+                "complete provenance (document/revision/authority and all "
+                f"identity fields); expected {expected!r}"
+            )
         return self
+
+    @staticmethod
+    def _derive_chunk_id(
+        *,
+        source_id: str,
+        document: str,
+        revision: str,
+        chapter: str,
+        section: str,
+        page_or_anchor: str,
+        authority_level: AuthorityLevel,
+        chunk_kind: ChunkKind,
+        content_sha256: str,
+        index: int,
+    ) -> str:
+        identity = json.dumps(
+            {
+                "authority_level": authority_level,
+                "chapter": chapter,
+                "chunk_kind": chunk_kind,
+                "content_sha256": content_sha256,
+                "document": document,
+                "index": index,
+                "page_or_anchor": page_or_anchor,
+                "revision": revision,
+                "section": section,
+                "source_id": source_id,
+            },
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        provenance_digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()
+        return f"{source_id}:{section}:{page_or_anchor}:{index}:{provenance_digest}"
 
     @staticmethod
     def _derive_chapter(section: str) -> str:
@@ -159,7 +214,18 @@ class GovernedChunk(BaseModel):
         """
         chapter = cls._derive_chapter(section)
         content_sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
-        chunk_id = f"{source_id}:{section}:{page_or_anchor}:{index}:{content_sha256[:12]}"
+        chunk_id = cls._derive_chunk_id(
+            source_id=source_id,
+            document=document,
+            revision=revision,
+            chapter=chapter,
+            section=section,
+            page_or_anchor=page_or_anchor,
+            authority_level=authority_level,
+            chunk_kind=chunk_kind,
+            content_sha256=content_sha256,
+            index=index,
+        )
         return cls(
             chunk_id=chunk_id,
             source_id=source_id,

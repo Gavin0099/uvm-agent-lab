@@ -344,6 +344,29 @@ def test_ingest_source_from_corpus_lock_uses_raw_root_and_locked_hash(synthetic_
     assert all(c.source_id == "usb32_synth" for c in chunks)
 
 
+@pytest.mark.parametrize(
+    "source_overrides",
+    [
+        {"phase": "phase_2"},
+        {"included": False},
+        {"layer": "evaluation_only"},
+    ],
+)
+def test_ingest_source_from_corpus_lock_rejects_ineligible_sources(
+    synthetic_pdf, tmp_path, source_overrides
+):
+    """The direct ingestion entry point must enforce the same corpus
+    eligibility boundary as load_accepted_chunks: evaluation-only, Phase-2,
+    and explicitly excluded sources must never become GovernedChunks merely
+    because a caller invokes this lower-level function directly."""
+    lock = _corpus_lock("env://USB_SPEC_QA_RAW_ROOT/usb32_synthetic.pdf", _sha256_of(synthetic_pdf))
+    if source_overrides.get("layer") == "evaluation_only":
+        lock["layers"]["evaluation_only"] = {"allowed_as_answer_evidence": False}
+    lock["sources"]["usb32_synth"].update(source_overrides)
+    with pytest.raises(PdfIngestionError, match="not eligible"):
+        ingest_source_from_corpus_lock("usb32_synth", lock, raw_root=tmp_path)
+
+
 def test_load_accepted_chunks_skips_ineligible_sources_without_ingesting_them(
     synthetic_pdf, tmp_path
 ):

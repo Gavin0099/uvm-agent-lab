@@ -49,6 +49,25 @@ def test_build_is_sensitive_to_content_change():
     assert a.content_sha256 != b.content_sha256
 
 
+@pytest.mark.parametrize(
+    "field,replacement",
+    [
+        ("document", "USB 2.0 Specification"),
+        ("revision", "Rev 2.0"),
+        ("authority_level", "informative"),
+    ],
+)
+def test_chunk_id_binds_document_revision_and_authority(field, replacement):
+    original = _build_chunk()
+    changed = _build_chunk(**{field: replacement})
+    assert changed.chunk_id != original.chunk_id
+
+    forged = original.model_dump()
+    forged[field] = replacement
+    with pytest.raises(GovernedChunkError, match="complete provenance"):
+        GovernedChunk(**forged)
+
+
 def test_direct_construction_rejects_content_sha256_mismatch():
     chunk = _build_chunk()
     with pytest.raises(GovernedChunkError, match="does not match sha256"):
@@ -147,6 +166,12 @@ def test_direct_construction_accepts_a_chunk_id_matching_this_chunks_own_identit
 def test_blank_required_fields_are_rejected(blank_field):
     with pytest.raises(GovernedChunkError):
         _build_chunk(**{blank_field: ""})
+
+
+@pytest.mark.parametrize("content", [" ", "\t", " \n \t "])
+def test_whitespace_only_content_is_rejected(content):
+    with pytest.raises(GovernedChunkError, match="whitespace-only"):
+        _build_chunk(content=content)
 
 
 def test_section_without_numeric_chapter_prefix_is_rejected():
