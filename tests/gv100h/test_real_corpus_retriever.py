@@ -1,3 +1,4 @@
+import subprocess
 import sys
 from pathlib import Path
 
@@ -224,6 +225,30 @@ def test_retrieval_package_exports_real_corpus_retriever():
     assert GovernedChunkRetrievalHit is real_corpus_retriever.GovernedChunkRetrievalHit
 
 
+def test_legacy_retrieval_import_does_not_require_optional_pdf_stack():
+    code = """
+import builtins
+
+real_import = builtins.__import__
+
+def blocking_import(name, *args, **kwargs):
+    if name == "pdfplumber":
+        raise ModuleNotFoundError("simulated missing optional pdf extra")
+    return real_import(name, *args, **kwargs)
+
+builtins.__import__ = blocking_import
+from gv100h.spec_qa.retrieval import GovernedSpecRetriever
+assert GovernedSpecRetriever.__name__ == "GovernedSpecRetriever"
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_evaluate_retrieval_reports_recall_and_mrr_without_content(chunks):
     retriever = real_corpus_retriever.GovernedChunkBM25Retriever(chunks)
     cases = [
@@ -353,6 +378,41 @@ def test_evaluate_retrieval_rejects_underspecified_or_unknown_targets(chunks, ta
     case = {"id": "bad-target", "query": "Warm Reset", "target": target}
     with pytest.raises(ValueError, match="recognized constraint|unknown constraints"):
         evaluate_retrieval(retriever, [case])
+
+
+def test_evaluate_retrieval_computes_mrr_beyond_top_five(chunks):
+    tail = _chunk(
+        source_id="usb32",
+        section="8.1",
+        page="p.300",
+        content="needle",
+        index=6,
+    )
+    distractors = [
+        _chunk(
+            source_id="usb32",
+            section=f"8.2.{index}",
+            page=f"p.{300 + index}",
+            content="needle needle needle needle",
+            index=7 + index,
+        )
+        for index in range(5)
+    ]
+    retriever = real_corpus_retriever.GovernedChunkBM25Retriever(
+        [*chunks, *distractors, tail]
+    )
+    case = {
+        "id": "below-five",
+        "query": "needle",
+        "target": {"chunk_id": tail.chunk_id},
+    }
+
+    summary = evaluate_retrieval(retriever, [case], top_k=1)
+
+    assert summary["cases"][0]["target_rank"] == 6
+    assert summary["mrr"] == round(1 / 6, 3)
+    assert summary["recall@5"] == 0.0
+    assert len(summary["cases"][0]["top_hits"]) == 1
 
 
 def test_hit_score_keeps_full_precision_but_serializes_rounded_score(chunks):

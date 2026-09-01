@@ -169,7 +169,9 @@ def evaluate_retrieval(
     rows: List[Dict[str, Any]] = []
     reciprocal_rank_total = 0.0
     recall_counts = {1: 0, 3: 0, 5: 0}
-    query_top_k = max(top_k, 5)
+    # Metrics need the complete ranking to distinguish a below-cutoff target
+    # from a missing target; only the displayed top_hits are limited below.
+    query_top_k = max(len(retriever), 5)
 
     for case in cases:
         case_id = str(case.get("id", ""))
