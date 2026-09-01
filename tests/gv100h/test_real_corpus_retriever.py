@@ -11,6 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
 import gv100h.spec_qa.retrieval.real_corpus_retriever as real_corpus_retriever
 from gv100h.spec_qa.contracts.governed_chunk import GovernedChunk
 from gv100h.spec_qa.retrieval.real_corpus_retriever import evaluate_retrieval
+from scripts.run_real_corpus_retrieval_v1 import _collect_source_ids
 
 
 
@@ -410,13 +411,37 @@ def test_evaluate_retrieval_rejects_null_case_fields(chunks, field):
 
 @pytest.mark.parametrize(
     "target",
-    [{}, {"secton": "6.9.3"}, {"page": "p.135"}],
+    [{}, {"secton": "6.9.3"}, {"page": "p.135"}, {"section_prefix": ""}],
 )
 def test_evaluate_retrieval_rejects_underspecified_or_unknown_targets(chunks, target):
     retriever = real_corpus_retriever.GovernedChunkBM25Retriever(chunks)
     case = {"id": "bad-target", "query": "Warm Reset", "target": target}
-    with pytest.raises(ValueError, match="recognized constraint|unknown constraints"):
+    with pytest.raises(
+        ValueError, match="recognized constraint|unknown constraints|non-empty string"
+    ):
         evaluate_retrieval(retriever, [case])
+
+
+@pytest.mark.parametrize("value", ["usb32", [], [""], None])
+def test_evaluate_retrieval_rejects_malformed_source_filters(chunks, value):
+    retriever = real_corpus_retriever.GovernedChunkBM25Retriever(chunks)
+    case = {
+        "id": "bad-source-filter",
+        "query": "Warm Reset",
+        "allowed_source_ids": value,
+        "target": {"section": "6.9.3"},
+    }
+
+    with pytest.raises(ValueError, match="allowed_source_ids"):
+        evaluate_retrieval(retriever, [case])
+
+
+def test_cli_source_filter_validation_rejects_scalar_before_corpus_load():
+    cases = [{"id": "bad-source-filter", "allowed_source_ids": "usb32"}]
+    corpus_lock = {"sources": {"usb32": {}}}
+
+    with pytest.raises(ValueError, match="non-empty sequence"):
+        _collect_source_ids(cases, corpus_lock)
 
 
 def test_evaluate_retrieval_computes_mrr_beyond_top_five(chunks):

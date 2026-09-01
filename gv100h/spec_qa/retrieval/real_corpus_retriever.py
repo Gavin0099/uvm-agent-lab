@@ -154,6 +154,20 @@ def _hit_metadata(hit: GovernedChunkRetrievalHit, rank: int) -> Dict[str, Any]:
     }
 
 
+def validate_allowed_source_ids(value: Any) -> Tuple[str, ...]:
+    """Validate a benchmark source filter without treating strings as sequences."""
+    if (
+        isinstance(value, (str, bytes, bytearray))
+        or not isinstance(value, Sequence)
+        or not value
+        or any(not isinstance(source_id, str) or not source_id.strip() for source_id in value)
+    ):
+        raise ValueError(
+            "allowed_source_ids must be a non-empty sequence of non-empty strings"
+        )
+    return tuple(value)
+
+
 def evaluate_retrieval(
     retriever: "GovernedChunkBM25Retriever",
     cases: Sequence[Mapping[str, Any]],
@@ -174,6 +188,8 @@ def evaluate_retrieval(
     query_top_k = max(len(retriever), 5)
 
     for case in cases:
+        if not isinstance(case, Mapping):
+            raise ValueError("each retrieval case requires id, query, and target")
         raw_case_id = case.get("id")
         raw_query = case.get("query")
         target = case.get("target")
@@ -193,15 +209,30 @@ def evaluate_retrieval(
                 "each retrieval target contains unknown constraints: "
                 f"{sorted(unknown_target_fields)}"
             )
+        invalid_target_fields = sorted(
+            field
+            for field, value in target.items()
+            if not isinstance(value, str) or not value.strip()
+        )
+        if invalid_target_fields:
+            raise ValueError(
+                "each retrieval target requires non-empty string values: "
+                f"{invalid_target_fields}"
+            )
         if not (set(target) & _TARGET_FIELDS):
             raise ValueError(
                 "each retrieval target requires at least one recognized constraint"
             )
 
+        allowed_source_ids = None
+        if "allowed_source_ids" in case:
+            allowed_source_ids = validate_allowed_source_ids(
+                case["allowed_source_ids"]
+            )
         hits = retriever.query(
             query,
             top_k=query_top_k,
-            allowed_source_ids=case.get("allowed_source_ids"),
+            allowed_source_ids=allowed_source_ids,
         )
         target_rank = next(
             (

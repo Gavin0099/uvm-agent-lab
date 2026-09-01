@@ -19,6 +19,7 @@ from gv100h.spec_qa.retrieval.real_corpus_retriever import (
     DEFAULT_REAL_CORPUS_SOURCE_IDS,
     GovernedChunkBM25Retriever,
     evaluate_retrieval,
+    validate_allowed_source_ids,
 )
 
 DEFAULT_LOCK_PATH = PROJECT_ROOT / "gv100h/spec_qa/contracts/corpus.lock.yaml"
@@ -31,6 +32,31 @@ def _load_json(path: Path) -> List[Mapping[str, Any]]:
     if not isinstance(value, list):
         raise ValueError(f"retrieval benchmark must be a JSON list: {path}")
     return value
+
+
+def _collect_source_ids(
+    cases: List[Mapping[str, Any]], corpus_lock: Mapping[str, Any]
+) -> tuple[str, ...]:
+    sources = corpus_lock.get("sources")
+    if not isinstance(sources, Mapping):
+        raise ValueError("corpus lock sources must contain a mapping")
+
+    collected: list[str] = []
+    for case in cases:
+        if not isinstance(case, Mapping):
+            raise ValueError("each retrieval case must be a mapping")
+        if "allowed_source_ids" in case:
+            source_ids = validate_allowed_source_ids(case["allowed_source_ids"])
+        else:
+            source_ids = DEFAULT_REAL_CORPUS_SOURCE_IDS
+        unknown_source_ids = sorted(set(source_ids) - set(sources))
+        if unknown_source_ids:
+            raise ValueError(
+                "allowed_source_ids contains unknown corpus sources: "
+                f"{unknown_source_ids}"
+            )
+        collected.extend(source_ids)
+    return tuple(dict.fromkeys(collected))
 
 
 def main() -> int:
@@ -59,13 +85,10 @@ def main() -> int:
         parser.error(f"corpus lock must contain a mapping: {args.lock}")
 
     cases = _load_json(args.queries)
-    source_ids = tuple(
-        dict.fromkeys(
-            source_id
-            for case in cases
-            for source_id in case.get("allowed_source_ids", DEFAULT_REAL_CORPUS_SOURCE_IDS)
-        )
-    )
+    try:
+        source_ids = _collect_source_ids(cases, corpus_lock)
+    except ValueError as exc:
+        parser.error(str(exc))
     retriever = GovernedChunkBM25Retriever.from_corpus_lock(
         corpus_lock,
         source_ids=source_ids,
