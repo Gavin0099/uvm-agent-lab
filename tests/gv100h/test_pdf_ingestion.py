@@ -197,6 +197,201 @@ def test_page_events_drops_usb_page_furniture_and_toc_entries():
     ]
 
 
+def test_chunk_pdf_keeps_high_speed_evidence_after_numeric_figure_labels(
+    tmp_path, monkeypatch
+):
+    """Numeric diagram labels must not replace the active section.
+
+    The real USB 2.0 PDF has ordinary 8.64pt labels such as ``143 143`` on
+    the page before the high-speed rise/fall prose. The old regex treated
+    those labels as section headings, changed the state to chapter 143, and
+    caused the following ``500 ps`` evidence to be removed by the chapter
+    allowlist.
+    """
+
+    def line(text, top, bottom, size, fontname, x0=90.0):
+        return {
+            "text": text,
+            "top": top,
+            "bottom": bottom,
+            "x0": x0,
+            "chars": [
+                {"size": size, "fontname": fontname, "x0": x0 + index * 3.0}
+                for index, _ in enumerate(text)
+            ],
+        }
+
+    pages = [
+        SimpleNamespace(
+            height=800.0,
+            find_tables=lambda: [],
+            extract_text_lines=lambda layout=False: [
+                line(
+                    "7.1.2.2 High-speed Signaling Eye Patterns and Rise and Fall Time",
+                    100.0,
+                    112.0,
+                    12.0,
+                    "Helvetica-Bold",
+                    90.0,
+                ),
+            ],
+        ),
+        SimpleNamespace(
+            height=800.0,
+            find_tables=lambda: [],
+            extract_text_lines=lambda layout=False: [
+                line("143 143", 100.0, 108.64, 8.64, "Helvetica", 223.0),
+                line(
+                    "For a hub, or for a device with detachable cable, the 10% to 90% high-speed differential rise and fall times must",
+                    140.0,
+                    149.96,
+                    9.96,
+                    "Times-Roman",
+                    90.0,
+                ),
+                line(
+                    "be 500 ps or longer when measured at the A or B receptacles (respectively).",
+                    155.0,
+                    164.96,
+                    9.96,
+                    "Times-Roman",
+                    90.0,
+                ),
+                line("7.1.2.3 Driver Usage", 260.0, 272.0, 12.0, "Helvetica-Bold", 90.0),
+            ],
+        ),
+    ]
+
+    class FakePdf:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        @property
+        def pages(self):
+            return pages
+
+    monkeypatch.setattr(pdf_ingestion.pdfplumber, "open", lambda _path: FakePdf())
+    pdf_path = tmp_path / "high_speed_fixture.pdf"
+    pdf_path.write_bytes(b"fake PDF bytes for hash verification")
+
+    chunks = chunk_pdf(
+        pdf_path,
+        source_id="usb20_se",
+        document="USB 2.0 Specification",
+        revision="2.0",
+        authority_level="authoritative",
+        expected_sha256=_sha256_of(pdf_path),
+        included_chapters=["7"],
+    )
+
+    high_speed_chunks = [chunk for chunk in chunks if chunk.section == "7.1.2.2"]
+    assert any("500 ps" in chunk.content for chunk in high_speed_chunks)
+    assert any("receptacles" in chunk.content for chunk in high_speed_chunks)
+    assert not any(chunk.section == "143" for chunk in chunks)
+
+
+def test_chunk_pdf_ignores_styled_numeric_figure_labels(tmp_path, monkeypatch):
+    """Typography alone must not turn diagram labels into section headings."""
+
+    def line(text, top, bottom, size, fontname, x0):
+        return {
+            "text": text,
+            "top": top,
+            "bottom": bottom,
+            "x0": x0,
+            "chars": [
+                {"size": size, "fontname": fontname, "x0": x0 + index * 3.0}
+                for index, _ in enumerate(text)
+            ],
+        }
+
+    pages = [
+        SimpleNamespace(
+            height=800.0,
+            find_tables=lambda: [],
+            extract_text_lines=lambda layout=False: [
+                line("7.1.2.2 High-speed Signaling", 100.0, 112.0, 10.5, "Helvetica-Bold", 90.0),
+            ],
+        ),
+        SimpleNamespace(
+            height=800.0,
+            find_tables=lambda: [],
+            extract_text_lines=lambda layout=False: [
+                line("143 143", 100.0, 112.0, 12.0, "Helvetica-Bold", 220.0),
+                line("15.8 Ohms", 120.0, 132.0, 12.0, "Helvetica-Bold", 220.0),
+                line("4 0:5 Subtype", 140.0, 152.0, 12.0, "Helvetica-Bold", 220.0),
+                line("The high-speed rise and fall time must be 500 ps or longer.", 180.0, 190.0, 9.96, "Times-Roman", 90.0),
+                line("7.1.2.3 Driver Usage", 260.0, 272.0, 10.5, "Helvetica-Bold", 90.0),
+            ],
+        ),
+    ]
+
+    class FakePdf:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        @property
+        def pages(self):
+            return pages
+
+    monkeypatch.setattr(pdf_ingestion.pdfplumber, "open", lambda _path: FakePdf())
+    pdf_path = tmp_path / "styled_figure_labels.pdf"
+    pdf_path.write_bytes(b"fake PDF bytes for hash verification")
+
+    chunks = chunk_pdf(
+        pdf_path,
+        source_id="usb20_se",
+        document="USB 2.0 Specification",
+        revision="2.0",
+        authority_level="authoritative",
+        expected_sha256=_sha256_of(pdf_path),
+        included_chapters=["7"],
+    )
+
+    assert any(
+        chunk.section == "7.1.2.2" and "500 ps" in chunk.content
+        for chunk in chunks
+    )
+    assert {chunk.section for chunk in chunks} == {"7.1.2.2", "7.1.2.3"}
+
+
+def test_section_heading_classifier_accepts_left_aligned_larger_nonbold_heading():
+    line = {
+        "x0": 90.0,
+        "chars": [
+            {"x0": 90.0, "size": 11.5, "fontname": "Helvetica"},
+            {"x0": 93.0, "size": 11.5, "fontname": "Helvetica"},
+        ],
+    }
+
+    assert pdf_ingestion._looks_like_section_heading(
+        line,
+        "7.1.2.4 Receiver Characteristics",
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["143 143", "15.8 Ohms", "50 Ohm", "4 0:5 Subtype"],
+)
+def test_section_heading_classifier_rejects_numeric_figure_and_field_labels(text):
+    line = {
+        "x0": 90.0,
+        "chars": [
+            {"x0": 90.0, "size": 12.0, "fontname": "Helvetica-Bold"},
+            {"x0": 93.0, "size": 12.0, "fontname": "Helvetica-Bold"},
+        ],
+    }
+
+    assert not pdf_ingestion._looks_like_section_heading(line, text)
+
+
 def test_chunk_pdf_chunk_ids_are_unique(synthetic_pdf):
     chunks = _chunk_pdf(synthetic_pdf)
     assert len(chunks) == len({c.chunk_id for c in chunks})

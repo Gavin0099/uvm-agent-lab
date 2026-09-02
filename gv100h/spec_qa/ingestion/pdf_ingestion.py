@@ -36,6 +36,72 @@ from gv100h.spec_qa.contracts.governed_chunk import GovernedChunk
 # A heading line: one or more dot-separated digit groups, then whitespace,
 # then a nonempty title -- e.g. "10.16.2.1 Hub Class Feature Selectors".
 _HEADING_PATTERN = re.compile(r"^(?P<section>\d+(?:\.\d+)*)\s+(?P<title>\S.*)$")
+_SECTION_HEADING_LEFT_EDGE = 95.0
+_NUMERIC_ONLY_TITLE_PATTERN = re.compile(r"^[\d\s.+\-/():–—]+$")
+_MEASUREMENT_ONLY_TITLE_PATTERN = re.compile(
+    r"^(?:[+-]?\d+(?:\.\d+)?\s*)?"
+    r"(?:ohms?|Ω|volts?|mv|uv|ma|ua|mhz|khz|ns|us|ms|ps|bits?)$",
+    re.IGNORECASE,
+)
+_BIT_FIELD_LABEL_PATTERN = re.compile(r"^\d+(?:\s*:\s*\d+)?(?:\s|$)")
+
+
+class _PageLine(str):
+    """Text event carrying an internal PDF style classification."""
+
+    def __new__(cls, text: str, *, is_heading: bool) -> "_PageLine":
+        value = str.__new__(cls, text)
+        value.is_heading = is_heading
+        return value
+
+
+def _looks_like_section_heading(line: Mapping[str, Any], text: str) -> bool:
+    """Require heading-like PDF typography for numeric section candidates.
+
+    The locked USB specification headings start at the document text margin
+    (roughly x=72--90), while diagram/table labels and bit-field rows are
+    indented into the figure/table area. Typography is still required for
+    lines with PDF character metadata, but it is not sufficient on its own:
+    numeric-only, measurement-only, and bit-field labels must not mutate the
+    section state even when a PDF happens to render them bold or large. A
+    line without character metadata remains accepted for the lightweight fake
+    pages used by callers/tests.
+    """
+    heading_match = _HEADING_PATTERN.match(text)
+    if not heading_match:
+        return False
+    title = heading_match.group("title").strip()
+    if (
+        _NUMERIC_ONLY_TITLE_PATTERN.fullmatch(title)
+        or _MEASUREMENT_ONLY_TITLE_PATTERN.fullmatch(title)
+        or _BIT_FIELD_LABEL_PATTERN.match(title)
+    ):
+        return False
+    chars = line.get("chars")
+    if not chars:
+        return True
+    x0 = line.get("x0")
+    if x0 is None:
+        positions = [char.get("x0") for char in chars if char.get("x0") is not None]
+        x0 = min(positions) if positions else None
+    if x0 is not None and float(x0) > _SECTION_HEADING_LEFT_EDGE:
+        return False
+    font_names = {
+        str(char.get("fontname", ""))
+        for char in chars
+        if char.get("fontname")
+    }
+    if any(
+        re.search(r"bold|black|heavy|semibold|demi", font, re.IGNORECASE)
+        for font in font_names
+    ):
+        return True
+    sizes = [
+        float(char["size"])
+        for char in chars
+        if char.get("size") is not None
+    ]
+    return bool(sizes) and max(sizes) >= 11.0
 
 # corpus.lock.yaml `included_chapters` entries are either a bare chapter
 # number ("6") or an inclusive range ("8-11").
@@ -151,7 +217,16 @@ def _page_events(page: "pdfplumber.page.Page") -> List[Tuple[float, str, Any]]:
             continue
         if _TOC_ENTRY_PATTERN.match(text):
             continue
-        events.append((top, "line", text))
+        events.append(
+            (
+                top,
+                "line",
+                _PageLine(
+                    text,
+                    is_heading=_looks_like_section_heading(line, text),
+                ),
+            )
+        )
     for table in tables:
         rows = table.extract()
         if rows:
@@ -258,7 +333,7 @@ def chunk_pdf(
             for _, kind, payload in _page_events(page):
                 if kind == "line":
                     heading_match = _HEADING_PATTERN.match(payload)
-                    if heading_match:
+                    if heading_match and getattr(payload, "is_heading", True):
                         _flush_paragraph(paragraph_buffer, page_or_anchor)
                         paragraph_buffer = []
                         current_section = heading_match.group("section")
