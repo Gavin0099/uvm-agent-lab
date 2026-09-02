@@ -1,0 +1,69 @@
+[
+  {
+    "id": "USB3-WARM-RESET-6.9.3",
+    "query": "6.9.3 Warm Reset downstream port link states",
+    "allowed_source_ids": ["usb32"],
+    "target": {
+      "source_id": "usb32",
+      "section": "6.9.3",
+      "page_or_anchor": "p.135",
+      "chunk_kind": "paragraph"
+    }
+  },
+  {
+    "id": "USB3-LFPS-TABLE-6-30",
+    "query": "Table 6-30 LFPS Transmitter Timing",
+    "allowed_source_ids": ["usb32"],
+    "target": {
+      "source_id": "usb32",
+      "section": "6.9.1",
+      "page_or_anchor": "p.131",
+      "chunk_kind": "table"
+    }
+  },
+  {
+    "id": "USB3-PORT-POWER-SELECTOR",
+    "query": "PORT_POWER feature selector value",
+    "allowed_source_ids": ["usb32"],
+    "target": {
+      "chunk_id": "usb32:10.16.2.10:p.483:1569:61dfb3e5653dc47cc5e816b5a586dcffff0c1dba3987fdaa4d19584b2d3583e0",
+      "source_id": "usb32",
+      "section": "10.16.2.10",
+      "page_or_anchor": "p.483"
+    }
+  },
+  {
+    "id": "USB3-PORT-LINK-STATE-SELECTOR",
+    "query": "PORT_LINK_STATE feature selector value",
+    "allowed_source_ids": ["usb32"],
+    "target": {
+      "chunk_id": "usb32:10.16.2.10:p.484:1570:f63557746e588ece2b40aeaf8e5989099ec578b47c25ca55c22d76d2ce99cf5c",
+      "source_id": "usb32",
+      "section": "10.16.2.10",
+      "page_or_anchor": "p.484"
+    }
+  },
+  {
+    "id": "USB2-SUSPEND-RESUME-CH7",
+    "query": "hub suspend resume port state",
+    "allowed_source_ids": ["usb20_se"],
+    "target": {
+      "chunk_id": "usb20_se:7.1.7.7:p.184:290:fec41ddc7434030185a6888e7992530c9ca3718d2d89c33a9499c40c0c82d5a2",
+      "source_id": "usb20_se",
+      "section": "7.1.7.7",
+      "page_or_anchor": "p.184",
+      "chunk_kind": "paragraph"
+    }
+  },
+  {
+    "id": "LVS-WARM-RESET",
+    "query": "Warm Reset hub compliance test",
+    "allowed_source_ids": ["superspeed_hub_lvs"],
+    "target": {
+      "source_id": "superspeed_hub_lvs",
+      "section": "22",
+      "page_or_anchor": "p.28",
+      "chunk_kind": "paragraph"
+    }
+  }
+]
