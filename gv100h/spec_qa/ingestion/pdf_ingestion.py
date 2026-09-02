@@ -36,6 +36,14 @@ from gv100h.spec_qa.contracts.governed_chunk import GovernedChunk
 # A heading line: one or more dot-separated digit groups, then whitespace,
 # then a nonempty title -- e.g. "10.16.2.1 Hub Class Feature Selectors".
 _HEADING_PATTERN = re.compile(r"^(?P<section>\d+(?:\.\d+)*)\s+(?P<title>\S.*)$")
+_SECTION_HEADING_LEFT_EDGE = 95.0
+_NUMERIC_ONLY_TITLE_PATTERN = re.compile(r"^[\d\s.+\-/():–—]+$")
+_MEASUREMENT_ONLY_TITLE_PATTERN = re.compile(
+    r"^(?:[+-]?\d+(?:\.\d+)?\s*)?"
+    r"(?:ohms?|Ω|volts?|mv|uv|ma|ua|mhz|khz|ns|us|ms|ps|bits?)$",
+    re.IGNORECASE,
+)
+_BIT_FIELD_LABEL_PATTERN = re.compile(r"^\d+(?:\s*:\s*\d+)?(?:\s|$)")
 
 
 class _PageLine(str):
@@ -50,18 +58,34 @@ class _PageLine(str):
 def _looks_like_section_heading(line: Mapping[str, Any], text: str) -> bool:
     """Require heading-like PDF typography for numeric section candidates.
 
-    Real USB specification headings are bold (including the embedded font
-    names used by USB 2.0/3.2/LVS) or visibly larger than ordinary diagram
-    labels. A line without character metadata remains accepted for the
-    lightweight fake pages used by callers/tests. This prevents labels such
-    as ``143 143`` or ``15.8 Ohms`` from changing the section state while
-    preserving the existing text-event interface.
+    The locked USB specification headings start at the document text margin
+    (roughly x=72--90), while diagram/table labels and bit-field rows are
+    indented into the figure/table area. Typography is still required for
+    lines with PDF character metadata, but it is not sufficient on its own:
+    numeric-only, measurement-only, and bit-field labels must not mutate the
+    section state even when a PDF happens to render them bold or large. A
+    line without character metadata remains accepted for the lightweight fake
+    pages used by callers/tests.
     """
-    if not _HEADING_PATTERN.match(text):
+    heading_match = _HEADING_PATTERN.match(text)
+    if not heading_match:
+        return False
+    title = heading_match.group("title").strip()
+    if (
+        _NUMERIC_ONLY_TITLE_PATTERN.fullmatch(title)
+        or _MEASUREMENT_ONLY_TITLE_PATTERN.fullmatch(title)
+        or _BIT_FIELD_LABEL_PATTERN.match(title)
+    ):
         return False
     chars = line.get("chars")
     if not chars:
         return True
+    x0 = line.get("x0")
+    if x0 is None:
+        positions = [char.get("x0") for char in chars if char.get("x0") is not None]
+        x0 = min(positions) if positions else None
+    if x0 is not None and float(x0) > _SECTION_HEADING_LEFT_EDGE:
+        return False
     font_names = {
         str(char.get("fontname", ""))
         for char in chars
