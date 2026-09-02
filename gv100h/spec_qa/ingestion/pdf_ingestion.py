@@ -37,6 +37,48 @@ from gv100h.spec_qa.contracts.governed_chunk import GovernedChunk
 # then a nonempty title -- e.g. "10.16.2.1 Hub Class Feature Selectors".
 _HEADING_PATTERN = re.compile(r"^(?P<section>\d+(?:\.\d+)*)\s+(?P<title>\S.*)$")
 
+
+class _PageLine(str):
+    """Text event carrying an internal PDF style classification."""
+
+    def __new__(cls, text: str, *, is_heading: bool) -> "_PageLine":
+        value = str.__new__(cls, text)
+        value.is_heading = is_heading
+        return value
+
+
+def _looks_like_section_heading(line: Mapping[str, Any], text: str) -> bool:
+    """Require heading-like PDF typography for numeric section candidates.
+
+    Real USB specification headings are bold (including the embedded font
+    names used by USB 2.0/3.2/LVS) or visibly larger than ordinary diagram
+    labels. A line without character metadata remains accepted for the
+    lightweight fake pages used by callers/tests. This prevents labels such
+    as ``143 143`` or ``15.8 Ohms`` from changing the section state while
+    preserving the existing text-event interface.
+    """
+    if not _HEADING_PATTERN.match(text):
+        return False
+    chars = line.get("chars")
+    if not chars:
+        return True
+    font_names = {
+        str(char.get("fontname", ""))
+        for char in chars
+        if char.get("fontname")
+    }
+    if any(
+        re.search(r"bold|black|heavy|semibold|demi", font, re.IGNORECASE)
+        for font in font_names
+    ):
+        return True
+    sizes = [
+        float(char["size"])
+        for char in chars
+        if char.get("size") is not None
+    ]
+    return bool(sizes) and max(sizes) >= 11.0
+
 # corpus.lock.yaml `included_chapters` entries are either a bare chapter
 # number ("6") or an inclusive range ("8-11").
 _CHAPTER_RANGE_PATTERN = re.compile(r"^(?P<start>\d+)-(?P<end>\d+)$")
@@ -151,7 +193,16 @@ def _page_events(page: "pdfplumber.page.Page") -> List[Tuple[float, str, Any]]:
             continue
         if _TOC_ENTRY_PATTERN.match(text):
             continue
-        events.append((top, "line", text))
+        events.append(
+            (
+                top,
+                "line",
+                _PageLine(
+                    text,
+                    is_heading=_looks_like_section_heading(line, text),
+                ),
+            )
+        )
     for table in tables:
         rows = table.extract()
         if rows:
@@ -258,7 +309,7 @@ def chunk_pdf(
             for _, kind, payload in _page_events(page):
                 if kind == "line":
                     heading_match = _HEADING_PATTERN.match(payload)
-                    if heading_match:
+                    if heading_match and getattr(payload, "is_heading", True):
                         _flush_paragraph(paragraph_buffer, page_or_anchor)
                         paragraph_buffer = []
                         current_section = heading_match.group("section")

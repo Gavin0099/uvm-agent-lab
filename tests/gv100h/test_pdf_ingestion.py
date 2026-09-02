@@ -197,6 +197,98 @@ def test_page_events_drops_usb_page_furniture_and_toc_entries():
     ]
 
 
+def test_chunk_pdf_keeps_high_speed_evidence_after_numeric_figure_labels(
+    tmp_path, monkeypatch
+):
+    """Numeric diagram labels must not replace the active section.
+
+    The real USB 2.0 PDF has ordinary 8.64pt labels such as ``143 143`` on
+    the page before the high-speed rise/fall prose. The old regex treated
+    those labels as section headings, changed the state to chapter 143, and
+    caused the following ``500 ps`` evidence to be removed by the chapter
+    allowlist.
+    """
+
+    def line(text, top, bottom, size, fontname):
+        return {
+            "text": text,
+            "top": top,
+            "bottom": bottom,
+            "chars": [
+                {"size": size, "fontname": fontname}
+                for _ in text
+            ],
+        }
+
+    pages = [
+        SimpleNamespace(
+            height=800.0,
+            find_tables=lambda: [],
+            extract_text_lines=lambda layout=False: [
+                line(
+                    "7.1.2.2 High-speed Signaling Eye Patterns and Rise and Fall Time",
+                    100.0,
+                    112.0,
+                    12.0,
+                    "Helvetica-Bold",
+                ),
+            ],
+        ),
+        SimpleNamespace(
+            height=800.0,
+            find_tables=lambda: [],
+            extract_text_lines=lambda layout=False: [
+                line("143 143", 100.0, 108.64, 8.64, "Helvetica"),
+                line(
+                    "For a hub, or for a device with detachable cable, the 10% to 90% high-speed differential rise and fall times must",
+                    140.0,
+                    149.96,
+                    9.96,
+                    "Times-Roman",
+                ),
+                line(
+                    "be 500 ps or longer when measured at the A or B receptacles (respectively).",
+                    155.0,
+                    164.96,
+                    9.96,
+                    "Times-Roman",
+                ),
+                line("7.1.2.3 Driver Usage", 260.0, 272.0, 12.0, "Helvetica-Bold"),
+            ],
+        ),
+    ]
+
+    class FakePdf:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        @property
+        def pages(self):
+            return pages
+
+    monkeypatch.setattr(pdf_ingestion.pdfplumber, "open", lambda _path: FakePdf())
+    pdf_path = tmp_path / "high_speed_fixture.pdf"
+    pdf_path.write_bytes(b"fake PDF bytes for hash verification")
+
+    chunks = chunk_pdf(
+        pdf_path,
+        source_id="usb20_se",
+        document="USB 2.0 Specification",
+        revision="2.0",
+        authority_level="authoritative",
+        expected_sha256=_sha256_of(pdf_path),
+        included_chapters=["7"],
+    )
+
+    high_speed_chunks = [chunk for chunk in chunks if chunk.section == "7.1.2.2"]
+    assert any("500 ps" in chunk.content for chunk in high_speed_chunks)
+    assert any("receptacles" in chunk.content for chunk in high_speed_chunks)
+    assert not any(chunk.section == "143" for chunk in chunks)
+
+
 def test_chunk_pdf_chunk_ids_are_unique(synthetic_pdf):
     chunks = _chunk_pdf(synthetic_pdf)
     assert len(chunks) == len({c.chunk_id for c in chunks})
