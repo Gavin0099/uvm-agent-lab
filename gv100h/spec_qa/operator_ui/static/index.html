@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Spec QA Operator UI — development shell</title>
-  <link rel="stylesheet" href="styles.css?v=15">
+  <link rel="stylesheet" href="styles.css?v=16">
 </head>
 <body>
   <header class="header">
@@ -64,6 +64,7 @@
               <select id="source">
                 <option value="fixture">範例資料</option>
                 <option value="service">實際查詢服務</option>
+                <option value="real_local_rag">地端 Real RAG</option>
               </select>
             </label>
             <label id="fixtureField">
@@ -75,7 +76,7 @@
               </select>
             </label>
           </div>
-          <p class="hint">預設顯示凍結範例。實際查詢服務會呼叫既有 GovernedQAService，不會捏造 PDF 錨點。</p>
+          <p class="hint">預設顯示凍結範例。地端 Real RAG 會先查鎖定 PDF，再把證據送給本機 AI；不會捏造 PDF 錨點。</p>
         </div>
       </details>
     </section>
@@ -87,6 +88,7 @@
       </div>
       <p id="explainer" class="explainer" hidden></p>
       <p id="answerText" class="answer is-empty">輸入 USB 規格問題後，這裡會顯示有依據的回答。</p>
+      <p id="tokenInfo" class="token-info" hidden></p>
       <div class="source-block">
         <p class="source-kicker" id="sourceKicker">來源</p>
         <p id="sourceLine" class="source-title">尚無來源</p>
@@ -138,7 +140,7 @@
   </main>
   <footer class="about">
     <p>Operator UI / development shell</p>
-    <p>Operator UI only — not POC-1 qualification, not Gate 4, not a complete Spec Bot.</p>
+    <p>Operator UI / real-local-RAG development smoke only — not POC-1 qualification, not Gate 4, not a complete Spec Bot.</p>
   </footer>
   <script src="app.js?v=15"></script>
 </body>

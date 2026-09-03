@@ -5,6 +5,8 @@ const QUERY_FIELD_IDS = ["answerScope", "retrievalMode", "allowedScopes"];
 const STATUS_LABEL = {
   answer: "已回答",
   missing_evidence: "證據不足",
+  fictional_section: "虛構章節",
+  authority_mismatch: "權威不符",
   out_of_scope: "超出目前範圍",
   conflict: "來源衝突",
   unknown: "等待中",
@@ -14,6 +16,7 @@ const STATUS_LABEL = {
 const EMPTY_ANSWER = "輸入 USB 規格問題後，這裡會顯示有依據的回答。";
 
 const SERVICE_PLACEHOLDER = "下游埠可以在哪些 link state 發出 Warm Reset？";
+const REAL_LOCAL_RAG_PLACEHOLDER = "USB 3.x 的 Warm Reset 在哪些 link state 發出？";
 
 const FIXTURE_QUESTIONS = {
   answered: "USB 3.x Hub Class 的 PORT_POWER feature selector 值是多少？",
@@ -58,13 +61,20 @@ const FIRST_LAYER_NOTE = {
   out_of_scope: "這是目前資料範圍的限制，不代表該規格本身沒有答案。",
   out_of_scope_usb4: "這是目前資料範圍的限制，不代表 USB4 規格本身沒有答案。",
   missing_evidence: "目前缺少足以支持結論的證據。",
+  fictional_section: "指定的 section 不存在於目前鎖定 corpus，系統不會用相鄰章節猜測。",
+  authority_mismatch: "指定的 authority 不在目前鎖定 corpus，系統不會用其他來源替代。",
 };
 
 const BOUNDARY_REASON_LABEL = {
-  AUTHORITY_MISMATCH: "多個來源的權威層級不一致，因此無法認證單一結論。",
   OUT_OF_SCOPE: "目前範圍不在可查詢的 Phase 1 資料範圍內。",
   OUT_OF_SCOPE_USB4: "USB4 不在目前可查詢的 Phase 1 資料範圍內。",
   MISSING_EVIDENCE: "目前缺少足以支持結論的證據。",
+  FICTIONAL_SECTION: "指定的 section 不存在於目前鎖定的 Phase 1 corpus。",
+  AUTHORITY_MISMATCH: "指定的 authority 不在目前鎖定的 Phase 1 corpus。",
+};
+
+const CONFLICT_REASON_LABEL = {
+  AUTHORITY_MISMATCH: "多個來源的權威層級不一致，因此無法認證單一結論。",
 };
 
 const AUTHORITY_LABEL = {
@@ -80,14 +90,25 @@ const RETRIEVAL_HINT = {
 const MODE_BADGE_TITLE = {
   fixture: "範例資料；問題不會被評分",
   service: "實際查詢服務；問題會送入既有 GovernedQAService。",
+  real_local_rag: "Real PDF BM25 檢索後送入本機 local AI；development smoke only。",
 };
 
-function setModeBadge(fixtureMode) {
+function setModeBadge(mode) {
   const chip = $("fixtureChip");
   chip.hidden = false;
-  chip.className = fixtureMode ? "mode-badge is-fixture" : "mode-badge is-service";
-  chip.textContent = fixtureMode ? "範例" : "服務";
-  chip.title = fixtureMode ? MODE_BADGE_TITLE.fixture : MODE_BADGE_TITLE.service;
+  const fixtureMode = mode === true || mode === "fixture";
+  const realLocalRagMode = mode === "real_local_rag";
+  chip.className = fixtureMode
+    ? "mode-badge is-fixture"
+    : realLocalRagMode
+      ? "mode-badge is-rag"
+      : "mode-badge is-service";
+  chip.textContent = fixtureMode ? "範例" : realLocalRagMode ? "地端 RAG" : "服務";
+  chip.title = fixtureMode
+    ? MODE_BADGE_TITLE.fixture
+    : realLocalRagMode
+      ? MODE_BADGE_TITLE.real_local_rag
+      : MODE_BADGE_TITLE.service;
 }
 
 function clearNode(node) {
@@ -139,7 +160,9 @@ function isSafePdfHref(href) {
 
 function uiKind(view) {
   const code = view.boundary_code || "";
-  if (view.status === "conflict" || code === "AUTHORITY_MISMATCH") return "conflict";
+  if (view.status === "conflict") return "conflict";
+  if (code === "AUTHORITY_MISMATCH") return "authority_mismatch";
+  if (code === "FICTIONAL_SECTION") return "fictional_section";
   if (code === "OUT_OF_SCOPE") return "out_of_scope";
   if (code === "MISSING_EVIDENCE" || view.status === "abstain") return "missing_evidence";
   if (view.status === "answer") return "answer";
@@ -148,7 +171,7 @@ function uiKind(view) {
 
 function statusClass(kind) {
   if (kind === "conflict") return "conflict";
-  if (kind === "out_of_scope" || kind === "missing_evidence") return "abstain";
+  if (kind === "out_of_scope" || kind === "missing_evidence" || kind === "fictional_section" || kind === "authority_mismatch") return "abstain";
   if (kind === "answer") return "answer";
   return kind;
 }
@@ -221,6 +244,16 @@ function renderSourceSummary(view) {
       : (view.boundary || "這次查詢超出目前可認證範圍");
     return;
   }
+  if (kind === "fictional_section") {
+    kicker.textContent = "章節依據";
+    title.textContent = "Phase 1 corpus · 未找到指定 section";
+    return;
+  }
+  if (kind === "authority_mismatch") {
+    kicker.textContent = "權威依據";
+    title.textContent = "Phase 1 corpus · 未納入指定 authority";
+    return;
+  }
   if (kind === "missing_evidence") {
     kicker.textContent = "判定依據";
     title.textContent = "目前缺少足以支持結論的證據";
@@ -259,7 +292,7 @@ function renderCitations(view) {
   if (kind === "conflict") {
     $("evidenceSummary").textContent = "查看衝突來源";
     $("evidenceDesc").textContent = "條文摘錄";
-  } else if (kind === "out_of_scope") {
+  } else if (kind === "out_of_scope" || kind === "fictional_section" || kind === "authority_mismatch") {
     $("evidenceSummary").textContent = "查看範圍依據";
     $("evidenceDesc").textContent = "範圍與治理資料";
   } else {
@@ -274,12 +307,18 @@ function renderCitations(view) {
   citations.forEach((citation, index) => {
     const article = document.createElement("article");
     article.className = "citation";
+    if (view.source === "real_local_rag") {
+      article.appendChild(textEl("p", index === 0 ? "主要依據" : "補充依據", "citation-role"));
+    }
     article.appendChild(textEl("p", humanDocument(citation, view, index), "citation-meta"));
     if (kind === "conflict" && view.source === "fixture") {
       article.appendChild(textEl("p", `模擬：${simulatedSpecName(citation, view, index)}`, "citation-meta"));
     }
     const metaBits = [];
     if (citation.section) metaBits.push(`§${citation.section}`);
+    if (citation.page_or_anchor) {
+      metaBits.push(view.source === "real_local_rag" ? `PDF ${citation.page_or_anchor}` : citation.page_or_anchor);
+    }
     if (citation.authority_level) metaBits.push(authorityLabel(citation.authority_level));
     if (metaBits.length) {
       article.appendChild(textEl("p", metaBits.join(" · "), "citation-meta"));
@@ -301,6 +340,8 @@ function renderCitations(view) {
     appendDlRow(item, "引用類型", citation.citation_kind);
     appendDlRow(item, "QA 回應來源", view.source);
     appendDlRow(item, view.source === "fixture" ? "範例資料來源" : "文件來源", citation.document || "—");
+    appendDlRow(item, "檢索器", view.retrieval_kind);
+    appendDlRow(item, "地端 AI", view.local_model);
     developer.appendChild(item);
   });
 }
@@ -316,7 +357,20 @@ function renderSource(view) {
   if (view.source === "service") {
     banner.className = "source-banner service";
     banner.textContent = "GovernedQAService";
-    setModeBadge(false);
+    setModeBadge("service");
+    return;
+  }
+  if (view.source === "real_local_rag") {
+    banner.className = "source-banner real-local-rag";
+    if (view.boundary_code) {
+      banner.textContent = `Real PDF 邊界判定 · ${STATUS_LABEL[uiKind(view)] || "拒絕回答"}`;
+      setModeBadge("real_local_rag");
+      return;
+    }
+    const model = view.local_model || "local AI";
+    const chunks = view.retrieved_chunk_count == null ? "" : ` · ${view.retrieved_chunk_count} chunks`;
+    banner.textContent = `Real PDF BM25 → ${model}${chunks}`;
+    setModeBadge("real_local_rag");
     return;
   }
   banner.className = "source-banner waiting";
@@ -370,6 +424,11 @@ function render(view) {
   $("scopeText").textContent = view.scope || "—";
   renderClaims(view.claims || []);
   renderCitations(view);
+  if (view.source === "real_local_rag" && view.token_info) {
+    renderTokenInfo(view.token_info, false);
+  } else if (view.source !== "real_local_rag") {
+    clearTokenInfo();
+  }
   const boundaryBlock = $("boundaryBlock");
   if (view.boundary_code) {
     boundaryBlock.hidden = false;
@@ -379,13 +438,183 @@ function render(view) {
         ? BOUNDARY_REASON_LABEL.OUT_OF_SCOPE_USB4
         : (view.boundary || BOUNDARY_REASON_LABEL.OUT_OF_SCOPE);
     } else {
-      $("boundaryReason").textContent = BOUNDARY_REASON_LABEL[view.boundary_code] || view.boundary || "—";
+      const labels = kind === "conflict" ? CONFLICT_REASON_LABEL : BOUNDARY_REASON_LABEL;
+      $("boundaryReason").textContent = labels[view.boundary_code] || view.boundary || "—";
     }
   } else {
     boundaryBlock.hidden = true;
   }
   $("evidenceFold").open = false;
   $("governanceFold").open = shouldOpenGovernance(view);
+}
+
+function realLocalRagView(meta, answer, localModel) {
+  const citations = Array.isArray(meta.citations) ? meta.citations : [];
+  const evidenceIds = citations.map((citation) => citation.evidence_id).filter(Boolean);
+  const resolvedModel = localModel === null ? null : (localModel || meta.local_model || null);
+  const base = {
+    source: "real_local_rag",
+    status: "answer",
+    answer: answer || "地端 AI 正在根據 real PDF 檢索證據產生回答……",
+    claims: answer ? [answer] : [],
+    citations,
+    boundary_code: meta.boundary_code || null,
+    boundary: meta.boundary || "Real PDF BM25 證據已送入本機 AI；語義蘊含尚未獨立驗證。",
+    boundary_reason: meta.boundary_reason || "Real PDF BM25 證據已送入本機 AI；語義蘊含尚未獨立驗證。",
+    scope: meta.scope || "USB_HUB_COMMON",
+    evidence_ids: evidenceIds,
+    claim_evidence_ids: answer ? [evidenceIds] : [],
+    is_abstain: false,
+    claim_ceiling: meta.claim_ceiling,
+    local_model: resolvedModel,
+    retrieval_kind: meta.retriever_kind,
+    retrieved_chunk_count: meta.retrieved_chunk_count,
+    corpus_sha256: meta.corpus_sha256,
+  };
+  if (meta.boundary_code) {
+    return {
+      ...base,
+      status: "abstain",
+      answer: answer || meta.boundary_answer || "目前請求被治理邊界拒絕。",
+      claims: [],
+      evidence_ids: [],
+      claim_evidence_ids: [],
+      is_abstain: true,
+      local_model: null,
+      retrieved_chunk_count: 0,
+    };
+  }
+  if (answer === null) {
+    return {
+      ...base,
+      status: "abstain",
+      answer: "目前 real corpus 沒有足夠的 BM25 證據；地端 AI 未被呼叫。",
+      claims: [],
+      boundary_code: "MISSING_EVIDENCE",
+      boundary: "Real PDF BM25 沒有找到匹配證據。",
+      boundary_reason: "Real PDF BM25 沒有找到匹配證據；地端 AI 未被呼叫。",
+      evidence_ids: [],
+      claim_evidence_ids: [],
+      is_abstain: true,
+      local_model: null,
+      retrieved_chunk_count: 0,
+    };
+  }
+  return base;
+}
+
+function renderTokenInfo(info, streaming = false) {
+  const node = $("tokenInfo");
+  if (!node || !info) {
+    if (node) node.hidden = true;
+    return;
+  }
+  const bits = [];
+  if (info.completion_tokens != null) {
+    bits.push(`生成 token ${info.completion_tokens}`);
+  } else if (streaming) {
+    bits.push("生成 token 計算中");
+  }
+  if (info.prompt_tokens != null) bits.push(`提示 token ${info.prompt_tokens}`);
+  if (info.total_tokens != null) bits.push(`總 token ${info.total_tokens}`);
+  if (info.stream_chunks != null) bits.push(`串流片段 ${info.stream_chunks}（非 tokenizer token）`);
+  if (info.completion_chars != null) bits.push(`字元 ${info.completion_chars}`);
+  if (info.elapsed_ms != null) bits.push(`耗時 ${info.elapsed_ms} ms`);
+  if (info.server_tokens_per_second != null) {
+    bits.push(`速度 ${info.server_tokens_per_second} token/s`);
+  }
+  node.textContent = bits.join(" · ");
+  node.hidden = bits.length === 0;
+}
+
+function clearTokenInfo() {
+  const node = $("tokenInfo");
+  if (!node) return;
+  node.hidden = true;
+  node.textContent = "";
+}
+
+async function streamRealLocalRag(body, generation, controller) {
+  const resp = await fetch("/api/qa/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: controller.signal,
+  });
+  if (generation !== requestGeneration) return;
+  if (!resp.ok) {
+    let error = "request failed";
+    try {
+      const payload = await resp.json();
+      error = payload.error || error;
+    } catch (_err) {
+      // Keep the generic error when the gateway did not return JSON.
+    }
+    throw new Error(error);
+  }
+  if (!resp.body) throw new Error("streaming response body is unavailable");
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let meta = null;
+  let answer = "";
+  let finalEvent = null;
+
+  const consumeEvent = (line) => {
+    if (!line.trim()) return;
+    const event = JSON.parse(line);
+    if (generation !== requestGeneration) return;
+    if (event.type === "status") {
+      $("dataSource").className = "source-banner real-local-rag";
+      $("dataSource").textContent = event.message || "正在準備地端 RAG……";
+      setModeBadge("real_local_rag");
+      $("answerText").textContent = "正在準備 real PDF 證據……";
+      $("answerText").className = "answer";
+      renderTokenInfo({ stream_chunks: 0, completion_chars: 0, elapsed_ms: 0 }, true);
+      return;
+    }
+    if (event.type === "meta") {
+      meta = event;
+      render(realLocalRagView(meta, "", event.local_model));
+      renderTokenInfo({ stream_chunks: 0, completion_chars: 0, elapsed_ms: 0 }, true);
+      return;
+    }
+    if (event.type === "token") {
+      answer += event.text || "";
+      $("answerText").textContent = answer;
+      $("answerText").className = "answer";
+      renderTokenInfo(event.token_info, true);
+      return;
+    }
+    if (event.type === "done") {
+      finalEvent = event;
+      answer = typeof event.answer === "string" ? event.answer : null;
+      if (meta) {
+        render(realLocalRagView(meta, answer, event.local_model));
+        renderTokenInfo(event.token_info, false);
+      }
+      return;
+    }
+    if (event.type === "error") throw new Error(event.error || "stream request failed");
+    throw new Error(`unknown stream event type: ${event.type || "missing"}`);
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (generation !== requestGeneration) {
+      await reader.cancel();
+      return;
+    }
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split(/\r?\n/);
+    buffer = lines.pop() || "";
+    lines.forEach(consumeEvent);
+  }
+  buffer += decoder.decode();
+  if (buffer.trim()) consumeEvent(buffer);
+  if (!finalEvent) throw new Error("real-local-RAG stream ended before completion");
 }
 
 function applyFixtureQuestion() {
@@ -396,14 +625,21 @@ function applyFixtureQuestion() {
 }
 
 function syncFixtureMode() {
-  const fixtureMode = $("source").value === "fixture";
+  const sourceMode = $("source").value;
+  const fixtureMode = sourceMode === "fixture";
   $("fixtureIgnoreHint").hidden = !fixtureMode;
   $("fixtureField").hidden = !fixtureMode;
   $("devModeCopy").textContent = fixtureMode
     ? "目前使用範例資料，問題不會送入實際檢索服務。"
-    : "目前會呼叫既有 GovernedQAService，不會捏造 PDF 錨點。";
-  setModeBadge(fixtureMode);
-  $("askBtn").textContent = fixtureMode ? "預覽範例" : "提問";
+    : sourceMode === "real_local_rag"
+      ? "目前會先從鎖定的 real PDF 做 BM25，再把檢索證據送給本機 local AI。"
+      : "目前會呼叫既有 GovernedQAService，不會捏造 PDF 錨點。";
+  setModeBadge(sourceMode);
+  $("askBtn").textContent = fixtureMode
+    ? "預覽範例"
+    : sourceMode === "real_local_rag"
+      ? "送出到地端 RAG"
+      : "提問";
   QUERY_FIELD_IDS.forEach((id) => {
     $(id).disabled = fixtureMode;
   });
@@ -411,6 +647,10 @@ function syncFixtureMode() {
   if (fixtureMode) {
     $("question").placeholder = FIXTURE_QUESTIONS[$("fixture").value] || FIXTURE_QUESTIONS.answered;
     applyFixtureQuestion();
+  } else if (sourceMode === "real_local_rag") {
+    $("question").placeholder = REAL_LOCAL_RAG_PLACEHOLDER;
+    $("question").value = "";
+    autosizeQuestion();
   } else {
     $("question").placeholder = SERVICE_PLACEHOLDER;
     $("question").value = "";
@@ -463,6 +703,7 @@ function resetResultView(message) {
   $("explainer").textContent = "";
   $("answerText").textContent = message || "request failed";
   $("answerText").className = "answer";
+  clearTokenInfo();
   $("sourceKicker").textContent = "來源";
   $("sourceLine").textContent = "尚無來源";
   $("sourceMeta").hidden = true;
@@ -494,6 +735,7 @@ function resetWaitingView() {
   $("explainer").textContent = "";
   $("answerText").textContent = EMPTY_ANSWER;
   $("answerText").className = "answer is-empty";
+  clearTokenInfo();
   $("sourceKicker").textContent = "來源";
   $("sourceLine").textContent = "尚無來源";
   $("sourceMeta").hidden = true;
@@ -531,6 +773,10 @@ $("askBtn").addEventListener("click", async () => {
     fixture: $("fixture").value,
   };
   try {
+    if (body.source === "real_local_rag") {
+      await streamRealLocalRag(body, generation, controller);
+      return;
+    }
     const resp = await fetch("/api/qa", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

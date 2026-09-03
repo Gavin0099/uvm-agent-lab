@@ -143,6 +143,8 @@ def test_html_shell_is_labeled_operator_ui():
     assert "跨規格範圍" in html
     assert "範例資料" in html
     assert "實際查詢服務" in html
+    assert "地端 Real RAG" in html
+    assert 'id="tokenInfo"' in html
     assert "正常回答" in html
     assert ">single_scope<" not in html
     assert ">answered<" not in html
@@ -216,6 +218,10 @@ def test_app_js_renders_response_as_text_not_html():
     assert "shouldOpenGovernance" in js
     assert "FIXTURE_QUESTIONS" in js
     assert "預覽範例" in js
+    assert "送出到地端 RAG" in js
+    assert "虛構章節" in js
+    assert "指定的 section 不存在" in js
+    assert "authority 不在目前鎖定 corpus" in js
     assert 'parts.join(" · ")' in js
     assert "權威來源" in js
     assert "RETRIEVAL_HINT" in js

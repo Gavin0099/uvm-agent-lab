@@ -88,6 +88,8 @@ h1 {
 .mode-badge.is-fixture::before { background: var(--fixture); }
 .mode-badge.is-service { color: var(--answer); background: #e4f3ea; }
 .mode-badge.is-service::before { background: var(--answer); }
+.mode-badge.is-rag { color: var(--accent); background: #e5eef7; }
+.mode-badge.is-rag::before { background: var(--accent); }
 
 .workbench {
   display: flex;
@@ -370,6 +372,13 @@ label { display: block; margin: var(--space-2) 0; color: var(--muted); font-size
   font-size: 13px;
 }
 
+.citation-role {
+  margin: 0 0 var(--space-1);
+  color: var(--accent);
+  font-size: var(--type-meta);
+  font-weight: 700;
+}
+
 .dev-item {
   padding: var(--space-2) 0;
   border-top: 1px solid var(--rule);
@@ -405,6 +414,14 @@ label { display: block; margin: var(--space-2) 0; color: var(--muted); font-size
 .source-banner.waiting { color: var(--muted); }
 .source-banner.fixture { color: var(--fixture); background: #f7eedc; }
 .source-banner.service { color: var(--answer); background: #e4f3ea; }
+.source-banner.real-local-rag { color: var(--accent); background: #e5eef7; }
+
+.token-info {
+  margin: calc(var(--space-2) * -1) 0 var(--space-3);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+}
 
 label.disabled, textarea:disabled, select:disabled, input:disabled { opacity: 0.55; }
 
