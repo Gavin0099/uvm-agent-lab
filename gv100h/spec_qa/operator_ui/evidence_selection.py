@@ -58,6 +58,16 @@ _NUMBER_UNIT_PATTERN = re.compile(
     + r"(?![A-Za-z0-9_])",
     re.IGNORECASE,
 )
+_MEASUREMENT_RANGE_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9_])(?P<lower>"
+    + _MEASUREMENT_NUMBER_PATTERN
+    + r")\s*(?:to|through|至|到|~|～|[-–—])\s*(?P<upper>"
+    + _MEASUREMENT_NUMBER_PATTERN
+    + r")\s*(?P<unit>"
+    + _MEASUREMENT_UNIT_PATTERN
+    + r")(?![A-Za-z0-9_])",
+    re.IGNORECASE,
+)
 _SECTION_PATTERN = re.compile(
     r"(?:§|section|sect\.|clause)\s*(\d+(?:\.\d+)*)",
     re.IGNORECASE,
@@ -205,6 +215,75 @@ _FIELD_RELATION_PATTERN = re.compile(
     r"值\s*(?:為|是)?|回傳|不\s*(?:為|是)|非|未)",
     re.IGNORECASE,
 )
+_PROSE_NEGATION_PATTERN = re.compile(
+    r"(?:\b(?:not|never|without|no|cannot|can't|doesn't|don't|isn't|"
+    r"aren't|wasn't|weren't|hasn't|haven't|won't|didn't|couldn't|"
+    r"wouldn't|shouldn't|mustn't|needn't|mightn't|oughtn't|shan't)\b|"
+    r"\b(?:does|do|did|is|are|was|were|has|have|will|could|would|"
+    r"should|must|need|might|ought|shall)\s+not\b|"
+    r"不\s*(?:支援|支持|是|為)?|未\s*(?:支援|支持|啟用|啟動)?|"
+    r"沒有|無法|不可|禁止|非(?!零))",
+    re.IGNORECASE,
+)
+_PROSE_NEGATION_TERMS: FrozenSet[str] = frozenset(
+    {
+        "not",
+        "never",
+        "without",
+        "no",
+        "cannot",
+        "cant",
+        "doesnt",
+        "dont",
+        "didnt",
+        "isnt",
+        "arent",
+        "wasnt",
+        "werent",
+        "hasnt",
+        "havent",
+        "wont",
+        "couldnt",
+        "wouldnt",
+        "shouldnt",
+        "mustnt",
+        "neednt",
+        "mightnt",
+        "oughtnt",
+        "shant",
+        "不",
+        "未",
+        "沒有",
+        "無法",
+        "不可",
+        "禁止",
+        "非",
+    }
+)
+_PROSE_AUXILIARY_TERMS: FrozenSet[str] = frozenset(
+    {
+        "can",
+        "could",
+        "do",
+        "does",
+        "did",
+        "had",
+        "has",
+        "have",
+        "is",
+        "are",
+        "was",
+        "were",
+        "will",
+        "would",
+        "might",
+        "need",
+        "ought",
+    }
+)
+_PROSE_CLAIM_TERM_PATTERNS = {
+    "support": re.compile(r"(?:支援|支持)", re.IGNORECASE),
+}
 _STATE_VALUE_ALIASES = {
     "enabled": "enabled",
     "enable": "enabled",
@@ -478,6 +557,137 @@ def _number_unit_pairs(text: str) -> FrozenSet[str]:
     )
 
 
+def _measurement_range_anchor(match: re.Match[str]) -> str:
+    lower = _normalize(match.group("lower")).replace(" ", "")
+    upper = _normalize(match.group("upper")).replace(" ", "")
+    unit = _normalize(match.group("unit")).replace(" ", "")
+    return f"range:{lower}..{upper}{unit}"
+
+
+def _measurement_range_anchors(text: str) -> FrozenSet[str]:
+    return frozenset(
+        _measurement_range_anchor(match)
+        for match in _MEASUREMENT_RANGE_PATTERN.finditer(_normalize(text))
+    )
+
+
+def _claim_term(term: str) -> str:
+    aliases = {
+        "supports": "support",
+        "supported": "support",
+        "supporting": "support",
+        "provides": "provide",
+        "provided": "provide",
+        "providing": "provide",
+        "requires": "require",
+        "required": "require",
+        "requiring": "require",
+    }
+    return aliases.get(term, term)
+
+
+def _prose_claim_polarities(text: str) -> dict[str, FrozenSet[str]]:
+    """Return normalized claim signatures and their observed polarity.
+
+    This deliberately covers only clauses with at least two semantic terms.
+    It is a polarity guard for ordinary prose, not a general natural-language
+    parser or semantic entailment implementation.
+    """
+    normalized = _normalize(text)
+    for contraction, expansion in {
+        "doesn't": "does not",
+        "doesn’t": "does not",
+        "don't": "do not",
+        "don’t": "do not",
+        "didn't": "did not",
+        "didn’t": "did not",
+        "isn't": "is not",
+        "isn’t": "is not",
+        "aren't": "are not",
+        "aren’t": "are not",
+        "wasn't": "was not",
+        "wasn’t": "was not",
+        "weren't": "were not",
+        "weren’t": "were not",
+        "hasn't": "has not",
+        "hasn’t": "has not",
+        "haven't": "have not",
+        "haven’t": "have not",
+        "can't": "cannot",
+        "can’t": "cannot",
+        "couldn't": "could not",
+        "couldn’t": "could not",
+        "won't": "will not",
+        "won’t": "will not",
+        "wouldn't": "would not",
+        "wouldn’t": "would not",
+        "shouldn't": "should not",
+        "shouldn’t": "should not",
+        "mustn't": "must not",
+        "mustn’t": "must not",
+        "needn't": "need not",
+        "needn’t": "need not",
+        "mightn't": "might not",
+        "mightn’t": "might not",
+        "oughtn't": "ought not",
+        "oughtn’t": "ought not",
+        "shan't": "shall not",
+        "shan’t": "shall not",
+    }.items():
+        normalized = normalized.replace(contraction, expansion)
+
+    claims: dict[str, set[str]] = {}
+    for clause in re.split(r"[.;!?；，。！？\n]+", normalized):
+        clause = clause.strip()
+        if not clause:
+            continue
+        terms = {
+            _claim_term(term)
+            for term in _semantic_terms(clause)
+            if term not in _PROSE_NEGATION_TERMS
+            and term not in _PROSE_AUXILIARY_TERMS
+        }
+        terms.update(
+            canonical_term
+            for canonical_term, pattern in _PROSE_CLAIM_TERM_PATTERNS.items()
+            if pattern.search(clause)
+        )
+        if len(terms) < 2:
+            continue
+        signature = "|".join(sorted(terms))
+        polarity = (
+            "negative"
+            if _PROSE_NEGATION_PATTERN.search(clause)
+            else "positive"
+        )
+        claims.setdefault(signature, set()).add(polarity)
+    return {signature: frozenset(polarities) for signature, polarities in claims.items()}
+
+
+def _prose_negation_anchors(text: str) -> FrozenSet[str]:
+    return frozenset(
+        f"prose_claim:negative:{signature}"
+        for signature, polarities in _prose_claim_polarities(text).items()
+        if "negative" in polarities
+    )
+
+
+def _prose_polarity_conflict(answer: str, candidate: str) -> bool:
+    answer_claims = _prose_claim_polarities(answer)
+    candidate_claims = _prose_claim_polarities(candidate)
+    for signature, answer_polarities in answer_claims.items():
+        candidate_polarities = candidate_claims.get(signature, frozenset())
+        if (
+            "negative" in answer_polarities
+            and "positive" in candidate_polarities
+        ) or (
+            "positive" in answer_polarities
+            and "negative" in candidate_polarities
+        ):
+            return True
+    return False
+
+
 def _comparison_qualifier(text: str) -> Optional[str]:
     match = _COMPARISON_QUALIFIER_PATTERN.search(_normalize(text))
     if match is None:
@@ -682,8 +892,10 @@ def _material_answer_anchors(question: str, answer: str) -> FrozenSet[str]:
     let a wrong value inherit support from a matching topic name.
     """
     anchors = set(_number_unit_pairs(answer))
+    anchors.update(_measurement_range_anchors(answer))
     anchors.update(_measurement_value_anchors(answer))
     anchors.update(_unitless_numeric_anchors(answer))
+    anchors.update(_prose_negation_anchors(answer))
     anchors.update(
         _normalize(match.group(0))
         for match in _HEX_LITERAL_PATTERN.finditer(answer)
@@ -702,8 +914,10 @@ def _material_candidate_anchors(hit: GovernedChunkRetrievalHit) -> FrozenSet[str
     """Return literals and provenance anchors exposed by one candidate."""
     anchors = set(_content_anchors(hit.chunk.content))
     anchors.update(_number_unit_pairs(hit.chunk.content))
+    anchors.update(_measurement_range_anchors(hit.chunk.content))
     anchors.update(_measurement_value_anchors(hit.chunk.content))
     anchors.update(_unitless_numeric_anchors(hit.chunk.content))
+    anchors.update(_prose_negation_anchors(hit.chunk.content))
     anchors.update(
         _normalize(match.group(0))
         for match in _HEX_LITERAL_PATTERN.finditer(hit.chunk.content)
@@ -1080,14 +1294,20 @@ def select_evidence(
         _signal_for_candidate(question, answer, hit, rank, anchors)
         for rank, hit in enumerate(hits, start=1)
         if (
-            (not scope_groups and not selection_generations)
-            or (
-                scope_groups
-                and any(hit.chunk.source_id in source_ids for source_ids in scope_groups.values())
-            )
-            or (
-                not scope_groups
-                and _candidate_generation(hit) in selection_generations
+            not _prose_polarity_conflict(answer, hit.chunk.content)
+            and (
+                (not scope_groups and not selection_generations)
+                or (
+                    scope_groups
+                    and any(
+                        hit.chunk.source_id in source_ids
+                        for source_ids in scope_groups.values()
+                    )
+                )
+                or (
+                    not scope_groups
+                    and _candidate_generation(hit) in selection_generations
+                )
             )
         )
     ]

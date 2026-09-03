@@ -3,7 +3,9 @@ import pytest
 from gv100h.spec_qa.contracts.governed_chunk import GovernedChunk
 from gv100h.spec_qa.operator_ui.evidence_selection import (
     _field_value_anchors,
+    _measurement_range_anchors,
     _measurement_value_anchors,
+    _prose_claim_polarities,
     _unitless_numeric_anchors,
     select_evidence,
 )
@@ -262,6 +264,154 @@ def test_selector_accepts_matching_scientific_notation_value():
     candidate = _hit("usb32", "10.1", answer, 0)
 
     selection = select_evidence("What is the current?", answer, [candidate])
+
+    assert selection.selected_hits == (candidate,)
+    assert selection.primary_hits == (candidate,)
+
+
+def test_selector_rejects_opposite_prose_polarity():
+    question = "Does the hub support suspend?"
+    negative_answer = "The hub does not support suspend."
+    positive_answer = "The hub supports suspend."
+    positive_candidate = _hit(
+        "usb32", "10.1", "The hub supports suspend.", 0
+    )
+    negative_candidate = _hit(
+        "usb32", "10.2", "The hub does not support suspend.", 1
+    )
+
+    assert _prose_claim_polarities(negative_answer) == {
+        "hub|support|suspend": frozenset({"negative"})
+    }
+    assert _prose_claim_polarities(positive_answer) == {
+        "hub|support|suspend": frozenset({"positive"})
+    }
+    negative_against_positive = select_evidence(
+        question, negative_answer, [positive_candidate]
+    )
+    positive_against_negative = select_evidence(
+        question, positive_answer, [negative_candidate]
+    )
+    negative_match = select_evidence(
+        question, negative_answer, [negative_candidate]
+    )
+
+    assert negative_against_positive.selected_hits == ()
+    assert negative_against_positive.primary_hits == ()
+    assert positive_against_negative.selected_hits == ()
+    assert positive_against_negative.primary_hits == ()
+    assert negative_match.selected_hits == (negative_candidate,)
+    assert negative_match.primary_hits == (negative_candidate,)
+
+
+def test_selector_normalizes_negative_prose_contractions():
+    for answer in (
+        "The hub doesn't support suspend.",
+        "The hub couldn't support suspend.",
+        "The hub should not support suspend.",
+    ):
+        candidate = _hit(
+            "usb32", "10.1", "The hub does not support suspend.", 0
+        )
+
+        selection = select_evidence(
+            "Does the hub support suspend?",
+            answer,
+            [candidate],
+        )
+
+        assert selection.selected_hits == (candidate,)
+        assert selection.primary_hits == (candidate,)
+
+
+def test_selector_handles_mixed_language_prose_polarity():
+    question = "Does the hub support suspend?"
+    negative_answer = "Hub 不支援 suspend。"
+    positive_answer = "Hub 支援 suspend。"
+    positive_candidate = _hit("usb32", "10.1", "The hub supports suspend.", 0)
+    negative_candidate = _hit(
+        "usb32", "10.2", "The hub does not support suspend.", 1
+    )
+
+    negative_against_positive = select_evidence(
+        question, negative_answer, [positive_candidate]
+    )
+    positive_against_negative = select_evidence(
+        question, positive_answer, [negative_candidate]
+    )
+    negative_match = select_evidence(
+        question, negative_answer, [negative_candidate]
+    )
+
+    assert negative_against_positive.selected_hits == ()
+    assert positive_against_negative.selected_hits == ()
+    assert negative_match.selected_hits == (negative_candidate,)
+
+
+def test_selector_rejects_mismatched_measurement_range_endpoints():
+    answer = "The voltage range is 8 to 10 V."
+    lower_mismatch = _hit(
+        "usb32", "10.1", "The voltage range is 9 to 10 V.", 0
+    )
+    upper_mismatch = _hit(
+        "usb32", "10.2", "The voltage range is 8 to 11 V.", 1
+    )
+    reversed_range = _hit(
+        "usb32", "10.3", "The voltage range is 10 to 8 V.", 2
+    )
+
+    assert _measurement_range_anchors(answer) == frozenset({"range:8..10v"})
+    assert _measurement_range_anchors(lower_mismatch.chunk.content) == frozenset(
+        {"range:9..10v"}
+    )
+    assert _measurement_range_anchors(upper_mismatch.chunk.content) == frozenset(
+        {"range:8..11v"}
+    )
+    assert _measurement_range_anchors(reversed_range.chunk.content) == frozenset(
+        {"range:10..8v"}
+    )
+
+    for candidate in (lower_mismatch, upper_mismatch, reversed_range):
+        selection = select_evidence(
+            "What is the voltage range?",
+            answer,
+            [candidate],
+        )
+        assert selection.selected_hits == ()
+        assert selection.primary_hits == ()
+
+
+def test_selector_accepts_matching_measurement_range_endpoints():
+    answer = "The voltage range is 8 to 10 V."
+    candidate = _hit("usb32", "10.1", answer, 0)
+
+    selection = select_evidence(
+        "What is the voltage range?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == (candidate,)
+    assert selection.primary_hits == (candidate,)
+
+
+@pytest.mark.parametrize(
+    "candidate_text",
+    [
+        "The voltage range is 8-10 V.",
+        "The voltage range is 8 – 10 V.",
+        "The voltage range is 8 through 10 V.",
+    ],
+)
+def test_selector_accepts_equivalent_measurement_range_separators(candidate_text):
+    answer = "The voltage range is 8 to 10 V."
+    candidate = _hit("usb32", "10.1", candidate_text, 0)
+
+    selection = select_evidence(
+        "What is the voltage range?",
+        answer,
+        [candidate],
+    )
 
     assert selection.selected_hits == (candidate,)
     assert selection.primary_hits == (candidate,)
