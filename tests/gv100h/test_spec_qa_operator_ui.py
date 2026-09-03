@@ -222,6 +222,9 @@ def test_app_js_renders_response_as_text_not_html():
     assert "虛構章節" in js
     assert "指定的 section 不存在" in js
     assert "authority 不在目前鎖定 corpus" in js
+    assert "INSUFFICIENT_EVIDENCE" in js
+    assert "MISSING_EVIDENCE" in js
+    assert "finalMeta" in js
     assert 'parts.join(" · ")' in js
     assert "權威來源" in js
     assert "RETRIEVAL_HINT" in js

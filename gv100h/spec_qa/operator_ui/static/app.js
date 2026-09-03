@@ -14,6 +14,7 @@ const STATUS_LABEL = {
 };
 
 const EMPTY_ANSWER = "輸入 USB 規格問題後，這裡會顯示有依據的回答。";
+const INSUFFICIENT_EVIDENCE_SENTINEL = "INSUFFICIENT_EVIDENCE";
 
 const SERVICE_PLACEHOLDER = "下游埠可以在哪些 link state 發出 Warm Reset？";
 const REAL_LOCAL_RAG_PLACEHOLDER = "USB 3.x 的 Warm Reset 在哪些 link state 發出？";
@@ -128,6 +129,10 @@ function isUsb4Scope(view) {
 
 function presentAnswer(text, view) {
   if (!text) return EMPTY_ANSWER;
+  if (text.trim().startsWith(INSUFFICIENT_EVIDENCE_SENTINEL)) {
+    const detail = text.trim().slice(INSUFFICIENT_EVIDENCE_SENTINEL.length).trim();
+    return detail ? `證據不足：${detail}` : "目前缺少足以支持結論的證據，因此暫不提供結論。";
+  }
   if (text === "現有 governed reference 無法支持此結論，本 Agent 拒絕過度推論 (Abstain)。") {
     const kind = view ? uiKind(view) : "";
     if (kind === "out_of_scope") {
@@ -472,16 +477,18 @@ function realLocalRagView(meta, answer, localModel) {
     corpus_sha256: meta.corpus_sha256,
   };
   if (meta.boundary_code) {
+    const modelRefusal = meta.boundary_code === "MISSING_EVIDENCE";
     return {
       ...base,
       status: "abstain",
       answer: answer || meta.boundary_answer || "目前請求被治理邊界拒絕。",
       claims: [],
+      citations: modelRefusal ? [] : citations,
       evidence_ids: [],
       claim_evidence_ids: [],
       is_abstain: true,
-      local_model: null,
-      retrieved_chunk_count: 0,
+      local_model: modelRefusal ? resolvedModel : null,
+      retrieved_chunk_count: modelRefusal ? (meta.retrieved_chunk_count || 0) : 0,
     };
   }
   if (answer === null) {
@@ -591,7 +598,8 @@ async function streamRealLocalRag(body, generation, controller) {
       finalEvent = event;
       answer = typeof event.answer === "string" ? event.answer : null;
       if (meta) {
-        render(realLocalRagView(meta, answer, event.local_model));
+        const finalMeta = event.boundary_code ? { ...meta, ...event } : meta;
+        render(realLocalRagView(finalMeta, answer, event.local_model));
         renderTokenInfo(event.token_info, false);
       }
       return;

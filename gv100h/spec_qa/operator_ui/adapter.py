@@ -49,6 +49,7 @@ class OperatorQAAdapter:
     def _real_local_rag_view(result) -> OperatorQAView:
         from gv100h.spec_qa.operator_ui.real_local_rag import (
             REAL_LOCAL_RAG_CLAIM_CEILING,
+            _is_insufficient_evidence,
         )
 
         citations = []
@@ -83,6 +84,30 @@ class OperatorQAAdapter:
                 source="real_local_rag",
                 retrieval_kind=result.retriever_kind,
                 retrieved_chunk_count=0,
+                corpus_sha256=result.corpus_sha256,
+            )
+
+        if _is_insufficient_evidence(result.answer):
+            return OperatorQAView(
+                status="abstain",
+                answer=result.answer,
+                claims=[],
+                citations=[],
+                boundary_code="MISSING_EVIDENCE",
+                boundary="Local AI reported insufficient evidence after retrieval.",
+                boundary_reason=(
+                    "Local AI returned INSUFFICIENT_EVIDENCE; retrieved candidates "
+                    "are not treated as supporting evidence."
+                ),
+                scope=result.scope,
+                evidence_ids=[],
+                claim_evidence_ids=[],
+                is_abstain=True,
+                claim_ceiling=REAL_LOCAL_RAG_CLAIM_CEILING,
+                source="real_local_rag",
+                retrieval_kind=result.retriever_kind,
+                local_model=result.local_model,
+                retrieved_chunk_count=len(result.hits),
                 corpus_sha256=result.corpus_sha256,
             )
 
@@ -165,6 +190,15 @@ class OperatorQAAdapter:
         allowed_evidence_scopes: Optional[Sequence[str]] = None,
     ) -> Iterator[dict[str, Any]]:
         """Return the bounded real-local-RAG event stream for the web API."""
+        from gv100h.spec_qa.operator_ui.real_local_rag import (
+            validate_real_local_rag_request,
+        )
+
+        validate_real_local_rag_request(
+            answer_scope=answer_scope,
+            retrieval_mode=retrieval_mode,
+            allowed_evidence_scopes=allowed_evidence_scopes,
+        )
 
         def events() -> Iterator[dict[str, Any]]:
             # Keep corpus construction inside the iterator so the HTTP layer

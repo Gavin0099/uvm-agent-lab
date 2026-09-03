@@ -34,6 +34,7 @@ DEFAULT_LOCAL_AI_BASE_URL = "http://127.0.0.1:8080/v1"
 DEFAULT_LOCAL_AI_MODEL = "mlx-community/Qwen3.8-27B-4bit"
 DEFAULT_TOP_K = 5
 MAX_EVIDENCE_CHARS = 6000
+INSUFFICIENT_EVIDENCE_SENTINEL = "INSUFFICIENT_EVIDENCE"
 _SECTION_REFERENCE_PATTERNS = (
     re.compile(r"(?:§|section|sect\.|clause)\s*(\d+(?:\.\d+)*)", re.IGNORECASE),
     re.compile(r"(\d+(?:\.\d+)*)\s*(?:section|節|章節)", re.IGNORECASE),
@@ -44,6 +45,14 @@ _UNLISTED_AUTHORITY_PATTERN = re.compile(
     r"(?:authority|archive|source)|"
     r"(?:authority|archive|source).{0,60}(?:absent|outside|not\s+(?:in|included)|"
     r"未列入|不在|未納入).{0,40}(?:phase\s*1|corpus\s*lock|corpus|指定規格)",
+    re.IGNORECASE,
+)
+_CHINESE_UNLISTED_AUTHORITY_PATTERN = re.compile(
+    r"(?:未列入|未納入|未核准|未批准|外部).{0,60}"
+    r"(?:來源|權威來源|資料來源|權威|archive|source)|"
+    r"(?:來源|權威來源|資料來源|權威).{0,40}"
+    r"(?:未列入|未納入|未核准|未批准|外部|不在).{0,40}"
+    r"(?:phase\s*1|corpus(?:\s*lock)?|指定規格|鎖定資料|規格)",
     re.IGNORECASE,
 )
 REAL_LOCAL_RAG_SYSTEM_PROMPT = (
@@ -63,6 +72,42 @@ REAL_LOCAL_RAG_CLAIM_CEILING = (
     "semantic entailment, final POC-1 qualification, and production answer-path "
     "integration are not claimed."
 )
+
+
+def _is_insufficient_evidence(answer: Optional[str]) -> bool:
+    """Return whether the local model emitted the prescribed abstain sentinel."""
+    return isinstance(answer, str) and answer.lstrip().startswith(
+        INSUFFICIENT_EVIDENCE_SENTINEL
+    )
+
+
+def validate_real_local_rag_request(
+    *,
+    answer_scope: Optional[str],
+    retrieval_mode: str,
+    allowed_evidence_scopes: Optional[Sequence[str]],
+) -> None:
+    """Validate request-level retrieval boundaries without building a corpus."""
+    if retrieval_mode not in ("single_scope", "explicit_cross_scope"):
+        raise ValueError(
+            "retrieval_mode must be single_scope or explicit_cross_scope"
+        )
+    if retrieval_mode == "explicit_cross_scope":
+        if not allowed_evidence_scopes:
+            raise ValueError(
+                "allowed_evidence_scopes is required for explicit_cross_scope"
+            )
+        _validate_scope_sequence(allowed_evidence_scopes)
+        return
+
+    scope = answer_scope or "USB_HUB_COMMON"
+    if allowed_evidence_scopes is not None:
+        requested_scopes = _validate_scope_sequence(allowed_evidence_scopes)
+        if requested_scopes != (scope,):
+            raise ValueError(
+                "allowed_evidence_scopes must contain exactly answer_scope "
+                "when retrieval_mode=single_scope"
+            )
 
 _SCOPE_TO_SOURCE_IDS = {
     "USB_2_0": ("usb20_fw", "usb20_se"),
@@ -115,7 +160,10 @@ def classify_real_local_rag_boundary(
             boundary="USB4 is excluded from the Phase 1 real PDF corpus.",
             reason="The requested USB4 authority is outside the locked Phase 1 corpus.",
         )
-    if _UNLISTED_AUTHORITY_PATTERN.search(normalized):
+    if (
+        _UNLISTED_AUTHORITY_PATTERN.search(normalized)
+        or _CHINESE_UNLISTED_AUTHORITY_PATTERN.search(normalized)
+    ):
         return RealLocalRAGBoundary(
             code="AUTHORITY_MISMATCH",
             scope=answer_scope or "USB_HUB_COMMON",
@@ -472,6 +520,21 @@ class RealLocalRAG:
             retrieval_mode=retrieval_mode,
             allowed_evidence_scopes=allowed_evidence_scopes,
         )
+        boundary = self._classify_boundary(
+            question=normalized_question,
+            answer_scope=answer_scope,
+            source_ids=source_ids,
+        )
+        if boundary is not None:
+            return RealLocalRAGResult(
+                answer=boundary.answer,
+                hits=(),
+                scope=boundary.scope,
+                local_model=None,
+                retriever_kind=self.retriever.retriever_kind,
+                corpus_sha256=self.retriever.corpus_sha256,
+                boundary=boundary,
+            )
         hits = tuple(
             self.retriever.query(
                 normalized_question,
@@ -557,6 +620,38 @@ class RealLocalRAG:
             retrieval_mode=retrieval_mode,
             allowed_evidence_scopes=allowed_evidence_scopes,
         )
+        boundary = self._classify_boundary(
+            question=normalized_question,
+            answer_scope=answer_scope,
+            source_ids=source_ids,
+        )
+        if boundary is not None:
+            yield {
+                "type": "meta",
+                "source": "real_local_rag",
+                "scope": boundary.scope,
+                "local_model": None,
+                "retriever_kind": self.retriever.retriever_kind,
+                "corpus_sha256": self.retriever.corpus_sha256,
+                "retrieved_chunk_count": 0,
+                "citations": [],
+                "claim_ceiling": REAL_LOCAL_RAG_CLAIM_CEILING,
+                "boundary_code": boundary.code,
+                "boundary_answer": boundary.answer,
+                "boundary": boundary.boundary,
+                "boundary_reason": boundary.reason,
+            }
+            yield {
+                "type": "done",
+                "answer": boundary.answer,
+                "local_model": None,
+                "token_info": {
+                    "stream_chunks": 0,
+                    "completion_chars": len(boundary.answer),
+                    "elapsed_ms": 0,
+                },
+            }
+            return
         hits = tuple(
             self.retriever.query(
                 normalized_question,
@@ -597,6 +692,8 @@ class RealLocalRAG:
         total_tokens: Optional[int] = None
         server_tokens_per_second: Optional[float] = None
         local_model = self.local_ai.model
+        pending_token_events: list[tuple[int, str, int]] = []
+        sentinel_decision: Optional[bool] = None
         for event in self.local_ai.stream_complete(
             system_prompt=REAL_LOCAL_RAG_SYSTEM_PROMPT,
             user_prompt=self._build_user_prompt(normalized_question, hits),
@@ -615,6 +712,32 @@ class RealLocalRAG:
             answer_parts.append(event.text)
             stream_chunks += 1
             answer_so_far = "".join(answer_parts)
+            if sentinel_decision is None:
+                if (
+                    INSUFFICIENT_EVIDENCE_SENTINEL.startswith(answer_so_far)
+                    or answer_so_far.startswith(INSUFFICIENT_EVIDENCE_SENTINEL)
+                ):
+                    pending_token_events.append(
+                        (stream_chunks, event.text, len(answer_so_far))
+                    )
+                    continue
+                sentinel_decision = False
+                for pending_index, pending_text, pending_chars in pending_token_events:
+                    yield {
+                        "type": "token",
+                        "text": pending_text,
+                        "stream_chunk_index": pending_index,
+                        "token_info": _token_info(
+                            stream_chunks=pending_index,
+                            completion_chars=pending_chars,
+                            elapsed_ms=_elapsed_ms(started),
+                            completion_tokens=completion_tokens,
+                            prompt_tokens=prompt_tokens,
+                            total_tokens=total_tokens,
+                            server_tokens_per_second=server_tokens_per_second,
+                        ),
+                    }
+                pending_token_events = []
             yield {
                 "type": "token",
                 "text": event.text,
@@ -633,6 +756,30 @@ class RealLocalRAG:
         answer = "".join(answer_parts).strip()
         if not answer:
             raise RealLocalRAGError("local AI stream contained no answer content")
+        if _is_insufficient_evidence(answer):
+            yield {
+                "type": "done",
+                "answer": answer,
+                "local_model": local_model,
+                "retrieved_chunk_count": len(hits),
+                "citations": [],
+                "boundary_code": "MISSING_EVIDENCE",
+                "boundary": "Local AI reported insufficient evidence after retrieval.",
+                "boundary_reason": (
+                    "Local AI returned INSUFFICIENT_EVIDENCE; retrieved candidates "
+                    "are not treated as supporting evidence."
+                ),
+                "token_info": _token_info(
+                    stream_chunks=stream_chunks,
+                    completion_chars=len(answer),
+                    elapsed_ms=_elapsed_ms(started),
+                    completion_tokens=completion_tokens,
+                    prompt_tokens=prompt_tokens,
+                    total_tokens=total_tokens,
+                    server_tokens_per_second=server_tokens_per_second,
+                ),
+            }
+            return
         yield {
             "type": "done",
             "answer": answer,
@@ -670,10 +817,16 @@ class RealLocalRAG:
         *,
         question: str,
         answer_scope: Optional[str],
+        source_ids: Optional[Iterable[str]] = None,
     ) -> Optional[RealLocalRAGBoundary]:
         chunks = getattr(self.retriever, "chunks", None)
+        allowed_source_ids = None if source_ids is None else set(source_ids)
         available_sections = (
-            (chunk.section for chunk in chunks)
+            (
+                chunk.section
+                for chunk in chunks
+                if allowed_source_ids is None or chunk.source_id in allowed_source_ids
+            )
             if chunks is not None
             else None
         )
@@ -714,21 +867,18 @@ class RealLocalRAG:
         retrieval_mode: str,
         allowed_evidence_scopes: Optional[Sequence[str]],
     ) -> tuple[Tuple[str, ...], str]:
-        if retrieval_mode not in ("single_scope", "explicit_cross_scope"):
-            raise ValueError(
-                "retrieval_mode must be single_scope or explicit_cross_scope"
-            )
+        validate_real_local_rag_request(
+            answer_scope=answer_scope,
+            retrieval_mode=retrieval_mode,
+            allowed_evidence_scopes=allowed_evidence_scopes,
+        )
         if retrieval_mode == "explicit_cross_scope":
-            if not allowed_evidence_scopes:
-                raise ValueError(
-                    "allowed_evidence_scopes is required for explicit_cross_scope"
-                )
-            scopes = tuple(str(scope).strip() for scope in allowed_evidence_scopes)
-            if any(not scope for scope in scopes):
-                raise ValueError("allowed_evidence_scopes must contain non-empty scopes")
+            assert allowed_evidence_scopes is not None
+            scopes = _validate_scope_sequence(allowed_evidence_scopes)
             scope_label = "+".join(scopes)
         else:
-            scopes = (answer_scope or "USB_HUB_COMMON",)
+            scope = answer_scope or "USB_HUB_COMMON"
+            scopes = (scope,)
             scope_label = scopes[0]
 
         source_ids: list[str] = []
@@ -747,6 +897,16 @@ class RealLocalRAG:
         if not source_ids:
             raise RealLocalRAGError("real-local-RAG request selected no eligible PDF sources")
         return tuple(source_ids), scope_label
+
+
+def _validate_scope_sequence(value: Sequence[str]) -> Tuple[str, ...]:
+    """Validate and normalize caller-supplied evidence scopes."""
+    if isinstance(value, (str, bytes, bytearray)) or not isinstance(value, Sequence):
+        raise ValueError("allowed_evidence_scopes must be a sequence of scope strings")
+    scopes = tuple(str(scope).strip() for scope in value)
+    if not scopes or any(not scope for scope in scopes):
+        raise ValueError("allowed_evidence_scopes must contain non-empty scopes")
+    return scopes
 
 
 def _int_from_mapping(values: Mapping[str, Any], key: str) -> Optional[int]:
