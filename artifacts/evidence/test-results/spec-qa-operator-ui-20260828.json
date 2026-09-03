@@ -1,0 +1,17 @@
+{
+  "receipt_schema": "test_evidence_receipt.v0.1",
+  "status": "report_only",
+  "command": "/tmp/uvm-spec-qa-cli-venv/bin/python -m pytest -v tests/gv100h/test_spec_qa_operator_ui.py --tb=short",
+  "exit_code": 0,
+  "started_at": "2026-08-28T10:44:04Z",
+  "finished_at": "2026-08-28T10:44:04Z",
+  "runner": "spec-qa-operator-ui",
+  "linked_commit": "10549ff340054103173b41c72d2b1cc91b8caaf7",
+  "output_artifacts": [
+    "artifacts/evidence/test-results/spec-qa-operator-ui-20260828.txt"
+  ],
+  "cannot_claim": [
+    "semantic correctness of the tested behavior",
+    "receipt authenticity: every field is fabricatable by a direct writer"
+  ]
+}
