@@ -2,6 +2,7 @@ import pytest
 
 from gv100h.spec_qa.contracts.governed_chunk import GovernedChunk
 from gv100h.spec_qa.operator_ui.evidence_selection import (
+    _field_value_anchors,
     _unitless_numeric_anchors,
     select_evidence,
 )
@@ -213,6 +214,26 @@ def test_selector_accepts_matching_pdf_measurement_units(answer):
     assert selection.primary_hits == (candidate,)
 
 
+def test_selector_rejects_colliding_scientific_notation_values():
+    answer = "The current is 1e-6 A."
+    candidate = _hit("usb32", "10.1", "The current is 6 A.", 0)
+
+    selection = select_evidence("What is the current?", answer, [candidate])
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_accepts_matching_scientific_notation_value():
+    answer = "The current is 1e-6 A."
+    candidate = _hit("usb32", "10.1", answer, 0)
+
+    selection = select_evidence("What is the current?", answer, [candidate])
+
+    assert selection.selected_hits == (candidate,)
+    assert selection.primary_hits == (candidate,)
+
+
 @pytest.mark.parametrize(
     ("answer", "candidate"),
     [
@@ -244,6 +265,81 @@ def test_selector_accepts_matching_closed_state_value(state):
 
     assert selection.selected_hits == (candidate,)
     assert selection.primary_hits == (candidate,)
+
+
+def test_selector_binds_zh_hant_closed_state_to_field_value():
+    answer = "PORT_POWER 已啟用。"
+    disabled_candidate = _hit("usb32", "10.1", "PORT_POWER is disabled.", 0)
+    enabled_candidate = _hit("usb32", "10.2", "PORT_POWER is enabled.", 1)
+    zh_hant_candidate = _hit("usb32", "10.3", answer, 2)
+
+    disabled_selection = select_evidence(
+        "What is PORT_POWER?", answer, [disabled_candidate]
+    )
+    enabled_selection = select_evidence(
+        "What is PORT_POWER?", answer, [enabled_candidate]
+    )
+    zh_hant_selection = select_evidence(
+        "What is PORT_POWER?", answer, [zh_hant_candidate]
+    )
+
+    assert disabled_selection.selected_hits == ()
+    assert disabled_selection.primary_hits == ()
+    assert enabled_selection.selected_hits == (enabled_candidate,)
+    assert enabled_selection.primary_hits == (enabled_candidate,)
+    assert zh_hant_selection.selected_hits == (zh_hant_candidate,)
+    assert zh_hant_selection.primary_hits == (zh_hant_candidate,)
+
+
+def test_selector_preserves_negation_in_field_value_anchor():
+    negative_answer = "PORT_POWER is not 8 V."
+    positive_answer = "PORT_POWER is 8 V."
+    positive_candidate = _hit("usb32", "10.1", positive_answer, 0)
+    negative_candidate = _hit("usb32", "10.2", negative_answer, 1)
+
+    negative_against_positive = select_evidence(
+        "What is PORT_POWER?", negative_answer, [positive_candidate]
+    )
+    positive_against_negative = select_evidence(
+        "What is PORT_POWER?", positive_answer, [negative_candidate]
+    )
+    negative_match = select_evidence(
+        "What is PORT_POWER?", negative_answer, [negative_candidate]
+    )
+
+    assert negative_against_positive.selected_hits == ()
+    assert negative_against_positive.primary_hits == ()
+    assert positive_against_negative.selected_hits == ()
+    assert positive_against_negative.primary_hits == ()
+    assert negative_match.selected_hits == (negative_candidate,)
+    assert negative_match.primary_hits == (negative_candidate,)
+
+
+def test_selector_preserves_zh_hant_negation_in_state_anchor():
+    negative_answer = "PORT_POWER 不是啟用。"
+    positive_candidate = _hit("usb32", "10.1", "PORT_POWER is enabled.", 0)
+    negative_candidate = _hit("usb32", "10.2", "PORT_POWER 不是啟用。", 1)
+
+    negative_against_positive = select_evidence(
+        "What is PORT_POWER?", negative_answer, [positive_candidate]
+    )
+    negative_match = select_evidence(
+        "What is PORT_POWER?", negative_answer, [negative_candidate]
+    )
+
+    assert negative_against_positive.selected_hits == ()
+    assert negative_against_positive.primary_hits == ()
+    assert negative_match.selected_hits == (negative_candidate,)
+    assert negative_match.primary_hits == (negative_candidate,)
+
+
+def test_negated_state_anchor_is_distinct_from_positive_state_anchor():
+    negative = _field_value_anchors("PORT_POWER 不是啟用。")
+    positive = _field_value_anchors("PORT_POWER 啟用。")
+
+    assert "port_power=not:enabled" in negative
+    assert "port_power=enabled" in positive
+    assert negative.isdisjoint(positive)
 
 
 def test_unitless_numeric_anchors_require_local_quantity_context():

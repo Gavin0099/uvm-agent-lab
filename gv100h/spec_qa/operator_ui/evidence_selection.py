@@ -20,11 +20,16 @@ from gv100h.spec_qa.retrieval.real_corpus_retriever import (
 EVIDENCE_SELECTION_METHOD = "deterministic_lexical_v1"
 
 _TOKEN_PATTERN = re.compile(r"[A-Za-z0-9]+(?:[_./-][A-Za-z0-9]+)*")
+_MEASUREMENT_NUMBER_PATTERN = (
+    r"[+-]?(?:(?:\d+(?:\.\d+)?)|(?:\.\d+))(?:[eE][+-]?\d+)?"
+)
 _MEASUREMENT_UNIT_PATTERN = (
-    r"(?:ohms?|volts?|bits?|ps|ns|us|ms|pf|mv|uv|ma|ua|mhz|khz|ghz|v|a)"
+    r"(?:ohms?|Ω|ω|volts?|bits?|ps|ns|us|ms|pf|mv|uv|ma|ua|mhz|khz|ghz|v|a)"
 )
 _NUMBER_UNIT_PATTERN = re.compile(
-    r"(?<![A-Za-z0-9_])[+-]?\d+(?:\.\d+)?\s*"
+    r"(?<![A-Za-z0-9_])"
+    + _MEASUREMENT_NUMBER_PATTERN
+    + r"\s*"
     + _MEASUREMENT_UNIT_PATTERN
     + r"(?![A-Za-z0-9_])",
     re.IGNORECASE,
@@ -51,10 +56,12 @@ _STATE_PHRASE_PATTERN = re.compile(
 _HEX_LITERAL_PATTERN = re.compile(r"\b0x[0-9a-f]+\b", re.IGNORECASE)
 _LITERAL_PATTERN = re.compile(
     r"(?<![A-Za-z0-9_])(?:0x[0-9a-f]+|"
-    r"[+-]?\d+(?:\.\d+)?\s*"
+    + _MEASUREMENT_NUMBER_PATTERN
+    + r"\s*"
     + _MEASUREMENT_UNIT_PATTERN
     + r"|"
-    r"[+-]?\d+(?:\.\d+)?(?!\s*[%A-Za-z0-9_])|"
+    + _MEASUREMENT_NUMBER_PATTERN
+    + r"(?!\s*[%A-Za-z0-9_])|"
     r"zero|one|non[- ]zero|"
     r"enabled|disabled|set|clear|on|off|active|inactive|"
     r"asserted|deasserted|true|false|valid|invalid|present|absent|"
@@ -62,7 +69,9 @@ _LITERAL_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _STANDALONE_NUMBER_PATTERN = re.compile(
-    r"(?<![A-Za-z0-9_.])(?P<number>[+-]?\d+(?:\.\d+)?)"
+    r"(?<![A-Za-z0-9_.])(?P<number>"
+    + _MEASUREMENT_NUMBER_PATTERN
+    + r")"
     r"(?![A-Za-z0-9_]|\.\d)",
     re.IGNORECASE,
 )
@@ -95,34 +104,94 @@ _QUANTITY_RELATION_BEFORE_NUMBER_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _FIELD_RELATION_PATTERN = re.compile(
-    r"(?:=|:|\bis\b|\bequals\b|\breturns?\b|"
+    r"(?:!=|=|:|\bis\b|\bequals\b|\breturns?\b|"
     r"\bvalue\s*(?:is|=)?\b|\b(?:should|must|shall)\s+be\b|"
-    r"值\s*(?:為|是)?|回傳)",
+    r"值\s*(?:為|是)?|回傳|不\s*(?:為|是)|非|未)",
     re.IGNORECASE,
 )
-_CLOSED_STATE_VALUES: FrozenSet[str] = frozenset(
-    {
-        "enabled",
-        "disabled",
-        "set",
-        "clear",
-        "on",
-        "off",
-        "active",
-        "inactive",
-        "asserted",
-        "deasserted",
-        "true",
-        "false",
-        "valid",
-        "invalid",
-        "present",
-        "absent",
-        "connected",
-        "disconnected",
-        "powered-on",
-        "powered-off",
-    }
+_STATE_VALUE_ALIASES = {
+    "enabled": "enabled",
+    "enable": "enabled",
+    "啟用": "enabled",
+    "已啟用": "enabled",
+    "disabled": "disabled",
+    "disable": "disabled",
+    "停用": "disabled",
+    "已停用": "disabled",
+    "set": "set",
+    "設定": "set",
+    "已設定": "set",
+    "置位": "set",
+    "clear": "clear",
+    "清除": "clear",
+    "已清除": "clear",
+    "清零": "clear",
+    "on": "on",
+    "開": "on",
+    "開啟": "on",
+    "已開啟": "on",
+    "off": "off",
+    "關": "off",
+    "關閉": "off",
+    "已關閉": "off",
+    "active": "active",
+    "活動": "active",
+    "作用中": "active",
+    "inactive": "inactive",
+    "未啟用": "inactive",
+    "非活動": "inactive",
+    "非作用中": "inactive",
+    "asserted": "asserted",
+    "assert": "asserted",
+    "deasserted": "deasserted",
+    "解除": "deasserted",
+    "未置位": "deasserted",
+    "true": "true",
+    "真": "true",
+    "false": "false",
+    "假": "false",
+    "valid": "valid",
+    "有效": "valid",
+    "invalid": "invalid",
+    "無效": "invalid",
+    "present": "present",
+    "存在": "present",
+    "absent": "absent",
+    "不存在": "absent",
+    "connected": "connected",
+    "已連線": "connected",
+    "已連接": "connected",
+    "disconnected": "disconnected",
+    "未連線": "disconnected",
+    "未連接": "disconnected",
+    "powered-on": "powered-on",
+    "powered on": "powered-on",
+    "上電": "powered-on",
+    "通電": "powered-on",
+    "powered-off": "powered-off",
+    "powered off": "powered-off",
+    "斷電": "powered-off",
+}
+_CLOSED_STATE_VALUES: FrozenSet[str] = frozenset(_STATE_VALUE_ALIASES)
+_STATE_VALUE_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9_])(?:"
+    + "|".join(
+        sorted(
+            (re.escape(alias) for alias in _STATE_VALUE_ALIASES),
+            key=len,
+            reverse=True,
+        )
+    )
+    + r")(?![A-Za-z0-9_])",
+    re.IGNORECASE,
+)
+_DIRECT_STATE_PREFIX_PATTERN = re.compile(
+    r"^\s*(?:(?:is|are|=|:)|(?:狀態\s*)?(?:為|是))?\s*$",
+    re.IGNORECASE,
+)
+_NEGATION_PATTERN = re.compile(
+    r"(?:\b(?:not|never|without|no)\b|不\s*(?:為|是)?|非|未|!)\s*$",
+    re.IGNORECASE,
 )
 
 _STOP_WORDS: FrozenSet[str] = frozenset(
@@ -389,6 +458,13 @@ def _state_phrases(text: str) -> FrozenSet[str]:
     )
 
 
+def _canonical_state_value(value: str) -> Optional[str]:
+    normalized = _normalize(value)
+    return _STATE_VALUE_ALIASES.get(normalized) or _STATE_VALUE_ALIASES.get(
+        normalized.replace(" ", "")
+    )
+
+
 def _field_value_anchors(text: str) -> FrozenSet[str]:
     anchors = set()
     identifier_matches = [
@@ -411,11 +487,36 @@ def _field_value_anchors(text: str) -> FrozenSet[str]:
         segment = text[field_match.end() : segment_end]
         relation = _FIELD_RELATION_PATTERN.search(segment)
         if relation is None:
-            continue
-        value_text = segment[relation.end() :]
-        for literal in _LITERAL_PATTERN.finditer(value_text):
-            value = _normalize(literal.group(0)).replace(" ", "")
-            anchors.add(f"{field}={value}")
+            value_text = ""
+            relation_negated = False
+        else:
+            value_text = segment[relation.end() :]
+            relation_text = segment[relation.start() : relation.end()]
+            relation_negated = (
+                relation_text.strip().startswith("!=")
+                or _NEGATION_PATTERN.search(relation_text) is not None
+            )
+            for literal in _LITERAL_PATTERN.finditer(value_text):
+                value = _canonical_state_value(literal.group(0)) or _normalize(
+                    literal.group(0)
+                ).replace(" ", "")
+                if relation_negated or _NEGATION_PATTERN.search(
+                    value_text[: literal.start()]
+                ):
+                    value = f"not:{value}"
+                anchors.add(f"{field}={value}")
+
+        for state_match in _STATE_VALUE_PATTERN.finditer(segment):
+            prefix = segment[: state_match.start()]
+            negation = _NEGATION_PATTERN.search(prefix)
+            direct_prefix = prefix[: negation.start()] if negation else prefix
+            if _DIRECT_STATE_PREFIX_PATTERN.fullmatch(direct_prefix) is None:
+                continue
+            state = _canonical_state_value(state_match.group(0))
+            if state is not None:
+                if relation_negated or negation is not None:
+                    state = f"not:{state}"
+                anchors.add(f"{field}={state}")
     return frozenset(anchors)
 
 
