@@ -998,6 +998,12 @@ def _material_answer_anchors(question: str, answer: str) -> FrozenSet[str]:
     return frozenset(anchors)
 
 
+def _required_material_anchors(question: str, answer: str) -> FrozenSet[str]:
+    anchors = set(_material_answer_anchors(question, answer))
+    anchors.update(_sections(question))
+    return frozenset(anchors)
+
+
 def _material_candidate_anchors(hit: GovernedChunkRetrievalHit) -> FrozenSet[str]:
     """Return literals and provenance anchors exposed by one candidate."""
     anchors = set(_content_anchors(hit.chunk.content))
@@ -1046,7 +1052,7 @@ def _material_answer_anchors_by_generation(
     required from every requested generation rather than silently assigned to
     whichever candidate happens to contain it.
     """
-    all_anchors = _material_answer_anchors(question, answer)
+    all_anchors = _required_material_anchors(question, answer)
     if not requested_generations:
         return {}
 
@@ -1384,7 +1390,7 @@ def select_evidence(
         answer,
         selection_generations,
     )
-    material_anchors = _material_answer_anchors(question, answer)
+    material_anchors = _required_material_anchors(question, answer)
     answer_field_anchors = _field_value_anchors(answer)
     signals = [
         _signal_for_candidate(question, answer, hit, rank, anchors)

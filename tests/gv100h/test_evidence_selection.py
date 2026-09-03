@@ -823,6 +823,36 @@ def test_selector_uses_explicit_generation_to_reject_similar_other_generation():
     assert [hit.chunk.section for hit in selection.primary_hits] == ["9.4.2"]
 
 
+def test_selector_rejects_matching_value_from_wrong_requested_section():
+    question = "According to Section 7.2, what is the voltage?"
+    candidate = _hit(
+        "usb32",
+        "9.1",
+        "Section 9.1 specifies a voltage of 8 V.",
+        0,
+    )
+
+    selection = select_evidence(question, "8 V", [candidate])
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_accepts_matching_value_from_requested_section():
+    question = "According to Section 7.2, what is the voltage?"
+    candidate = _hit(
+        "usb32",
+        "7.2",
+        "Section 7.2 specifies a voltage of 8 V.",
+        0,
+    )
+
+    selection = select_evidence(question, "8 V", [candidate])
+
+    assert selection.selected_hits == (candidate,)
+    assert selection.primary_hits == (candidate,)
+
+
 def test_selector_preserves_two_load_bearing_document_primaries():
     question = "Compare USB 2.0 and USB 3.2 PORT_POWER requirements"
     answer = (
