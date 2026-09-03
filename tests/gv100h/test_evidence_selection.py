@@ -853,6 +853,57 @@ def test_selector_accepts_matching_value_from_requested_section():
     assert selection.primary_hits == (candidate,)
 
 
+def test_selector_fails_closed_for_contracted_field_negation():
+    answer = "PORT_POWER isn't 8 V."
+    candidate = _hit(
+        "usb32",
+        "7.2",
+        "PORT_POWER is 8 V.",
+        0,
+    )
+
+    selection = select_evidence(
+        "What is the PORT_POWER value?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_rejects_wrong_substantive_claim_from_requested_section():
+    question = "What does Section 7.2 say about suspend?"
+    answer = "Section 7.2 requires suspend support."
+    candidate = _hit(
+        "usb32",
+        "7.2",
+        "Section 7.2 requires reset support.",
+        0,
+    )
+
+    selection = select_evidence(question, answer, [candidate])
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_accepts_substantive_claim_from_requested_section():
+    question = "What does Section 7.2 say about suspend?"
+    answer = "Section 7.2 requires suspend support."
+    candidate = _hit(
+        "usb32",
+        "7.2",
+        "Section 7.2 requires suspend support.",
+        0,
+    )
+
+    selection = select_evidence(question, answer, [candidate])
+
+    assert selection.selected_hits == (candidate,)
+    assert selection.primary_hits == (candidate,)
+
+
 def test_selector_preserves_two_load_bearing_document_primaries():
     question = "Compare USB 2.0 and USB 3.2 PORT_POWER requirements"
     answer = (

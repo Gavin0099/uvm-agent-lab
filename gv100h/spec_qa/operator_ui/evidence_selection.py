@@ -288,6 +288,13 @@ _PROSE_NEGATION_TERMS: FrozenSet[str] = frozenset(
         "非",
     }
 )
+_CONTRACTED_NEGATION_PATTERN = re.compile(
+    r"\b(?:isn['’]t|aren['’]t|wasn['’]t|weren['’]t|hasn['’]t|"
+    r"haven['’]t|hadn['’]t|doesn['’]t|don['’]t|didn['’]t|"
+    r"can['’]t|couldn['’]t|won['’]t|wouldn['’]t|shouldn['’]t|"
+    r"mustn['’]t|needn['’]t|mightn['’]t|oughtn['’]t|shan['’]t)\b",
+    re.IGNORECASE,
+)
 _PROSE_AUXILIARY_TERMS: FrozenSet[str] = frozenset(
     {
         "can",
@@ -729,6 +736,7 @@ def _has_supported_v1_binding(answer: str) -> bool:
         _UNSUPPORTED_CLAIM_MARKER_PATTERN.search(answer)
         or _UNSUPPORTED_PERCENT_PATTERN.search(answer)
         or _UNSUPPORTED_RANGE_MARKER_PATTERN.search(answer)
+        or _has_unsupported_contracted_field_negation(answer)
     ):
         return False
     if len(_unitless_numeric_anchors(answer)) > 1:
@@ -962,6 +970,31 @@ def _field_value_anchors(text: str) -> FrozenSet[str]:
     return frozenset(anchors)
 
 
+def _has_unsupported_contracted_field_negation(text: str) -> bool:
+    """Reject unparsed contracted field negation rather than guessing.
+
+    Ordinary prose contractions are handled by the bounded polarity guard.
+    This separate check only applies when an explicit identifier is followed by
+    a contracted negation and a v1 literal/state, where silently treating the
+    relation as positive would create a false formal citation.
+    """
+    identifiers = list(_EXPLICIT_IDENTIFIER_PATTERN.finditer(text))
+    for index, identifier_match in enumerate(identifiers):
+        segment_end = (
+            identifiers[index + 1].start()
+            if index + 1 < len(identifiers)
+            else len(text)
+        )
+        segment = text[identifier_match.end() : segment_end]
+        for contraction in _CONTRACTED_NEGATION_PATTERN.finditer(segment):
+            suffix = segment[contraction.end() :]
+            if _LITERAL_PATTERN.search(suffix) or _STATE_VALUE_PATTERN.search(
+                suffix
+            ):
+                return True
+    return False
+
+
 def _generation_anchors(text: str) -> FrozenSet[str]:
     generations = set()
     if _USB2_PATTERN.search(text):
@@ -1000,7 +1033,17 @@ def _material_answer_anchors(question: str, answer: str) -> FrozenSet[str]:
 
 def _required_material_anchors(question: str, answer: str) -> FrozenSet[str]:
     anchors = set(_material_answer_anchors(question, answer))
-    anchors.update(_sections(question))
+    question_sections = _sections(question)
+    answer_sections = _sections(answer)
+    anchors.update(question_sections)
+    if question_sections and answer_sections:
+        question_terms = {
+            _claim_term(term) for term in _semantic_terms(question)
+        }
+        answer_terms = {
+            _claim_term(term) for term in _semantic_terms(answer)
+        }
+        anchors.update(question_terms & answer_terms)
     return frozenset(anchors)
 
 
