@@ -64,6 +64,38 @@ def test_selector_does_not_equate_bm25_rank_one_with_primary_citation():
     ]
 
 
+def test_selector_abstains_when_answer_voltage_is_not_in_candidates():
+    question = "What is the PORT_POWER value?"
+    answer = "PORT_POWER = 99 V."
+    candidate = _hit(
+        "usb32",
+        "10.3.1.1",
+        "PORT_POWER feature selector value is 8 V.",
+        0,
+    )
+
+    selection = select_evidence(question, answer, [candidate])
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_abstains_when_answer_duration_is_not_in_candidates():
+    question = "What is the high-speed rise/fall time?"
+    answer = "The minimum high-speed rise/fall time is 600 ps."
+    candidate = _hit(
+        "usb20_se",
+        "7.1.2.2",
+        "The minimum high-speed differential rise and fall time is 500 ps.",
+        0,
+    )
+
+    selection = select_evidence(question, answer, [candidate])
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
 def test_selector_uses_explicit_generation_to_reject_similar_other_generation():
     question = "USB 3.2 configuration descriptor Address state and Configured state"
     answer = (

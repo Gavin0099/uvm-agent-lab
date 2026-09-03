@@ -109,6 +109,24 @@ class FakeInsufficientStreamingLocalAI:
         )
 
 
+class FakeWrongLiteralStreamingLocalAI:
+    model = "fake-local-qwen"
+
+    def __init__(self):
+        self.calls = []
+
+    def stream_complete(self, *, system_prompt, user_prompt):
+        self.calls.append({"system_prompt": system_prompt, "user_prompt": user_prompt})
+        yield LocalAIStreamEvent(text="PORT_POWER = 99 V", model=self.model)
+        yield LocalAIStreamEvent(
+            text="。",
+            model=self.model,
+            finish_reason="stop",
+            usage={"prompt_tokens": 42, "completion_tokens": 5, "total_tokens": 47},
+            timings={"predicted_per_second": 6.25},
+        )
+
+
 def test_real_local_rag_retrieves_by_scope_and_sends_evidence_to_local_ai():
     hit = _hit()
     retriever = FakeRetriever([hit])
@@ -571,6 +589,27 @@ def test_real_local_rag_stream_projects_model_insufficient_evidence_as_abstain()
     assert local_ai.calls
 
 
+def test_real_local_rag_stream_abstains_when_answer_literal_is_not_in_candidates():
+    hit = _hit(content="PORT_POWER feature selector value is 8 V.")
+    retriever = FakeRetriever([hit])
+    local_ai = FakeWrongLiteralStreamingLocalAI()
+
+    events = list(
+        RealLocalRAG(retriever, local_ai).stream_answer(
+            "What is the PORT_POWER value?",
+            answer_scope="USB_3_X",
+        )
+    )
+
+    done = events[-1]
+    assert done["type"] == "done"
+    assert done["boundary_code"] == "MISSING_EVIDENCE"
+    assert done["citations"] == []
+    assert done["selected_evidence_ids"] == []
+    assert done["primary_evidence_ids"] == []
+    assert len(done["candidate_citations"]) == 1
+
+
 def test_operator_adapter_projects_real_local_rag_provenance():
     hit = _hit()
     rag = RealLocalRAG(FakeRetriever([hit]), FakeLocalAI())
@@ -642,6 +681,44 @@ def test_operator_adapter_separates_candidates_and_selected_primary_evidence():
     assert view.primary_evidence_ids == [hits[1].chunk.chunk_id, hits[2].chunk.chunk_id]
     assert view.selected_evidence_ids == [hits[1].chunk.chunk_id, hits[2].chunk.chunk_id]
     assert view.evidence_selection_method == "deterministic_lexical_v1"
+
+
+@pytest.mark.parametrize(
+    "question, answer, content",
+    [
+        (
+            "What is the PORT_POWER value?",
+            "PORT_POWER = 99 V.",
+            "PORT_POWER feature selector value is 8 V.",
+        ),
+        (
+            "What is the high-speed rise/fall time?",
+            "The minimum high-speed rise/fall time is 600 ps.",
+            "The minimum high-speed differential rise and fall time is 500 ps.",
+        ),
+    ],
+)
+def test_operator_adapter_abstains_when_answer_literal_is_not_in_candidates(
+    question, answer, content
+):
+    hit = _hit(content=content)
+    view = OperatorQAAdapter(
+        real_local_rag=RealLocalRAG(
+            FakeRetriever([hit]),
+            FakeLocalAI(answer),
+        )
+    ).ask(
+        question,
+        answer_scope="USB_3_X",
+        source="real_local_rag",
+    )
+
+    assert view.status == "abstain"
+    assert view.boundary_code == "MISSING_EVIDENCE"
+    assert view.citations == []
+    assert view.selected_evidence_ids == []
+    assert view.primary_evidence_ids == []
+    assert len(view.candidate_citations) == 1
 
 
 def test_operator_adapter_keeps_model_abstention_without_selected_citations():

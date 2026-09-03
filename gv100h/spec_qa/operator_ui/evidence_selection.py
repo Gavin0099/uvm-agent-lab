@@ -30,6 +30,28 @@ _SECTION_PATTERN = re.compile(
 )
 _USB2_PATTERN = re.compile(r"\busb[\s_]*2(?:\.0)?\b", re.IGNORECASE)
 _USB3_PATTERN = re.compile(r"\busb[\s_]*3(?:\.[0-2x])?\b", re.IGNORECASE)
+_EXPLICIT_IDENTIFIER_PATTERN = re.compile(
+    r"\b(?:[A-Z][A-Z0-9_]{2,}|[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]+|"
+    r"[a-z]+[A-Z][A-Za-z0-9]*)\b"
+)
+_ENUM_TOKEN_PATTERN = re.compile(r"\b[A-Za-z]+\d+[A-Za-z0-9]*\b")
+_DOTTED_STATE_PATTERN = re.compile(
+    r"\b[A-Za-z][A-Za-z0-9]*(?:[.-][A-Za-z][A-Za-z0-9]*)+\b"
+)
+_STATE_PHRASE_PATTERN = re.compile(
+    r"\b([A-Za-z][A-Za-z0-9.-]*)\s+"
+    r"(state|mode)\b",
+    re.IGNORECASE,
+)
+_FIELD_VALUE_PATTERN = re.compile(
+    r"\b(?P<field>[A-Za-z][A-Za-z0-9_.-]*(?:_[A-Za-z0-9_.-]+)?)\b"
+    r"[^.!?\n]{0,50}?"
+    r"(?:=|:|is|equals|returns?|value\s*(?:is|=)?|"
+    r"值\s*(?:為|是)?|回傳)\s*"
+    r"(?P<value>\d+(?:\.\d+)?\s*(?:%|ps|ns|us|ms|pf|mv|v|a|ma|mhz|ghz)?|"
+    r"zero|one|non[- ]zero)\b",
+    re.IGNORECASE,
+)
 
 _STOP_WORDS: FrozenSet[str] = frozenset(
     {
@@ -183,13 +205,100 @@ def _sections(text: str) -> FrozenSet[str]:
     return frozenset(_SECTION_PATTERN.findall(text))
 
 
-def _requested_generations(question: str) -> FrozenSet[str]:
+def _explicit_identifier_tokens(text: str) -> FrozenSet[str]:
+    return frozenset(
+        token
+        for token in (
+            _normalize(match.group(0))
+            for match in _EXPLICIT_IDENTIFIER_PATTERN.finditer(text)
+        )
+        if token not in _STOP_WORDS and token not in _GENERIC_TERMS
+    )
+
+
+def _enum_tokens(text: str) -> FrozenSet[str]:
+    return frozenset(
+        token
+        for token in (
+            _normalize(match.group(0))
+            for match in _ENUM_TOKEN_PATTERN.finditer(text)
+        )
+        if token not in _STOP_WORDS and token not in _GENERIC_TERMS
+    )
+
+
+def _dotted_state_tokens(text: str) -> FrozenSet[str]:
+    return frozenset(
+        _normalize(match.group(0))
+        for match in _DOTTED_STATE_PATTERN.finditer(text)
+    )
+
+
+def _state_phrases(text: str) -> FrozenSet[str]:
+    return frozenset(
+        f"{_normalize(match.group(1))} {_normalize(match.group(2))}"
+        for match in _STATE_PHRASE_PATTERN.finditer(text)
+    )
+
+
+def _field_value_anchors(text: str) -> FrozenSet[str]:
+    explicit_fields = _explicit_identifier_tokens(text)
+    anchors = set()
+    for match in _FIELD_VALUE_PATTERN.finditer(text):
+        field = _normalize(match.group("field"))
+        if field not in explicit_fields:
+            continue
+        value = _normalize(match.group("value")).replace(" ", "")
+        anchors.add(f"{field}={value}")
+    return frozenset(anchors)
+
+
+def _generation_anchors(text: str) -> FrozenSet[str]:
     generations = set()
-    if _USB2_PATTERN.search(question):
+    if _USB2_PATTERN.search(text):
         generations.add("USB_2_0")
-    if _USB3_PATTERN.search(question):
+    if _USB3_PATTERN.search(text):
         generations.add("USB_3_X")
     return frozenset(generations)
+
+
+def _material_answer_anchors(question: str, answer: str) -> FrozenSet[str]:
+    """Extract answer literals that must be present in candidate evidence.
+
+    Ordinary prose overlap is intentionally excluded. These anchors are the
+    load-bearing literals for which a citation must provide direct lexical
+    support; dropping one because no candidate contains it would otherwise
+    let a wrong value inherit support from a matching topic name.
+    """
+    anchors = set(_number_unit_pairs(answer))
+    anchors.update(_sections(answer))
+    anchors.update(_explicit_identifier_tokens(answer))
+    anchors.update(_enum_tokens(answer))
+    anchors.update(_dotted_state_tokens(answer))
+    anchors.update(_state_phrases(answer))
+    anchors.update(_field_value_anchors(answer))
+    anchors.update(_generation_anchors(answer))
+    return frozenset(anchors)
+
+
+def _material_candidate_anchors(hit: GovernedChunkRetrievalHit) -> FrozenSet[str]:
+    """Return literals and provenance anchors exposed by one candidate."""
+    anchors = set(_content_anchors(hit.chunk.content))
+    anchors.update(_number_unit_pairs(hit.chunk.content))
+    anchors.add(_normalize(hit.chunk.section))
+    anchors.update(_explicit_identifier_tokens(hit.chunk.content))
+    anchors.update(_enum_tokens(hit.chunk.content))
+    anchors.update(_dotted_state_tokens(hit.chunk.content))
+    anchors.update(_state_phrases(hit.chunk.content))
+    anchors.update(_field_value_anchors(hit.chunk.content))
+    generation = _candidate_generation(hit)
+    if generation != "UNKNOWN":
+        anchors.add(generation)
+    return frozenset(anchors)
+
+
+def _requested_generations(question: str) -> FrozenSet[str]:
+    return _generation_anchors(question)
 
 
 def _candidate_generation(hit: GovernedChunkRetrievalHit) -> str:
@@ -217,6 +326,7 @@ def _answer_anchors(question: str, answer: str) -> FrozenSet[str]:
         for pair in _number_unit_pairs(answer)
         if not pair.endswith("%")
     )
+    anchors.update(_material_answer_anchors(question, answer))
 
     combined = f"{question} {answer}"
     if re.search(
@@ -251,7 +361,7 @@ def _signal_for_candidate(
 ) -> _CandidateSignal:
     answer_terms = _semantic_terms(answer)
     question_terms = _semantic_terms(question)
-    content_terms = _content_anchors(hit.chunk.content)
+    content_terms = _content_anchors(hit.chunk.content) | _material_candidate_anchors(hit)
     section_matches = _sections(answer) & {hit.chunk.section}
     section_matches |= _sections(question) & {hit.chunk.section}
     answer_matches = (answer_terms & content_terms) | section_matches
@@ -419,6 +529,7 @@ def select_evidence(
         return EvidenceSelection((), ())
 
     anchors = _answer_anchors(question, answer)
+    material_anchors = _material_answer_anchors(question, answer)
     requested_generations = _requested_generations(question)
     signals = [
         _signal_for_candidate(question, answer, hit, rank, anchors)
@@ -436,6 +547,16 @@ def select_evidence(
             return EvidenceSelection((), ())
     else:
         groups = [signals]
+
+    available_material_anchors = (
+        set().union(
+            *(_material_candidate_anchors(signal.hit) for signal in signals)
+        )
+        if signals
+        else set()
+    )
+    if not material_anchors.issubset(available_material_anchors):
+        return EvidenceSelection((), ())
 
     selected_signals: List[_CandidateSignal] = []
     for group in groups:
