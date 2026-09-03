@@ -96,6 +96,86 @@ def test_selector_abstains_when_answer_duration_is_not_in_candidates():
     assert selection.primary_hits == ()
 
 
+def test_selector_does_not_bind_value_across_a_second_identifier():
+    candidate = _hit(
+        "usb32",
+        "10.16.2.10",
+        "PORT_POWER is distinct from PORT_RESET = 4.",
+        0,
+    )
+
+    selection = select_evidence(
+        "What is the PORT_POWER value?",
+        "PORT_POWER = 4.",
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_binds_value_to_the_nearest_identifier():
+    candidate = _hit(
+        "usb32",
+        "10.16.2.10",
+        "PORT_POWER is distinct from PORT_RESET = 4.",
+        0,
+    )
+
+    selection = select_evidence(
+        "What is the PORT_RESET value?",
+        "PORT_RESET = 4.",
+        [candidate],
+    )
+
+    assert [hit.chunk.chunk_id for hit in selection.selected_hits] == [
+        candidate.chunk.chunk_id
+    ]
+    assert [hit.chunk.chunk_id for hit in selection.primary_hits] == [
+        candidate.chunk.chunk_id
+    ]
+
+
+def test_selector_abstains_when_answer_hex_literal_is_not_in_candidates():
+    candidate = _hit(
+        "usb32",
+        "10.16.2.10",
+        "PORT_POWER = 8 (0x0008).",
+        0,
+    )
+
+    selection = select_evidence(
+        "What is the PORT_POWER selector value?",
+        "PORT_POWER = 0x0009.",
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_accepts_hex_alias_in_candidate_evidence():
+    candidate = _hit(
+        "usb32",
+        "10.16.2.10",
+        "PORT_POWER = 8 (0x0008).",
+        0,
+    )
+
+    selection = select_evidence(
+        "What is the PORT_POWER selector value?",
+        "PORT_POWER = 0x0008.",
+        [candidate],
+    )
+
+    assert [hit.chunk.chunk_id for hit in selection.selected_hits] == [
+        candidate.chunk.chunk_id
+    ]
+    assert [hit.chunk.chunk_id for hit in selection.primary_hits] == [
+        candidate.chunk.chunk_id
+    ]
+
+
 def test_selector_uses_explicit_generation_to_reject_similar_other_generation():
     question = "USB 3.2 configuration descriptor Address state and Configured state"
     answer = (

@@ -43,13 +43,15 @@ _STATE_PHRASE_PATTERN = re.compile(
     r"(state|mode)\b",
     re.IGNORECASE,
 )
-_FIELD_VALUE_PATTERN = re.compile(
-    r"\b(?P<field>[A-Za-z][A-Za-z0-9_.-]*(?:_[A-Za-z0-9_.-]+)?)\b"
-    r"[^.!?\n]{0,50}?"
-    r"(?:=|:|is|equals|returns?|value\s*(?:is|=)?|"
-    r"值\s*(?:為|是)?|回傳)\s*"
-    r"(?P<value>\d+(?:\.\d+)?\s*(?:%|ps|ns|us|ms|pf|mv|v|a|ma|mhz|ghz)?|"
+_HEX_LITERAL_PATTERN = re.compile(r"\b0x[0-9a-f]+\b", re.IGNORECASE)
+_LITERAL_PATTERN = re.compile(
+    r"\b(?:0x[0-9a-f]+|\d+(?:\.\d+)?\s*(?:%|ps|ns|us|ms|pf|mv|v|a|ma|mhz|ghz)?|"
     r"zero|one|non[- ]zero)\b",
+    re.IGNORECASE,
+)
+_FIELD_RELATION_PATTERN = re.compile(
+    r"(?:=|:|\bis\b|\bequals\b|\breturns?\b|"
+    r"\bvalue\s*(?:is|=)?\b|值\s*(?:為|是)?|回傳)",
     re.IGNORECASE,
 )
 
@@ -242,14 +244,31 @@ def _state_phrases(text: str) -> FrozenSet[str]:
 
 
 def _field_value_anchors(text: str) -> FrozenSet[str]:
-    explicit_fields = _explicit_identifier_tokens(text)
     anchors = set()
-    for match in _FIELD_VALUE_PATTERN.finditer(text):
-        field = _normalize(match.group("field"))
-        if field not in explicit_fields:
+    identifier_matches = [
+        match
+        for match in _EXPLICIT_IDENTIFIER_PATTERN.finditer(text)
+        if _normalize(match.group(0)) not in _STOP_WORDS
+        and _normalize(match.group(0)) not in _GENERIC_TERMS
+    ]
+    for index, field_match in enumerate(identifier_matches):
+        field = _normalize(field_match.group(0))
+        segment_end = (
+            identifier_matches[index + 1].start()
+            if index + 1 < len(identifier_matches)
+            else len(text)
+        )
+        # Bind a value only within the field's own segment. In particular,
+        # ``PORT_POWER is distinct from PORT_RESET = 4`` must not produce a
+        # false ``port_power=4`` pair by crossing the PORT_RESET identifier.
+        segment = text[field_match.end() : segment_end]
+        relation = _FIELD_RELATION_PATTERN.search(segment)
+        if relation is None:
             continue
-        value = _normalize(match.group("value")).replace(" ", "")
-        anchors.add(f"{field}={value}")
+        value_text = segment[relation.end() :]
+        for literal in _LITERAL_PATTERN.finditer(value_text):
+            value = _normalize(literal.group(0)).replace(" ", "")
+            anchors.add(f"{field}={value}")
     return frozenset(anchors)
 
 
@@ -271,6 +290,10 @@ def _material_answer_anchors(question: str, answer: str) -> FrozenSet[str]:
     let a wrong value inherit support from a matching topic name.
     """
     anchors = set(_number_unit_pairs(answer))
+    anchors.update(
+        _normalize(match.group(0))
+        for match in _HEX_LITERAL_PATTERN.finditer(answer)
+    )
     anchors.update(_sections(answer))
     anchors.update(_explicit_identifier_tokens(answer))
     anchors.update(_enum_tokens(answer))
@@ -285,6 +308,10 @@ def _material_candidate_anchors(hit: GovernedChunkRetrievalHit) -> FrozenSet[str
     """Return literals and provenance anchors exposed by one candidate."""
     anchors = set(_content_anchors(hit.chunk.content))
     anchors.update(_number_unit_pairs(hit.chunk.content))
+    anchors.update(
+        _normalize(match.group(0))
+        for match in _HEX_LITERAL_PATTERN.finditer(hit.chunk.content)
+    )
     anchors.add(_normalize(hit.chunk.section))
     anchors.update(_explicit_identifier_tokens(hit.chunk.content))
     anchors.update(_enum_tokens(hit.chunk.content))
