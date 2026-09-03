@@ -1,3 +1,5 @@
+import pytest
+
 from gv100h.spec_qa.contracts.governed_chunk import GovernedChunk
 from gv100h.spec_qa.operator_ui.evidence_selection import (
     _unitless_numeric_anchors,
@@ -162,6 +164,86 @@ def test_selector_preserves_numeric_sign_in_material_anchor():
     assert wrong_sign.primary_hits == ()
     assert matching_sign.selected_hits == (candidate,)
     assert matching_sign.primary_hits == (candidate,)
+
+
+@pytest.mark.parametrize(
+    ("answer", "candidate"),
+    [
+        ("The threshold is 500 uA.", "The threshold is 100 uA."),
+        ("The voltage is 2 uV.", "The voltage is 1 uV."),
+        ("The clock rate is 45 kHz.", "The clock rate is 90 kHz."),
+        ("The resistance is 45 ohms.", "The resistance is 90 ohms."),
+        ("The resistance is 45 Ω.", "The resistance is 90 Ω."),
+        ("The payload width is 32 bits.", "The payload width is 16 bits."),
+        ("The voltage is 5 volts.", "The voltage is 3 volts."),
+    ],
+)
+def test_selector_rejects_mismatched_pdf_measurement_units(answer, candidate):
+    selection = select_evidence(
+        "What is the measurement?",
+        answer,
+        [_hit("usb32", "10.1", candidate, 0)],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "The threshold is 500 uA.",
+        "The voltage is 2 uV.",
+        "The clock rate is 45 kHz.",
+        "The resistance is 45 ohms.",
+        "The resistance is 45 Ω.",
+        "The payload width is 32 bits.",
+        "The voltage is 5 volts.",
+    ],
+)
+def test_selector_accepts_matching_pdf_measurement_units(answer):
+    candidate = _hit("usb32", "10.1", answer, 0)
+    selection = select_evidence(
+        "What is the measurement?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == (candidate,)
+    assert selection.primary_hits == (candidate,)
+
+
+@pytest.mark.parametrize(
+    ("answer", "candidate"),
+    [
+        ("PORT_POWER is enabled.", "PORT_POWER is disabled."),
+        ("PORT_POWER is set.", "PORT_POWER is clear."),
+        ("PORT_POWER is on.", "PORT_POWER is off."),
+        ("PORT_POWER is ACTIVE.", "PORT_POWER is INACTIVE."),
+    ],
+)
+def test_selector_rejects_mismatched_closed_state_values(answer, candidate):
+    selection = select_evidence(
+        "What is PORT_POWER?",
+        answer,
+        [_hit("usb32", "10.1", candidate, 0)],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+@pytest.mark.parametrize("state", ["enabled", "set", "on", "active"])
+def test_selector_accepts_matching_closed_state_value(state):
+    candidate = _hit("usb32", "10.1", f"PORT_POWER is {state}.", 0)
+    selection = select_evidence(
+        "What is PORT_POWER?",
+        f"PORT_POWER is {state}.",
+        [candidate],
+    )
+
+    assert selection.selected_hits == (candidate,)
+    assert selection.primary_hits == (candidate,)
 
 
 def test_unitless_numeric_anchors_require_local_quantity_context():

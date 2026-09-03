@@ -20,9 +20,13 @@ from gv100h.spec_qa.retrieval.real_corpus_retriever import (
 EVIDENCE_SELECTION_METHOD = "deterministic_lexical_v1"
 
 _TOKEN_PATTERN = re.compile(r"[A-Za-z0-9]+(?:[_./-][A-Za-z0-9]+)*")
+_MEASUREMENT_UNIT_PATTERN = (
+    r"(?:ohms?|volts?|bits?|ps|ns|us|ms|pf|mv|uv|ma|ua|mhz|khz|ghz|v|a)"
+)
 _NUMBER_UNIT_PATTERN = re.compile(
     r"(?<![A-Za-z0-9_])[+-]?\d+(?:\.\d+)?\s*"
-    r"(?:ps|ns|us|ms|pf|mv|v|a|ma|mhz|ghz)(?![A-Za-z0-9_])",
+    + _MEASUREMENT_UNIT_PATTERN
+    + r"(?![A-Za-z0-9_])",
     re.IGNORECASE,
 )
 _SECTION_PATTERN = re.compile(
@@ -47,9 +51,14 @@ _STATE_PHRASE_PATTERN = re.compile(
 _HEX_LITERAL_PATTERN = re.compile(r"\b0x[0-9a-f]+\b", re.IGNORECASE)
 _LITERAL_PATTERN = re.compile(
     r"(?<![A-Za-z0-9_])(?:0x[0-9a-f]+|"
-    r"[+-]?\d+(?:\.\d+)?\s*(?:ps|ns|us|ms|pf|mv|v|a|ma|mhz|ghz)|"
+    r"[+-]?\d+(?:\.\d+)?\s*"
+    + _MEASUREMENT_UNIT_PATTERN
+    + r"|"
     r"[+-]?\d+(?:\.\d+)?(?!\s*[%A-Za-z0-9_])|"
-    r"zero|one|non[- ]zero)(?![A-Za-z0-9_])",
+    r"zero|one|non[- ]zero|"
+    r"enabled|disabled|set|clear|on|off|active|inactive|"
+    r"asserted|deasserted|true|false|valid|invalid|present|absent|"
+    r"connected|disconnected|powered[- ]?(?:on|off))(?![A-Za-z0-9_])",
     re.IGNORECASE,
 )
 _STANDALONE_NUMBER_PATTERN = re.compile(
@@ -90,6 +99,30 @@ _FIELD_RELATION_PATTERN = re.compile(
     r"\bvalue\s*(?:is|=)?\b|\b(?:should|must|shall)\s+be\b|"
     r"值\s*(?:為|是)?|回傳)",
     re.IGNORECASE,
+)
+_CLOSED_STATE_VALUES: FrozenSet[str] = frozenset(
+    {
+        "enabled",
+        "disabled",
+        "set",
+        "clear",
+        "on",
+        "off",
+        "active",
+        "inactive",
+        "asserted",
+        "deasserted",
+        "true",
+        "false",
+        "valid",
+        "invalid",
+        "present",
+        "absent",
+        "connected",
+        "disconnected",
+        "powered-on",
+        "powered-off",
+    }
 )
 
 _STOP_WORDS: FrozenSet[str] = frozenset(
@@ -172,7 +205,29 @@ _GENERIC_TERMS: FrozenSet[str] = frozenset(
 )
 
 _UNIT_TERMS: FrozenSet[str] = frozenset(
-    {"%", "ps", "ns", "us", "ms", "pf", "mv", "v", "a", "ma", "mhz", "ghz"}
+    {
+        "%",
+        "ps",
+        "ns",
+        "us",
+        "ms",
+        "pf",
+        "mv",
+        "uv",
+        "v",
+        "a",
+        "ma",
+        "ua",
+        "mhz",
+        "khz",
+        "ghz",
+        "ohm",
+        "ohms",
+        "volt",
+        "volts",
+        "bit",
+        "bits",
+    }
 )
 
 _SCOPE_TO_SOURCE_IDS = {
@@ -219,6 +274,7 @@ def _normalize(text: str) -> str:
         text.casefold()
         .replace("µ", "u")
         .replace("μ", "u")
+        .replace("ω", "ohm")
         .replace("|", " ")
         .split()
     )
@@ -340,6 +396,7 @@ def _field_value_anchors(text: str) -> FrozenSet[str]:
         for match in _EXPLICIT_IDENTIFIER_PATTERN.finditer(text)
         if _normalize(match.group(0)) not in _STOP_WORDS
         and _normalize(match.group(0)) not in _GENERIC_TERMS
+        and _normalize(match.group(0)) not in _CLOSED_STATE_VALUES
     ]
     for index, field_match in enumerate(identifier_matches):
         field = _normalize(field_match.group(0))
