@@ -1,5 +1,8 @@
 from gv100h.spec_qa.contracts.governed_chunk import GovernedChunk
-from gv100h.spec_qa.operator_ui.evidence_selection import select_evidence
+from gv100h.spec_qa.operator_ui.evidence_selection import (
+    _unitless_numeric_anchors,
+    select_evidence,
+)
 from gv100h.spec_qa.retrieval.real_corpus_retriever import (
     GovernedChunkRetrievalHit,
 )
@@ -94,6 +97,83 @@ def test_selector_abstains_when_answer_duration_is_not_in_candidates():
 
     assert selection.selected_hits == ()
     assert selection.primary_hits == ()
+
+
+def test_selector_abstains_when_answer_unitless_count_is_not_in_candidates():
+    candidate = _hit(
+        "usb32",
+        "10.1",
+        "The hub supports 8 downstream ports.",
+        0,
+    )
+
+    selection = select_evidence(
+        "How many downstream ports are supported?",
+        "The hub supports 4 downstream ports.",
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_accepts_matching_unitless_count():
+    candidate = _hit(
+        "usb32",
+        "10.1",
+        "The hub supports 8 downstream ports.",
+        0,
+    )
+
+    selection = select_evidence(
+        "How many downstream ports are supported?",
+        "The hub supports 8 downstream ports.",
+        [candidate],
+    )
+
+    assert [hit.chunk.chunk_id for hit in selection.selected_hits] == [
+        candidate.chunk.chunk_id
+    ]
+    assert [hit.chunk.chunk_id for hit in selection.primary_hits] == [
+        candidate.chunk.chunk_id
+    ]
+
+
+def test_selector_preserves_numeric_sign_in_material_anchor():
+    candidate = _hit(
+        "usb32",
+        "7.1",
+        "The voltage is -5 V.",
+        0,
+    )
+
+    wrong_sign = select_evidence(
+        "What is the voltage?",
+        "The voltage is +5 V.",
+        [candidate],
+    )
+    matching_sign = select_evidence(
+        "What is the voltage?",
+        "The voltage is -5 V.",
+        [candidate],
+    )
+
+    assert wrong_sign.selected_hits == ()
+    assert wrong_sign.primary_hits == ()
+    assert matching_sign.selected_hits == (candidate,)
+    assert matching_sign.primary_hits == (candidate,)
+
+
+def test_unitless_numeric_anchors_require_local_quantity_context():
+    assert _unitless_numeric_anchors(
+        "The device state machine is described in 3 paragraphs."
+    ) == frozenset()
+    assert _unitless_numeric_anchors("USB 3.2 section 9.4.2.") == frozenset()
+    assert _unitless_numeric_anchors("USB2 supports 4 downstream ports.") == frozenset(
+        {"4"}
+    )
+    assert _unitless_numeric_anchors("The value is 8.") == frozenset({"8"})
+    assert _unitless_numeric_anchors("The percentage is 50%.") == frozenset()
 
 
 def test_selector_does_not_bind_value_across_a_second_identifier():
@@ -347,6 +427,66 @@ def test_selector_accepts_shared_literal_when_each_generation_supports_it():
     )
 
     selection = select_evidence(question, answer, [usb2, usb3])
+
+    assert {hit.chunk.source_id for hit in selection.selected_hits} == {
+        "usb20_fw",
+        "usb32",
+    }
+    assert {hit.chunk.source_id for hit in selection.primary_hits} == {
+        "usb20_fw",
+        "usb32",
+    }
+
+
+def test_selector_splits_usb_hub_common_by_claimed_generation():
+    question = "What are the PORT_POWER values?"
+    answer = "For USB 2.0 the value is 8 V; for USB 3.2 it is 9 V."
+    usb2 = _hit(
+        "usb20_fw",
+        "11.24.2.7.1.6",
+        "USB 2.0 PORT_POWER feature value is 9 V.",
+        0,
+    )
+    usb3 = _hit(
+        "usb32",
+        "10.3.1.1",
+        "USB 3.2 PORT_POWER feature value is 8 V.",
+        1,
+    )
+
+    selection = select_evidence(
+        question,
+        answer,
+        [usb2, usb3],
+        required_scopes=("USB_HUB_COMMON",),
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_accepts_usb_hub_common_generation_specific_values():
+    question = "What are the PORT_POWER values?"
+    answer = "For USB 2.0 the value is 8 V; for USB 3.2 it is 9 V."
+    usb2 = _hit(
+        "usb20_fw",
+        "11.24.2.7.1.6",
+        "USB 2.0 PORT_POWER feature value is 8 V.",
+        0,
+    )
+    usb3 = _hit(
+        "usb32",
+        "10.3.1.1",
+        "USB 3.2 PORT_POWER feature value is 9 V.",
+        1,
+    )
+
+    selection = select_evidence(
+        question,
+        answer,
+        [usb2, usb3],
+        required_scopes=("USB_HUB_COMMON",),
+    )
 
     assert {hit.chunk.source_id for hit in selection.selected_hits} == {
         "usb20_fw",

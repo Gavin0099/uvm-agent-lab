@@ -21,7 +21,8 @@ EVIDENCE_SELECTION_METHOD = "deterministic_lexical_v1"
 
 _TOKEN_PATTERN = re.compile(r"[A-Za-z0-9]+(?:[_./-][A-Za-z0-9]+)*")
 _NUMBER_UNIT_PATTERN = re.compile(
-    r"\b\d+(?:\.\d+)?\s*(?:%|ps|ns|us|ms|pf|mv|v|a|ma|mhz|ghz)\b",
+    r"(?<![A-Za-z0-9_])[+-]?\d+(?:\.\d+)?\s*"
+    r"(?:ps|ns|us|ms|pf|mv|v|a|ma|mhz|ghz)(?![A-Za-z0-9_])",
     re.IGNORECASE,
 )
 _SECTION_PATTERN = re.compile(
@@ -45,8 +46,43 @@ _STATE_PHRASE_PATTERN = re.compile(
 )
 _HEX_LITERAL_PATTERN = re.compile(r"\b0x[0-9a-f]+\b", re.IGNORECASE)
 _LITERAL_PATTERN = re.compile(
-    r"\b(?:0x[0-9a-f]+|\d+(?:\.\d+)?\s*(?:%|ps|ns|us|ms|pf|mv|v|a|ma|mhz|ghz)?|"
-    r"zero|one|non[- ]zero)\b",
+    r"(?<![A-Za-z0-9_])(?:0x[0-9a-f]+|"
+    r"[+-]?\d+(?:\.\d+)?\s*(?:ps|ns|us|ms|pf|mv|v|a|ma|mhz|ghz)|"
+    r"[+-]?\d+(?:\.\d+)?(?!\s*[%A-Za-z0-9_])|"
+    r"zero|one|non[- ]zero)(?![A-Za-z0-9_])",
+    re.IGNORECASE,
+)
+_STANDALONE_NUMBER_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9_.])(?P<number>[+-]?\d+(?:\.\d+)?)"
+    r"(?![A-Za-z0-9_]|\.\d)",
+    re.IGNORECASE,
+)
+_QUANTITY_NOUN_AFTER_NUMBER_PATTERN = re.compile(
+    r"^\s*(?:(?:downstream|upstream|available|supported|valid|current|"
+    r"configured|total|maximum|minimum)\s+)*(?:number|count|quantity|"
+    r"total|port(?:s)?|entr(?:y|ies)|item(?:s)?|lane(?:s)?|channel(?:s)?|"
+    r"state(?:s)?|bit(?:s)?|byte(?:s)?|word(?:s)?|selector(?:s)?|"
+    r"code(?:s)?|index|indices|enum(?:eration)?|value(?:s)?|"
+    r"configuration|descriptor(?:s)?|transition(?:s)?|time(?:s)?)\b",
+    re.IGNORECASE,
+)
+_QUANTITY_DIRECT_BEFORE_NUMBER_PATTERN = re.compile(
+    r"(?:\b(?:number|count|quantity|total|port(?:s)?|entr(?:y|ies)|"
+    r"item(?:s)?|lane(?:s)?|channel(?:s)?|state(?:s)?|bit(?:s)?|byte(?:s)?|"
+    r"word(?:s)?|selector(?:s)?|code(?:s)?|index|indices|enum(?:eration)?|"
+    r"value(?:s)?|configuration|descriptor(?:s)?|minimum|maximum|"
+    r"at\s+least|at\s+most|up\s+to)\b|值\s*(?:為|是)?|回傳)"
+    r"\s*(?:[:=]\s*)?$",
+    re.IGNORECASE,
+)
+_QUANTITY_RELATION_BEFORE_NUMBER_PATTERN = re.compile(
+    r"\b(?:number|count|quantity|total|port(?:s)?|entr(?:y|ies)|"
+    r"item(?:s)?|lane(?:s)?|channel(?:s)?|state(?:s)?|bit(?:s)?|byte(?:s)?|"
+    r"word(?:s)?|selector(?:s)?|code(?:s)?|index|indices|enum(?:eration)?|"
+    r"value(?:s)?|configuration|descriptor(?:s)?|minimum|maximum)\b"
+    r"(?:\s+[A-Za-z0-9_./-]+){0,5}\s*"
+    r"(?:is|are|equals?|returns?|should\s+be|must\s+be|shall\s+be|"
+    r"[:=]|值\s*(?:為|是)?|回傳)\s*$",
     re.IGNORECASE,
 )
 _FIELD_RELATION_PATTERN = re.compile(
@@ -150,6 +186,11 @@ _SCOPE_TO_GENERATION = {
     "USB_2_0": "USB_2_0",
     "USB_3_X": "USB_3_X",
 }
+_GENERATION_TO_SOURCE_IDS = {
+    "USB_2_0": _SCOPE_TO_SOURCE_IDS["USB_2_0"],
+    "USB_3_X": _SCOPE_TO_SOURCE_IDS["USB_3_X"],
+}
+_GENERATION_ORDER = ("USB_2_0", "USB_3_X")
 
 
 @dataclass(frozen=True)
@@ -214,6 +255,41 @@ def _number_unit_pairs(text: str) -> FrozenSet[str]:
         match.group(0).replace(" ", "")
         for match in _NUMBER_UNIT_PATTERN.finditer(_normalize(text))
     )
+
+
+def _unitless_numeric_anchors(text: str) -> FrozenSet[str]:
+    """Extract standalone numbers used as counts, codes, or quantities.
+
+    Version and section numbers are excluded structurally. A bare number is
+    material only when nearby wording indicates that it carries a quantity or
+    enumerated value; ordinary prose numbers remain non-material.
+    """
+    normalized = _normalize(text)
+    anchors = set()
+    for match in _STANDALONE_NUMBER_PATTERN.finditer(normalized):
+        start, end = match.span("number")
+        before = normalized[max(0, start - 64) : start]
+        after = normalized[end : min(len(normalized), end + 64)]
+        if re.search(r"\busb\s*$", before, re.IGNORECASE):
+            continue
+        if re.search(r"(?:§|section|sect\.|clause|p\.)\s*$", before, re.IGNORECASE):
+            continue
+        if re.match(r"\s*%", after):
+            continue
+        if _NUMBER_UNIT_PATTERN.match(normalized, start):
+            continue
+        has_before_context = (
+            _QUANTITY_DIRECT_BEFORE_NUMBER_PATTERN.search(before) is not None
+            or _QUANTITY_RELATION_BEFORE_NUMBER_PATTERN.search(before)
+            is not None
+        )
+        has_after_context = (
+            _QUANTITY_NOUN_AFTER_NUMBER_PATTERN.match(after) is not None
+        )
+        if not (has_before_context or has_after_context):
+            continue
+        anchors.add(_normalize(match.group("number")))
+    return frozenset(anchors)
 
 
 def _sections(text: str) -> FrozenSet[str]:
@@ -304,6 +380,7 @@ def _material_answer_anchors(question: str, answer: str) -> FrozenSet[str]:
     let a wrong value inherit support from a matching topic name.
     """
     anchors = set(_number_unit_pairs(answer))
+    anchors.update(_unitless_numeric_anchors(answer))
     anchors.update(
         _normalize(match.group(0))
         for match in _HEX_LITERAL_PATTERN.finditer(answer)
@@ -322,6 +399,7 @@ def _material_candidate_anchors(hit: GovernedChunkRetrievalHit) -> FrozenSet[str
     """Return literals and provenance anchors exposed by one candidate."""
     anchors = set(_content_anchors(hit.chunk.content))
     anchors.update(_number_unit_pairs(hit.chunk.content))
+    anchors.update(_unitless_numeric_anchors(hit.chunk.content))
     anchors.update(
         _normalize(match.group(0))
         for match in _HEX_LITERAL_PATTERN.finditer(hit.chunk.content)
@@ -340,6 +418,12 @@ def _material_candidate_anchors(hit: GovernedChunkRetrievalHit) -> FrozenSet[str
 
 def _requested_generations(question: str) -> FrozenSet[str]:
     return _generation_anchors(question)
+
+
+def _ordered_generations(generations: Iterable[str]) -> Tuple[str, ...]:
+    return tuple(
+        generation for generation in _GENERATION_ORDER if generation in generations
+    )
 
 
 def _material_answer_anchors_by_generation(
@@ -470,8 +554,12 @@ def _content_anchors(text: str) -> FrozenSet[str]:
     tokens = set(_tokens(text))
     if "0" in tokens:
         tokens.add("zero")
+    if "zero" in tokens:
+        tokens.add("0")
     if "1" in tokens:
         tokens.add("one")
+    if "one" in tokens:
+        tokens.add("1")
     return frozenset(tokens)
 
 
@@ -700,18 +788,31 @@ def select_evidence(
     ]
 
     if scope_groups:
-        groups = [
-            (
-                scope,
-                _SCOPE_TO_GENERATION.get(scope),
-                [
-                    signal
-                    for signal in signals
-                    if signal.hit.chunk.source_id in source_ids
-                ],
-            )
-            for scope, source_ids in scope_groups.items()
-        ]
+        groups = []
+        for scope, source_ids in scope_groups.items():
+            if scope == "USB_HUB_COMMON" and selection_generations:
+                scope_generations = _ordered_generations(selection_generations)
+            elif scope in _SCOPE_TO_GENERATION:
+                scope_generations = (_SCOPE_TO_GENERATION[scope],)
+            else:
+                scope_generations = (None,)
+            for generation in scope_generations:
+                eligible_source_ids = set(source_ids)
+                if generation is not None:
+                    eligible_source_ids &= set(
+                        _GENERATION_TO_SOURCE_IDS.get(generation, ())
+                    )
+                groups.append(
+                    (
+                        scope,
+                        generation,
+                        [
+                            signal
+                            for signal in signals
+                            if signal.hit.chunk.source_id in eligible_source_ids
+                        ],
+                    )
+                )
         if any(not group for _scope, _generation, group in groups):
             return EvidenceSelection((), ())
     elif selection_generations:
@@ -721,7 +822,7 @@ def select_evidence(
                 generation,
                 [signal for signal in signals if signal.generation == generation],
             )
-            for generation in selection_generations
+            for generation in _ordered_generations(selection_generations)
         ]
         if any(not group for _scope, _generation, group in groups):
             return EvidenceSelection((), ())

@@ -87,6 +87,24 @@ class FakeCrossScopeStreamingLocalAI:
         )
 
 
+class FakeCommonGenerationStreamingLocalAI:
+    model = "fake-local-qwen"
+
+    def __init__(self, content):
+        self.content = content
+        self.calls = []
+
+    def stream_complete(self, *, system_prompt, user_prompt):
+        self.calls.append({"system_prompt": system_prompt, "user_prompt": user_prompt})
+        yield LocalAIStreamEvent(text=self.content, model=self.model)
+        yield LocalAIStreamEvent(
+            text="",
+            model=self.model,
+            finish_reason="stop",
+            usage={"prompt_tokens": 42, "completion_tokens": 8, "total_tokens": 50},
+        )
+
+
 class FakeStreamingLocalAI:
     model = "fake-local-qwen"
 
@@ -814,6 +832,98 @@ def test_operator_adapter_abstains_when_explicit_cross_scope_is_missing():
     assert view.citations == []
     assert view.selected_evidence_ids == []
     assert len(view.candidate_citations) == 1
+
+
+def test_operator_adapter_splits_usb_hub_common_by_answer_generation():
+    hits = [
+        _hit(
+            source_id="usb20_fw",
+            content="USB 2.0 PORT_POWER feature value is 9 V.",
+        ),
+        _hit(
+            source_id="usb32",
+            content="USB 3.2 PORT_POWER feature value is 8 V.",
+        ),
+    ]
+    view = OperatorQAAdapter(
+        real_local_rag=RealLocalRAG(
+            FakeRetriever(hits),
+            FakeLocalAI("For USB 2.0 the value is 8 V; for USB 3.2 it is 9 V."),
+        )
+    ).ask(
+        "What are the PORT_POWER values?",
+        answer_scope="USB_HUB_COMMON",
+        source="real_local_rag",
+    )
+
+    assert view.status == "abstain"
+    assert view.boundary_code == "MISSING_EVIDENCE"
+    assert view.citations == []
+    assert view.selected_evidence_ids == []
+
+
+def test_operator_adapter_accepts_unitless_and_signed_literals_only_when_exact():
+    count_candidate = _hit(
+        content="The hub supports 8 downstream ports."
+    )
+    count_view = OperatorQAAdapter(
+        real_local_rag=RealLocalRAG(
+            FakeRetriever([count_candidate]),
+            FakeLocalAI("The hub supports 4 downstream ports."),
+        )
+    ).ask(
+        "How many downstream ports are supported?",
+        answer_scope="USB_3_X",
+        source="real_local_rag",
+    )
+    signed_candidate = _hit(content="The voltage is -5 V.")
+    signed_view = OperatorQAAdapter(
+        real_local_rag=RealLocalRAG(
+            FakeRetriever([signed_candidate]),
+            FakeLocalAI("The voltage is +5 V."),
+        )
+    ).ask(
+        "What is the voltage?",
+        answer_scope="USB_3_X",
+        source="real_local_rag",
+    )
+
+    assert count_view.boundary_code == "MISSING_EVIDENCE"
+    assert count_view.citations == []
+    assert signed_view.boundary_code == "MISSING_EVIDENCE"
+    assert signed_view.citations == []
+
+
+def test_operator_stream_splits_usb_hub_common_by_answer_generation():
+    hits = [
+        _hit(
+            source_id="usb20_fw",
+            content="USB 2.0 PORT_POWER feature value is 9 V.",
+        ),
+        _hit(
+            source_id="usb32",
+            content="USB 3.2 PORT_POWER feature value is 8 V.",
+        ),
+    ]
+    events = list(
+        OperatorQAAdapter(
+            real_local_rag=RealLocalRAG(
+                FakeRetriever(hits),
+                FakeCommonGenerationStreamingLocalAI(
+                    "For USB 2.0 the value is 8 V; for USB 3.2 it is 9 V."
+                ),
+            )
+        ).stream_real_local_rag(
+            "What are the PORT_POWER values?",
+            answer_scope="USB_HUB_COMMON",
+        )
+    )
+
+    done = events[-1]
+    assert done["type"] == "done"
+    assert done["boundary_code"] == "MISSING_EVIDENCE"
+    assert done["citations"] == []
+    assert done["selected_evidence_ids"] == []
 
 
 def test_operator_stream_requires_each_explicit_cross_scope():
