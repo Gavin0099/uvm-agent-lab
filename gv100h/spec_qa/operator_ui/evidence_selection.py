@@ -15,6 +15,12 @@ recognized v1 binding, or uses an unsupported qualifier, this module returns an
 empty selection so the adapter can surface ``MISSING_EVIDENCE``; it never
 promotes a best-effort topic match to a formal citation.
 
+The only topic-only exception is an identifier paired with the recognized
+``state``/``status`` vocabulary used by the existing cross-scope contract.
+Multiple unbound quantity numbers are ambiguous in v1 and fail closed. Table
+supplements must carry the answer's field/value anchor when one exists; v1 does
+not parse serialized table rows.
+
 Percentage literals and ``between`` ranges are intentionally unsupported in
 v1. They are rejected rather than partially interpreted until a separate
 contract change adds their grammar and regression coverage.
@@ -94,6 +100,11 @@ _USB3_PATTERN = re.compile(r"\busb[\s_]*3(?:\.[0-2x])?\b", re.IGNORECASE)
 _EXPLICIT_IDENTIFIER_PATTERN = re.compile(
     r"\b(?:[A-Z][A-Z0-9_]{2,}|[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]+|"
     r"[a-z]+[A-Z][A-Za-z0-9]*)\b"
+)
+_TOPIC_DESCRIPTOR_PATTERN = re.compile(
+    r"\b(?:state|states|status|requirement|requirements)\b|"
+    r"狀態|狀態碼|要求|需求",
+    re.IGNORECASE,
 )
 _ENUM_TOKEN_PATTERN = re.compile(r"\b[A-Za-z]+\d+[A-Za-z0-9]*\b")
 _DOTTED_STATE_PATTERN = re.compile(
@@ -720,6 +731,12 @@ def _has_supported_v1_binding(answer: str) -> bool:
         or _UNSUPPORTED_RANGE_MARKER_PATTERN.search(answer)
     ):
         return False
+    if len(_unitless_numeric_anchors(answer)) > 1:
+        # v1 intentionally does not infer which of several bare numbers
+        # belongs to which quantity label. A future count-binding grammar may
+        # admit this shape; until then it must abstain rather than accept a
+        # swapped-count citation.
+        return False
     return bool(
         _number_unit_pairs(answer)
         or _measurement_range_anchors(answer)
@@ -729,7 +746,7 @@ def _has_supported_v1_binding(answer: str) -> bool:
         or _sections(answer)
         or _field_value_anchors(answer)
         or _prose_negation_anchors(answer)
-        or _explicit_identifier_tokens(answer)
+        or _topic_state_anchors(answer)
     )
 
 
@@ -824,6 +841,32 @@ def _explicit_identifier_tokens(text: str) -> FrozenSet[str]:
         )
         if token not in _STOP_WORDS and token not in _GENERIC_TERMS
     )
+
+
+def _topic_state_anchors(text: str) -> FrozenSet[str]:
+    """Extract the bounded ``identifier + state/status`` topic form.
+
+    This is the only topic-only form retained by v1 for the explicit
+    cross-scope state comparison. Arbitrary identifier-plus-predicate prose is
+    not a binding and must fail closed.
+    """
+    identifiers = list(_EXPLICIT_IDENTIFIER_PATTERN.finditer(text))
+    anchors = set()
+    for index, identifier_match in enumerate(identifiers):
+        identifier = _normalize(identifier_match.group(0))
+        if identifier in _STOP_WORDS or identifier in _GENERIC_TERMS:
+            continue
+        segment_end = (
+            identifiers[index + 1].start()
+            if index + 1 < len(identifiers)
+            else len(text)
+        )
+        segment = text[identifier_match.end() : segment_end]
+        descriptor = _TOPIC_DESCRIPTOR_PATTERN.search(segment)
+        if descriptor is None:
+            continue
+        anchors.add(f"{identifier}=topic:{_normalize(descriptor.group(0))}")
+    return frozenset(anchors)
 
 
 def _enum_tokens(text: str) -> FrozenSet[str]:
@@ -1220,6 +1263,7 @@ def _select_group(
 def _add_numeric_table_support(
     selected: Sequence[_CandidateSignal],
     available: Sequence[_CandidateSignal],
+    answer_field_anchors: FrozenSet[str] = frozenset(),
 ) -> Tuple[_CandidateSignal, ...]:
     """Add close table corroboration when the answer contains a value pair.
 
@@ -1239,6 +1283,10 @@ def _add_numeric_table_support(
         and signal.hit.chunk.chunk_kind == "table"
         and signal.pair_matches
         and signal.score >= highest_score * 0.50
+        and (
+            not answer_field_anchors
+            or bool(signal.support_anchors & answer_field_anchors)
+        )
     ]
     return tuple(selected) + tuple(table_support)
 
@@ -1337,6 +1385,7 @@ def select_evidence(
         selection_generations,
     )
     material_anchors = _material_answer_anchors(question, answer)
+    answer_field_anchors = _field_value_anchors(answer)
     signals = [
         _signal_for_candidate(question, answer, hit, rank, anchors)
         for rank, hit in enumerate(hits, start=1)
@@ -1411,7 +1460,13 @@ def select_evidence(
         selected = _select_group(group, anchors, required_anchors)
         if not selected:
             return EvidenceSelection((), ())
-        selected_signals.extend(_add_numeric_table_support(selected, group))
+        selected_signals.extend(
+            _add_numeric_table_support(
+                selected,
+                group,
+                answer_field_anchors,
+            )
+        )
 
     selected_ids = {signal.hit.chunk.chunk_id for signal in selected_signals}
     selected_hits = tuple(

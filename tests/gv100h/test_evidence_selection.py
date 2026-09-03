@@ -14,7 +14,7 @@ from gv100h.spec_qa.retrieval.real_corpus_retriever import (
 )
 
 
-def _hit(source_id, section, content, index):
+def _hit(source_id, section, content, index, chunk_kind="paragraph"):
     is_usb32 = source_id in {"usb32", "superspeed_hub_lvs"}
     chunk = GovernedChunk.build(
         source_id=source_id,
@@ -23,7 +23,7 @@ def _hit(source_id, section, content, index):
         section=section,
         page_or_anchor="p.1",
         authority_level="authoritative",
-        chunk_kind="paragraph",
+        chunk_kind=chunk_kind,
         content=content,
         index=index,
     )
@@ -175,6 +175,44 @@ def test_selector_accepts_matching_zh_hant_count_against_english_evidence():
 
     assert selection.selected_hits == (candidate,)
     assert selection.primary_hits == (candidate,)
+
+
+def test_selector_fails_closed_for_identifier_only_prose_claim():
+    answer = "PORT_POWER controls link training."
+    candidate = _hit(
+        "usb32",
+        "10.1",
+        "PORT_POWER controls VBUS power.",
+        0,
+    )
+
+    selection = select_evidence(
+        "What does PORT_POWER control?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_fails_closed_for_ambiguous_multiple_unitless_counts():
+    answer = "The hub supports 4 downstream ports and 8 upstream ports."
+    candidate = _hit(
+        "usb32",
+        "10.1",
+        "The hub supports 8 downstream ports and 4 upstream ports.",
+        0,
+    )
+
+    selection = select_evidence(
+        "What are the downstream and upstream port counts?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
 
 
 def test_selector_preserves_numeric_sign_in_material_anchor():
@@ -1000,6 +1038,55 @@ def test_selector_accepts_matching_zh_hant_coordinated_generations():
         "usb20_fw",
         "usb32",
     }
+
+
+def test_selector_excludes_table_supplement_with_wrong_field():
+    paragraph = _hit(
+        "usb32",
+        "10.1",
+        "PORT_POWER is 8 V.",
+        0,
+    )
+    wrong_field_table = _hit(
+        "usb32",
+        "10.2",
+        "PORT_RESET is 8 V.",
+        1,
+        chunk_kind="table",
+    )
+
+    selection = select_evidence(
+        "What is the PORT_POWER value?",
+        "PORT_POWER = 8 V.",
+        [paragraph, wrong_field_table],
+    )
+
+    assert selection.selected_hits == (paragraph,)
+    assert selection.primary_hits == (paragraph,)
+
+
+def test_selector_keeps_table_supplement_with_matching_field():
+    paragraph = _hit(
+        "usb32",
+        "10.1",
+        "PORT_POWER is 8 V.",
+        0,
+    )
+    matching_field_table = _hit(
+        "usb32",
+        "10.2",
+        "PORT_POWER is 8 V.",
+        1,
+        chunk_kind="table",
+    )
+
+    selection = select_evidence(
+        "What is the PORT_POWER value?",
+        "PORT_POWER = 8 V.",
+        [paragraph, matching_field_table],
+    )
+
+    assert selection.selected_hits == (paragraph, matching_field_table)
 
 
 def test_selector_splits_usb_hub_common_by_claimed_generation():
