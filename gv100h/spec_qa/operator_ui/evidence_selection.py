@@ -103,6 +103,24 @@ _QUANTITY_RELATION_BEFORE_NUMBER_PATTERN = re.compile(
     r"[:=]|值\s*(?:為|是)?|回傳)\s*$",
     re.IGNORECASE,
 )
+_CHINESE_QUANTITY_AFTER_NUMBER_PATTERN = re.compile(
+    r"^\s*(?:(?:約|大約|至少|至多|最多|最少|共|總共|可用|支援|支持|"
+    r"有效|目前)\s*)*"
+    r"(?:(?:個|只|條|項|筆|組|張|位|枚|路|門|次|台|件)\s*)?"
+    r"(?:(?:下游|上游|下行|上行|可用|支援|支持)\s*)?"
+    r"(?:連接埠|埠|端口|接口|通道|lane(?:s)?|port(?:s)?|bit(?:s)?|"
+    r"byte(?:s)?|word(?:s)?|channel(?:s)?|item(?:s)?|entry|entries|"
+    r"state(?:s)?|value(?:s)?|time(?:s)?|位元(?:組)?|字節|項目|入口|"
+    r"條目|狀態|數值|值|選擇器|代碼|索引|轉換|時間)"
+    r"(?![\u4e00-\u9fffA-Za-z0-9_])",
+    re.IGNORECASE,
+)
+_CHINESE_QUANTITY_BEFORE_NUMBER_PATTERN = re.compile(
+    r"(?:數量|數目|個數|埠數|連接埠數|端口數|總數|數值|值|"
+    r"支援|支持|包含|包括|共有|有|可容納|可支援|總計|總共|至少|至多|"
+    r"最多|最少|為|是|等於|回傳|返回)\s*(?:[:=為是]|等於)?\s*$",
+    re.IGNORECASE,
+)
 _FIELD_RELATION_PATTERN = re.compile(
     r"(?:!=|=|:|\bis\b|\bequals\b|\breturns?\b|"
     r"\bvalue\s*(?:is|=)?\b|\b(?:should|must|shall)\s+be\b|"
@@ -407,9 +425,12 @@ def _unitless_numeric_anchors(text: str) -> FrozenSet[str]:
             _QUANTITY_DIRECT_BEFORE_NUMBER_PATTERN.search(before) is not None
             or _QUANTITY_RELATION_BEFORE_NUMBER_PATTERN.search(before)
             is not None
+            or _CHINESE_QUANTITY_BEFORE_NUMBER_PATTERN.search(before)
+            is not None
         )
         has_after_context = (
             _QUANTITY_NOUN_AFTER_NUMBER_PATTERN.match(after) is not None
+            or _CHINESE_QUANTITY_AFTER_NUMBER_PATTERN.match(after) is not None
         )
         if not (has_before_context or has_after_context):
             continue
@@ -631,7 +652,8 @@ def _material_answer_anchors_by_generation(
             next_start = occurrences[group_end][0]
             between = answer[previous_end:next_start]
             if not re.fullmatch(
-                r"\s*(?:(?:and|or)\s*)?[\s,;/&+]*\s*",
+                r"\s*(?:(?:and|or|與|和|及|以及|或)\s*)?"
+                r"[\s,、，;/&+]*\s*",
                 between,
                 re.IGNORECASE,
             ):

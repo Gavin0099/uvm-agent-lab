@@ -142,6 +142,38 @@ def test_selector_accepts_matching_unitless_count():
     ]
 
 
+def test_selector_abstains_when_zh_hant_count_differs():
+    question = "PORT_COUNT 有多少個下游連接埠？"
+    answer = "PORT_COUNT 支援 4 個下游連接埠。"
+    candidate = _hit(
+        "usb32",
+        "10.1",
+        "PORT_COUNT supports 8 downstream ports.",
+        0,
+    )
+
+    selection = select_evidence(question, answer, [candidate])
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_accepts_matching_zh_hant_count_against_english_evidence():
+    question = "PORT_COUNT 有多少個下游連接埠？"
+    answer = "PORT_COUNT 支援 4 個下游連接埠。"
+    candidate = _hit(
+        "usb32",
+        "10.1",
+        "PORT_COUNT supports 4 downstream ports.",
+        0,
+    )
+
+    selection = select_evidence(question, answer, [candidate])
+
+    assert selection.selected_hits == (candidate,)
+    assert selection.primary_hits == (candidate,)
+
+
 def test_selector_preserves_numeric_sign_in_material_anchor():
     candidate = _hit(
         "usb32",
@@ -605,6 +637,66 @@ def test_selector_accepts_shared_literal_when_each_generation_supports_it():
     )
 
     selection = select_evidence(question, answer, [usb2, usb3])
+
+    assert {hit.chunk.source_id for hit in selection.selected_hits} == {
+        "usb20_fw",
+        "usb32",
+    }
+    assert {hit.chunk.source_id for hit in selection.primary_hits} == {
+        "usb20_fw",
+        "usb32",
+    }
+
+
+def test_selector_rejects_swapped_values_in_zh_hant_coordinated_generations():
+    question = "比較 USB 2.0 與 USB 3.2 的 PORT_POWER 要求"
+    answer = "USB 2.0 與 USB 3.2 的 PORT_POWER 都是 8 V。"
+    usb2 = _hit(
+        "usb20_fw",
+        "11.24.2.7.1.6",
+        "USB 2.0 PORT_POWER feature value is 9 V.",
+        0,
+    )
+    usb3 = _hit(
+        "usb32",
+        "10.3.1.1",
+        "USB 3.2 PORT_POWER feature value is 8 V.",
+        1,
+    )
+
+    selection = select_evidence(
+        question,
+        answer,
+        [usb2, usb3],
+        required_scopes=("USB_HUB_COMMON",),
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_accepts_matching_zh_hant_coordinated_generations():
+    question = "比較 USB 2.0 與 USB 3.2 的 PORT_POWER 要求"
+    answer = "USB 2.0 與 USB 3.2 的 PORT_POWER 都是 8 V。"
+    usb2 = _hit(
+        "usb20_fw",
+        "11.24.2.7.1.6",
+        "USB 2.0 PORT_POWER feature value is 8 V.",
+        0,
+    )
+    usb3 = _hit(
+        "usb32",
+        "10.3.1.1",
+        "USB 3.2 PORT_POWER feature value is 8 V.",
+        1,
+    )
+
+    selection = select_evidence(
+        question,
+        answer,
+        [usb2, usb3],
+        required_scopes=("USB_HUB_COMMON",),
+    )
 
     assert {hit.chunk.source_id for hit in selection.selected_hits} == {
         "usb20_fw",
