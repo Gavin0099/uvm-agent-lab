@@ -10,7 +10,7 @@ import json
 import sys
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 from urllib.parse import urlparse
 
 from gv100h.spec_qa.operator_ui.adapter import OperatorQAAdapter, fixture_catalog
@@ -37,6 +37,7 @@ class OperatorUIHandler(SimpleHTTPRequestHandler):
                     "status": "ok",
                     "claim_ceiling": CLAIM_CEILING,
                     "frozen_fields": list(FROZEN_QA_RESPONSE_FIELDS),
+                    "source_modes": ["fixture", "service", "real_local_rag"],
                     "fixtures": fixture_catalog(),
                 },
             )
@@ -48,7 +49,7 @@ class OperatorUIHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
-        if parsed.path != "/api/qa":
+        if parsed.path not in ("/api/qa", "/api/qa/stream"):
             self.send_error(404, "not found")
             return
         length = int(self.headers.get("Content-Length") or "0")
@@ -61,17 +62,26 @@ class OperatorUIHandler(SimpleHTTPRequestHandler):
         if not isinstance(payload, dict):
             self._json(400, {"error": "JSON object required"})
             return
+        if parsed.path == "/api/qa/stream":
+            self._stream_real_local_rag(payload)
+            return
         question = str(payload.get("question") or "").strip()
         source = payload.get("source") or "fixture"
         fixture = str(payload.get("fixture") or "answered")
         answer_scope = payload.get("answer_scope") or None
         retrieval_mode = payload.get("retrieval_mode") or "single_scope"
         allowed = payload.get("allowed_evidence_scopes")
-        if source not in ("fixture", "service"):
-            self._json(400, {"error": "source must be fixture or service"})
+        if source not in ("fixture", "service", "real_local_rag"):
+            self._json(
+                400,
+                {"error": "source must be fixture, service, or real_local_rag"},
+            )
             return
-        if source == "service" and not question:
-            self._json(400, {"error": "question is required when source=service"})
+        if source in ("service", "real_local_rag") and not question:
+            self._json(
+                400,
+                {"error": f"question is required when source={source}"},
+            )
             return
         try:
             view = self.adapter.ask(
@@ -88,7 +98,71 @@ class OperatorUIHandler(SimpleHTTPRequestHandler):
         except ValueError as err:
             self._json(400, {"error": str(err)})
             return
+        except RuntimeError as err:
+            self._json(502, {"error": str(err)})
+            return
         self._json(200, view.model_dump())
+
+    def _stream_real_local_rag(self, payload: dict[str, Any]) -> None:
+        source = payload.get("source") or "fixture"
+        if source != "real_local_rag":
+            self._json(
+                400,
+                {"error": "stream endpoint requires source=real_local_rag"},
+            )
+            return
+        question = str(payload.get("question") or "").strip()
+        if not question:
+            self._json(400, {"error": "question is required for real_local_rag"})
+            return
+        answer_scope = payload.get("answer_scope") or None
+        retrieval_mode = payload.get("retrieval_mode") or "single_scope"
+        allowed = payload.get("allowed_evidence_scopes")
+        try:
+            events = self.adapter.stream_real_local_rag(
+                question,
+                answer_scope=answer_scope,
+                retrieval_mode=retrieval_mode,
+                allowed_evidence_scopes=(
+                    tuple(allowed) if isinstance(allowed, list) else None
+                ),
+            )
+        except ValueError as err:
+            self._json(400, {"error": str(err)})
+            return
+        except RuntimeError as err:
+            self._json(502, {"error": str(err)})
+            return
+        self._ndjson_stream(events)
+
+    def _ndjson_stream(self, events: Iterable[dict[str, Any]]) -> None:
+        """Write one flushed JSON event per line so fetch() can render tokens."""
+        self.send_response(200)
+        self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.close_connection = True
+        try:
+            for event in events:
+                body = (json.dumps(event, ensure_ascii=False) + "\n").encode("utf-8")
+                self.wfile.write(body)
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            return
+        except Exception as exc:
+            try:
+                body = (
+                    json.dumps(
+                        {"type": "error", "error": str(exc)},
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                ).encode("utf-8")
+                self.wfile.write(body)
+                self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                return
 
     def _json(self, status: int, payload: dict[str, Any]) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")

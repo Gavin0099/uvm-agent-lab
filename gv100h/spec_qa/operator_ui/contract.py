@@ -51,6 +51,7 @@ FROZEN_CITATION_FIELDS = (
 )
 
 OperatorStatus = Literal["answer", "abstain", "conflict"]
+OperatorSource = Literal["fixture", "service", "real_local_rag"]
 
 
 class OperatorCitationView(BaseModel):
@@ -84,7 +85,11 @@ class OperatorQAView(BaseModel):
     claim_evidence_ids: List[List[str]] = Field(default_factory=list)
     is_abstain: bool
     claim_ceiling: str = CLAIM_CEILING
-    source: Literal["fixture", "service"] = "fixture"
+    source: OperatorSource = "fixture"
+    retrieval_kind: Optional[str] = None
+    local_model: Optional[str] = None
+    retrieved_chunk_count: Optional[int] = None
+    corpus_sha256: Optional[str] = None
 
 
 def citation_to_view(citation: Citation) -> OperatorCitationView:
