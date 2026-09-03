@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import FrozenSet, Iterable, List, Sequence, Tuple
+from typing import FrozenSet, Iterable, List, Optional, Sequence, Tuple
 
 from gv100h.spec_qa.retrieval.real_corpus_retriever import (
     GovernedChunkRetrievalHit,
@@ -25,6 +25,30 @@ _MEASUREMENT_NUMBER_PATTERN = (
 )
 _MEASUREMENT_UNIT_PATTERN = (
     r"(?:ohms?|Ω|ω|volts?|bits?|ps|ns|us|ms|pf|mv|uv|ma|ua|mhz|khz|ghz|v|a)"
+)
+_MEASUREMENT_LABEL_ALIASES = {
+    "rise time": "rise_time",
+    "rising time": "rise_time",
+    "rise": "rise_time",
+    "上升時間": "rise_time",
+    "上升": "rise_time",
+    "fall time": "fall_time",
+    "falling time": "fall_time",
+    "fall": "fall_time",
+    "下降時間": "fall_time",
+    "下降": "fall_time",
+}
+_MEASUREMENT_LABEL_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9_])(?:"
+    + "|".join(
+        sorted(
+            (re.escape(label) for label in _MEASUREMENT_LABEL_ALIASES),
+            key=len,
+            reverse=True,
+        )
+    )
+    + r")(?![A-Za-z0-9_])",
+    re.IGNORECASE,
 )
 _NUMBER_UNIT_PATTERN = re.compile(
     r"(?<![A-Za-z0-9_])"
@@ -121,8 +145,62 @@ _CHINESE_QUANTITY_BEFORE_NUMBER_PATTERN = re.compile(
     r"最多|最少|為|是|等於|回傳|返回)\s*(?:[:=為是]|等於)?\s*$",
     re.IGNORECASE,
 )
+_COMPARISON_QUALIFIER_ALIASES = {
+    "less than or equal to": "le",
+    "less than or equal": "le",
+    "greater than or equal to": "ge",
+    "greater than or equal": "ge",
+    "not greater than": "le",
+    "not less than": "ge",
+    "no greater than": "le",
+    "no less than": "ge",
+    "no more than": "le",
+    "no fewer than": "ge",
+    "at most": "le",
+    "at least": "ge",
+    "less than": "lt",
+    "greater than": "gt",
+    "below": "lt",
+    "under": "lt",
+    "above": "gt",
+    "over": "gt",
+    "小於等於": "le",
+    "小於或等於": "le",
+    "大於等於": "ge",
+    "大於或等於": "ge",
+    "不大於": "le",
+    "不超過": "le",
+    "至多": "le",
+    "不小於": "ge",
+    "不低於": "ge",
+    "至少": "ge",
+    "小於": "lt",
+    "少於": "lt",
+    "低於": "lt",
+    "大於": "gt",
+    "多於": "gt",
+    "高於": "gt",
+    "<=": "le",
+    "≤": "le",
+    "<": "lt",
+    ">=": "ge",
+    "≥": "ge",
+    ">": "gt",
+}
+_COMPARISON_QUALIFIER_PATTERN = re.compile(
+    r"(?P<qualifier>(?:"
+    + "|".join(
+        sorted(
+            (re.escape(qualifier) for qualifier in _COMPARISON_QUALIFIER_ALIASES),
+            key=len,
+            reverse=True,
+        )
+    )
+    + r"))\s*$",
+    re.IGNORECASE,
+)
 _FIELD_RELATION_PATTERN = re.compile(
-    r"(?:!=|=|:|\bis\b|\bequals\b|\breturns?\b|"
+    r"(?:!=|<=|>=|≤|≥|<|>|=|:|\bis\b|\bequals\b|\breturns?\b|"
     r"\bvalue\s*(?:is|=)?\b|\b(?:should|must|shall)\s+be\b|"
     r"值\s*(?:為|是)?|回傳|不\s*(?:為|是)|非|未)",
     re.IGNORECASE,
@@ -400,6 +478,46 @@ def _number_unit_pairs(text: str) -> FrozenSet[str]:
     )
 
 
+def _comparison_qualifier(text: str) -> Optional[str]:
+    match = _COMPARISON_QUALIFIER_PATTERN.search(_normalize(text))
+    if match is None:
+        return None
+    return _COMPARISON_QUALIFIER_ALIASES.get(
+        _normalize(match.group("qualifier"))
+    )
+
+
+def _measurement_value_anchors(text: str) -> FrozenSet[str]:
+    """Bind measurement literals to a nearby rise/fall quantity label.
+
+    The unbound number/unit anchors remain useful for ordinary factual values,
+    but answers containing multiple same-unit quantities need a second,
+    label-bound anchor so swapped values cannot inherit mutual support.
+    """
+    normalized = _normalize(text)
+    anchors = set()
+    for value_match in _NUMBER_UNIT_PATTERN.finditer(normalized):
+        before = normalized[: value_match.start()]
+        boundary_matches = list(re.finditer(r"[.;,!?；，。！？\n]", before))
+        clause_start = boundary_matches[-1].end() if boundary_matches else 0
+        clause = normalized[clause_start : value_match.start()]
+        label_matches = list(_MEASUREMENT_LABEL_PATTERN.finditer(clause))
+        if not label_matches:
+            continue
+        label_match = label_matches[-1]
+        label = _MEASUREMENT_LABEL_ALIASES.get(
+            _normalize(label_match.group(0))
+        )
+        if label is None:
+            continue
+        qualifier = _comparison_qualifier(clause[label_match.end() :])
+        value = _normalize(value_match.group(0)).replace(" ", "")
+        if qualifier is not None:
+            value = f"{qualifier}:{value}"
+        anchors.add(f"{label}={value}")
+    return frozenset(anchors)
+
+
 def _unitless_numeric_anchors(text: str) -> FrozenSet[str]:
     """Extract standalone numbers used as counts, codes, or quantities.
 
@@ -517,10 +635,15 @@ def _field_value_anchors(text: str) -> FrozenSet[str]:
                 relation_text.strip().startswith("!=")
                 or _NEGATION_PATTERN.search(relation_text) is not None
             )
+            relation_qualifier = _comparison_qualifier(relation_text)
             for literal in _LITERAL_PATTERN.finditer(value_text):
                 value = _canonical_state_value(literal.group(0)) or _normalize(
                     literal.group(0)
                 ).replace(" ", "")
+                qualifier = _comparison_qualifier(value_text[: literal.start()])
+                qualifier = qualifier or relation_qualifier
+                if qualifier is not None:
+                    value = f"{qualifier}:{value}"
                 if relation_negated or _NEGATION_PATTERN.search(
                     value_text[: literal.start()]
                 ):
@@ -559,6 +682,7 @@ def _material_answer_anchors(question: str, answer: str) -> FrozenSet[str]:
     let a wrong value inherit support from a matching topic name.
     """
     anchors = set(_number_unit_pairs(answer))
+    anchors.update(_measurement_value_anchors(answer))
     anchors.update(_unitless_numeric_anchors(answer))
     anchors.update(
         _normalize(match.group(0))
@@ -578,6 +702,7 @@ def _material_candidate_anchors(hit: GovernedChunkRetrievalHit) -> FrozenSet[str
     """Return literals and provenance anchors exposed by one candidate."""
     anchors = set(_content_anchors(hit.chunk.content))
     anchors.update(_number_unit_pairs(hit.chunk.content))
+    anchors.update(_measurement_value_anchors(hit.chunk.content))
     anchors.update(_unitless_numeric_anchors(hit.chunk.content))
     anchors.update(
         _normalize(match.group(0))

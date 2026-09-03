@@ -3,6 +3,7 @@ import pytest
 from gv100h.spec_qa.contracts.governed_chunk import GovernedChunk
 from gv100h.spec_qa.operator_ui.evidence_selection import (
     _field_value_anchors,
+    _measurement_value_anchors,
     _unitless_numeric_anchors,
     select_evidence,
 )
@@ -264,6 +265,91 @@ def test_selector_accepts_matching_scientific_notation_value():
 
     assert selection.selected_hits == (candidate,)
     assert selection.primary_hits == (candidate,)
+
+
+@pytest.mark.parametrize(
+    ("answer", "candidate"),
+    [
+        ("PORT_POWER must be less than 8 V.", "PORT_POWER is 8 V."),
+        ("PORT_POWER must be greater than 8 V.", "PORT_POWER is 8 V."),
+        ("PORT_POWER is at most 8 V.", "PORT_POWER is at least 8 V."),
+        ("PORT_POWER <= 8 V.", "PORT_POWER is 8 V."),
+        ("PORT_POWER >= 8 V.", "PORT_POWER is 7 V."),
+    ],
+)
+def test_selector_rejects_opposing_or_missing_comparison_qualifiers(
+    answer, candidate
+):
+    selection = select_evidence(
+        "What is the PORT_POWER threshold?",
+        answer,
+        [_hit("usb32", "10.1", candidate, 0)],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "PORT_POWER must be less than 8 V.",
+        "PORT_POWER must be greater than 8 V.",
+        "PORT_POWER is at most 8 V.",
+        "PORT_POWER is at least 8 V.",
+        "PORT_POWER <= 8 V.",
+        "PORT_POWER >= 8 V.",
+    ],
+)
+def test_selector_accepts_matching_comparison_qualifier(answer):
+    candidate = _hit("usb32", "10.1", answer, 0)
+    selection = select_evidence(
+        "What is the PORT_POWER threshold?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == (candidate,)
+    assert selection.primary_hits == (candidate,)
+
+
+def test_selector_binds_measurements_to_rise_and_fall_labels():
+    question = "What are the rise and fall times?"
+    answer = "上升時間為 500 ps；下降時間為 600 ps。"
+    swapped_candidate = _hit(
+        "usb32",
+        "7.3.2",
+        "Rise Time is 600 ps; Fall Time is 500 ps.",
+        0,
+    )
+    matching_candidate = _hit(
+        "usb32",
+        "7.3.2",
+        "Rise Time is 500 ps; Fall Time is 600 ps.",
+        1,
+    )
+
+    assert _measurement_value_anchors(answer) == frozenset(
+        {"rise_time=500ps", "fall_time=600ps"}
+    )
+    assert _measurement_value_anchors(swapped_candidate.chunk.content) == frozenset(
+        {"rise_time=600ps", "fall_time=500ps"}
+    )
+    swapped_selection = select_evidence(
+        question,
+        answer,
+        [swapped_candidate],
+    )
+    matching_selection = select_evidence(
+        question,
+        answer,
+        [matching_candidate],
+    )
+
+    assert swapped_selection.selected_hits == ()
+    assert swapped_selection.primary_hits == ()
+    assert matching_selection.selected_hits == (matching_candidate,)
+    assert matching_selection.primary_hits == (matching_candidate,)
 
 
 @pytest.mark.parametrize(
