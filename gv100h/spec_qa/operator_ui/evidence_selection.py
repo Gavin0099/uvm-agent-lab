@@ -5,6 +5,23 @@ not claim to observe the model's internal evidence use. It produces an
 explainable lexical set-cover selection from retrieved candidates for UI
 citation projection only. Semantic entailment remains outside this
 development path.
+
+Evidence Selection v1 is intentionally grammar-bounded. It supports explicit
+literal anchors, identifier/value relations, signed/scientific measurements,
+ordered measurement ranges, recognized closed states, USB generation/scope
+binding, and a conservative polarity guard for simple prose claims. It does
+not attempt general natural-language understanding. If an answer has no
+recognized v1 binding, or uses an unsupported qualifier, this module returns an
+empty selection so the adapter can surface ``MISSING_EVIDENCE``; it never
+promotes a best-effort topic match to a formal citation.
+
+Percentage literals and ``between`` ranges are intentionally unsupported in
+v1. They are rejected rather than partially interpreted until a separate
+contract change adds their grammar and regression coverage.
+
+Adding another language form requires a separate contract decision and a
+negative regression. Reviewer-discovered phrasing outside this grammar is a
+fail-closed case, not an automatic request to add another regular expression.
 """
 
 from __future__ import annotations
@@ -284,6 +301,13 @@ _PROSE_AUXILIARY_TERMS: FrozenSet[str] = frozenset(
 _PROSE_CLAIM_TERM_PATTERNS = {
     "support": re.compile(r"(?:支援|支持)", re.IGNORECASE),
 }
+_UNSUPPORTED_CLAIM_MARKER_PATTERN = re.compile(
+    r"\b(?:ought|ideally|approximately|approx\.?|roughly|around|about|"
+    r"preferably|typically|generally|possibly|maybe|perhaps)\b",
+    re.IGNORECASE,
+)
+_UNSUPPORTED_PERCENT_PATTERN = re.compile(r"[%％]")
+_UNSUPPORTED_RANGE_MARKER_PATTERN = re.compile(r"\bbetween\b", re.IGNORECASE)
 _STATE_VALUE_ALIASES = {
     "enabled": "enabled",
     "enable": "enabled",
@@ -686,6 +710,27 @@ def _prose_polarity_conflict(answer: str, candidate: str) -> bool:
         ):
             return True
     return False
+
+
+def _has_supported_v1_binding(answer: str) -> bool:
+    """Return whether the answer contains a bounded v1 citation signal."""
+    if (
+        _UNSUPPORTED_CLAIM_MARKER_PATTERN.search(answer)
+        or _UNSUPPORTED_PERCENT_PATTERN.search(answer)
+        or _UNSUPPORTED_RANGE_MARKER_PATTERN.search(answer)
+    ):
+        return False
+    return bool(
+        _number_unit_pairs(answer)
+        or _measurement_range_anchors(answer)
+        or _measurement_value_anchors(answer)
+        or _unitless_numeric_anchors(answer)
+        or _HEX_LITERAL_PATTERN.search(answer)
+        or _sections(answer)
+        or _field_value_anchors(answer)
+        or _prose_negation_anchors(answer)
+        or _explicit_identifier_tokens(answer)
+    )
 
 
 def _comparison_qualifier(text: str) -> Optional[str]:
@@ -1262,6 +1307,8 @@ def select_evidence(
         or answer.lstrip().startswith("INSUFFICIENT_EVIDENCE")
         or not hits
     ):
+        return EvidenceSelection((), ())
+    if not _has_supported_v1_binding(answer):
         return EvidenceSelection((), ())
 
     anchors = _answer_anchors(question, answer)

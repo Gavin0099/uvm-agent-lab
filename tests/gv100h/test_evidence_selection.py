@@ -348,6 +348,64 @@ def test_selector_handles_mixed_language_prose_polarity():
     assert negative_match.selected_hits == (negative_candidate,)
 
 
+def test_selector_fails_closed_for_unbound_positive_prose():
+    answer = "The hub supports suspend."
+    candidate = _hit("usb32", "10.1", answer, 0)
+
+    selection = select_evidence(
+        "Does the hub support suspend?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_fails_closed_for_unsupported_qualifier():
+    answer = "PORT_POWER ought ideally to remain around 8 V."
+    candidate = _hit("usb32", "10.1", "PORT_POWER is 8 V.", 0)
+
+    selection = select_evidence(
+        "What is the PORT_POWER value?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_fails_closed_for_deferred_percentage_literal():
+    answer = "PORT_POWER = 99%."
+    candidate = _hit("usb32", "10.1", "PORT_POWER = 8%.", 0)
+
+    selection = select_evidence(
+        "What is the PORT_POWER percentage?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_fails_closed_for_unsupported_between_range():
+    answer = "The voltage range is between 8 and 10 V."
+    candidate = _hit(
+        "usb32", "10.1", "The voltage range is between 9 and 10 V.", 0
+    )
+
+    selection = select_evidence(
+        "What is the voltage range?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
 def test_selector_rejects_mismatched_measurement_range_endpoints():
     answer = "The voltage range is 8 to 10 V."
     lower_mismatch = _hit(
