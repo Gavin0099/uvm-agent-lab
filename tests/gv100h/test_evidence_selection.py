@@ -254,6 +254,146 @@ def test_selector_rejects_swapped_cross_generation_literals():
     assert selection.primary_hits == ()
 
 
+def test_selector_requires_each_explicit_cross_scope_to_contribute_evidence():
+    question = "Compare PORT_POWER requirements"
+    answer = "Both define PORT_POWER state."
+    usb2 = _hit(
+        "usb20_fw",
+        "11.24.2.7.1.6",
+        "USB 2.0 PORT_POWER reflects the current power state.",
+        0,
+    )
+    usb3 = _hit(
+        "usb32",
+        "10.3.1.1",
+        "USB 3.2 downstream port PORT_POWER reflects the power state.",
+        1,
+    )
+
+    selection = select_evidence(
+        question,
+        answer,
+        [usb2, usb3],
+        required_scopes=("USB_2_0", "USB_3_X"),
+    )
+
+    assert {hit.chunk.source_id for hit in selection.selected_hits} == {
+        "usb20_fw",
+        "usb32",
+    }
+    assert {hit.chunk.source_id for hit in selection.primary_hits} == {
+        "usb20_fw",
+        "usb32",
+    }
+
+
+def test_selector_abstains_when_an_explicit_cross_scope_has_no_evidence():
+    question = "Compare PORT_POWER requirements"
+    answer = "Both define PORT_POWER state."
+    usb2 = _hit(
+        "usb20_fw",
+        "11.24.2.7.1.6",
+        "USB 2.0 PORT_POWER reflects the current power state.",
+        0,
+    )
+
+    selection = select_evidence(
+        question,
+        answer,
+        [usb2],
+        required_scopes=("USB_2_0", "USB_3_X"),
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_requires_shared_literal_in_each_generation_group():
+    question = "Compare USB 2.0 and USB 3.2 PORT_POWER requirements"
+    answer = "USB 2.0 and USB 3.2 PORT_POWER = 8 V."
+    usb2 = _hit(
+        "usb20_fw",
+        "11.24.2.7.1.6",
+        "USB 2.0 PORT_POWER feature value is 9 V.",
+        0,
+    )
+    usb3 = _hit(
+        "usb32",
+        "10.3.1.1",
+        "USB 3.2 PORT_POWER feature value is 8 V.",
+        1,
+    )
+
+    selection = select_evidence(question, answer, [usb2, usb3])
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_accepts_shared_literal_when_each_generation_supports_it():
+    question = "Compare USB 2.0 and USB 3.2 PORT_POWER requirements"
+    answer = "USB 2.0 and USB 3.2 PORT_POWER = 8 V."
+    usb2 = _hit(
+        "usb20_fw",
+        "11.24.2.7.1.6",
+        "USB 2.0 PORT_POWER feature value is 8 V.",
+        0,
+    )
+    usb3 = _hit(
+        "usb32",
+        "10.3.1.1",
+        "USB 3.2 PORT_POWER feature value is 8 V.",
+        1,
+    )
+
+    selection = select_evidence(question, answer, [usb2, usb3])
+
+    assert {hit.chunk.source_id for hit in selection.selected_hits} == {
+        "usb20_fw",
+        "usb32",
+    }
+    assert {hit.chunk.source_id for hit in selection.primary_hits} == {
+        "usb20_fw",
+        "usb32",
+    }
+
+
+def test_selector_binds_modal_field_value_without_cross_identifier_support():
+    question = "What is the PORT_POWER value?"
+    answer = "PORT_POWER should be 99 V."
+    candidate = _hit(
+        "usb32",
+        "10.16.2.10",
+        "PORT_POWER should be 8 V; PORT_RESET is 99 V.",
+        0,
+    )
+
+    selection = select_evidence(question, answer, [candidate])
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_accepts_modal_field_value_for_the_correct_identifier():
+    question = "What is the PORT_RESET value?"
+    answer = "PORT_RESET shall be 99 V."
+    candidate = _hit(
+        "usb32",
+        "10.16.2.10",
+        "PORT_POWER should be 8 V; PORT_RESET is 99 V.",
+        0,
+    )
+
+    selection = select_evidence(question, answer, [candidate])
+
+    assert [hit.chunk.chunk_id for hit in selection.selected_hits] == [
+        candidate.chunk.chunk_id
+    ]
+    assert [hit.chunk.chunk_id for hit in selection.primary_hits] == [
+        candidate.chunk.chunk_id
+    ]
+
+
 def test_selector_returns_no_selected_evidence_for_model_abstention():
     hit = _hit("usb32", "7.5", "eSS.Inactive timeout and RxDetect timeout.", 0)
 

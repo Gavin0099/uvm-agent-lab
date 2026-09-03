@@ -70,6 +70,23 @@ class FakeLocalAI:
         return LocalAICompletion(content=self.content, model="fake-local-qwen")
 
 
+class FakeCrossScopeStreamingLocalAI:
+    model = "fake-local-qwen"
+
+    def __init__(self):
+        self.calls = []
+
+    def stream_complete(self, *, system_prompt, user_prompt):
+        self.calls.append({"system_prompt": system_prompt, "user_prompt": user_prompt})
+        yield LocalAIStreamEvent(text="Both define PORT_POWER state.", model=self.model)
+        yield LocalAIStreamEvent(
+            text="",
+            model=self.model,
+            finish_reason="stop",
+            usage={"prompt_tokens": 42, "completion_tokens": 5, "total_tokens": 47},
+        )
+
+
 class FakeStreamingLocalAI:
     model = "fake-local-qwen"
 
@@ -740,6 +757,98 @@ def test_operator_adapter_keeps_model_abstention_without_selected_citations():
     assert view.selected_evidence_ids == []
     assert view.primary_evidence_ids == []
     assert len(view.candidate_citations) == 1
+
+
+def test_operator_adapter_requires_each_explicit_cross_scope():
+    hits = [
+        _hit(
+            source_id="usb20_fw",
+            content="USB 2.0 PORT_POWER reflects the current power state.",
+        ),
+        _hit(
+            source_id="usb32",
+            content="USB 3.2 downstream port PORT_POWER reflects the power state.",
+        ),
+    ]
+    question = "Compare PORT_POWER requirements"
+    answer = "Both define PORT_POWER state."
+    view = OperatorQAAdapter(
+        real_local_rag=RealLocalRAG(FakeRetriever(hits), FakeLocalAI(answer))
+    ).ask(
+        question,
+        retrieval_mode="explicit_cross_scope",
+        allowed_evidence_scopes=("USB_2_0", "USB_3_X"),
+        source="real_local_rag",
+    )
+
+    assert view.status == "answer"
+    assert {citation.evidence_id for citation in view.citations} == {
+        hits[0].chunk.chunk_id,
+        hits[1].chunk.chunk_id,
+    }
+    assert {evidence_id for evidence_id in view.primary_evidence_ids} == {
+        hits[0].chunk.chunk_id,
+        hits[1].chunk.chunk_id,
+    }
+
+
+def test_operator_adapter_abstains_when_explicit_cross_scope_is_missing():
+    hit = _hit(
+        source_id="usb20_fw",
+        content="USB 2.0 PORT_POWER reflects the current power state.",
+    )
+    view = OperatorQAAdapter(
+        real_local_rag=RealLocalRAG(
+            FakeRetriever([hit]),
+            FakeLocalAI("Both define PORT_POWER state."),
+        )
+    ).ask(
+        "Compare PORT_POWER requirements",
+        retrieval_mode="explicit_cross_scope",
+        allowed_evidence_scopes=("USB_2_0", "USB_3_X"),
+        source="real_local_rag",
+    )
+
+    assert view.status == "abstain"
+    assert view.boundary_code == "MISSING_EVIDENCE"
+    assert view.citations == []
+    assert view.selected_evidence_ids == []
+    assert len(view.candidate_citations) == 1
+
+
+def test_operator_stream_requires_each_explicit_cross_scope():
+    hits = [
+        _hit(
+            source_id="usb20_fw",
+            content="USB 2.0 PORT_POWER reflects the current power state.",
+        ),
+        _hit(
+            source_id="usb32",
+            content="USB 3.2 downstream port PORT_POWER reflects the power state.",
+        ),
+    ]
+    events = list(
+        OperatorQAAdapter(
+            real_local_rag=RealLocalRAG(
+                FakeRetriever(hits), FakeCrossScopeStreamingLocalAI()
+            )
+        ).stream_real_local_rag(
+            "Compare PORT_POWER requirements",
+            retrieval_mode="explicit_cross_scope",
+            allowed_evidence_scopes=("USB_2_0", "USB_3_X"),
+        )
+    )
+
+    done = events[-1]
+    assert done["type"] == "done"
+    assert {evidence_id for evidence_id in done["selected_evidence_ids"]} == {
+        hits[0].chunk.chunk_id,
+        hits[1].chunk.chunk_id,
+    }
+    assert {evidence_id for evidence_id in done["primary_evidence_ids"]} == {
+        hits[0].chunk.chunk_id,
+        hits[1].chunk.chunk_id,
+    }
 
 
 def test_operator_ui_api_accepts_real_local_rag_source():

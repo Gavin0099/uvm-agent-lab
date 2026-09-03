@@ -572,6 +572,7 @@ class RealLocalRAG:
         answer_scope: Optional[str] = None,
         retrieval_mode: str = "single_scope",
         allowed_evidence_scopes: Optional[Sequence[str]] = None,
+        required_scopes: Optional[Sequence[str]] = None,
     ) -> Iterator[Dict[str, Any]]:
         """Yield metadata, local-AI fragments, and final token telemetry.
 
@@ -798,7 +799,12 @@ class RealLocalRAG:
             return
         from gv100h.spec_qa.operator_ui.evidence_selection import select_evidence
 
-        selection = select_evidence(normalized_question, answer, hits)
+        selection = select_evidence(
+            normalized_question,
+            answer,
+            hits,
+            required_scopes=required_scopes,
+        )
         hit_ranks = {
             hit.chunk.chunk_id: rank
             for rank, hit in enumerate(hits, start=1)

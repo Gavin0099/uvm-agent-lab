@@ -4,7 +4,7 @@ The local model does not emit citation IDs, so this module deliberately does
 not claim to observe the model's internal evidence use. It produces an
 explainable lexical set-cover selection from retrieved candidates for UI
 citation projection only. Semantic entailment remains outside this
- development path.
+development path.
 """
 
 from __future__ import annotations
@@ -51,7 +51,8 @@ _LITERAL_PATTERN = re.compile(
 )
 _FIELD_RELATION_PATTERN = re.compile(
     r"(?:=|:|\bis\b|\bequals\b|\breturns?\b|"
-    r"\bvalue\s*(?:is|=)?\b|值\s*(?:為|是)?|回傳)",
+    r"\bvalue\s*(?:is|=)?\b|\b(?:should|must|shall)\s+be\b|"
+    r"值\s*(?:為|是)?|回傳)",
     re.IGNORECASE,
 )
 
@@ -137,6 +138,18 @@ _GENERIC_TERMS: FrozenSet[str] = frozenset(
 _UNIT_TERMS: FrozenSet[str] = frozenset(
     {"%", "ps", "ns", "us", "ms", "pf", "mv", "v", "a", "ma", "mhz", "ghz"}
 )
+
+_SCOPE_TO_SOURCE_IDS = {
+    "USB_2_0": frozenset({"usb20_fw", "usb20_se"}),
+    "USB_3_X": frozenset({"usb32"}),
+    "USB_HUB_COMMON": frozenset(
+        {"usb20_fw", "usb20_se", "usb32", "superspeed_hub_lvs"}
+    ),
+}
+_SCOPE_TO_GENERATION = {
+    "USB_2_0": "USB_2_0",
+    "USB_3_X": "USB_3_X",
+}
 
 
 @dataclass(frozen=True)
@@ -240,6 +253,7 @@ def _state_phrases(text: str) -> FrozenSet[str]:
     return frozenset(
         f"{_normalize(match.group(1))} {_normalize(match.group(2))}"
         for match in _STATE_PHRASE_PATTERN.finditer(text)
+        if "_" not in match.group(1)
     )
 
 
@@ -358,7 +372,7 @@ def _material_answer_anchors_by_generation(
         ("USB_3_X", _USB3_PATTERN),
     ):
         occurrences.extend(
-            (match.start(), generation)
+            (match.start(), match.end(), generation)
             for match in pattern.finditer(answer)
         )
     occurrences.sort()
@@ -366,16 +380,40 @@ def _material_answer_anchors_by_generation(
         generation: set() for generation in requested_generations
     }
     covered: set[str] = set()
-    for index, (start, generation) in enumerate(occurrences):
-        end = occurrences[index + 1][0] if index + 1 < len(occurrences) else len(answer)
-        if generation not in scoped:
-            continue
+    index = 0
+    while index < len(occurrences):
+        start = occurrences[index][0]
+        group_end = index + 1
+        while group_end < len(occurrences):
+            previous_end = occurrences[group_end - 1][1]
+            next_start = occurrences[group_end][0]
+            between = answer[previous_end:next_start]
+            if not re.fullmatch(
+                r"\s*(?:(?:and|or)\s*)?[\s,;/&+]*\s*",
+                between,
+                re.IGNORECASE,
+            ):
+                break
+            group_end += 1
+
+        end = (
+            occurrences[group_end][0]
+            if group_end < len(occurrences)
+            else len(answer)
+        )
         segment_anchors = _material_answer_anchors(
             question,
             answer[start:end],
         )
-        scoped[generation].update(segment_anchors)
+        segment_generations = _generation_anchors(answer[start:end])
         covered.update(segment_anchors)
+        shared_anchors = segment_anchors - segment_generations
+        for _, _, generation in occurrences[index:group_end]:
+            if generation not in scoped:
+                continue
+            scoped[generation].update(shared_anchors)
+            scoped[generation].add(generation)
+        index = group_end
 
     # Material text outside an explicitly generation-labelled clause is
     # shared/ambiguous. Require it in every requested generation instead of
@@ -603,6 +641,8 @@ def select_evidence(
     question: str,
     answer: str | None,
     hits: Sequence[GovernedChunkRetrievalHit],
+    *,
+    required_scopes: Optional[Sequence[str]] = None,
 ) -> EvidenceSelection:
     """Select evidence with deterministic lexical support signals.
 
@@ -619,7 +659,24 @@ def select_evidence(
 
     anchors = _answer_anchors(question, answer)
     requested_generations = _requested_generations(question)
-    selection_generations = requested_generations or _generation_anchors(answer)
+    scope_groups = {}
+    if required_scopes:
+        for scope in required_scopes:
+            normalized_scope = str(scope).strip()
+            source_ids = _SCOPE_TO_SOURCE_IDS.get(normalized_scope)
+            if not source_ids:
+                return EvidenceSelection((), ())
+            scope_groups[normalized_scope] = source_ids
+    required_scope_generations = frozenset(
+        _SCOPE_TO_GENERATION[scope]
+        for scope in scope_groups
+        if scope in _SCOPE_TO_GENERATION
+    )
+    selection_generations = frozenset(
+        requested_generations
+        | _generation_anchors(answer)
+        | required_scope_generations
+    )
     material_anchors_by_generation = _material_answer_anchors_by_generation(
         question,
         answer,
@@ -629,28 +686,53 @@ def select_evidence(
     signals = [
         _signal_for_candidate(question, answer, hit, rank, anchors)
         for rank, hit in enumerate(hits, start=1)
-        if not selection_generations
-        or _candidate_generation(hit) in selection_generations
+        if (
+            (not scope_groups and not selection_generations)
+            or (
+                scope_groups
+                and any(hit.chunk.source_id in source_ids for source_ids in scope_groups.values())
+            )
+            or (
+                not scope_groups
+                and _candidate_generation(hit) in selection_generations
+            )
+        )
     ]
 
-    if selection_generations:
+    if scope_groups:
         groups = [
             (
+                scope,
+                _SCOPE_TO_GENERATION.get(scope),
+                [
+                    signal
+                    for signal in signals
+                    if signal.hit.chunk.source_id in source_ids
+                ],
+            )
+            for scope, source_ids in scope_groups.items()
+        ]
+        if any(not group for _scope, _generation, group in groups):
+            return EvidenceSelection((), ())
+    elif selection_generations:
+        groups = [
+            (
+                None,
                 generation,
                 [signal for signal in signals if signal.generation == generation],
             )
             for generation in selection_generations
         ]
-        if any(not group for _generation, group in groups):
+        if any(not group for _scope, _generation, group in groups):
             return EvidenceSelection((), ())
     else:
-        groups = [(None, signals)]
+        groups = [(None, None, signals)]
 
     selected_signals: List[_CandidateSignal] = []
-    for generation, group in groups:
+    for scope, generation, group in groups:
         required_anchors = (
             material_anchors_by_generation[generation]
-            if generation is not None
+            if generation is not None and generation in material_anchors_by_generation
             else material_anchors
         )
         selected = _select_group(group, anchors, required_anchors)

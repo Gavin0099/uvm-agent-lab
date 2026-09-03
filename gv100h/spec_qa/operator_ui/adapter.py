@@ -64,7 +64,12 @@ class OperatorQAAdapter:
         )
 
     @staticmethod
-    def _real_local_rag_view(result, question: str) -> OperatorQAView:
+    def _real_local_rag_view(
+        result,
+        question: str,
+        *,
+        required_scopes: Optional[Sequence[str]] = None,
+    ) -> OperatorQAView:
         from gv100h.spec_qa.operator_ui.real_local_rag import (
             REAL_LOCAL_RAG_CLAIM_CEILING,
             _is_insufficient_evidence,
@@ -141,7 +146,12 @@ class OperatorQAAdapter:
                 corpus_sha256=result.corpus_sha256,
             )
 
-        selection = select_evidence(question, result.answer, result.hits)
+        selection = select_evidence(
+            question,
+            result.answer,
+            result.hits,
+            required_scopes=required_scopes,
+        )
         citations = [
             OperatorQAAdapter._citation_view(
                 hit,
@@ -229,7 +239,16 @@ class OperatorQAAdapter:
                 retrieval_mode=retrieval_mode,
                 allowed_evidence_scopes=allowed_evidence_scopes,
             )
-            return self._real_local_rag_view(result, question)
+            selection_scopes = (
+                allowed_evidence_scopes
+                if retrieval_mode == "explicit_cross_scope"
+                else ((answer_scope,) if answer_scope else None)
+            )
+            return self._real_local_rag_view(
+                result,
+                question,
+                required_scopes=selection_scopes,
+            )
         resp = self._get_service().answer_question(
             question,
             answer_scope=answer_scope,
@@ -256,6 +275,11 @@ class OperatorQAAdapter:
             retrieval_mode=retrieval_mode,
             allowed_evidence_scopes=allowed_evidence_scopes,
         )
+        selection_scopes = (
+            allowed_evidence_scopes
+            if retrieval_mode == "explicit_cross_scope"
+            else ((answer_scope,) if answer_scope else None)
+        )
 
         def events() -> Iterator[dict[str, Any]]:
             # Keep corpus construction inside the iterator so the HTTP layer
@@ -270,6 +294,7 @@ class OperatorQAAdapter:
                 answer_scope=answer_scope,
                 retrieval_mode=retrieval_mode,
                 allowed_evidence_scopes=allowed_evidence_scopes,
+                required_scopes=selection_scopes,
             )
 
         return events()
