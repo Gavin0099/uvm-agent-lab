@@ -78,8 +78,8 @@ class FakeStreamingLocalAI:
 
     def stream_complete(self, *, system_prompt, user_prompt):
         self.calls.append({"system_prompt": system_prompt, "user_prompt": user_prompt})
-        yield LocalAIStreamEvent(text="這是", model=self.model)
-        yield LocalAIStreamEvent(text="中文回答。", model=self.model)
+        yield LocalAIStreamEvent(text="PORT_POWER", model=self.model)
+        yield LocalAIStreamEvent(text=" 的值為 8。", model=self.model)
         yield LocalAIStreamEvent(
             text="",
             model=self.model,
@@ -530,13 +530,18 @@ def test_real_local_rag_streams_meta_tokens_and_truthful_token_telemetry():
     assert events[0]["local_model"] == "fake-local-qwen"
     assert events[0]["retrieved_chunk_count"] == 1
     token_events = [event for event in events if event["type"] == "token"]
-    assert [event["text"] for event in token_events] == ["這是", "中文回答。"]
+    assert [event["text"] for event in token_events] == ["PORT_POWER", " 的值為 8。"]
     assert token_events[0]["token_info"]["stream_chunks"] == 1
     done = events[-1]
     assert done["type"] == "done"
-    assert done["answer"] == "這是中文回答。"
+    assert done["answer"] == "PORT_POWER 的值為 8。"
     assert done["local_model"] == "fake-local-qwen"
     assert done["token_info"]["completion_tokens"] == 5
+    assert done["selected_evidence_ids"] == [hit.chunk.chunk_id]
+    assert done["primary_evidence_ids"] == [hit.chunk.chunk_id]
+    assert len(done["candidate_citations"]) == 1
+    assert done["candidate_citations"][0]["retrieval_rank"] == 1
+    assert done["candidate_citations"][0]["retrieval_score"] == hit.score
     assert done["token_info"]["prompt_tokens"] == 42
     assert done["token_info"]["total_tokens"] == 47
     assert done["token_info"]["server_tokens_per_second"] == 6.25
@@ -586,6 +591,78 @@ def test_operator_adapter_projects_real_local_rag_provenance():
     assert view.evidence_ids == [hit.chunk.chunk_id]
     assert view.claim_evidence_ids == [[hit.chunk.chunk_id]]
     assert "semantic entailment" in view.claim_ceiling
+
+
+def test_operator_adapter_separates_candidates_and_selected_primary_evidence():
+    hits = [
+        _hit(
+            source_id="usb20_se",
+            section="7.1.2.1",
+            content=(
+                "For low-speed and full-speed, output rise and fall times are "
+                "measured between 10% and 90%."
+            ),
+        ),
+        _hit(
+            source_id="usb20_se",
+            section="7.1.2.2",
+            content=(
+                "High-speed Signaling Rise and Fall Times. The transition time "
+                "of a high-speed driver must not be less than the specified "
+                "minimum allowable differential rise and fall time."
+            ),
+        ),
+        _hit(
+            source_id="usb20_se",
+            section="7.3.2",
+            content=(
+                "Rise Time (10% - 90%) THSR 500 ps. Fall Time (10% - 90%) "
+                "THSF 500 ps."
+            ),
+        ),
+    ]
+    question = (
+        "對 USB 2.0 hub，在 A 或 B receptacle 量到的 high-speed 差分 "
+        "rise/fall（10% 到 90%）最短時間是多少？"
+    )
+    answer = "結論：high-speed 差分 rise/fall 最短時間為 500 ps。"
+    view = OperatorQAAdapter(
+        real_local_rag=RealLocalRAG(FakeRetriever(hits), FakeLocalAI(answer))
+    ).ask(question, answer_scope="USB_HUB_COMMON", source="real_local_rag")
+
+    assert [citation.section for citation in view.candidate_citations] == [
+        "7.1.2.1",
+        "7.1.2.2",
+        "7.3.2",
+    ]
+    assert [citation.section for citation in view.citations] == [
+        "7.1.2.2",
+        "7.3.2",
+    ]
+    assert view.primary_evidence_ids == [hits[1].chunk.chunk_id, hits[2].chunk.chunk_id]
+    assert view.selected_evidence_ids == [hits[1].chunk.chunk_id, hits[2].chunk.chunk_id]
+    assert view.evidence_selection_method == "deterministic_lexical_v1"
+
+
+def test_operator_adapter_keeps_model_abstention_without_selected_citations():
+    hit = _hit()
+    view = OperatorQAAdapter(
+        real_local_rag=RealLocalRAG(
+            FakeRetriever([hit]),
+            FakeLocalAI("INSUFFICIENT_EVIDENCE\n目前沒有足夠的直接證據。"),
+        )
+    ).ask(
+        "PM_LC_TIMER 的 x1 與 x2 是多少？",
+        answer_scope="USB_3_X",
+        source="real_local_rag",
+    )
+
+    assert view.status == "abstain"
+    assert view.boundary_code == "MISSING_EVIDENCE"
+    assert view.citations == []
+    assert view.selected_evidence_ids == []
+    assert view.primary_evidence_ids == []
+    assert len(view.candidate_citations) == 1
 
 
 def test_operator_ui_api_accepts_real_local_rag_source():
@@ -980,11 +1057,11 @@ def test_operator_ui_api_streams_real_local_rag_events():
         assert events[1]["type"] == "meta"
         assert events[1]["source"] == "real_local_rag"
         assert [event["text"] for event in events if event["type"] == "token"] == [
-            "這是",
-            "中文回答。",
+            "PORT_POWER",
+            " 的值為 8。",
         ]
         assert events[-1]["type"] == "done"
-        assert events[-1]["answer"] == "這是中文回答。"
+        assert events[-1]["answer"] == "PORT_POWER 的值為 8。"
         assert events[-1]["token_info"]["completion_tokens"] == 5
     finally:
         httpd.shutdown()

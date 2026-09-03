@@ -46,30 +46,39 @@ class OperatorQAAdapter:
         return self._real_local_rag
 
     @staticmethod
-    def _real_local_rag_view(result) -> OperatorQAView:
+    def _citation_view(hit, *, retrieval_rank: Optional[int] = None) -> OperatorCitationView:
+        citation = hit.chunk.to_citation()
+        return OperatorCitationView(
+            evidence_id=citation.evidence_id,
+            document=citation.document,
+            revision=citation.revision,
+            chapter=citation.chapter,
+            section=citation.section,
+            page_or_anchor=citation.page_or_anchor,
+            authority_level=citation.authority_level,
+            excerpt=citation.excerpt,
+            citation_kind=citation.citation_kind,
+            retrieval_rank=retrieval_rank,
+            retrieval_score=hit.score,
+            matched_terms=list(hit.matched_terms),
+        )
+
+    @staticmethod
+    def _real_local_rag_view(result, question: str) -> OperatorQAView:
         from gv100h.spec_qa.operator_ui.real_local_rag import (
             REAL_LOCAL_RAG_CLAIM_CEILING,
             _is_insufficient_evidence,
         )
+        from gv100h.spec_qa.operator_ui.evidence_selection import select_evidence
 
-        citations = []
-        evidence_ids = []
-        for hit in result.hits:
-            citation = hit.chunk.to_citation()
-            citations.append(
-                OperatorCitationView(
-                    evidence_id=citation.evidence_id,
-                    document=citation.document,
-                    revision=citation.revision,
-                    chapter=citation.chapter,
-                    section=citation.section,
-                    page_or_anchor=citation.page_or_anchor,
-                    authority_level=citation.authority_level,
-                    excerpt=citation.excerpt,
-                    citation_kind=citation.citation_kind,
-                )
-            )
-            evidence_ids.append(citation.evidence_id)
+        hit_ranks = {
+            hit.chunk.chunk_id: rank
+            for rank, hit in enumerate(result.hits, start=1)
+        }
+        candidate_citations = [
+            OperatorQAAdapter._citation_view(hit, retrieval_rank=rank)
+            for rank, hit in enumerate(result.hits, start=1)
+        ]
 
         if result.boundary is not None:
             return OperatorQAView(
@@ -83,6 +92,7 @@ class OperatorQAAdapter:
                 claim_ceiling=REAL_LOCAL_RAG_CLAIM_CEILING,
                 source="real_local_rag",
                 retrieval_kind=result.retriever_kind,
+                candidate_citations=candidate_citations,
                 retrieved_chunk_count=0,
                 corpus_sha256=result.corpus_sha256,
             )
@@ -93,6 +103,7 @@ class OperatorQAAdapter:
                 answer=result.answer,
                 claims=[],
                 citations=[],
+                candidate_citations=candidate_citations,
                 boundary_code="MISSING_EVIDENCE",
                 boundary="Local AI reported insufficient evidence after retrieval.",
                 boundary_reason=(
@@ -125,19 +136,65 @@ class OperatorQAAdapter:
                 claim_ceiling=REAL_LOCAL_RAG_CLAIM_CEILING,
                 source="real_local_rag",
                 retrieval_kind=result.retriever_kind,
+                candidate_citations=candidate_citations,
                 retrieved_chunk_count=0,
                 corpus_sha256=result.corpus_sha256,
             )
 
+        selection = select_evidence(question, result.answer, result.hits)
+        citations = [
+            OperatorQAAdapter._citation_view(
+                hit,
+                retrieval_rank=hit_ranks.get(hit.chunk.chunk_id),
+            )
+            for hit in selection.selected_hits
+        ]
+        evidence_ids = [citation.evidence_id for citation in citations]
+        primary_evidence_ids = [
+            hit.chunk.chunk_id for hit in selection.primary_hits
+        ]
+        if not evidence_ids:
+            return OperatorQAView(
+                status="abstain",
+                answer=(
+                    "目前無法從檢索候選中選出足以支持此回答的明確證據，"
+                    "因此暫不提供結論。"
+                ),
+                claims=[],
+                citations=[],
+                candidate_citations=candidate_citations,
+                selected_evidence_ids=[],
+                primary_evidence_ids=[],
+                evidence_selection_method=selection.method,
+                boundary_code="MISSING_EVIDENCE",
+                boundary="Deterministic evidence selection found no clearly supporting candidate.",
+                boundary_reason=(
+                    "The answer did not have a deterministic candidate with enough "
+                    "support signals; retrieved candidates are not treated as citations."
+                ),
+                scope=result.scope,
+                is_abstain=True,
+                claim_ceiling=REAL_LOCAL_RAG_CLAIM_CEILING,
+                source="real_local_rag",
+                retrieval_kind=result.retriever_kind,
+                local_model=result.local_model,
+                retrieved_chunk_count=len(result.hits),
+                corpus_sha256=result.corpus_sha256,
+            )
+
         boundary = (
-            "Real PDF BM25 evidence was sent to the configured local AI. "
-            "Semantic entailment is not independently verified."
+            "Real PDF BM25 candidates were filtered by deterministic evidence "
+            "selection; semantic entailment is not independently verified."
         )
         return OperatorQAView(
             status="answer",
             answer=result.answer,
             claims=[result.answer],
             citations=citations,
+            candidate_citations=candidate_citations,
+            selected_evidence_ids=evidence_ids,
+            primary_evidence_ids=primary_evidence_ids,
+            evidence_selection_method=selection.method,
             boundary=boundary,
             boundary_reason=boundary,
             scope=result.scope,
@@ -172,7 +229,7 @@ class OperatorQAAdapter:
                 retrieval_mode=retrieval_mode,
                 allowed_evidence_scopes=allowed_evidence_scopes,
             )
-            return self._real_local_rag_view(result)
+            return self._real_local_rag_view(result, question)
         resp = self._get_service().answer_question(
             question,
             answer_scope=answer_scope,
