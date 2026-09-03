@@ -152,6 +152,28 @@ def test_selector_preserves_two_load_bearing_document_primaries():
     }
 
 
+def test_selector_rejects_swapped_cross_generation_literals():
+    question = "Compare USB 2.0 and USB 3.2 PORT_POWER requirements"
+    answer = "USB 2.0 PORT_POWER = 8 V; USB 3.2 PORT_POWER = 9 V."
+    usb2 = _hit(
+        "usb20_fw",
+        "11.24.2.7.1.6",
+        "USB 2.0 PORT_POWER feature value is 9 V.",
+        0,
+    )
+    usb3 = _hit(
+        "usb32",
+        "10.3.1.1",
+        "USB 3.2 PORT_POWER feature value is 8 V.",
+        1,
+    )
+
+    selection = select_evidence(question, answer, [usb2, usb3])
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
 def test_selector_returns_no_selected_evidence_for_model_abstention():
     hit = _hit("usb32", "7.5", "eSS.Inactive timeout and RxDetect timeout.", 0)
 

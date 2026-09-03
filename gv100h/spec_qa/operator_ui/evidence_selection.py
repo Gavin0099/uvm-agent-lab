@@ -301,6 +301,64 @@ def _requested_generations(question: str) -> FrozenSet[str]:
     return _generation_anchors(question)
 
 
+def _material_answer_anchors_by_generation(
+    question: str,
+    answer: str,
+    requested_generations: FrozenSet[str],
+) -> dict[str, FrozenSet[str]]:
+    """Associate answer literals with the generation that claims them.
+
+    A global literal union is insufficient for a comparison answer: it could
+    accept USB 2.0's value from a USB 3.2 candidate and vice versa. When the
+    answer explicitly introduces multiple generations, each generation's
+    clause becomes its own conservative anchor scope. Unscoped material is
+    required from every requested generation rather than silently assigned to
+    whichever candidate happens to contain it.
+    """
+    all_anchors = _material_answer_anchors(question, answer)
+    if not requested_generations:
+        return {}
+
+    answer_generations = _generation_anchors(answer)
+    if len(answer_generations) < 2:
+        return {
+            generation: all_anchors for generation in requested_generations
+        }
+
+    occurrences = []
+    for generation, pattern in (
+        ("USB_2_0", _USB2_PATTERN),
+        ("USB_3_X", _USB3_PATTERN),
+    ):
+        occurrences.extend(
+            (match.start(), generation)
+            for match in pattern.finditer(answer)
+        )
+    occurrences.sort()
+    scoped: dict[str, set[str]] = {
+        generation: set() for generation in requested_generations
+    }
+    covered: set[str] = set()
+    for index, (start, generation) in enumerate(occurrences):
+        end = occurrences[index + 1][0] if index + 1 < len(occurrences) else len(answer)
+        if generation not in scoped:
+            continue
+        segment_anchors = _material_answer_anchors(
+            question,
+            answer[start:end],
+        )
+        scoped[generation].update(segment_anchors)
+        covered.update(segment_anchors)
+
+    # Material text outside an explicitly generation-labelled clause is
+    # shared/ambiguous. Require it in every requested generation instead of
+    # allowing a union to mask a swapped claim.
+    unscoped = all_anchors - covered
+    for generation in scoped:
+        scoped[generation].update(unscoped)
+    return {generation: frozenset(anchors) for generation, anchors in scoped.items()}
+
+
 def _candidate_generation(hit: GovernedChunkRetrievalHit) -> str:
     if hit.chunk.source_id in {"usb20_fw", "usb20_se"}:
         return "USB_2_0"
@@ -402,15 +460,19 @@ def _signal_for_candidate(
 def _select_group(
     signals: Sequence[_CandidateSignal],
     anchors: FrozenSet[str],
+    required_anchors: FrozenSet[str] = frozenset(),
 ) -> Tuple[_CandidateSignal, ...]:
     available = [signal for signal in signals if signal.support_anchors]
     if not available:
         return ()
 
-    required = set(anchors)
     covered_by_group = set().union(
         *(signal.support_anchors for signal in available)
     )
+    if not required_anchors.issubset(covered_by_group):
+        return ()
+    required = set(anchors)
+    required.update(required_anchors)
     required &= covered_by_group
     if not required:
         best = max(available, key=lambda signal: (signal.score, -signal.rank))
@@ -529,38 +591,42 @@ def select_evidence(
         return EvidenceSelection((), ())
 
     anchors = _answer_anchors(question, answer)
-    material_anchors = _material_answer_anchors(question, answer)
     requested_generations = _requested_generations(question)
+    selection_generations = requested_generations or _generation_anchors(answer)
+    material_anchors_by_generation = _material_answer_anchors_by_generation(
+        question,
+        answer,
+        selection_generations,
+    )
+    material_anchors = _material_answer_anchors(question, answer)
     signals = [
         _signal_for_candidate(question, answer, hit, rank, anchors)
         for rank, hit in enumerate(hits, start=1)
-        if not requested_generations
-        or _candidate_generation(hit) in requested_generations
+        if not selection_generations
+        or _candidate_generation(hit) in selection_generations
     ]
 
-    if requested_generations:
+    if selection_generations:
         groups = [
-            [signal for signal in signals if signal.generation == generation]
-            for generation in requested_generations
+            (
+                generation,
+                [signal for signal in signals if signal.generation == generation],
+            )
+            for generation in selection_generations
         ]
-        if any(not group for group in groups):
+        if any(not group for _generation, group in groups):
             return EvidenceSelection((), ())
     else:
-        groups = [signals]
-
-    available_material_anchors = (
-        set().union(
-            *(_material_candidate_anchors(signal.hit) for signal in signals)
-        )
-        if signals
-        else set()
-    )
-    if not material_anchors.issubset(available_material_anchors):
-        return EvidenceSelection((), ())
+        groups = [(None, signals)]
 
     selected_signals: List[_CandidateSignal] = []
-    for group in groups:
-        selected = _select_group(group, anchors)
+    for generation, group in groups:
+        required_anchors = (
+            material_anchors_by_generation[generation]
+            if generation is not None
+            else material_anchors
+        )
+        selected = _select_group(group, anchors, required_anchors)
         if not selected:
             return EvidenceSelection((), ())
         selected_signals.extend(_add_numeric_table_support(selected, group))
@@ -569,5 +635,5 @@ def select_evidence(
     selected_hits = tuple(
         hit for hit in hits if hit.chunk.chunk_id in selected_ids
     )
-    primary_hits = _choose_primary(selected_signals, requested_generations)
+    primary_hits = _choose_primary(selected_signals, selection_generations)
     return EvidenceSelection(selected_hits, primary_hits)
