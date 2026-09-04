@@ -287,6 +287,20 @@ def test_selector_accepts_matching_pdf_measurement_units(answer):
     assert selection.primary_hits == (candidate,)
 
 
+def test_selector_fails_closed_for_unsupported_fractional_measurement():
+    answer = "The voltage is 1/2 V."
+    candidate = _hit("usb32", "10.1", "The voltage is 2 V.", 0)
+
+    selection = select_evidence(
+        "What is the voltage?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
 def test_selector_rejects_colliding_scientific_notation_values():
     answer = "The current is 1e-6 A."
     candidate = _hit("usb32", "10.1", "The current is 6 A.", 0)

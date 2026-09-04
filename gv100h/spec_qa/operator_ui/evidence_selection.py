@@ -23,9 +23,10 @@ not parse serialized table rows. An explicit identifier followed by a literal
 must use a recognized field/value relation; unsupported predicate prose fails
 closed instead of borrowing a topic citation.
 
-Percentage literals and ``between`` ranges are intentionally unsupported in
-v1. They are rejected rather than partially interpreted until a separate
-contract change adds their grammar and regression coverage.
+Percentage literals, numeric slash fractions, and ``between`` ranges are
+intentionally unsupported in v1. They are rejected rather than partially
+interpreted until a separate contract change adds their grammar and regression
+coverage.
 
 Adding another language form requires a separate contract decision and a
 negative regression. Reviewer-discovered phrasing outside this grammar is a
@@ -400,6 +401,17 @@ _UNSUPPORTED_CLAIM_MARKER_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _UNSUPPORTED_PERCENT_PATTERN = re.compile(r"[%％]")
+_UNSUPPORTED_FRACTION_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9_.])"
+    + _MEASUREMENT_NUMBER_PATTERN
+    + r"\s*/\s*"
+    + _MEASUREMENT_NUMBER_PATTERN
+    + r"(?:\s*"
+    + _MEASUREMENT_UNIT_PATTERN
+    + r")?"
+    + r"(?![A-Za-z0-9_])",
+    re.IGNORECASE,
+)
 _UNSUPPORTED_RANGE_MARKER_PATTERN = re.compile(r"\bbetween\b", re.IGNORECASE)
 _STATE_VALUE_ALIASES = {
     "enabled": "enabled",
@@ -827,6 +839,7 @@ def _has_supported_v1_binding(answer: str) -> bool:
     if (
         _UNSUPPORTED_CLAIM_MARKER_PATTERN.search(answer)
         or _UNSUPPORTED_PERCENT_PATTERN.search(answer)
+        or _UNSUPPORTED_FRACTION_PATTERN.search(answer)
         or _UNSUPPORTED_RANGE_MARKER_PATTERN.search(answer)
         or _has_unsupported_contracted_field_negation(answer)
         or _has_unbound_identifier_literal_claim(answer)
