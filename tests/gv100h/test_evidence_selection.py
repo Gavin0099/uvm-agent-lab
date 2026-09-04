@@ -872,6 +872,399 @@ def test_selector_fails_closed_for_contracted_field_negation():
     assert selection.primary_hits == ()
 
 
+def test_selector_fails_closed_for_unbound_identifier_literal_claim():
+    answer = "PORT_POWER resets the hub at 8 V."
+    candidate = _hit(
+        "usb32",
+        "7.2",
+        "PORT_POWER supplies power at 8 V.",
+        0,
+    )
+
+    selection = select_evidence(
+        "What is the PORT_POWER value?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_accepts_bound_identifier_literal_claim():
+    answer = "PORT_POWER is 8 V."
+    candidate = _hit("usb32", "7.2", answer, 0)
+
+    selection = select_evidence(
+        "What is the PORT_POWER value?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == (candidate,)
+    assert selection.primary_hits == (candidate,)
+
+
+def test_selector_fails_closed_for_unbound_generation_identifier_literal_claim():
+    answer = "USB 3.2 PORT_POWER resets the hub at 8 V."
+    candidate = _hit(
+        "usb32",
+        "7.2",
+        "USB 3.2 PORT_POWER supplies power at 8 V.",
+        0,
+    )
+
+    selection = select_evidence(
+        "What is the USB 3.2 PORT_POWER value?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_fails_closed_when_unrelated_measurement_rescues_literal():
+    answer = "PORT_POWER resets the hub at 8 V and rise time is 500 ps."
+    candidate = _hit(
+        "usb32",
+        "7.2",
+        "PORT_POWER supplies power at 8 V and rise time is 500 ps.",
+        0,
+    )
+
+    selection = select_evidence(
+        "What are the PORT_POWER value and rise time?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_does_not_create_field_anchor_from_unrelated_measurement():
+    answer = "PORT_POWER resets the hub and rise time is 500 ps."
+
+    assert _field_value_anchors(answer) == frozenset()
+
+
+def test_selector_fails_closed_for_unbound_literal_after_supported_binding():
+    answer = "PORT_POWER is 8 V and rise time is 500 ps."
+    candidate = _hit(
+        "usb32",
+        "7.2",
+        "PORT_POWER is 8 V and rise time is 500 ps.",
+        0,
+    )
+
+    selection = select_evidence(
+        "What is the PORT_POWER value?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_fails_closed_for_unbound_quantity_after_supported_binding():
+    answer = "PORT_POWER is 8 V and 4 downstream ports are supported."
+    candidate = _hit("usb32", "7.2", answer, 0)
+
+    selection = select_evidence(
+        "What is the PORT_POWER value?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_fails_closed_for_punctuation_separated_unbound_quantity():
+    answer = "PORT_POWER is 8 V; 4 downstream ports are supported."
+    candidate = _hit("usb32", "7.2", answer, 0)
+
+    selection = select_evidence(
+        "What is the PORT_POWER value?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_fails_closed_for_trailing_empty_identifier_segment():
+    answer = "PORT_POWER is 8 V; PORT_RESET"
+    candidate = _hit("usb32", "7.2", "PORT_POWER is 8 V.", 0)
+
+    selection = select_evidence(
+        "What is the PORT_POWER value?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_fails_closed_when_unrelated_quantity_rescues_literal():
+    answer = "PORT_POWER resets the hub at 8 V and 4 downstream ports are supported."
+    candidate = _hit(
+        "usb32",
+        "7.2",
+        "PORT_POWER supplies power at 8 V and 4 downstream ports are supported.",
+        0,
+    )
+
+    selection = select_evidence(
+        "What are the PORT_POWER value and downstream port count?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_fails_closed_when_later_identifier_hides_unsupported_claim():
+    answer = "PORT_POWER resets PORT_RESET = 8 V."
+    candidate = _hit(
+        "usb32",
+        "7.2",
+        "PORT_POWER supplies power; PORT_RESET = 8 V.",
+        0,
+    )
+
+    selection = select_evidence(
+        "What are the PORT_POWER and PORT_RESET values?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "PORT_POWER resets the hub and rise time is 500 ps.",
+        "PORT_POWER resets the hub and Section 7.2 is 8 V.",
+        "PORT_POWER resets the hub; rise time is 500 ps.",
+    ],
+)
+def test_selector_fails_closed_when_later_clause_hides_unsupported_claim(answer):
+    candidate = _hit("usb32", "7.2", answer, 0)
+
+    selection = select_evidence(
+        "What is the PORT_POWER value?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_fails_closed_for_unrelated_quantity_relation_prefix():
+    answer = "PORT_POWER resets the hub and the hub supports 4 downstream ports."
+    candidate = _hit("usb32", "7.2", answer, 0)
+
+    selection = select_evidence(
+        "What is the PORT_POWER value?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_fails_closed_before_unrelated_section_signal():
+    answer = "PORT_POWER resets the hub at 8 V; Section 7.2 specifies 8 V."
+    candidate = _hit(
+        "usb32",
+        "7.2",
+        "PORT_POWER supplies power at 8 V; Section 7.2 specifies 8 V.",
+        0,
+    )
+
+    selection = select_evidence(
+        "What is the PORT_POWER value according to Section 7.2?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "PORT_POWER 非常接近 8 V。",
+        "PORT_POWER 未來是 8 V。",
+    ],
+)
+def test_selector_fails_closed_for_unsupported_chinese_value_predicates(answer):
+    candidate = _hit("usb32", "7.2", "PORT_POWER is 8 V.", 0)
+
+    selection = select_evidence(
+        "What is the PORT_POWER value?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_preserves_compound_chinese_state_alias():
+    answer = "PORT_POWER 未啟用。"
+    candidate = _hit("usb32", "7.2", "PORT_POWER is inactive.", 0)
+
+    selection = select_evidence(
+        "What is the PORT_POWER state?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == (candidate,)
+    assert selection.primary_hits == (candidate,)
+
+
+def test_selector_preserves_chinese_negative_state_alias():
+    answer = "PORT_POWER 非活動。"
+    candidate = _hit("usb32", "7.2", "PORT_POWER is inactive.", 0)
+
+    selection = select_evidence(
+        "What is the PORT_POWER state?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == (candidate,)
+    assert selection.primary_hits == (candidate,)
+
+
+def test_selector_fails_closed_for_reversed_identifier_literal_claim():
+    answer = "8 V is PORT_POWER."
+    candidate = _hit("usb32", "7.2", "PORT_POWER is 8 V.", 0)
+
+    selection = select_evidence(
+        "What is the PORT_POWER value?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_fails_closed_for_unscoped_literal_value_list():
+    answer = "PORT_POWER is 8 V or 9 V."
+    candidate = _hit(
+        "usb32",
+        "7.2",
+        "PORT_POWER is 8 V; PORT_RESET is 9 V.",
+        0,
+    )
+
+    selection = select_evidence(
+        "What is the PORT_POWER value?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "PORT_POWER = 8 V or PORT_POWER = 9 V.",
+        "PORT_POWER = 8 V / PORT_POWER = 9 V.",
+        "PORT_POWER = 8 V, PORT_POWER = 9 V.",
+    ],
+)
+def test_selector_fails_closed_for_repeated_identifier_value_list(answer):
+    candidate = _hit("usb32", "7.2", answer, 0)
+
+    selection = select_evidence(
+        "What is the PORT_POWER value?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_rejects_range_supported_by_the_wrong_field():
+    answer = "PORT_POWER is 8 to 10 V."
+    wrong_field = _hit(
+        "usb32",
+        "7.2",
+        "PORT_RESET is 8 to 10 V; PORT_POWER is 8 V.",
+        0,
+    )
+
+    selection = select_evidence(
+        "What is the PORT_POWER range?",
+        answer,
+        [wrong_field],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_accepts_range_bound_to_the_correct_field():
+    answer = "PORT_POWER is 8 to 10 V."
+    candidate = _hit("usb32", "7.2", answer, 0)
+
+    selection = select_evidence(
+        "What is the PORT_POWER range?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == (candidate,)
+    assert selection.primary_hits == (candidate,)
+
+
+def test_selector_fails_closed_for_material_before_identifier():
+    answer = "9 V is PORT_POWER = 8 V."
+    candidate = _hit("usb32", "7.2", "PORT_POWER = 8 V.", 0)
+
+    selection = select_evidence(
+        "What is the PORT_POWER value?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_fails_closed_for_unbound_unitless_tail():
+    answer = "PORT_POWER = 8 V; 4"
+    candidate = _hit("usb32", "7.2", answer, 0)
+
+    selection = select_evidence(
+        "What is the PORT_POWER value?",
+        answer,
+        [candidate],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
 def test_selector_rejects_wrong_substantive_claim_from_requested_section():
     question = "What does Section 7.2 say about suspend?"
     answer = "Section 7.2 requires suspend support."

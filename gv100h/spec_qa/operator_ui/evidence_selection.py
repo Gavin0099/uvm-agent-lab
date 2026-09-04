@@ -19,7 +19,9 @@ The only topic-only exception is an identifier paired with the recognized
 ``state``/``status`` vocabulary used by the existing cross-scope contract.
 Multiple unbound quantity numbers are ambiguous in v1 and fail closed. Table
 supplements must carry the answer's field/value anchor when one exists; v1 does
-not parse serialized table rows.
+not parse serialized table rows. An explicit identifier followed by a literal
+must use a recognized field/value relation; unsupported predicate prose fails
+closed instead of borrowing a topic citation.
 
 Percentage literals and ``between`` ranges are intentionally unsupported in
 v1. They are rejected rather than partially interpreted until a separate
@@ -183,6 +185,78 @@ _CHINESE_QUANTITY_BEFORE_NUMBER_PATTERN = re.compile(
     r"最多|最少|為|是|等於|回傳|返回)\s*(?:[:=為是]|等於)?\s*$",
     re.IGNORECASE,
 )
+_IDENTIFIER_QUANTITY_RELATION_PATTERN = re.compile(
+    r"(?:\b(?:supports?|provides?|has|contains?|includes?|allows?|"
+    r"returns?|equals?|up\s+to)\b|支援|支持|包含|包括|共有|有|"
+    r"可容納|可支援|回傳|返回|等於|[:=])\s*$",
+    re.IGNORECASE,
+)
+_FIELD_DESCRIPTOR_WORDS: FrozenSet[str] = frozenset(
+    {
+        "a",
+        "an",
+        "allowable",
+        "class",
+        "configuration",
+        "current",
+        "default",
+        "descriptor",
+        "feature",
+        "field",
+        "fields",
+        "has",
+        "have",
+        "hub",
+        "includes",
+        "input",
+        "its",
+        "maximum",
+        "minimum",
+        "of",
+        "option",
+        "options",
+        "output",
+        "port",
+        "reset",
+        "selector",
+        "selectors",
+        "setting",
+        "settings",
+        "state",
+        "status",
+        "the",
+        "value",
+        "values",
+    }
+)
+_FIELD_VALUE_LEAD_WORDS: FrozenSet[str] = frozenset(
+    {
+        "a",
+        "an",
+        "at",
+        "current",
+        "currently",
+        "equal",
+        "fewer",
+        "greater",
+        "least",
+        "less",
+        "more",
+        "most",
+        "no",
+        "not",
+        "of",
+        "or",
+        "the",
+        "than",
+        "to",
+        "equals",
+        "returns",
+    }
+)
+_FIELD_DESCRIPTOR_CHARS = frozenset(
+    "的之其該這那特徵選擇器數值值狀態欄位字段功能都均皆"
+)
 _COMPARISON_QUALIFIER_ALIASES = {
     "less than or equal to": "le",
     "less than or equal": "le",
@@ -240,7 +314,8 @@ _COMPARISON_QUALIFIER_PATTERN = re.compile(
 _FIELD_RELATION_PATTERN = re.compile(
     r"(?:!=|<=|>=|≤|≥|<|>|=|:|\bis\b|\bequals\b|\breturns?\b|"
     r"\bvalue\s*(?:is|=)?\b|\b(?:should|must|shall)\s+be\b|"
-    r"值\s*(?:為|是)?|回傳|不\s*(?:為|是)|非|未)",
+    r"值\s*(?:為|是)?|回傳|(?<![\u4e00-\u9fff])(?:都|均|皆)?\s*(?:為|是)|"
+    r"不\s*(?:為|是))",
     re.IGNORECASE,
 )
 _PROSE_NEGATION_PATTERN = re.compile(
@@ -566,6 +641,23 @@ def _normalize(text: str) -> str:
     )
 
 
+def _is_bounded_field_text(text: str, allowed_words: FrozenSet[str]) -> bool:
+    normalized = _normalize(text)
+    if not normalized:
+        return True
+    remaining = normalized
+    for word in allowed_words:
+        remaining = re.sub(
+            rf"(?<![a-z0-9_]){re.escape(word)}(?![a-z0-9_])",
+            " ",
+            remaining,
+        )
+    remaining = re.sub(r"[\s,:=()\[\]]+", "", remaining)
+    return not remaining or all(
+        character in _FIELD_DESCRIPTOR_CHARS for character in remaining
+    )
+
+
 def _tokens(text: str) -> FrozenSet[str]:
     raw_tokens = _TOKEN_PATTERN.findall(_normalize(text))
     tokens = set(raw_tokens)
@@ -737,6 +829,7 @@ def _has_supported_v1_binding(answer: str) -> bool:
         or _UNSUPPORTED_PERCENT_PATTERN.search(answer)
         or _UNSUPPORTED_RANGE_MARKER_PATTERN.search(answer)
         or _has_unsupported_contracted_field_negation(answer)
+        or _has_unbound_identifier_literal_claim(answer)
     ):
         return False
     if len(_unitless_numeric_anchors(answer)) > 1:
@@ -903,11 +996,43 @@ def _state_phrases(text: str) -> FrozenSet[str]:
     )
 
 
+def _is_terminal_state_value_identifier(
+    text: str,
+    identifier_match: re.Match[str],
+) -> bool:
+    prefix = text[: identifier_match.start()]
+    return bool(
+        _state_phrases(prefix)
+        and _TOPIC_DESCRIPTOR_PATTERN.search(prefix)
+    )
+
+
 def _canonical_state_value(value: str) -> Optional[str]:
     normalized = _normalize(value)
     return _STATE_VALUE_ALIASES.get(normalized) or _STATE_VALUE_ALIASES.get(
         normalized.replace(" ", "")
     )
+
+
+def _field_relation_for_first_literal(
+    segment: str,
+) -> Optional[Tuple[re.Match[str], Tuple[int, int]]]:
+    literal_span = _first_v1_literal_span(segment)
+    if literal_span is None:
+        return None
+    relation = _FIELD_RELATION_PATTERN.search(segment)
+    if relation is None or relation.start() >= literal_span[0]:
+        return None
+    if not _is_bounded_field_text(
+        segment[: relation.start()], _FIELD_DESCRIPTOR_WORDS
+    ):
+        return None
+    if not _is_bounded_field_text(
+        segment[relation.end() : literal_span[0]],
+        _FIELD_VALUE_LEAD_WORDS,
+    ):
+        return None
+    return relation, literal_span
 
 
 def _field_value_anchors(text: str) -> FrozenSet[str]:
@@ -930,11 +1055,12 @@ def _field_value_anchors(text: str) -> FrozenSet[str]:
         # ``PORT_POWER is distinct from PORT_RESET = 4`` must not produce a
         # false ``port_power=4`` pair by crossing the PORT_RESET identifier.
         segment = text[field_match.end() : segment_end]
-        relation = _FIELD_RELATION_PATTERN.search(segment)
-        if relation is None:
+        relation_info = _field_relation_for_first_literal(segment)
+        if relation_info is None:
             value_text = ""
             relation_negated = False
         else:
+            relation, literal_span = relation_info
             value_text = segment[relation.end() :]
             relation_text = segment[relation.start() : relation.end()]
             relation_negated = (
@@ -942,7 +1068,26 @@ def _field_value_anchors(text: str) -> FrozenSet[str]:
                 or _NEGATION_PATTERN.search(relation_text) is not None
             )
             relation_qualifier = _comparison_qualifier(relation_text)
+            for range_match in _MEASUREMENT_RANGE_PATTERN.finditer(segment):
+                if range_match.start() == literal_span[0]:
+                    anchors.add(
+                        f"{field}={_measurement_range_anchor(range_match)}"
+                    )
             for literal in _LITERAL_PATTERN.finditer(value_text):
+                absolute_start = relation.end() + literal.start()
+                is_first_literal = absolute_start == literal_span[0]
+                is_parenthesized_hex_alias = (
+                    not is_first_literal
+                    and _HEX_LITERAL_PATTERN.fullmatch(literal.group(0))
+                    is not None
+                    and re.fullmatch(
+                        r"\s*\(\s*",
+                        value_text[literal_span[1] - relation.end() : literal.start()],
+                    )
+                    is not None
+                )
+                if not is_first_literal and not is_parenthesized_hex_alias:
+                    continue
                 value = _canonical_state_value(literal.group(0)) or _normalize(
                     literal.group(0)
                 ).replace(" ", "")
@@ -991,6 +1136,218 @@ def _has_unsupported_contracted_field_negation(text: str) -> bool:
             if _LITERAL_PATTERN.search(suffix) or _STATE_VALUE_PATTERN.search(
                 suffix
             ):
+                return True
+    return False
+
+
+def _first_v1_literal_span(text: str) -> Optional[Tuple[int, int]]:
+    spans = _literal_spans(text)
+    return spans[0] if spans else None
+
+
+def _literal_spans(text: str) -> Tuple[Tuple[int, int], ...]:
+    spans = set()
+    number_unit_spans = {
+        (match.start(), match.end())
+        for match in _NUMBER_UNIT_PATTERN.finditer(text)
+    }
+    spans.update(number_unit_spans)
+    spans.update(
+        (match.start(), match.end())
+        for match in _HEX_LITERAL_PATTERN.finditer(text)
+    )
+    spans.update(
+        (match.start(), match.end())
+        for match in _STATE_VALUE_PATTERN.finditer(text)
+    )
+    spans.update(
+        (match.start("lower"), match.end("lower"))
+        for match in _MEASUREMENT_RANGE_PATTERN.finditer(text)
+    )
+    spans.update(
+        (match.start("upper"), match.end("upper"))
+        for match in _MEASUREMENT_RANGE_PATTERN.finditer(text)
+    )
+    unitless_anchors = _unitless_numeric_anchors(text)
+    spans.update(
+        match.span("number")
+        for match in _STANDALONE_NUMBER_PATTERN.finditer(text)
+        if (
+            _normalize(match.group("number")) in unitless_anchors
+            and _NUMBER_UNIT_PATTERN.match(text, match.start()) is None
+        )
+    )
+    for match in _LITERAL_PATTERN.finditer(text):
+        value = match.group(0)
+        if not re.fullmatch(_MEASUREMENT_NUMBER_PATTERN, value):
+            spans.add(match.span())
+        elif _FIELD_RELATION_PATTERN.search(text[: match.start()]):
+            spans.add(match.span())
+    ordered = sorted(
+        spans,
+        key=lambda span: (span[0], -(span[1] - span[0])),
+    )
+    coalesced = []
+    for span in ordered:
+        if any(
+            existing[0] <= span[0] and span[1] <= existing[1]
+            for existing in coalesced
+        ):
+            continue
+        coalesced.append(span)
+    return tuple(sorted(coalesced))
+
+
+def _has_unbound_literal_after(
+    segment: str,
+    first_span: Tuple[int, int],
+) -> bool:
+    previous_end = first_span[1]
+    range_anchors = _measurement_range_anchors(segment)
+    for span in _literal_spans(segment):
+        if span[0] <= first_span[0]:
+            continue
+        between = segment[previous_end : span[0]]
+        value = segment[span[0] : span[1]]
+        if (
+            _HEX_LITERAL_PATTERN.fullmatch(value) is not None
+            and re.fullmatch(r"\s*\(\s*", between) is not None
+        ):
+            previous_end = span[1]
+            continue
+        if range_anchors and re.fullmatch(
+            r"\s*(?:to|through|至|到|~|～|[-–—])\s*",
+            between,
+            re.IGNORECASE,
+        ):
+            previous_end = span[1]
+            continue
+        return True
+    return False
+
+
+def _has_local_identifier_literal_binding(
+    identifier: str,
+    segment: str,
+    literal_span: Tuple[int, int],
+) -> bool:
+    normalized_identifier = _normalize(identifier)
+    field_anchors = _field_value_anchors(f"{identifier}{segment}")
+    if any(
+        anchor.startswith(f"{normalized_identifier}=")
+        for anchor in field_anchors
+    ):
+        return True
+
+    literal_start, _ = literal_span
+    unitless_anchors = _unitless_numeric_anchors(segment)
+    for number_match in _STANDALONE_NUMBER_PATTERN.finditer(segment):
+        if (
+            number_match.start() != literal_start
+            or _normalize(number_match.group("number"))
+            not in unitless_anchors
+        ):
+            continue
+        prefix = segment[: number_match.start()]
+        suffix = segment[number_match.end() :]
+        has_quantity_after = (
+            _QUANTITY_NOUN_AFTER_NUMBER_PATTERN.match(suffix) is not None
+            or _CHINESE_QUANTITY_AFTER_NUMBER_PATTERN.match(suffix)
+            is not None
+        )
+        return has_quantity_after and (
+            (
+                relation := _IDENTIFIER_QUANTITY_RELATION_PATTERN.search(prefix)
+            )
+            is not None
+            and not prefix[: relation.start()].strip()
+        )
+    return False
+
+
+def _has_unbound_identifier_literal_claim(text: str) -> bool:
+    """Reject explicit identifier claims whose first literal has no v1 binding."""
+    explicit_identifiers = {
+        _normalize(match.group(0))
+        for match in _EXPLICIT_IDENTIFIER_PATTERN.finditer(text)
+        if (
+            _normalize(match.group(0)) not in _STOP_WORDS
+            and _normalize(match.group(0)) not in _GENERIC_TERMS
+            and _normalize(match.group(0)) not in _UNIT_TERMS
+            and _normalize(match.group(0)) not in _CLOSED_STATE_VALUES
+        )
+    }
+    if explicit_identifiers:
+        for clause in re.split(r"[;!?；。！？\n]+", text):
+            if _explicit_identifier_tokens(clause) & explicit_identifiers:
+                continue
+            if (
+                _first_v1_literal_span(clause) is None
+                and _LITERAL_PATTERN.search(clause) is None
+            ):
+                continue
+            if _sections(clause) or _generation_anchors(clause):
+                continue
+            return True
+
+    for clause in re.split(r"[;!?；。！？\n]+", text):
+        identifier_matches = [
+            match
+            for match in _EXPLICIT_IDENTIFIER_PATTERN.finditer(clause)
+            if (
+                _normalize(match.group(0)) not in _STOP_WORDS
+                and _normalize(match.group(0)) not in _GENERIC_TERMS
+                and _normalize(match.group(0)) not in _UNIT_TERMS
+                and _normalize(match.group(0)) not in _CLOSED_STATE_VALUES
+            )
+        ]
+        if identifier_matches:
+            if (
+                _first_v1_literal_span(
+                    clause[: identifier_matches[0].start()]
+                )
+                is not None
+            ):
+                return True
+            normalized_identifiers = [
+                _normalize(match.group(0)) for match in identifier_matches
+            ]
+            if len(set(normalized_identifiers)) != len(normalized_identifiers):
+                return True
+        for index, identifier_match in enumerate(identifier_matches):
+            segment_end = (
+                identifier_matches[index + 1].start()
+                if index + 1 < len(identifier_matches)
+                else len(clause)
+            )
+            segment = clause[identifier_match.end() : segment_end]
+            literal_span = _first_v1_literal_span(segment)
+            if literal_span is None:
+                if not segment.strip():
+                    if _is_terminal_state_value_identifier(
+                        clause,
+                        identifier_match,
+                    ):
+                        continue
+                    return True
+                topic_anchors = _topic_state_anchors(
+                    f"{identifier_match.group(0)}{segment}"
+                )
+                if any(
+                    anchor.startswith(
+                        f"{_normalize(identifier_match.group(0))}=topic:"
+                    )
+                    for anchor in topic_anchors
+                ):
+                    continue
+                return True
+            if not _has_local_identifier_literal_binding(
+                identifier_match.group(0),
+                segment,
+                literal_span,
+            ):
+                return True
+            if _has_unbound_literal_after(segment, literal_span):
                 return True
     return False
 
