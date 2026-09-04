@@ -68,6 +68,11 @@ class OperatorCitationView(BaseModel):
     citation_kind: str = "normative"
     has_pdf_anchor: bool = False
     pdf_href: Optional[str] = None
+    # Retrieval-only metadata. These fields make candidate evidence useful
+    # for diagnosis without changing the frozen citation fields above.
+    retrieval_rank: Optional[int] = None
+    retrieval_score: Optional[float] = None
+    matched_terms: List[str] = Field(default_factory=list)
 
 
 class OperatorQAView(BaseModel):
@@ -77,6 +82,14 @@ class OperatorQAView(BaseModel):
     answer: str
     claims: List[str] = Field(default_factory=list)
     citations: List[OperatorCitationView] = Field(default_factory=list)
+    # Real-local-RAG keeps BM25 candidate evidence separate from the smaller
+    # selected evidence set used for citation projection. The selector does
+    # not observe model-internal evidence use; these additive fields remain a
+    # deterministic traceability projection and leave frozen fields unchanged.
+    candidate_citations: List[OperatorCitationView] = Field(default_factory=list)
+    selected_evidence_ids: List[str] = Field(default_factory=list)
+    primary_evidence_ids: List[str] = Field(default_factory=list)
+    evidence_selection_method: Optional[str] = None
     boundary_code: Optional[str] = None
     boundary: str
     boundary_reason: str

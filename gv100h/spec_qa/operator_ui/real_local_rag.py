@@ -572,6 +572,7 @@ class RealLocalRAG:
         answer_scope: Optional[str] = None,
         retrieval_mode: str = "single_scope",
         allowed_evidence_scopes: Optional[Sequence[str]] = None,
+        required_scopes: Optional[Sequence[str]] = None,
     ) -> Iterator[Dict[str, Any]]:
         """Yield metadata, local-AI fragments, and final token telemetry.
 
@@ -659,7 +660,10 @@ class RealLocalRAG:
                 allowed_source_ids=source_ids,
             )
         )
-        citations = [self._citation_record(hit) for hit in hits]
+        candidate_citations = [
+            self._citation_record(hit, retrieval_rank=rank)
+            for rank, hit in enumerate(hits, start=1)
+        ]
         yield {
             "type": "meta",
             "source": "real_local_rag",
@@ -668,7 +672,11 @@ class RealLocalRAG:
             "retriever_kind": self.retriever.retriever_kind,
             "corpus_sha256": self.retriever.corpus_sha256,
             "retrieved_chunk_count": len(hits),
-            "citations": citations,
+            "citations": [],
+            "candidate_citations": candidate_citations,
+            "selected_evidence_ids": [],
+            "primary_evidence_ids": [],
+            "evidence_selection_method": "pending",
             "claim_ceiling": REAL_LOCAL_RAG_CLAIM_CEILING,
         }
         if not hits:
@@ -676,6 +684,11 @@ class RealLocalRAG:
                 "type": "done",
                 "answer": None,
                 "local_model": None,
+                "citations": [],
+                "candidate_citations": candidate_citations,
+                "selected_evidence_ids": [],
+                "primary_evidence_ids": [],
+                "evidence_selection_method": "none",
                 "token_info": {
                     "stream_chunks": 0,
                     "completion_chars": 0,
@@ -763,6 +776,10 @@ class RealLocalRAG:
                 "local_model": local_model,
                 "retrieved_chunk_count": len(hits),
                 "citations": [],
+                "candidate_citations": candidate_citations,
+                "selected_evidence_ids": [],
+                "primary_evidence_ids": [],
+                "evidence_selection_method": "abstention",
                 "boundary_code": "MISSING_EVIDENCE",
                 "boundary": "Local AI reported insufficient evidence after retrieval.",
                 "boundary_reason": (
@@ -780,10 +797,71 @@ class RealLocalRAG:
                 ),
             }
             return
+        from gv100h.spec_qa.operator_ui.evidence_selection import select_evidence
+
+        selection = select_evidence(
+            normalized_question,
+            answer,
+            hits,
+            required_scopes=required_scopes,
+        )
+        hit_ranks = {
+            hit.chunk.chunk_id: rank
+            for rank, hit in enumerate(hits, start=1)
+        }
+        selected_citations = [
+            self._citation_record(
+                hit,
+                retrieval_rank=hit_ranks.get(hit.chunk.chunk_id),
+            )
+            for hit in selection.selected_hits
+        ]
+        selected_evidence_ids = [
+            hit.chunk.chunk_id for hit in selection.selected_hits
+        ]
+        primary_evidence_ids = [
+            hit.chunk.chunk_id for hit in selection.primary_hits
+        ]
+        if not selected_citations:
+            yield {
+                "type": "done",
+                "answer": (
+                    "目前無法從檢索候選中選出足以支持此回答的明確證據，"
+                    "因此暫不提供結論。"
+                ),
+                "local_model": local_model,
+                "retrieved_chunk_count": len(hits),
+                "citations": [],
+                "candidate_citations": candidate_citations,
+                "selected_evidence_ids": [],
+                "primary_evidence_ids": [],
+                "evidence_selection_method": selection.method,
+                "boundary_code": "MISSING_EVIDENCE",
+                "boundary": "Deterministic evidence selection found no clearly supporting candidate.",
+                "boundary_reason": (
+                    "The answer did not have a deterministic candidate with enough "
+                    "support signals; retrieved candidates are not treated as citations."
+                ),
+                "token_info": _token_info(
+                    stream_chunks=stream_chunks,
+                    completion_chars=len(answer),
+                    elapsed_ms=_elapsed_ms(started),
+                    completion_tokens=completion_tokens,
+                    prompt_tokens=prompt_tokens,
+                    total_tokens=total_tokens,
+                    server_tokens_per_second=server_tokens_per_second,
+                ),
+            }
+            return
         yield {
             "type": "done",
             "answer": answer,
             "local_model": local_model,
+            "citations": selected_citations,
+            "candidate_citations": candidate_citations,
+            "selected_evidence_ids": selected_evidence_ids,
+            "primary_evidence_ids": primary_evidence_ids,
+            "evidence_selection_method": selection.method,
             "token_info": _token_info(
                 stream_chunks=stream_chunks,
                 completion_chars=len(answer),
@@ -796,7 +874,11 @@ class RealLocalRAG:
         }
 
     @staticmethod
-    def _citation_record(hit: GovernedChunkRetrievalHit) -> Dict[str, Any]:
+    def _citation_record(
+        hit: GovernedChunkRetrievalHit,
+        *,
+        retrieval_rank: Optional[int] = None,
+    ) -> Dict[str, Any]:
         citation = hit.chunk.to_citation()
         return {
             "evidence_id": citation.evidence_id,
@@ -810,6 +892,9 @@ class RealLocalRAG:
             "citation_kind": citation.citation_kind,
             "has_pdf_anchor": False,
             "pdf_href": None,
+            "retrieval_rank": retrieval_rank,
+            "retrieval_score": hit.score,
+            "matched_terms": list(hit.matched_terms),
         }
 
     def _classify_boundary(

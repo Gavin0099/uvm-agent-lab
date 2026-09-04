@@ -270,14 +270,23 @@ function renderSourceSummary(view) {
     return;
   }
   const citation = citations[0];
-  const parts = [humanDocument(citation, view, 0)];
-  if (citation.section) parts.push(`§${citation.section}`);
-  if (citation.authority_level) parts.push(authorityLabel(citation.authority_level));
+  const primaryIds = new Set(view.primary_evidence_ids || []);
+  const primaryCitations = citations.filter((item) => primaryIds.has(item.evidence_id));
+  if (primaryCitations.length > 1) {
+    kicker.textContent = "主要依據";
+    title.textContent = `${primaryCitations.length} 份主要依據`;
+    return;
+  }
+  const sourceCitation = primaryCitations[0] || citation;
+  const sourceIndex = citations.indexOf(sourceCitation);
+  const parts = [humanDocument(sourceCitation, view, sourceIndex < 0 ? 0 : sourceIndex)];
+  if (sourceCitation.section) parts.push(`§${sourceCitation.section}`);
+  if (sourceCitation.authority_level) parts.push(authorityLabel(sourceCitation.authority_level));
   const prefix = view.source === "fixture" ? "範例來源：" : "";
   title.textContent = prefix + parts.join(" · ");
-  if (citation.has_pdf_anchor && isSafePdfHref(citation.pdf_href)) {
+  if (sourceCitation.has_pdf_anchor && isSafePdfHref(sourceCitation.pdf_href)) {
     link.hidden = false;
-    link.href = citation.pdf_href;
+    link.href = sourceCitation.pdf_href;
   }
 }
 
@@ -305,15 +314,18 @@ function renderCitations(view) {
     $("evidenceDesc").textContent = "條文摘錄";
   }
   $("evidenceCount").textContent = citations.length ? String(citations.length) : "";
-  if (!citations.length) {
-    root.appendChild(textEl("p", "沒有引用。", "muted"));
-    return;
-  }
+  const primaryIds = new Set(view.primary_evidence_ids || []);
   citations.forEach((citation, index) => {
     const article = document.createElement("article");
     article.className = "citation";
     if (view.source === "real_local_rag") {
-      article.appendChild(textEl("p", index === 0 ? "主要依據" : "補充依據", "citation-role"));
+      article.appendChild(
+        textEl(
+          "p",
+          primaryIds.has(citation.evidence_id) ? "主要依據" : "補充依據",
+          "citation-role",
+        ),
+      );
     }
     article.appendChild(textEl("p", humanDocument(citation, view, index), "citation-meta"));
     if (kind === "conflict" && view.source === "fixture") {
@@ -349,6 +361,38 @@ function renderCitations(view) {
     appendDlRow(item, "地端 AI", view.local_model);
     developer.appendChild(item);
   });
+  if (!citations.length) {
+    root.appendChild(textEl("p", "沒有選定引用。", "muted"));
+  }
+  const candidateCitations = view.candidate_citations || [];
+  if (view.source === "real_local_rag" && candidateCitations.length) {
+    const selectedIds = new Set(view.selected_evidence_ids || []);
+    developer.appendChild(
+      textEl(
+        "p",
+        `BM25 候選證據：${candidateCitations.length}；選定引用：${selectedIds.size}`,
+        "muted",
+      ),
+    );
+    candidateCitations.forEach((candidate, index) => {
+      const item = document.createElement("dl");
+      item.className = "dev-item";
+      item.appendChild(
+        textEl(
+          "p",
+          selectedIds.has(candidate.evidence_id)
+            ? `選定證據 ${index + 1}`
+            : `候選證據 ${index + 1}（未列入正式引用）`,
+          "citation-meta",
+        ),
+      );
+      appendDlRow(item, "證據編號", candidate.evidence_id);
+      appendDlRow(item, "文件來源", candidate.document || "—");
+      appendDlRow(item, "章節", candidate.section || "—");
+      appendDlRow(item, "頁面", candidate.page_or_anchor || "—");
+      developer.appendChild(item);
+    });
+  }
 }
 
 function renderSource(view) {
@@ -455,7 +499,16 @@ function render(view) {
 
 function realLocalRagView(meta, answer, localModel) {
   const citations = Array.isArray(meta.citations) ? meta.citations : [];
+  const candidateCitations = Array.isArray(meta.candidate_citations)
+    ? meta.candidate_citations
+    : citations;
   const evidenceIds = citations.map((citation) => citation.evidence_id).filter(Boolean);
+  const selectedEvidenceIds = Array.isArray(meta.selected_evidence_ids)
+    ? meta.selected_evidence_ids
+    : evidenceIds;
+  const primaryEvidenceIds = Array.isArray(meta.primary_evidence_ids)
+    ? meta.primary_evidence_ids
+    : (evidenceIds.length ? [evidenceIds[0]] : []);
   const resolvedModel = localModel === null ? null : (localModel || meta.local_model || null);
   const base = {
     source: "real_local_rag",
@@ -463,6 +516,10 @@ function realLocalRagView(meta, answer, localModel) {
     answer: answer || "地端 AI 正在根據 real PDF 檢索證據產生回答……",
     claims: answer ? [answer] : [],
     citations,
+    candidate_citations: candidateCitations,
+    selected_evidence_ids: selectedEvidenceIds,
+    primary_evidence_ids: primaryEvidenceIds,
+    evidence_selection_method: meta.evidence_selection_method || null,
     boundary_code: meta.boundary_code || null,
     boundary: meta.boundary || "Real PDF BM25 證據已送入本機 AI；語義蘊含尚未獨立驗證。",
     boundary_reason: meta.boundary_reason || "Real PDF BM25 證據已送入本機 AI；語義蘊含尚未獨立驗證。",
@@ -484,6 +541,8 @@ function realLocalRagView(meta, answer, localModel) {
       answer: answer || meta.boundary_answer || "目前請求被治理邊界拒絕。",
       claims: [],
       citations: modelRefusal ? [] : citations,
+      selected_evidence_ids: modelRefusal ? [] : selectedEvidenceIds,
+      primary_evidence_ids: modelRefusal ? [] : primaryEvidenceIds,
       evidence_ids: [],
       claim_evidence_ids: [],
       is_abstain: true,
@@ -598,7 +657,7 @@ async function streamRealLocalRag(body, generation, controller) {
       finalEvent = event;
       answer = typeof event.answer === "string" ? event.answer : null;
       if (meta) {
-        const finalMeta = event.boundary_code ? { ...meta, ...event } : meta;
+        const finalMeta = { ...meta, ...event };
         render(realLocalRagView(finalMeta, answer, event.local_model));
         renderTokenInfo(event.token_info, false);
       }

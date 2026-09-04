@@ -243,6 +243,11 @@ def test_app_js_renders_response_as_text_not_html():
     assert "simulatedSpecName" in js
     assert "PORT_POWER 被視為權威性的 Hub Class selector，值為 8。" in js
     assert "目前展示的來源彼此衝突" in js
+    assert "candidate_citations" in js
+    assert "selected_evidence_ids" in js
+    assert "primary_evidence_ids" in js
+    assert "候選證據" in js
+    assert "選定引用" in js
     assert "範例來源 A 將" not in js
     assert "USB 2.0 Hub Specification" in js
     assert "resetResultView" in js
@@ -261,6 +266,13 @@ def test_app_js_renders_response_as_text_not_html():
     assert "文件來源" in js
     assert 'citation_kind === "governance"' in js
     assert '$("question").value = "";' in js.split("SERVICE_PLACEHOLDER", 1)[1].split("function autosizeQuestion()", 1)[0]
+
+
+@pytest.mark.unit
+def test_html_shell_busts_cache_for_evidence_selection_script():
+    ui_dir = OperatorUIHandler.__init__.__globals__["UI_DIR"]
+    html = (ui_dir / "index.html").read_text(encoding="utf-8")
+    assert '<script src="app.js?v=16"></script>' in html
 
 
 @pytest.mark.unit

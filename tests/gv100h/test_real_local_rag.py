@@ -70,6 +70,41 @@ class FakeLocalAI:
         return LocalAICompletion(content=self.content, model="fake-local-qwen")
 
 
+class FakeCrossScopeStreamingLocalAI:
+    model = "fake-local-qwen"
+
+    def __init__(self):
+        self.calls = []
+
+    def stream_complete(self, *, system_prompt, user_prompt):
+        self.calls.append({"system_prompt": system_prompt, "user_prompt": user_prompt})
+        yield LocalAIStreamEvent(text="Both define PORT_POWER state.", model=self.model)
+        yield LocalAIStreamEvent(
+            text="",
+            model=self.model,
+            finish_reason="stop",
+            usage={"prompt_tokens": 42, "completion_tokens": 5, "total_tokens": 47},
+        )
+
+
+class FakeCommonGenerationStreamingLocalAI:
+    model = "fake-local-qwen"
+
+    def __init__(self, content):
+        self.content = content
+        self.calls = []
+
+    def stream_complete(self, *, system_prompt, user_prompt):
+        self.calls.append({"system_prompt": system_prompt, "user_prompt": user_prompt})
+        yield LocalAIStreamEvent(text=self.content, model=self.model)
+        yield LocalAIStreamEvent(
+            text="",
+            model=self.model,
+            finish_reason="stop",
+            usage={"prompt_tokens": 42, "completion_tokens": 8, "total_tokens": 50},
+        )
+
+
 class FakeStreamingLocalAI:
     model = "fake-local-qwen"
 
@@ -78,8 +113,8 @@ class FakeStreamingLocalAI:
 
     def stream_complete(self, *, system_prompt, user_prompt):
         self.calls.append({"system_prompt": system_prompt, "user_prompt": user_prompt})
-        yield LocalAIStreamEvent(text="這是", model=self.model)
-        yield LocalAIStreamEvent(text="中文回答。", model=self.model)
+        yield LocalAIStreamEvent(text="PORT_POWER", model=self.model)
+        yield LocalAIStreamEvent(text=" 的值為 8。", model=self.model)
         yield LocalAIStreamEvent(
             text="",
             model=self.model,
@@ -105,6 +140,24 @@ class FakeInsufficientStreamingLocalAI:
             model=self.model,
             finish_reason="length",
             usage={"prompt_tokens": 42, "completion_tokens": 7, "total_tokens": 49},
+            timings={"predicted_per_second": 6.25},
+        )
+
+
+class FakeWrongLiteralStreamingLocalAI:
+    model = "fake-local-qwen"
+
+    def __init__(self):
+        self.calls = []
+
+    def stream_complete(self, *, system_prompt, user_prompt):
+        self.calls.append({"system_prompt": system_prompt, "user_prompt": user_prompt})
+        yield LocalAIStreamEvent(text="PORT_POWER = 99 V", model=self.model)
+        yield LocalAIStreamEvent(
+            text="。",
+            model=self.model,
+            finish_reason="stop",
+            usage={"prompt_tokens": 42, "completion_tokens": 5, "total_tokens": 47},
             timings={"predicted_per_second": 6.25},
         )
 
@@ -530,13 +583,18 @@ def test_real_local_rag_streams_meta_tokens_and_truthful_token_telemetry():
     assert events[0]["local_model"] == "fake-local-qwen"
     assert events[0]["retrieved_chunk_count"] == 1
     token_events = [event for event in events if event["type"] == "token"]
-    assert [event["text"] for event in token_events] == ["這是", "中文回答。"]
+    assert [event["text"] for event in token_events] == ["PORT_POWER", " 的值為 8。"]
     assert token_events[0]["token_info"]["stream_chunks"] == 1
     done = events[-1]
     assert done["type"] == "done"
-    assert done["answer"] == "這是中文回答。"
+    assert done["answer"] == "PORT_POWER 的值為 8。"
     assert done["local_model"] == "fake-local-qwen"
     assert done["token_info"]["completion_tokens"] == 5
+    assert done["selected_evidence_ids"] == [hit.chunk.chunk_id]
+    assert done["primary_evidence_ids"] == [hit.chunk.chunk_id]
+    assert len(done["candidate_citations"]) == 1
+    assert done["candidate_citations"][0]["retrieval_rank"] == 1
+    assert done["candidate_citations"][0]["retrieval_score"] == hit.score
     assert done["token_info"]["prompt_tokens"] == 42
     assert done["token_info"]["total_tokens"] == 47
     assert done["token_info"]["server_tokens_per_second"] == 6.25
@@ -566,6 +624,27 @@ def test_real_local_rag_stream_projects_model_insufficient_evidence_as_abstain()
     assert local_ai.calls
 
 
+def test_real_local_rag_stream_abstains_when_answer_literal_is_not_in_candidates():
+    hit = _hit(content="PORT_POWER feature selector value is 8 V.")
+    retriever = FakeRetriever([hit])
+    local_ai = FakeWrongLiteralStreamingLocalAI()
+
+    events = list(
+        RealLocalRAG(retriever, local_ai).stream_answer(
+            "What is the PORT_POWER value?",
+            answer_scope="USB_3_X",
+        )
+    )
+
+    done = events[-1]
+    assert done["type"] == "done"
+    assert done["boundary_code"] == "MISSING_EVIDENCE"
+    assert done["citations"] == []
+    assert done["selected_evidence_ids"] == []
+    assert done["primary_evidence_ids"] == []
+    assert len(done["candidate_citations"]) == 1
+
+
 def test_operator_adapter_projects_real_local_rag_provenance():
     hit = _hit()
     rag = RealLocalRAG(FakeRetriever([hit]), FakeLocalAI())
@@ -586,6 +665,300 @@ def test_operator_adapter_projects_real_local_rag_provenance():
     assert view.evidence_ids == [hit.chunk.chunk_id]
     assert view.claim_evidence_ids == [[hit.chunk.chunk_id]]
     assert "semantic entailment" in view.claim_ceiling
+
+
+def test_operator_adapter_separates_candidates_and_selected_primary_evidence():
+    hits = [
+        _hit(
+            source_id="usb20_se",
+            section="7.1.2.1",
+            content=(
+                "For low-speed and full-speed, output rise and fall times are "
+                "measured between 10% and 90%."
+            ),
+        ),
+        _hit(
+            source_id="usb20_se",
+            section="7.1.2.2",
+            content=(
+                "High-speed Signaling Rise and Fall Times. The transition time "
+                "of a high-speed driver must not be less than the specified "
+                "minimum allowable differential rise and fall time."
+            ),
+        ),
+        _hit(
+            source_id="usb20_se",
+            section="7.3.2",
+            content=(
+                "Rise Time (10% - 90%) THSR 500 ps. Fall Time (10% - 90%) "
+                "THSF 500 ps."
+            ),
+        ),
+    ]
+    question = (
+        "對 USB 2.0 hub，在 A 或 B receptacle 量到的 high-speed 差分 "
+        "rise/fall（10% 到 90%）最短時間是多少？"
+    )
+    answer = "結論：high-speed 差分 rise/fall 最短時間為 500 ps。"
+    view = OperatorQAAdapter(
+        real_local_rag=RealLocalRAG(FakeRetriever(hits), FakeLocalAI(answer))
+    ).ask(question, answer_scope="USB_HUB_COMMON", source="real_local_rag")
+
+    assert [citation.section for citation in view.candidate_citations] == [
+        "7.1.2.1",
+        "7.1.2.2",
+        "7.3.2",
+    ]
+    assert [citation.section for citation in view.citations] == [
+        "7.1.2.2",
+        "7.3.2",
+    ]
+    assert view.primary_evidence_ids == [hits[1].chunk.chunk_id, hits[2].chunk.chunk_id]
+    assert view.selected_evidence_ids == [hits[1].chunk.chunk_id, hits[2].chunk.chunk_id]
+    assert view.evidence_selection_method == "deterministic_lexical_v1"
+
+
+@pytest.mark.parametrize(
+    "question, answer, content",
+    [
+        (
+            "What is the PORT_POWER value?",
+            "PORT_POWER = 99 V.",
+            "PORT_POWER feature selector value is 8 V.",
+        ),
+        (
+            "What is the high-speed rise/fall time?",
+            "The minimum high-speed rise/fall time is 600 ps.",
+            "The minimum high-speed differential rise and fall time is 500 ps.",
+        ),
+    ],
+)
+def test_operator_adapter_abstains_when_answer_literal_is_not_in_candidates(
+    question, answer, content
+):
+    hit = _hit(content=content)
+    view = OperatorQAAdapter(
+        real_local_rag=RealLocalRAG(
+            FakeRetriever([hit]),
+            FakeLocalAI(answer),
+        )
+    ).ask(
+        question,
+        answer_scope="USB_3_X",
+        source="real_local_rag",
+    )
+
+    assert view.status == "abstain"
+    assert view.boundary_code == "MISSING_EVIDENCE"
+    assert view.citations == []
+    assert view.selected_evidence_ids == []
+    assert view.primary_evidence_ids == []
+    assert len(view.candidate_citations) == 1
+
+
+def test_operator_adapter_keeps_model_abstention_without_selected_citations():
+    hit = _hit()
+    view = OperatorQAAdapter(
+        real_local_rag=RealLocalRAG(
+            FakeRetriever([hit]),
+            FakeLocalAI("INSUFFICIENT_EVIDENCE\n目前沒有足夠的直接證據。"),
+        )
+    ).ask(
+        "PM_LC_TIMER 的 x1 與 x2 是多少？",
+        answer_scope="USB_3_X",
+        source="real_local_rag",
+    )
+
+    assert view.status == "abstain"
+    assert view.boundary_code == "MISSING_EVIDENCE"
+    assert view.citations == []
+    assert view.selected_evidence_ids == []
+    assert view.primary_evidence_ids == []
+    assert len(view.candidate_citations) == 1
+
+
+def test_operator_adapter_requires_each_explicit_cross_scope():
+    hits = [
+        _hit(
+            source_id="usb20_fw",
+            content="USB 2.0 PORT_POWER reflects the current power state.",
+        ),
+        _hit(
+            source_id="usb32",
+            content="USB 3.2 downstream port PORT_POWER reflects the power state.",
+        ),
+    ]
+    question = "Compare PORT_POWER requirements"
+    answer = "Both define PORT_POWER state."
+    view = OperatorQAAdapter(
+        real_local_rag=RealLocalRAG(FakeRetriever(hits), FakeLocalAI(answer))
+    ).ask(
+        question,
+        retrieval_mode="explicit_cross_scope",
+        allowed_evidence_scopes=("USB_2_0", "USB_3_X"),
+        source="real_local_rag",
+    )
+
+    assert view.status == "answer"
+    assert {citation.evidence_id for citation in view.citations} == {
+        hits[0].chunk.chunk_id,
+        hits[1].chunk.chunk_id,
+    }
+    assert {evidence_id for evidence_id in view.primary_evidence_ids} == {
+        hits[0].chunk.chunk_id,
+        hits[1].chunk.chunk_id,
+    }
+
+
+def test_operator_adapter_abstains_when_explicit_cross_scope_is_missing():
+    hit = _hit(
+        source_id="usb20_fw",
+        content="USB 2.0 PORT_POWER reflects the current power state.",
+    )
+    view = OperatorQAAdapter(
+        real_local_rag=RealLocalRAG(
+            FakeRetriever([hit]),
+            FakeLocalAI("Both define PORT_POWER state."),
+        )
+    ).ask(
+        "Compare PORT_POWER requirements",
+        retrieval_mode="explicit_cross_scope",
+        allowed_evidence_scopes=("USB_2_0", "USB_3_X"),
+        source="real_local_rag",
+    )
+
+    assert view.status == "abstain"
+    assert view.boundary_code == "MISSING_EVIDENCE"
+    assert view.citations == []
+    assert view.selected_evidence_ids == []
+    assert len(view.candidate_citations) == 1
+
+
+def test_operator_adapter_splits_usb_hub_common_by_answer_generation():
+    hits = [
+        _hit(
+            source_id="usb20_fw",
+            content="USB 2.0 PORT_POWER feature value is 9 V.",
+        ),
+        _hit(
+            source_id="usb32",
+            content="USB 3.2 PORT_POWER feature value is 8 V.",
+        ),
+    ]
+    view = OperatorQAAdapter(
+        real_local_rag=RealLocalRAG(
+            FakeRetriever(hits),
+            FakeLocalAI("For USB 2.0 the value is 8 V; for USB 3.2 it is 9 V."),
+        )
+    ).ask(
+        "What are the PORT_POWER values?",
+        answer_scope="USB_HUB_COMMON",
+        source="real_local_rag",
+    )
+
+    assert view.status == "abstain"
+    assert view.boundary_code == "MISSING_EVIDENCE"
+    assert view.citations == []
+    assert view.selected_evidence_ids == []
+
+
+def test_operator_adapter_accepts_unitless_and_signed_literals_only_when_exact():
+    count_candidate = _hit(
+        content="The hub supports 8 downstream ports."
+    )
+    count_view = OperatorQAAdapter(
+        real_local_rag=RealLocalRAG(
+            FakeRetriever([count_candidate]),
+            FakeLocalAI("The hub supports 4 downstream ports."),
+        )
+    ).ask(
+        "How many downstream ports are supported?",
+        answer_scope="USB_3_X",
+        source="real_local_rag",
+    )
+    signed_candidate = _hit(content="The voltage is -5 V.")
+    signed_view = OperatorQAAdapter(
+        real_local_rag=RealLocalRAG(
+            FakeRetriever([signed_candidate]),
+            FakeLocalAI("The voltage is +5 V."),
+        )
+    ).ask(
+        "What is the voltage?",
+        answer_scope="USB_3_X",
+        source="real_local_rag",
+    )
+
+    assert count_view.boundary_code == "MISSING_EVIDENCE"
+    assert count_view.citations == []
+    assert signed_view.boundary_code == "MISSING_EVIDENCE"
+    assert signed_view.citations == []
+
+
+def test_operator_stream_splits_usb_hub_common_by_answer_generation():
+    hits = [
+        _hit(
+            source_id="usb20_fw",
+            content="USB 2.0 PORT_POWER feature value is 9 V.",
+        ),
+        _hit(
+            source_id="usb32",
+            content="USB 3.2 PORT_POWER feature value is 8 V.",
+        ),
+    ]
+    events = list(
+        OperatorQAAdapter(
+            real_local_rag=RealLocalRAG(
+                FakeRetriever(hits),
+                FakeCommonGenerationStreamingLocalAI(
+                    "For USB 2.0 the value is 8 V; for USB 3.2 it is 9 V."
+                ),
+            )
+        ).stream_real_local_rag(
+            "What are the PORT_POWER values?",
+            answer_scope="USB_HUB_COMMON",
+        )
+    )
+
+    done = events[-1]
+    assert done["type"] == "done"
+    assert done["boundary_code"] == "MISSING_EVIDENCE"
+    assert done["citations"] == []
+    assert done["selected_evidence_ids"] == []
+
+
+def test_operator_stream_requires_each_explicit_cross_scope():
+    hits = [
+        _hit(
+            source_id="usb20_fw",
+            content="USB 2.0 PORT_POWER reflects the current power state.",
+        ),
+        _hit(
+            source_id="usb32",
+            content="USB 3.2 downstream port PORT_POWER reflects the power state.",
+        ),
+    ]
+    events = list(
+        OperatorQAAdapter(
+            real_local_rag=RealLocalRAG(
+                FakeRetriever(hits), FakeCrossScopeStreamingLocalAI()
+            )
+        ).stream_real_local_rag(
+            "Compare PORT_POWER requirements",
+            retrieval_mode="explicit_cross_scope",
+            allowed_evidence_scopes=("USB_2_0", "USB_3_X"),
+        )
+    )
+
+    done = events[-1]
+    assert done["type"] == "done"
+    assert {evidence_id for evidence_id in done["selected_evidence_ids"]} == {
+        hits[0].chunk.chunk_id,
+        hits[1].chunk.chunk_id,
+    }
+    assert {evidence_id for evidence_id in done["primary_evidence_ids"]} == {
+        hits[0].chunk.chunk_id,
+        hits[1].chunk.chunk_id,
+    }
 
 
 def test_operator_ui_api_accepts_real_local_rag_source():
@@ -980,11 +1353,11 @@ def test_operator_ui_api_streams_real_local_rag_events():
         assert events[1]["type"] == "meta"
         assert events[1]["source"] == "real_local_rag"
         assert [event["text"] for event in events if event["type"] == "token"] == [
-            "這是",
-            "中文回答。",
+            "PORT_POWER",
+            " 的值為 8。",
         ]
         assert events[-1]["type"] == "done"
-        assert events[-1]["answer"] == "這是中文回答。"
+        assert events[-1]["answer"] == "PORT_POWER 的值為 8。"
         assert events[-1]["token_info"]["completion_tokens"] == 5
     finally:
         httpd.shutdown()
