@@ -1,0 +1,101 @@
+{
+  "validation_version": "real_locked_corpus_validation_v1",
+  "baseline_evidence": {
+    "artifact": "artifacts/evidence/test-results/spec-qa-post-pr44-real-local-rag-10-question-baseline-20260902.md",
+    "main_commit": "a6b0aa51fbe9450db13ed9c75b7ca8999dd81f9c",
+    "corpus_sha256": "f3070212d031e795b0bdfa2130bbc34f2e3f0989c1e7ff63743bffd94988f72d",
+    "chunk_count": 4325,
+    "table_6_30_caption_rank_q02": 2689,
+    "table_6_30_value_rank_q02": 2813,
+    "q02_direct_section_rank": 6
+  },
+  "queries": [
+    {
+      "id": "table_6_30_direct",
+      "query": "USB 3.2 Table 6-30 Warm Reset tReset 80 ms 120 ms",
+      "allowed_source_ids": ["usb32"],
+      "target": {
+        "source_id": "usb32",
+        "section": "6.9.1",
+        "chunk_kind": "table",
+        "contains_all": ["80 ms", "120 ms"]
+      },
+      "success": "target_rank <= 5"
+    },
+    {
+      "id": "warm_reset_user_query",
+      "query": "USB 3.2 Warm Reset downstream port link states tReset minimum maximum duration",
+      "allowed_source_ids": ["usb32"],
+      "target": {
+        "source_id": "usb32",
+        "section": "6.9.1",
+        "chunk_kind": "table",
+        "contains_all": ["80 ms", "120 ms"]
+      },
+      "success": "target_rank <= 5"
+    },
+    {
+      "id": "table_7_8_diagnosis",
+      "query": "Table 7-8 PM_LC_TIMER x1 x2 4 us 8 us",
+      "allowed_source_ids": ["usb32"],
+      "diagnostic_targets": [
+        {"name": "caption", "contains_all": ["Table 7-8"]},
+        {"name": "field", "contains_all": ["PM_LC_TIMER"]},
+        {"name": "values", "contains_all": ["4", "8"]}
+      ],
+      "success": "diagnosis only; no merge requirement"
+    },
+    {
+      "id": "regression_500_ps",
+      "query": "high-speed signaling rise fall time 500 ps",
+      "allowed_source_ids": ["usb20_se"],
+      "target": {"source_id": "usb20_se", "contains_all": ["500 ps"]},
+      "success": "target_rank <= 5"
+    },
+    {
+      "id": "regression_contact_capacitance",
+      "query": "Contact Capacitance",
+      "target": {"contains_all": ["Contact Capacitance"]},
+      "success": "target_rank <= 5"
+    },
+    {
+      "id": "regression_port_power",
+      "query": "PORT_POWER feature selector value",
+      "allowed_source_ids": ["usb32"],
+      "target": {
+        "source_id": "usb32",
+        "section": "10.16.2.10",
+        "contains_all": ["PORT_POWER"]
+      },
+      "success": "target_rank <= 5"
+    },
+    {
+      "id": "regression_port_link_state",
+      "query": "PORT_LINK_STATE feature selector value",
+      "allowed_source_ids": ["usb32"],
+      "target": {
+        "source_id": "usb32",
+        "section": "10.16.2.10",
+        "contains_all": ["PORT_LINK_STATE"]
+      },
+      "success": "target_rank <= 5"
+    },
+    {
+      "id": "regression_get_configuration",
+      "query": "Get Configuration request response",
+      "target": {"contains_all": ["Get Configuration"]},
+      "success": "target_rank <= 5"
+    },
+    {
+      "id": "regression_warm_reset_section",
+      "query": "6.9.3 Warm Reset downstream port link states",
+      "allowed_source_ids": ["usb32"],
+      "target": {
+        "source_id": "usb32",
+        "section": "6.9.3",
+        "contains_all": ["Warm Reset"]
+      },
+      "success": "target_rank <= 5"
+    }
+  ]
+}
