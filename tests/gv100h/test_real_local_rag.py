@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from http.client import HTTPConnection
 from http.server import HTTPServer
 from pathlib import Path
@@ -39,6 +40,25 @@ class FakeRetriever:
             }
         )
         return list(self.hits)[:top_k]
+
+
+class FakeReferenceExpandingRetriever(FakeRetriever):
+    def __init__(self, hits, expanded_hits):
+        super().__init__(hits)
+        self.expanded_hits = tuple(expanded_hits)
+        self.expansion_calls = []
+
+    def query_with_table_reference_expansion(
+        self, query, *, initial_top_k, allowed_source_ids
+    ):
+        self.expansion_calls.append(
+            {
+                "query": query,
+                "initial_top_k": initial_top_k,
+                "allowed_source_ids": tuple(allowed_source_ids),
+            }
+        )
+        return list(self.expanded_hits)
 
 
 def _hit(*, source_id="usb32", section="10.16.2.10", page="p.483", content="PORT_POWER value is 8"):
@@ -600,6 +620,43 @@ def test_real_local_rag_streams_meta_tokens_and_truthful_token_telemetry():
     assert done["token_info"]["server_tokens_per_second"] == 6.25
     assert "繁體中文" in local_ai.calls[0]["system_prompt"]
     assert "Note" in local_ai.calls[0]["system_prompt"]
+
+
+def test_real_local_rag_uses_reference_expansion_and_preserves_provenance():
+    bridge = _hit(content="tReset is defined in Table 6-30.")
+    table = replace(
+        _hit(content="80 ms | 100 ms | 120 ms"),
+        retrieval_origin="explicit_table_reference",
+        retrieval_rank=None,
+        original_bm25_rank=262,
+        referenced_by=bridge.chunk.chunk_id,
+        referenced_table="table:6-30",
+    )
+    retriever = FakeReferenceExpandingRetriever([bridge], [bridge, table])
+
+    events = list(
+        RealLocalRAG(retriever, FakeStreamingLocalAI()).stream_answer(
+            "Warm Reset tReset", answer_scope="USB_3_X"
+        )
+    )
+
+    assert retriever.expansion_calls == [
+        {
+            "query": "Warm Reset tReset",
+            "initial_top_k": 5,
+            "allowed_source_ids": ("usb32",),
+        }
+    ]
+    expanded = next(
+        citation
+        for citation in events[0]["candidate_citations"]
+        if citation["evidence_id"] == table.chunk.chunk_id
+    )
+    assert expanded["retrieval_origin"] == "explicit_table_reference"
+    assert expanded["retrieval_rank"] is None
+    assert expanded["original_bm25_rank"] == 262
+    assert expanded["referenced_by"] == bridge.chunk.chunk_id
+    assert expanded["referenced_table"] == "table:6-30"
 
 
 def test_real_local_rag_stream_projects_model_insufficient_evidence_as_abstain():

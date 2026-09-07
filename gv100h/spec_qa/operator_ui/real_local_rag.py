@@ -431,6 +431,33 @@ class RealLocalRAG:
         self.local_ai = local_ai
         self.top_k = top_k
 
+    def _query_candidates(
+        self,
+        question: str,
+        *,
+        allowed_source_ids: Optional[Iterable[str]],
+    ) -> Tuple[GovernedChunkRetrievalHit, ...]:
+        expand = getattr(
+            self.retriever,
+            "query_with_table_reference_expansion",
+            None,
+        )
+        if callable(expand):
+            return tuple(
+                expand(
+                    question,
+                    initial_top_k=self.top_k,
+                    allowed_source_ids=allowed_source_ids,
+                )
+            )
+        return tuple(
+            self.retriever.query(
+                question,
+                top_k=self.top_k,
+                allowed_source_ids=allowed_source_ids,
+            )
+        )
+
     @classmethod
     def from_environment(
         cls,
@@ -535,12 +562,9 @@ class RealLocalRAG:
                 corpus_sha256=self.retriever.corpus_sha256,
                 boundary=boundary,
             )
-        hits = tuple(
-            self.retriever.query(
-                normalized_question,
-                top_k=self.top_k,
-                allowed_source_ids=source_ids,
-            )
+        hits = self._query_candidates(
+            normalized_question,
+            allowed_source_ids=source_ids,
         )
         if not hits:
             return RealLocalRAGResult(
@@ -653,12 +677,9 @@ class RealLocalRAG:
                 },
             }
             return
-        hits = tuple(
-            self.retriever.query(
-                normalized_question,
-                top_k=self.top_k,
-                allowed_source_ids=source_ids,
-            )
+        hits = self._query_candidates(
+            normalized_question,
+            allowed_source_ids=source_ids,
         )
         candidate_citations = [
             self._citation_record(hit, retrieval_rank=rank)
@@ -880,6 +901,9 @@ class RealLocalRAG:
         retrieval_rank: Optional[int] = None,
     ) -> Dict[str, Any]:
         citation = hit.chunk.to_citation()
+        retrieval_rank_value = hit.retrieval_rank
+        if retrieval_rank_value is None and hit.retrieval_origin == "bm25":
+            retrieval_rank_value = retrieval_rank
         return {
             "evidence_id": citation.evidence_id,
             "document": citation.document,
@@ -892,9 +916,13 @@ class RealLocalRAG:
             "citation_kind": citation.citation_kind,
             "has_pdf_anchor": False,
             "pdf_href": None,
-            "retrieval_rank": retrieval_rank,
+            "retrieval_rank": retrieval_rank_value,
             "retrieval_score": hit.score,
             "matched_terms": list(hit.matched_terms),
+            "retrieval_origin": hit.retrieval_origin,
+            "original_bm25_rank": hit.original_bm25_rank,
+            "referenced_by": hit.referenced_by,
+            "referenced_table": hit.referenced_table,
         }
 
     def _classify_boundary(

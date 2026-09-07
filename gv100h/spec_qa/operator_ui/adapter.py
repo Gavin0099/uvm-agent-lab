@@ -48,6 +48,9 @@ class OperatorQAAdapter:
     @staticmethod
     def _citation_view(hit, *, retrieval_rank: Optional[int] = None) -> OperatorCitationView:
         citation = hit.chunk.to_citation()
+        retrieval_rank_value = hit.retrieval_rank
+        if retrieval_rank_value is None and hit.retrieval_origin == "bm25":
+            retrieval_rank_value = retrieval_rank
         return OperatorCitationView(
             evidence_id=citation.evidence_id,
             document=citation.document,
@@ -58,9 +61,13 @@ class OperatorQAAdapter:
             authority_level=citation.authority_level,
             excerpt=citation.excerpt,
             citation_kind=citation.citation_kind,
-            retrieval_rank=retrieval_rank,
+            retrieval_rank=retrieval_rank_value,
             retrieval_score=hit.score,
             matched_terms=list(hit.matched_terms),
+            retrieval_origin=hit.retrieval_origin,
+            original_bm25_rank=hit.original_bm25_rank,
+            referenced_by=hit.referenced_by,
+            referenced_table=hit.referenced_table,
         )
 
     @staticmethod

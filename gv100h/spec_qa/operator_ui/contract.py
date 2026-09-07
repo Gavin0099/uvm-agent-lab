@@ -73,6 +73,10 @@ class OperatorCitationView(BaseModel):
     retrieval_rank: Optional[int] = None
     retrieval_score: Optional[float] = None
     matched_terms: List[str] = Field(default_factory=list)
+    retrieval_origin: str = "bm25"
+    original_bm25_rank: Optional[int] = None
+    referenced_by: Optional[str] = None
+    referenced_table: Optional[str] = None
 
 
 class OperatorQAView(BaseModel):
