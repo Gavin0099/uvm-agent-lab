@@ -867,6 +867,74 @@ def test_selector_accepts_matching_value_from_requested_section():
     assert selection.primary_hits == (candidate,)
 
 
+def test_selector_fails_closed_when_section_value_support_is_swapped():
+    question = "According to Section 7.2, what is the voltage?"
+    answer = "Section 7.2 specifies a voltage of 8 V."
+    wrong_section = _hit(
+        "usb32",
+        "7.2",
+        "Section 7.2 specifies a voltage of 9 V.",
+        0,
+    )
+    wrong_value = _hit(
+        "usb32",
+        "9.1",
+        "Section 9.1 specifies a voltage of 8 V.",
+        1,
+    )
+
+    selection = select_evidence(question, answer, [wrong_section, wrong_value])
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+@pytest.mark.parametrize("reference", ["Appendix A.1", "Annex A.1"])
+def test_selector_binds_bounded_appendix_reference_to_value(reference):
+    question = f"According to {reference}, what is VOLTAGE?"
+    answer = "VOLTAGE = 8 V."
+    wrong_section = _hit(
+        "usb32",
+        "9.1",
+        "Section 9.1 specifies VOLTAGE = 8 V.",
+        0,
+    )
+    candidate = _hit(
+        "usb32",
+        "9.2",
+        f"{reference} specifies VOLTAGE = 8 V.",
+        1,
+    )
+
+    selection = select_evidence(question, answer, [wrong_section, candidate])
+
+    assert selection.selected_hits == (candidate,)
+    assert selection.primary_hits == (candidate,)
+
+
+@pytest.mark.parametrize("descriptor", ["maximum", "minimum", "input", "output"])
+def test_selector_fails_closed_for_descriptor_prose(descriptor):
+    selection = select_evidence(
+        f"What is the PORT_POWER {descriptor} value?",
+        f"PORT_POWER {descriptor} is 8 V.",
+        [_hit("usb32", "10.1", "PORT_POWER is 8 V.", 0)],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
+def test_selector_fails_closed_for_title_case_id_hex_without_parsing():
+    selection = select_evidence(
+        "What is the Vendor ID?",
+        "Vendor ID is 0x1234.",
+        [_hit("usb32", "10.1", "Product ID is 0x1234.", 0)],
+    )
+
+    assert selection.selected_hits == ()
+    assert selection.primary_hits == ()
+
+
 def test_selector_fails_closed_for_contracted_field_negation():
     answer = "PORT_POWER isn't 8 V."
     candidate = _hit(

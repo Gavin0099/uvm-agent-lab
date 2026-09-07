@@ -98,6 +98,12 @@ _SECTION_PATTERN = re.compile(
     r"(?:§|section|sect\.|clause)\s*(\d+(?:\.\d+)*)",
     re.IGNORECASE,
 )
+_REFERENCE_PATTERN = re.compile(
+    r"(?:§|section|sect\.|clause)\s*(?P<section>\d+(?:\.\d+)*)"
+    r"|\b(?P<kind>appendix|annex)\s*\.?\s*"
+    r"(?P<appendix>[A-Za-z](?:\.\d+)+)",
+    re.IGNORECASE,
+)
 _USB2_PATTERN = re.compile(r"\busb[\s_]*2(?:\.0)?\b", re.IGNORECASE)
 _USB3_PATTERN = re.compile(r"\busb[\s_]*3(?:\.[0-2x])?\b", re.IGNORECASE)
 _EXPLICIT_IDENTIFIER_PATTERN = re.compile(
@@ -401,6 +407,26 @@ _UNSUPPORTED_CLAIM_MARKER_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _UNSUPPORTED_PERCENT_PATTERN = re.compile(r"[%％]")
+_UNSUPPORTED_DESCRIPTOR_PATTERN = re.compile(
+    r"\b(?:[A-Z][A-Z0-9_]{2,}|[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]+|"
+    r"[a-z]+[A-Z][A-Za-z0-9]*)\b"
+    r"\s+(?:maximum|minimum|input|output)\b"
+    r"(?:\s+(?:allowable|value|setting))?\s*"
+    r"(?:is|equals|returns?|should\s+be|must\s+be|shall\s+be|=|:)",
+    re.IGNORECASE,
+)
+_UNSUPPORTED_TITLE_CASE_HEX_PATTERN = re.compile(
+    r"\b(?:Vendor|Product|Device)\s+ID\b\s*(?:is|=|:)?\s*"
+    r"0x[0-9a-fA-F]+\b"
+)
+_UNSUPPORTED_NONNUMERIC_REFERENCE_PATTERN = re.compile(
+    r"\b(?:appendix|annex)\b(?!\s*\.?\s*[A-Za-z](?:\.\d+)+)",
+    re.IGNORECASE,
+)
+_REFERENCE_STATE_LITERAL_PATTERN = re.compile(
+    r"\b(?:zero|one|non[- ]zero)\b",
+    re.IGNORECASE,
+)
 _UNSUPPORTED_FRACTION_PATTERN = re.compile(
     r"(?<![A-Za-z0-9_.])"
     + _MEASUREMENT_NUMBER_PATTERN
@@ -839,6 +865,9 @@ def _has_supported_v1_binding(answer: str) -> bool:
     if (
         _UNSUPPORTED_CLAIM_MARKER_PATTERN.search(answer)
         or _UNSUPPORTED_PERCENT_PATTERN.search(answer)
+        or _UNSUPPORTED_DESCRIPTOR_PATTERN.search(answer)
+        or _UNSUPPORTED_TITLE_CASE_HEX_PATTERN.search(answer)
+        or _UNSUPPORTED_NONNUMERIC_REFERENCE_PATTERN.search(answer)
         or _UNSUPPORTED_FRACTION_PATTERN.search(answer)
         or _UNSUPPORTED_RANGE_MARKER_PATTERN.search(answer)
         or _has_unsupported_contracted_field_negation(answer)
@@ -944,6 +973,39 @@ def _unitless_numeric_anchors(text: str) -> FrozenSet[str]:
 
 def _sections(text: str) -> FrozenSet[str]:
     return frozenset(_SECTION_PATTERN.findall(text))
+
+
+def _reference_token(match: re.Match[str]) -> str:
+    section = match.group("section")
+    if section is not None:
+        return f"section:{_normalize(section).replace(' ', '')}"
+    kind = _normalize(match.group("kind"))
+    appendix = _normalize(match.group("appendix")).replace(" ", "")
+    return f"{kind}:{appendix}"
+
+
+def _reference_tokens(text: str) -> FrozenSet[str]:
+    return frozenset(
+        _reference_token(match) for match in _REFERENCE_PATTERN.finditer(text)
+    )
+
+
+def _reference_token_from_section(section: str) -> Optional[str]:
+    normalized = _normalize(section).replace(" ", "")
+    if re.fullmatch(r"\d+(?:\.\d+)*", normalized):
+        return f"section:{normalized}"
+    match = re.fullmatch(
+        r"(?P<kind>appendix|annex)\.?"
+        r"(?P<appendix>[a-z](?:\.\d+)+)",
+        normalized,
+        re.IGNORECASE,
+    )
+    if match is None:
+        return None
+    return (
+        f"{match.group('kind').casefold()}:"
+        f"{match.group('appendix').casefold()}"
+    )
 
 
 def _explicit_identifier_tokens(text: str) -> FrozenSet[str]:
@@ -1211,6 +1273,96 @@ def _literal_spans(text: str) -> Tuple[Tuple[int, int], ...]:
     return tuple(sorted(coalesced))
 
 
+def _reference_value_literals(text: str) -> Tuple[str, ...]:
+    """Return one ordered set of bounded literal values from a reference tail."""
+    normalized = _normalize(text)
+    candidates = []
+    for match in _MEASUREMENT_RANGE_PATTERN.finditer(normalized):
+        candidates.append(
+            (match.start(), match.end(), _measurement_range_anchor(match))
+        )
+    for match in _NUMBER_UNIT_PATTERN.finditer(normalized):
+        candidates.append(
+            (
+                match.start(),
+                match.end(),
+                _normalize(match.group(0)).replace(" ", ""),
+            )
+        )
+    for match in _HEX_LITERAL_PATTERN.finditer(normalized):
+        candidates.append(
+            (match.start(), match.end(), _normalize(match.group(0)))
+        )
+    for match in _STATE_VALUE_PATTERN.finditer(normalized):
+        value = _canonical_state_value(match.group(0))
+        if value is not None:
+            candidates.append((match.start(), match.end(), value))
+    for match in _REFERENCE_STATE_LITERAL_PATTERN.finditer(normalized):
+        candidates.append(
+            (match.start(), match.end(), _normalize(match.group(0)))
+        )
+    unitless_anchors = _unitless_numeric_anchors(normalized)
+    for match in _STANDALONE_NUMBER_PATTERN.finditer(normalized):
+        value = _normalize(match.group("number"))
+        if (
+            value in unitless_anchors
+            and _NUMBER_UNIT_PATTERN.match(normalized, match.start()) is None
+        ):
+            candidates.append(
+                (
+                    match.start(),
+                    match.end(),
+                    {"0": "zero", "1": "one"}.get(value, value),
+                )
+            )
+
+    values = []
+    covered = []
+    for start, end, value in sorted(
+        candidates,
+        key=lambda item: (item[0], -item[1]),
+    ):
+        if any(
+            existing_start < end and start < existing_end
+            for existing_start, existing_end in covered
+        ):
+            continue
+        covered.append((start, end))
+        values.append(value)
+    return tuple(values)
+
+
+def _reference_value_anchors(
+    text: str,
+    fallback_reference: Optional[str] = None,
+) -> FrozenSet[str]:
+    anchors = set()
+    active_reference = fallback_reference
+    for clause in re.split(r"[;；，、\n]+", text):
+        references = list(_REFERENCE_PATTERN.finditer(clause))
+        if references:
+            for index, reference_match in enumerate(references):
+                end = (
+                    references[index + 1].start()
+                    if index + 1 < len(references)
+                    else len(clause)
+                )
+                values = _reference_value_literals(
+                    clause[reference_match.end() : end]
+                )
+                if len(values) != 1:
+                    continue
+                anchors.add(
+                    f"reference_value:{_reference_token(reference_match)}={values[0]}"
+                )
+            active_reference = _reference_token(references[-1])
+        elif active_reference is not None:
+            values = _reference_value_literals(clause)
+            if len(values) == 1:
+                anchors.add(f"reference_value:{active_reference}={values[0]}")
+    return frozenset(anchors)
+
+
 def _has_unbound_literal_after(
     segment: str,
     first_span: Tuple[int, int],
@@ -1392,6 +1544,8 @@ def _material_answer_anchors(question: str, answer: str) -> FrozenSet[str]:
         for match in _HEX_LITERAL_PATTERN.finditer(answer)
     )
     anchors.update(_sections(answer))
+    anchors.update(_reference_tokens(answer))
+    anchors.update(_reference_value_anchors(answer))
     anchors.update(_explicit_identifier_tokens(answer))
     anchors.update(_enum_tokens(answer))
     anchors.update(_dotted_state_tokens(answer))
@@ -1406,6 +1560,17 @@ def _required_material_anchors(question: str, answer: str) -> FrozenSet[str]:
     question_sections = _sections(question)
     answer_sections = _sections(answer)
     anchors.update(question_sections)
+    question_references = _reference_tokens(question)
+    answer_references = _reference_tokens(answer)
+    anchors.update(question_references)
+    if question_references and not answer_references:
+        for reference in question_references:
+            anchors.update(
+                _reference_value_anchors(
+                    answer,
+                    fallback_reference=reference,
+                )
+            )
     if question_sections and answer_sections:
         question_terms = {
             _claim_term(term) for term in _semantic_terms(question)
@@ -1430,6 +1595,16 @@ def _material_candidate_anchors(hit: GovernedChunkRetrievalHit) -> FrozenSet[str
         for match in _HEX_LITERAL_PATTERN.finditer(hit.chunk.content)
     )
     anchors.add(_normalize(hit.chunk.section))
+    content_references = _reference_tokens(hit.chunk.content)
+    anchors.update(content_references)
+    section_reference = _reference_token_from_section(hit.chunk.section)
+    if section_reference and not content_references:
+        anchors.add(section_reference)
+        anchors.update(
+            f"reference_value:{section_reference}={value}"
+            for value in _reference_value_literals(hit.chunk.content)
+        )
+    anchors.update(_reference_value_anchors(hit.chunk.content))
     anchors.update(_explicit_identifier_tokens(hit.chunk.content))
     anchors.update(_enum_tokens(hit.chunk.content))
     anchors.update(_dotted_state_tokens(hit.chunk.content))
@@ -1559,7 +1734,7 @@ def _answer_anchors(question: str, answer: str) -> FrozenSet[str]:
         for pair in _number_unit_pairs(answer)
         if not pair.endswith("%")
     )
-    anchors.update(_material_answer_anchors(question, answer))
+    anchors.update(_required_material_anchors(question, answer))
 
     combined = f"{question} {answer}"
     if re.search(
