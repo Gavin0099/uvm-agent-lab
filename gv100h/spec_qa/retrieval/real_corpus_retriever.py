@@ -83,26 +83,48 @@ def _tokenize(text: str) -> Tuple[str, ...]:
     )
 
 
-def _section_context(chunks: Sequence[GovernedChunk]) -> Dict[Tuple[str, str], str]:
-    """Collect deterministic headings and table/figure captions per section."""
-    context: Dict[Tuple[str, str], List[str]] = {}
+def _caption_lines(content: str) -> Tuple[str, ...]:
+    return tuple(
+        candidate
+        for line in content.splitlines()
+        if (candidate := line.strip())
+        and _SECTION_CAPTION_PATTERN.match(candidate)
+    )
+
+
+def _table_contexts(chunks: Sequence[GovernedChunk]) -> Dict[str, str]:
+    """Map each table chunk to its bounded preceding heading and caption."""
+    contexts: Dict[str, str] = {}
+    active_key: Optional[Tuple[str, str, str]] = None
+    section_title = ""
+    preceding_caption = ""
+
     for chunk in chunks:
-        key = (chunk.source_id, chunk.section)
-        entries = context.setdefault(key, [])
+        key = (chunk.source_id, chunk.revision, chunk.section)
+        if key != active_key:
+            active_key = key
+            section_title = ""
+            preceding_caption = ""
+
         if chunk.chunk_kind == "heading_only":
-            entries.append(chunk.content.strip())
-        for line in chunk.content.splitlines():
-            candidate = line.strip()
-            if _SECTION_CAPTION_PATTERN.match(candidate):
-                entries.append(candidate)
+            section_title = chunk.content.strip()
 
-    deduplicated: Dict[Tuple[str, str], str] = {}
-    for key, entries in context.items():
-        deduplicated[key] = " ".join(dict.fromkeys(entry for entry in entries if entry))
-    return deduplicated
+        if chunk.chunk_kind == "table":
+            context = " ".join(
+                entry for entry in (section_title, preceding_caption) if entry
+            )
+            if context:
+                contexts[chunk.chunk_id] = context
+
+        captions = _caption_lines(chunk.content)
+        if captions:
+            preceding_caption = captions[-1]
+
+    return contexts
 
 
-def _index_text(chunk: GovernedChunk, context: str) -> str:
+def build_retrieval_text(chunk: GovernedChunk, context: str = "") -> str:
+    """Build index-only text without changing the governed chunk or citation."""
     return " ".join(
         (
             chunk.source_id,
@@ -297,9 +319,14 @@ class GovernedChunkBM25Retriever:
         if len(chunk_ids) != len(set(chunk_ids)):
             raise ValueError("GovernedChunkBM25Retriever requires unique chunk_id values")
 
-        context = _section_context(self._chunks)
+        table_contexts = _table_contexts(self._chunks)
         self._tokens = tuple(
-            _tokenize(_index_text(chunk, context.get((chunk.source_id, chunk.section), "")))
+            _tokenize(
+                build_retrieval_text(
+                    chunk,
+                    table_contexts.get(chunk.chunk_id, ""),
+                )
+            )
             for chunk in self._chunks
         )
         self._term_sets = tuple(frozenset(tokens) for tokens in self._tokens)
