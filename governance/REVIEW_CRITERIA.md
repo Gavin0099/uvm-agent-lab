@@ -15,10 +15,11 @@ default_load: on-demand
 > Defines how to audit, critique, and verify code changes.
 > Load this document when `SCOPE = review`.
 >
-> This file is the single source of truth for the engineering merge
-> decision model. `governance/AGENT.md` defines agent behavior only.
-> `.github/skills/pr-review-merge-gate/SKILL.md` defines the operator
-> workflow only. Neither file may invent a second merge policy.
+> This file is the delegated canonical merge-decision policy within the
+> authority established by `governance/AGENT.md`. It does not override that
+> canonical owner. `governance/AGENT.md` defines the runtime authority and agent
+> behavior; `.github/skills/pr-review-merge-gate/SKILL.md` defines the operator
+> workflow. Neither file may invent a second merge policy.
 
 ---
 

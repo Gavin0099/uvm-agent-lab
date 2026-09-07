@@ -5,10 +5,10 @@ description: "Use when reviewing a GitHub PR, Codex findings, P0/P1 comments, me
 
 # PR Review Merge Gate
 
-Authority: `governance/REVIEW_CRITERIA.md` §2 is the single source of truth
-for the engineering merge decision model. This skill is the operator
-procedure. Do not invent a second policy, second severity scale, or extra
-disposition codes.
+Authority: `governance/AGENT.md` owns the runtime governance authority;
+`governance/REVIEW_CRITERIA.md` §2 is its delegated canonical merge-decision
+policy. This skill is the operator procedure. Do not invent a second policy,
+second severity scale, or extra disposition codes.
 
 Turn PR review into this question:
 
@@ -85,11 +85,11 @@ MERGE DECISION: READY | NOT READY
 Blocking findings:
 - none | <list>
 
-Carried-forward findings:
+Carried-forward findings (non-blocking only):
 - P1 — <title>
   Attribution: pre-existing | introduced | worsened | exposed
-  Current merge impact: none | blocks merge
-  Disposition: PRE_EXISTING | OUTSIDE_FROZEN_SCOPE | QUALIFICATION_ONLY | FUTURE_CAPABILITY | NO_PR_DELTA_IMPACT | FALSE_POSITIVE | FIX_NOW
+   Current merge impact: none
+   Disposition: PRE_EXISTING | OUTSIDE_FROZEN_SCOPE | QUALIFICATION_ONLY | FUTURE_CAPABILITY | NO_PR_DELTA_IMPACT | FALSE_POSITIVE
   Reason: ...
 
 Required checks:
