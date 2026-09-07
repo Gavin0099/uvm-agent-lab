@@ -99,7 +99,28 @@ L0 fast-track 路徑：
 
 ### 2.5 Post-Review Remediation Permission
 
-Review finding 產出後，依 finding 的改動性質決定是否可以立即修：
+Finding is not a task.
+
+A review finding is evidence. It does not automatically become the current
+task, expand frozen scope, or reopen qualification. Follow the canonical
+merge decision model in `governance/REVIEW_CRITERIA.md` §2. Do not define a
+second policy here.
+
+Required agent behavior:
+
+1. Freeze the current engineering merge decision before acting.
+2. Triage the finding against that decision. Keep severity as
+   `P0 | P1 | P2 | P3`.
+3. If the finding does not materially change the current merge decision,
+   assign one allowed non-blocking disposition from
+   `REVIEW_CRITERIA.md` §2.3.1 and do not automatically interrupt the PR.
+4. If the finding is a PR-introduced or PR-worsened true correctness P0/P1,
+   or otherwise matches `REVIEW_CRITERIA.md` §2.4 A–D, treat it as a merge
+   blocker.
+5. After a blocker fix, run delta-bounded re-review from
+   `REVIEW_CRITERIA.md` §2.6. Do not restart unbounded PR review.
+
+Review finding 產出後，若 triage 結果是必須修，再依改動性質決定是否可以立即修：
 
 **Mechanical remediation — 可以在 review 後直接修，不需額外確認：**
 - typo / copy / label
