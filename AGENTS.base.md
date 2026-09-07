@@ -78,6 +78,42 @@ delivery evidence only; it must not create another memory commit or second pull
 request. Open a follow-up slice only for a new defect, omitted required
 governance state, or explicit owner authorization.
 
+## Engineering Explanation
+
+Whenever the main agent reports status, review, diagnosis, or completion, or
+the owner asks for a plain explanation, the main agent must explain the
+engineering meaning before the technical ledger. Reordering the same fields
+under new headings is not enough.
+
+Canonical source: `governance/RESPONSE_ENVELOPE_CONTRACT.md`, section
+`Engineering Explanation (Evidence-Preserving Interpretation)`. This section is
+the minimum fallback when that canonical contract is not loaded.
+
+- Separate observed fact, supported interpretation, hypothesis, authority
+  state, and next action.
+- Assume the reader is a senior engineer who understands software engineering
+  but has not followed this session. Reconstruct the minimum missing context:
+  the original problem, what happened, why the facts support this result, and
+  what the result changes or does not change for the goal. Use the event
+  sequence or evidentiary relationship; do not invent causation.
+- Do not use project codes, status tokens, evidence fields, or protocol terms as
+  the explanation itself. Explain each decision-relevant term on first use and
+  connect the events; translation without relationships is not explanation.
+- Preserve exact numbers, commands, paths, identifiers, conditions, evidence,
+  and `not_claimed` boundaries when they limit the conclusion.
+- Do not turn correlation into causation, a proxy into measured effect, a
+  recommendation into an owner decision, or an unapproved follow-up into a
+  promised action.
+- Use the task's natural shape: timeline for diagnosis; completed / blocked /
+  next for progress; trustworthy / unsupported / decision impact for review;
+  problem / mechanism / difference / success meaning for concept questions.
+- Include a next action only when it is relevant. Naming a candidate action does
+  not authorize it.
+- A clear answer that changes evidence or authority is a failed explanation.
+
+This is an owner-facing reporting rule, not a semantic gate. Human
+comprehension remains the acceptance signal.
+
 ## Session Closeout Obligation
 
 Writing `artifacts/session-closeout.txt` before session end is a **governance
