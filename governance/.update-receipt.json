@@ -5,12 +5,12 @@
   "tool_mode": "apply",
   "repo_root": "/Users/sw1/Desktop/uvm-agent-lab",
   "framework_root": "/Users/sw1/Desktop/uvm-agent-lab/additional/ai-governance-framework",
-  "framework_before": "5d184ee6c40a6d420d58ddcd3b9603ced553e09d",
-  "framework_after": "75043b516cbd0460da9b7b77b5779e8d60f55b31",
-  "lock_adopted_commit": "75043b516cbd0460da9b7b77b5779e8d60f55b31",
+  "framework_before": "75043b516cbd0460da9b7b77b5779e8d60f55b31",
+  "framework_after": "1b85e29d8a21cd8758aae0f59ff8b27bf55e6e81",
+  "lock_adopted_commit": "1b85e29d8a21cd8758aae0f59ff8b27bf55e6e81",
   "lock_matches_checkout": true,
   "update_status": "updated",
-  "generated_at_utc": "2026-09-07T05:34:53Z",
+  "generated_at_utc": "2026-09-07T11:32:15Z",
   "claim_boundary": [
     "receipt is review evidence, not proof",
     "no fetch truth is implied unless explicitly recorded",
@@ -24,12 +24,12 @@
     "release readiness"
   ],
   "remote_evidence": {
-    "target_ref": "75043b51",
+    "target_ref": "1b85e29d8a21cd8758aae0f59ff8b27bf55e6e81",
     "fetch_remote": "origin",
     "fetch_ref": "main",
     "target_source": "fresh_remote_fetch_head",
     "target_fresh_upstream_verified": true,
     "target_claim_boundary": "fresh upstream target verified; already_current/updated claims are allowed",
-    "target_head": "75043b516cbd0460da9b7b77b5779e8d60f55b31"
+    "target_head": "1b85e29d8a21cd8758aae0f59ff8b27bf55e6e81"
   }
 }
