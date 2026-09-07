@@ -10,7 +10,11 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import gv100h.spec_qa.retrieval.real_corpus_retriever as real_corpus_retriever
 from gv100h.spec_qa.contracts.governed_chunk import GovernedChunk
-from gv100h.spec_qa.retrieval.real_corpus_retriever import evaluate_retrieval
+from gv100h.spec_qa.retrieval.real_corpus_retriever import (
+    _table_contexts,
+    build_retrieval_text,
+    evaluate_retrieval,
+)
 from scripts.run_real_corpus_retrieval_v1 import _collect_source_ids
 
 
@@ -125,6 +129,49 @@ def test_query_uses_section_caption_context_to_find_table_chunk(chunks):
     assert table_hits[0].chunk.page_or_anchor == "p.131"
 
 
+def test_table_retrieval_text_keeps_original_chunk_and_binds_nearest_caption(chunks):
+    table = chunks[3]
+    original_content = table.content
+    original_id = table.chunk_id
+    retrieval_text = build_retrieval_text(
+        table,
+        "6.9.1 LFPS Transmitter Timing Table 6-30. LFPS Transmitter Timing",
+    )
+
+    assert "6.9.1 LFPS Transmitter Timing" in retrieval_text
+    assert "Table 6-30" in retrieval_text
+    assert table.content == original_content
+    assert table.chunk_id == original_id
+    assert table.to_citation().evidence_id == original_id
+
+
+def test_table_context_does_not_leak_across_captions(chunks):
+    extended = chunks + [
+        _chunk(
+            source_id="usb32",
+            section="6.9.1",
+            page="p.131",
+            content="Table 6-31 Other timing",
+            kind="paragraph",
+            index=6,
+        ),
+        _chunk(
+            source_id="usb32",
+            section="6.9.1",
+            page="p.131",
+            content="4 ns | 8 ns",
+            kind="table",
+            index=7,
+        )
+    ]
+    contexts = _table_contexts(extended)
+
+    assert "Table 6-30" in contexts[extended[3].chunk_id]
+    assert "Table 6-31" not in contexts[extended[3].chunk_id]
+    assert "Table 6-31" in contexts[extended[7].chunk_id]
+    assert "Table 6-30" not in contexts[extended[7].chunk_id]
+
+
 
 def test_query_can_limit_results_to_allowed_source_ids(chunks):
     retriever = real_corpus_retriever.GovernedChunkBM25Retriever(chunks)
@@ -165,6 +212,15 @@ def test_retrieval_is_deterministic_for_same_chunk_sequence(chunks):
 
     assert first.corpus_sha256 == second.corpus_sha256
     assert first_records == second_records
+
+
+def test_corpus_digest_binds_chunk_order_and_derived_context(chunks):
+    first = real_corpus_retriever.GovernedChunkBM25Retriever(chunks)
+    reordered = real_corpus_retriever.GovernedChunkBM25Retriever(
+        list(reversed(chunks))
+    )
+
+    assert first.corpus_sha256 != reordered.corpus_sha256
 
 
 
