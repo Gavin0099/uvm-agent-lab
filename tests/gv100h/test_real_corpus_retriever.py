@@ -214,6 +214,15 @@ def test_retrieval_is_deterministic_for_same_chunk_sequence(chunks):
     assert first_records == second_records
 
 
+def test_corpus_digest_binds_chunk_order_and_derived_context(chunks):
+    first = real_corpus_retriever.GovernedChunkBM25Retriever(chunks)
+    reordered = real_corpus_retriever.GovernedChunkBM25Retriever(
+        list(reversed(chunks))
+    )
+
+    assert first.corpus_sha256 != reordered.corpus_sha256
+
+
 
 def test_duplicate_chunk_ids_are_rejected(chunks):
     with pytest.raises(ValueError, match="unique chunk_id"):

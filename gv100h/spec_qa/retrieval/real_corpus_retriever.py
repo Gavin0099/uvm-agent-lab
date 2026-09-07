@@ -340,10 +340,12 @@ class GovernedChunkBM25Retriever:
             else 0.0
         )
         digest = hashlib.sha256()
-        for chunk in sorted(self._chunks, key=lambda item: item.chunk_id):
+        for chunk, tokens in zip(self._chunks, self._tokens):
             digest.update(chunk.chunk_id.encode("utf-8"))
             digest.update(b"\0")
             digest.update(chunk.content_sha256.encode("ascii"))
+            digest.update(b"\0")
+            digest.update(" ".join(tokens).encode("utf-8"))
             digest.update(b"\0")
         self.corpus_sha256 = digest.hexdigest()
 
