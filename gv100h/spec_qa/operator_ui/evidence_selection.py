@@ -1557,6 +1557,7 @@ def _material_answer_anchors(question: str, answer: str) -> FrozenSet[str]:
 
 def _required_material_anchors(question: str, answer: str) -> FrozenSet[str]:
     anchors = set(_material_answer_anchors(question, answer))
+    anchors.update(_explicit_identifier_tokens(question))
     question_sections = _sections(question)
     answer_sections = _sections(answer)
     anchors.update(question_sections)

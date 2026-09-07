@@ -772,6 +772,28 @@ def test_selector_binds_value_to_the_nearest_identifier():
     ]
 
 
+def test_selector_requires_question_identifier_when_answer_omits_subject():
+    question = "What is the PORT_POWER value?"
+    answer = "It is 8 V."
+    wrong = _hit(
+        "usb32",
+        "10.16.2.10",
+        "PORT_RESET is 8 V.",
+        0,
+    )
+    correct = _hit(
+        "usb32",
+        "10.16.2.10",
+        "PORT_POWER is 8 V.",
+        1,
+    )
+
+    selection = select_evidence(question, answer, [wrong, correct])
+
+    assert selection.selected_hits == (correct,)
+    assert selection.primary_hits == (correct,)
+
+
 def test_selector_abstains_when_answer_hex_literal_is_not_in_candidates():
     candidate = _hit(
         "usb32",
