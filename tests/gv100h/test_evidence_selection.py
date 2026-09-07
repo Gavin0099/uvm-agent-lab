@@ -868,18 +868,18 @@ def test_selector_accepts_matching_value_from_requested_section():
 
 
 def test_selector_fails_closed_when_section_value_support_is_swapped():
-    question = "According to Section 7.2, what is the voltage?"
-    answer = "Section 7.2 specifies a voltage of 8 V."
+    question = "What are the values in Sections 7.2 and 9.1?"
+    answer = "Section 7.2 is 8 V; Section 9.1 is 9 V."
     wrong_section = _hit(
         "usb32",
         "7.2",
-        "Section 7.2 specifies a voltage of 9 V.",
+        "Section 7.2 is 9 V.",
         0,
     )
     wrong_value = _hit(
         "usb32",
         "9.1",
-        "Section 9.1 specifies a voltage of 8 V.",
+        "Section 9.1 is 8 V.",
         1,
     )
 
@@ -917,7 +917,9 @@ def test_selector_fails_closed_for_descriptor_prose(descriptor):
     selection = select_evidence(
         f"What is the PORT_POWER {descriptor} value?",
         f"PORT_POWER {descriptor} is 8 V.",
-        [_hit("usb32", "10.1", "PORT_POWER is 8 V.", 0)],
+        [_hit("usb32", "10.1", "PORT_POWER {0} is 8 V.".format(
+            "minimum" if descriptor != "minimum" else "maximum"
+        ), 0)],
     )
 
     assert selection.selected_hits == ()
@@ -926,9 +928,14 @@ def test_selector_fails_closed_for_descriptor_prose(descriptor):
 
 def test_selector_fails_closed_for_title_case_id_hex_without_parsing():
     selection = select_evidence(
-        "What is the Vendor ID?",
-        "Vendor ID is 0x1234.",
-        [_hit("usb32", "10.1", "Product ID is 0x1234.", 0)],
+        "What are the Vendor ID and Product ID?",
+        "Vendor ID is 0x1234 and Product ID is 0x5678.",
+        [_hit(
+            "usb32",
+            "10.1",
+            "Vendor ID is 0x5678 and Product ID is 0x1234.",
+            0,
+        )],
     )
 
     assert selection.selected_hits == ()
