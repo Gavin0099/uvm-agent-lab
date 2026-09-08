@@ -659,6 +659,20 @@ def test_real_local_rag_uses_reference_expansion_and_preserves_provenance():
     assert expanded["referenced_table"] == "table:6-30"
 
 
+def test_real_local_rag_clamps_expansion_seed_for_top_k_above_five():
+    hit = _hit()
+    retriever = FakeReferenceExpandingRetriever([hit], [hit])
+
+    list(
+        RealLocalRAG(retriever, FakeStreamingLocalAI(), top_k=6).stream_answer(
+            "PORT_POWER value",
+            answer_scope="USB_3_X",
+        )
+    )
+
+    assert retriever.expansion_calls[0]["initial_top_k"] == 5
+
+
 def test_real_local_rag_stream_projects_model_insufficient_evidence_as_abstain():
     retriever = FakeRetriever([_hit()])
     local_ai = FakeInsufficientStreamingLocalAI()

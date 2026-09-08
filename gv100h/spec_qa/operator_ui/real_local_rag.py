@@ -446,7 +446,7 @@ class RealLocalRAG:
             return tuple(
                 expand(
                     question,
-                    initial_top_k=self.top_k,
+                    initial_top_k=min(self.top_k, 5),
                     allowed_source_ids=allowed_source_ids,
                 )
             )
