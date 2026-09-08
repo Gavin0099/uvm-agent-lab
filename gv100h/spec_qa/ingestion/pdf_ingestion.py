@@ -44,6 +44,15 @@ _MEASUREMENT_ONLY_TITLE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _BIT_FIELD_LABEL_PATTERN = re.compile(r"^\d+(?:\s*:\s*\d+)?(?:\s|$)")
+_TABLE_ROW_LABEL_PATTERN = re.compile(
+    r"^[A-Za-z][A-Za-z0-9]*(?:[./,_-][A-Za-z0-9]+|(?:\s+|/\s*)[A-Za-z0-9]+)*$"
+)
+_TABLE_ROW_LABEL_EXCLUSIONS = re.compile(
+    r"^(?:table|figure|note|section|see)\b|:\s*$",
+    re.IGNORECASE,
+)
+_TABLE_ROW_LABEL_MAX_GAP = 72.0
+_TABLE_ROW_LABEL_CHAR_GAP = 12.0
 
 
 class _PageLine(str):
@@ -199,13 +208,14 @@ def _page_events(page: "pdfplumber.page.Page") -> List[Tuple[float, str, Any]]:
     inside it, so table content is only ever chunked once, as a table.
     """
     tables = page.find_tables()
+    text_lines = page.extract_text_lines(layout=False)
     table_bboxes = [table.bbox for table in tables]
 
     def _within_any_table(top: float) -> bool:
         return any(bbox[1] <= top <= bbox[3] for bbox in table_bboxes)
 
     events: List[Tuple[float, str, Any]] = []
-    for line in page.extract_text_lines(layout=False):
+    for line in text_lines:
         text = (line.get("text") or "").strip()
         top = line.get("top")
         bottom = line.get("bottom")
@@ -230,9 +240,78 @@ def _page_events(page: "pdfplumber.page.Page") -> List[Tuple[float, str, Any]]:
     for table in tables:
         rows = table.extract()
         if rows:
+            rows = _add_left_table_row_labels(table, rows, text_lines)
             events.append((table.bbox[1], "table", rows))
     events.sort(key=lambda event: event[0])
     return events
+
+
+def _add_left_table_row_labels(
+    table: Any,
+    rows: List[List[Optional[str]]],
+    text_lines: Sequence[Mapping[str, Any]],
+) -> List[List[Optional[str]]]:
+    """Preserve row labels rendered just outside a detected table bbox.
+
+    Some USB specification tables render the symbol column to the left of the
+    grid that ``pdfplumber`` detects. The grid extractor then returns numeric
+    cells without their row labels, even though the PDF text layer still has
+    those labels. Recover only text left of the detected table and vertically
+    overlapping the corresponding row; unrelated prose is never folded into a
+    table row.
+    """
+    table_rows = getattr(table, "rows", ())
+    table_left = table.bbox[0]
+    if not table_rows:
+        return rows
+
+    labels: List[str] = []
+    for row in table_rows:
+        row_top, row_bottom = row.bbox[1], row.bbox[3]
+        row_labels: List[str] = []
+        for line in text_lines:
+            top = line.get("top")
+            bottom = line.get("bottom")
+            if top is None or bottom is None or bottom <= row_top or top >= row_bottom:
+                continue
+            left_chars = [
+                char
+                for char in (line.get("chars") or ())
+                if char.get("x0") is not None and float(char["x0"]) < table_left
+            ]
+            if not left_chars:
+                continue
+            left_chars.sort(key=lambda char: float(char["x0"]))
+            label_chars = [left_chars[-1]]
+            for char in reversed(left_chars[:-1]):
+                char_right = float(char.get("x1", char["x0"]))
+                next_left = float(label_chars[0]["x0"])
+                if next_left - char_right > _TABLE_ROW_LABEL_CHAR_GAP:
+                    break
+                label_chars.insert(0, char)
+            label_right = max(
+                float(char.get("x1", char["x0"])) for char in label_chars
+            )
+            if table_left - label_right > _TABLE_ROW_LABEL_MAX_GAP:
+                continue
+            label = "".join(str(char.get("text", "")) for char in label_chars).strip()
+            if (
+                label
+                and len(label) <= 64
+                and _TABLE_ROW_LABEL_PATTERN.fullmatch(label)
+                and not _TABLE_ROW_LABEL_EXCLUSIONS.search(label)
+            ):
+                row_labels.append(label)
+        labels.append(" ".join(row_labels))
+
+    enriched: List[List[Optional[str]]] = []
+    for index, row in enumerate(rows):
+        label = labels[index] if index < len(labels) else ""
+        if label:
+            enriched.append([label, *row])
+        else:
+            enriched.append(row)
+    return enriched
 
 
 def _is_page_furniture(
