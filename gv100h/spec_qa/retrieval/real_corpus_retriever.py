@@ -17,7 +17,7 @@ import hashlib
 import math
 import re
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
@@ -34,6 +34,9 @@ DEFAULT_REAL_CORPUS_SOURCE_IDS: Tuple[str, ...] = (
 _TOKEN_PATTERN = re.compile(r"\w+(?:[.-]\w+)*", re.UNICODE)
 _SECTION_CAPTION_PATTERN = re.compile(
     r"^\s*(?:Table|Figure)\s+\d+(?:[-.]\d+)*\b.*$", re.IGNORECASE
+)
+_TABLE_REFERENCE_PATTERN = re.compile(
+    r"\bTable\s+(?P<number>\d+(?:[-.]\d+)*)\b", re.IGNORECASE
 )
 _TARGET_FIELDS = frozenset(
     {
@@ -55,6 +58,11 @@ class GovernedChunkRetrievalHit:
     chunk: GovernedChunk
     score: float
     matched_terms: Tuple[str, ...]
+    retrieval_origin: str = "bm25"
+    retrieval_rank: Optional[int] = None
+    original_bm25_rank: Optional[int] = None
+    referenced_by: Optional[str] = None
+    referenced_table: Optional[str] = None
 
     def as_record(self) -> Dict[str, Any]:
         """Return a small metadata-rich record for inspection or adapters."""
@@ -72,6 +80,11 @@ class GovernedChunkRetrievalHit:
             "chunk_kind": self.chunk.chunk_kind,
             "content": self.chunk.content,
             "content_sha256": self.chunk.content_sha256,
+            "retrieval_origin": self.retrieval_origin,
+            "retrieval_rank": self.retrieval_rank,
+            "original_bm25_rank": self.original_bm25_rank,
+            "referenced_by": self.referenced_by,
+            "referenced_table": self.referenced_table,
         }
 
 
@@ -89,6 +102,15 @@ def _caption_lines(content: str) -> Tuple[str, ...]:
         for line in content.splitlines()
         if (candidate := line.strip())
         and _SECTION_CAPTION_PATTERN.match(candidate)
+    )
+
+
+def _table_reference_keys(content: str) -> Tuple[str, ...]:
+    return tuple(
+        dict.fromkeys(
+            f"table:{match.group('number').replace('.', '-')}"
+            for match in _TABLE_REFERENCE_PATTERN.finditer(content)
+        )
     )
 
 
@@ -299,6 +321,7 @@ class GovernedChunkBM25Retriever:
     """Rank real ``GovernedChunk`` records with a deterministic BM25 index."""
 
     retriever_kind = "governed_chunk_bm25_v1"
+    reference_expansion_kind = "explicit_table_reference"
 
     def __init__(
         self,
@@ -320,6 +343,17 @@ class GovernedChunkBM25Retriever:
             raise ValueError("GovernedChunkBM25Retriever requires unique chunk_id values")
 
         table_contexts = _table_contexts(self._chunks)
+        self._table_reference_chunks: Dict[Tuple[str, str, str], Tuple[str, ...]] = {}
+        for chunk in self._chunks:
+            if chunk.chunk_kind != "table":
+                continue
+            for reference in _table_reference_keys(
+                table_contexts.get(chunk.chunk_id, "")
+            ):
+                key = (chunk.source_id, chunk.revision, reference)
+                self._table_reference_chunks[key] = tuple(
+                    (*self._table_reference_chunks.get(key, ()), chunk.chunk_id)
+                )
         self._tokens = tuple(
             _tokenize(
                 build_retrieval_text(
@@ -446,4 +480,84 @@ class GovernedChunkBM25Retriever:
                 )
 
         ranked.sort(key=lambda hit: (-hit.score, hit.chunk.chunk_id))
-        return ranked[:top_k]
+        return [
+            replace(
+                hit,
+                retrieval_rank=rank,
+                original_bm25_rank=rank,
+            )
+            for rank, hit in enumerate(ranked[:top_k], start=1)
+        ]
+
+    def query_with_table_reference_expansion(
+        self,
+        query: str,
+        *,
+        initial_top_k: int = 5,
+        max_references_per_hit: int = 2,
+        max_expanded_chunks_per_reference: int = 2,
+        allowed_source_ids: Optional[Iterable[str]] = None,
+    ) -> List[GovernedChunkRetrievalHit]:
+        """Add bounded one-hop table evidence named by initial BM25 hits.
+
+        Expansion follows only explicit ``Table <number>`` text from the
+        initial BM25 candidates. It never rewrites the query, recursively
+        follows expanded chunks, or relabels an expanded chunk as a BM25 rank.
+        """
+        if not 1 <= initial_top_k <= 5:
+            raise ValueError("initial_top_k must be between one and five")
+        if max_references_per_hit < 1:
+            raise ValueError("max_references_per_hit must be greater than zero")
+        if max_expanded_chunks_per_reference < 1:
+            raise ValueError(
+                "max_expanded_chunks_per_reference must be greater than zero"
+            )
+
+        ranked = self.query(
+            query,
+            top_k=len(self._chunks),
+            allowed_source_ids=allowed_source_ids,
+        )
+        initial_hits = ranked[:initial_top_k]
+        if not initial_hits:
+            return []
+
+        hits_by_id = {hit.chunk.chunk_id: hit for hit in ranked}
+        selected_ids = {hit.chunk.chunk_id for hit in initial_hits}
+        candidates = list(initial_hits)
+        for bridge in initial_hits:
+            references = _table_reference_keys(bridge.chunk.content)[
+                :max_references_per_hit
+            ]
+            for reference in references:
+                table_ids = self._table_reference_chunks.get(
+                    (bridge.chunk.source_id, bridge.chunk.revision, reference),
+                    (),
+                )[:max_expanded_chunks_per_reference]
+                for table_id in table_ids:
+                    if table_id in selected_ids:
+                        continue
+                    original = hits_by_id.get(table_id)
+                    if original is None:
+                        chunk = next(
+                            chunk
+                            for chunk in self._chunks
+                            if chunk.chunk_id == table_id
+                        )
+                        original = GovernedChunkRetrievalHit(
+                            chunk=chunk,
+                            score=0.0,
+                            matched_terms=(),
+                        )
+                    candidates.append(
+                        replace(
+                            original,
+                            retrieval_origin=self.reference_expansion_kind,
+                            retrieval_rank=None,
+                            original_bm25_rank=original.retrieval_rank,
+                            referenced_by=bridge.chunk.chunk_id,
+                            referenced_table=reference,
+                        )
+                    )
+                    selected_ids.add(table_id)
+        return candidates

@@ -116,6 +116,117 @@ def test_query_returns_ranked_governed_chunks_with_provenance(chunks):
     assert hits[0].chunk.to_citation().evidence_id == hits[0].chunk.chunk_id
 
 
+def test_table_reference_expansion_adds_same_source_table_without_relabeling_rank():
+    bridge = _chunk(
+        source_id="usb32",
+        section="7.5.3.3.1",
+        page="p.197",
+        content=(
+            "A downstream port shall transmit Warm Reset for tReset as defined "
+            "in Table 6-30."
+        ),
+        index=0,
+    )
+    caption = _chunk(
+        source_id="usb32",
+        section="6.9.1",
+        page="p.131",
+        content="Table 6-30. LFPS Transmitter Timing",
+        index=1,
+    )
+    table = _chunk(
+        source_id="usb32",
+        section="6.9.1",
+        page="p.131",
+        content="80 ms | 100 ms | 120 ms",
+        kind="table",
+        index=2,
+    )
+    other_revision = _chunk(
+        source_id="usb20_se",
+        section="6.9.1",
+        page="p.131",
+        content="Table 6-30. Unrelated revision",
+        index=3,
+    )
+    retriever = real_corpus_retriever.GovernedChunkBM25Retriever(
+        [bridge, caption, table, other_revision]
+    )
+
+    candidates = retriever.query_with_table_reference_expansion(
+        "Warm Reset tReset",
+        initial_top_k=1,
+        allowed_source_ids={"usb32"},
+    )
+
+    assert candidates[0].chunk.chunk_id == bridge.chunk_id
+    assert candidates[0].retrieval_origin == "bm25"
+    expanded = next(hit for hit in candidates if hit.chunk.chunk_id == table.chunk_id)
+    assert expanded.retrieval_origin == "explicit_table_reference"
+    assert expanded.retrieval_rank is None
+    assert expanded.referenced_by == bridge.chunk_id
+    assert expanded.referenced_table == "table:6-30"
+    assert expanded.chunk.content == table.content
+    assert expanded.chunk.to_citation().evidence_id == table.chunk_id
+    assert all(hit.chunk.chunk_id != other_revision.chunk_id for hit in candidates)
+
+
+def test_table_reference_expansion_is_one_hop_and_bounded(chunks):
+    bridge = _chunk(
+        source_id="usb32",
+        section="7.5.3.3.1",
+        page="p.197",
+        content="See Table 6-30 and Table 6-31 for tReset timing.",
+        index=10,
+    )
+    caption_630 = _chunk(
+        source_id="usb32",
+        section="6.9.1",
+        page="p.131",
+        content="Table 6-30. First timing",
+        index=11,
+    )
+    table_630 = _chunk(
+        source_id="usb32",
+        section="6.9.1",
+        page="p.131",
+        content="80 ms | 120 ms; see Table 6-99",
+        kind="table",
+        index=12,
+    )
+    caption_631 = _chunk(
+        source_id="usb32",
+        section="6.9.1",
+        page="p.132",
+        content="Table 6-31. Second timing",
+        index=13,
+    )
+    table_631 = _chunk(
+        source_id="usb32",
+        section="6.9.1",
+        page="p.132",
+        content="4 ns | 8 ns",
+        kind="table",
+        index=14,
+    )
+    retriever = real_corpus_retriever.GovernedChunkBM25Retriever(
+        [bridge, caption_630, table_630, caption_631, table_631]
+    )
+
+    candidates = retriever.query_with_table_reference_expansion(
+        "Warm Reset tReset",
+        initial_top_k=1,
+        max_references_per_hit=1,
+        max_expanded_chunks_per_reference=1,
+        allowed_source_ids={"usb32"},
+    )
+
+    expanded_ids = {hit.chunk.chunk_id for hit in candidates[1:]}
+    assert expanded_ids == {table_630.chunk_id}
+    assert all(hit.retrieval_rank is None for hit in candidates[1:])
+    assert all(hit.retrieval_origin != "explicit_table_reference" or hit.referenced_by == bridge.chunk_id for hit in candidates)
+
+
 
 def test_query_uses_section_caption_context_to_find_table_chunk(chunks):
     retriever = real_corpus_retriever.GovernedChunkBM25Retriever(chunks)
