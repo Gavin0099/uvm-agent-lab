@@ -197,6 +197,75 @@ def test_page_events_drops_usb_page_furniture_and_toc_entries():
     ]
 
 
+def test_left_table_row_labels_are_recovered_from_pdf_text_layer():
+    table = SimpleNamespace(
+        bbox=(100.0, 50.0, 200.0, 100.0),
+        rows=[
+            SimpleNamespace(bbox=(100.0, 50.0, 200.0, 70.0)),
+            SimpleNamespace(bbox=(100.0, 70.0, 200.0, 100.0)),
+        ],
+    )
+    rows = [["80 ms", "100 ms", "120 ms"], ["900 ns", "2 ms"]]
+    text_lines = [
+        {
+            "top": 55.0,
+            "bottom": 65.0,
+            "chars": [
+                {"x0": 40.0, "text": "tReset3"},
+                {"x0": 120.0, "text": "80 ms"},
+            ],
+        },
+        {
+            "top": 55.0,
+            "bottom": 65.0,
+            "chars": [{"x0": 5.0, "text": "Neighbor"}],
+        },
+        {
+            "top": 75.0,
+            "bottom": 85.0,
+            "chars": [
+                {"x0": 40.0, "text": "U1 Exit4,5"},
+                {"x0": 120.0, "text": "900 ns"},
+            ],
+        },
+    ]
+
+    enriched = pdf_ingestion._add_left_table_row_labels(
+        table,
+        rows,
+        text_lines,
+    )
+
+    assert enriched == [
+        ["tReset3", "80 ms", "100 ms", "120 ms"],
+        ["U1 Exit4,5", "900 ns", "2 ms"],
+    ]
+
+
+def test_left_table_row_labels_ignore_far_left_text():
+    table = SimpleNamespace(
+        bbox=(100.0, 50.0, 200.0, 80.0),
+        rows=[SimpleNamespace(bbox=(100.0, 50.0, 200.0, 80.0))],
+    )
+
+    enriched = pdf_ingestion._add_left_table_row_labels(
+        table,
+        [["80 ms", "100 ms", "120 ms"]],
+        [
+            {
+                "top": 55.0,
+                "bottom": 65.0,
+                "chars": [
+                    {"x0": 5.0, "x1": 20.0, "text": "FarLeft"},
+                    {"x0": 40.0, "x1": 50.0, "text": "tReset3"},
+                ],
+            }
+        ],
+    )
+
+    assert enriched == [["tReset3", "80 ms", "100 ms", "120 ms"]]
+
+
 def test_chunk_pdf_keeps_high_speed_evidence_after_numeric_figure_labels(
     tmp_path, monkeypatch
 ):
