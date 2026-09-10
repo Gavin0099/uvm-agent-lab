@@ -1,13 +1,13 @@
 {
   "validation_version": "real_locked_corpus_validation_v1",
   "baseline_evidence": {
-    "artifact": "artifacts/evidence/test-results/spec-qa-post-pr44-real-local-rag-10-question-baseline-20260902.md",
-    "main_commit": "a6b0aa51fbe9450db13ed9c75b7ca8999dd81f9c",
-    "corpus_sha256": "f3070212d031e795b0bdfa2130bbc34f2e3f0989c1e7ff63743bffd94988f72d",
-    "chunk_count": 4325,
-    "table_6_30_caption_rank_q02": 2689,
-    "table_6_30_value_rank_q02": 2813,
-    "q02_direct_section_rank": 6
+    "artifact": "artifacts/evidence/test-results/spec-qa-real-locked-corpus-validation-v1-20260910.json",
+    "main_commit": "0f1c29332fed6f982be3cc65af5c11c649aeae32",
+    "corpus_sha256": "11989bae535a71ee9d7141cde1b6b5b38fbeada540f800564b51c73c2be72ab6",
+    "chunk_count": 4330,
+    "table_6_30_caption_rank_q02": 94,
+    "table_6_30_value_rank_q02": 293,
+    "q02_direct_section_rank": 1
   },
   "queries": [
     {

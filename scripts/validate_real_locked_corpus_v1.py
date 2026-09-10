@@ -103,6 +103,7 @@ def _hit_record(hit: Any, rank: int) -> dict[str, Any]:
         "section": chunk.section,
         "page_or_anchor": chunk.page_or_anchor,
         "chunk_kind": chunk.chunk_kind,
+        "citation_id": chunk.to_citation().evidence_id,
         "content_preview": chunk.content[:240],
     }
 
@@ -115,10 +116,12 @@ def _rank_target(retriever: GovernedChunkBM25Retriever, case: Mapping[str, Any])
     )
     target = case.get("target")
     target_rank = None
+    target_hit = None
     if isinstance(target, Mapping):
         for rank, hit in enumerate(hits, start=1):
             if _target_matches(hit.chunk, target):
                 target_rank = rank
+                target_hit = _hit_record(hit, rank)
                 break
     diagnostics = []
     for diagnostic in case.get("diagnostic_targets", ()):
@@ -133,6 +136,7 @@ def _rank_target(retriever: GovernedChunkBM25Retriever, case: Mapping[str, Any])
         "id": case["id"],
         "query": case["query"],
         "target_rank": target_rank,
+        "target_hit": target_hit,
         "within_top5": target_rank is not None and target_rank <= 5,
         "diagnostics": diagnostics,
         "top_hits": [_hit_record(hit, rank) for rank, hit in enumerate(hits[:5], 1)],
