@@ -1,0 +1,1125 @@
+{
+  "validation_version": "real_locked_corpus_validation_v1",
+  "status": "PASS",
+  "claim_boundary": [
+    "retrieval-only; no generation or evidence-selection claim",
+    "real locked-corpus evidence requires USB_SPEC_QA_RAW_ROOT",
+    "NOT_RUN is not a retrieval failure or a Top-5 result"
+  ],
+  "baseline_evidence": {
+    "artifact": "artifacts/evidence/test-results/spec-qa-real-locked-corpus-validation-v1-20260910.json",
+    "main_commit": "0f1c29332fed6f982be3cc65af5c11c649aeae32",
+    "corpus_sha256": "11989bae535a71ee9d7141cde1b6b5b38fbeada540f800564b51c73c2be72ab6",
+    "chunk_count": 4330,
+    "table_6_30_caption_rank_q02": 94,
+    "table_6_30_value_rank_q02": 293,
+    "q02_direct_section_rank": 1
+  },
+  "raw_source_hashes": {
+    "usb20_fw": {
+      "expected": "d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61",
+      "observed": "d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61",
+      "match": true
+    },
+    "usb20_se": {
+      "expected": "d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61",
+      "observed": "d39698a33486c399124af92bd02e4f978fd9a836b5cf4e52e6e4633eb1d89f61",
+      "match": true
+    },
+    "usb32": {
+      "expected": "26e025a56ce0352f4f91fcaaca67b622d8e9e030ca429804bf7da98f52e674fd",
+      "observed": "26e025a56ce0352f4f91fcaaca67b622d8e9e030ca429804bf7da98f52e674fd",
+      "match": true
+    },
+    "superspeed_hub_lvs": {
+      "expected": "f6c647c1acdcaf861555bcef481a104cf72958b787a2db6baab3de0a284440fb",
+      "observed": "f6c647c1acdcaf861555bcef481a104cf72958b787a2db6baab3de0a284440fb",
+      "match": true
+    }
+  },
+  "chunk_count": 4330,
+  "expected_chunk_count": 4330,
+  "raw_hashes_match_lock": true,
+  "chunk_count_matches_baseline": true,
+  "chunk_identity_sha256": "fbc8deac330ec228cc1c743c2fb9dfb3173d4030536337205a7c81b965fce361",
+  "chunk_sequence_sha256": "8af3571f38d380132457a5d717f34d4f072a939417a88f0a33a1da246166ff82",
+  "repeat_chunk_identity_sha256": "fbc8deac330ec228cc1c743c2fb9dfb3173d4030536337205a7c81b965fce361",
+  "repeat_chunk_sequence_sha256": "8af3571f38d380132457a5d717f34d4f072a939417a88f0a33a1da246166ff82",
+  "governed_chunk_identity_deterministic": true,
+  "corpus_sha256": "11989bae535a71ee9d7141cde1b6b5b38fbeada540f800564b51c73c2be72ab6",
+  "repeat_corpus_sha256": "11989bae535a71ee9d7141cde1b6b5b38fbeada540f800564b51c73c2be72ab6",
+  "corpus_sha256_deterministic": true,
+  "results": [
+    {
+      "id": "table_6_30_direct",
+      "query": "USB 3.2 Table 6-30 Warm Reset tReset 80 ms 120 ms",
+      "target_rank": 1,
+      "target_hit": {
+        "rank": 1,
+        "score": 25.809395,
+        "matched_terms": [
+          "usb",
+          "3.2",
+          "table",
+          "6-30",
+          "80",
+          "ms",
+          "120"
+        ],
+        "chunk_id": "usb32:6.9.1:p.131:273:c57672a738d409fc39abd888d90879e255754680be089f21a90f6aa7c945350a",
+        "source_id": "usb32",
+        "revision": "Rev 1.1",
+        "section": "6.9.1",
+        "page_or_anchor": "p.131",
+        "chunk_kind": "table",
+        "citation_id": "usb32:6.9.1:p.131:273:c57672a738d409fc39abd888d90879e255754680be089f21a90f6aa7c945350a",
+        "content_preview": "tBurst |  |  |  |  | \nMin | Typ | Max | Minimum\nNumber of\nLFPS Cycles2 | Min | Typ\nPolling.LFPS | 0.6 \uf06ds | 1.0 \uf06ds | 1.4 \uf06ds |  | 6 \u03bcs | 10 \uf06ds\nPing.LFPS8 | 40 ns |  | 200 ns | 2 | 160 ms | 200 ms\nPing.LFPSfor SuperSpeedPlus9 | 40 ns |  | 160n"
+      },
+      "within_top5": true,
+      "diagnostics": [],
+      "top_hits": [
+        {
+          "rank": 1,
+          "score": 25.809395,
+          "matched_terms": [
+            "usb",
+            "3.2",
+            "table",
+            "6-30",
+            "80",
+            "ms",
+            "120"
+          ],
+          "chunk_id": "usb32:6.9.1:p.131:273:c57672a738d409fc39abd888d90879e255754680be089f21a90f6aa7c945350a",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "6.9.1",
+          "page_or_anchor": "p.131",
+          "chunk_kind": "table",
+          "citation_id": "usb32:6.9.1:p.131:273:c57672a738d409fc39abd888d90879e255754680be089f21a90f6aa7c945350a",
+          "content_preview": "tBurst |  |  |  |  | \nMin | Typ | Max | Minimum\nNumber of\nLFPS Cycles2 | Min | Typ\nPolling.LFPS | 0.6 \uf06ds | 1.0 \uf06ds | 1.4 \uf06ds |  | 6 \u03bcs | 10 \uf06ds\nPing.LFPS8 | 40 ns |  | 200 ns | 2 | 160 ms | 200 ms\nPing.LFPSfor SuperSpeedPlus9 | 40 ns |  | 160n"
+        },
+        {
+          "rank": 2,
+          "score": 18.963789,
+          "matched_terms": [
+            "usb",
+            "3.2",
+            "table",
+            "6-30",
+            "warm",
+            "reset",
+            "treset"
+          ],
+          "chunk_id": "usb32:7.5.3.3.1:p.197:658:b792eb49fb304a94d215e296213ad86c2f3c1d2c8327b8554faeaf2b51e9ad5a",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "7.5.3.3.1",
+          "page_or_anchor": "p.197",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb32:7.5.3.3.1:p.197:658:b792eb49fb304a94d215e296213ad86c2f3c1d2c8327b8554faeaf2b51e9ad5a",
+          "content_preview": "If a port enters Rx.Detect upon a Warm Reset, the following requirements shall be applied.\nRefer to Section 6.9.3 for details.\n\u2022 A downstream port shall transmit Warm Reset for the duration of tReset as defined\nin Table 6-30.\nNote: This inc"
+        },
+        {
+          "rank": 3,
+          "score": 18.620506,
+          "matched_terms": [
+            "usb",
+            "3.2",
+            "table",
+            "6-30",
+            "80",
+            "ms"
+          ],
+          "chunk_id": "usb32:6.9.1:p.132:274:bd9c0d13fc1c108403c7ee617c0efb840fed2dd69f97a48fef2ff7b5d013fea0",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "6.9.1",
+          "page_or_anchor": "p.132",
+          "chunk_kind": "table",
+          "citation_id": "usb32:6.9.1:p.132:274:bd9c0d13fc1c108403c7ee617c0efb840fed2dd69f97a48fef2ff7b5d013fea0",
+          "content_preview": "tBurst |  |  |  |  | \nMin | Typ | Max | Minimum\nNumber of\nLFPS Cycles2 | Min | Typ\nU3Wakeup4,5 | 80 \u03bcs7 |  | 10 ms |  |  | "
+        },
+        {
+          "rank": 4,
+          "score": 18.49515,
+          "matched_terms": [
+            "usb",
+            "3.2",
+            "table",
+            "6-30",
+            "warm",
+            "reset",
+            "treset"
+          ],
+          "chunk_id": "usb32:7.5.3.3.2:p.197:660:d960d5631e07d8a58840ab368630cb6868bbd4aa1336f1690a8c50aa07b86dcc",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "7.5.3.3.2",
+          "page_or_anchor": "p.197",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb32:7.5.3.3.2:p.197:660:d960d5631e07d8a58840ab368630cb6868bbd4aa1336f1690a8c50aa07b86dcc",
+          "content_preview": "\u2022 The port shall transition directly to Rx.Detect.Active if the entry to Rx.Detect is not\ndue to a Warm Reset.\nNote: Warm Reset is not present during power-on.\n\u2022 A downstream port shall transition to Rx.Detect.Active after it transmits Warm"
+        },
+        {
+          "rank": 5,
+          "score": 17.908965,
+          "matched_terms": [
+            "usb",
+            "3.2",
+            "table",
+            "80",
+            "ms"
+          ],
+          "chunk_id": "usb32:6.9.2:p.134:280:97f0f6fa4fc087c97d350e1c43ff7075bef2db5be11761cd7004073fc2710343",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "6.9.2",
+          "page_or_anchor": "p.134",
+          "chunk_kind": "table",
+          "citation_id": "usb32:6.9.2:p.134:280:97f0f6fa4fc087c97d350e1c43ff7075bef2db5be11761cd7004073fc2710343",
+          "content_preview": "U1 Exit |  | U2/Loopback Exit |  | \nMin | Max | Min | Max | Min\n0.3 \uf06ds | 2.0 \uf06ds/2 ms1 | 0.3 \uf06ds | 2 ms | 0.3 \uf06ds\n1.2 \uf06ds | 2 ms |  | 2 ms | \n0.6 \uf06ds | 2.0 \uf06ds1 | 0.6 \uf06ds | 2 ms | 0.6 \uf06ds\n0.9 \uf06ds | 1.21 \uf06ds | 80 \uf06ds | 2 ms | 80 \uf06ds\n0.9 \uf06ds | 2 ms1 | 80 "
+        }
+      ],
+      "success_condition": "target_rank <= 5"
+    },
+    {
+      "id": "warm_reset_user_query",
+      "query": "USB 3.2 Warm Reset downstream port link states tReset minimum maximum duration",
+      "target_rank": 293,
+      "target_hit": {
+        "rank": 293,
+        "score": 4.319999,
+        "matched_terms": [
+          "usb",
+          "3.2",
+          "minimum"
+        ],
+        "chunk_id": "usb32:6.9.1:p.131:273:c57672a738d409fc39abd888d90879e255754680be089f21a90f6aa7c945350a",
+        "source_id": "usb32",
+        "revision": "Rev 1.1",
+        "section": "6.9.1",
+        "page_or_anchor": "p.131",
+        "chunk_kind": "table",
+        "citation_id": "usb32:6.9.1:p.131:273:c57672a738d409fc39abd888d90879e255754680be089f21a90f6aa7c945350a",
+        "content_preview": "tBurst |  |  |  |  | \nMin | Typ | Max | Minimum\nNumber of\nLFPS Cycles2 | Min | Typ\nPolling.LFPS | 0.6 \uf06ds | 1.0 \uf06ds | 1.4 \uf06ds |  | 6 \u03bcs | 10 \uf06ds\nPing.LFPS8 | 40 ns |  | 200 ns | 2 | 160 ms | 200 ms\nPing.LFPSfor SuperSpeedPlus9 | 40 ns |  | 160n"
+      },
+      "within_top5": false,
+      "diagnostics": [],
+      "top_hits": [
+        {
+          "rank": 1,
+          "score": 23.709013,
+          "matched_terms": [
+            "usb",
+            "3.2",
+            "warm",
+            "reset",
+            "downstream",
+            "port",
+            "link",
+            "states",
+            "minimum",
+            "maximum"
+          ],
+          "chunk_id": "usb32:6.9.3:p.135:283:e8b2172de6a7e24d8b4769f9692739de16a957a35a2026e6bdab68f3f8a96d06",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "6.9.3",
+          "page_or_anchor": "p.135",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb32:6.9.3:p.135:283:e8b2172de6a7e24d8b4769f9692739de16a957a35a2026e6bdab68f3f8a96d06",
+          "content_preview": "A Warm Reset is a reset generated only by a downstream port to an upstream port. A\ndownstream port may issue a Warm Reset at any Link states except SS.Disabled. An\nupstream port is required to detect a Warm Reset at any link states except S"
+        },
+        {
+          "rank": 2,
+          "score": 23.117722,
+          "matched_terms": [
+            "usb",
+            "3.2",
+            "warm",
+            "reset",
+            "downstream",
+            "port",
+            "treset",
+            "duration"
+          ],
+          "chunk_id": "usb32:7.5.3.3.2:p.197:660:d960d5631e07d8a58840ab368630cb6868bbd4aa1336f1690a8c50aa07b86dcc",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "7.5.3.3.2",
+          "page_or_anchor": "p.197",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb32:7.5.3.3.2:p.197:660:d960d5631e07d8a58840ab368630cb6868bbd4aa1336f1690a8c50aa07b86dcc",
+          "content_preview": "\u2022 The port shall transition directly to Rx.Detect.Active if the entry to Rx.Detect is not\ndue to a Warm Reset.\nNote: Warm Reset is not present during power-on.\n\u2022 A downstream port shall transition to Rx.Detect.Active after it transmits Warm"
+        },
+        {
+          "rank": 3,
+          "score": 21.970097,
+          "matched_terms": [
+            "usb",
+            "3.2",
+            "warm",
+            "reset",
+            "downstream",
+            "port",
+            "treset",
+            "duration"
+          ],
+          "chunk_id": "usb32:7.5.3.3.1:p.197:658:b792eb49fb304a94d215e296213ad86c2f3c1d2c8327b8554faeaf2b51e9ad5a",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "7.5.3.3.1",
+          "page_or_anchor": "p.197",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb32:7.5.3.3.1:p.197:658:b792eb49fb304a94d215e296213ad86c2f3c1d2c8327b8554faeaf2b51e9ad5a",
+          "content_preview": "If a port enters Rx.Detect upon a Warm Reset, the following requirements shall be applied.\nRefer to Section 6.9.3 for details.\n\u2022 A downstream port shall transmit Warm Reset for the duration of tReset as defined\nin Table 6-30.\nNote: This inc"
+        },
+        {
+          "rank": 4,
+          "score": 21.78123,
+          "matched_terms": [
+            "usb",
+            "3.2",
+            "warm",
+            "reset",
+            "downstream",
+            "link",
+            "treset",
+            "duration"
+          ],
+          "chunk_id": "usb32:10.3.1.11:p.421:1310:b308ef3750164445833a791d72363d06803c90eff9db55a05a538b19b2d721bd",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "10.3.1.11",
+          "page_or_anchor": "p.421",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb32:10.3.1.11:p.421:1310:b308ef3750164445833a791d72363d06803c90eff9db55a05a538b19b2d721bd",
+          "content_preview": "This state is entered when the downstream power state is logically off and an Enhanced\nSuperSpeed connection, rather than a USB 2.0 connection, is desired. To ensure that an\nEnhanced SuperSpeed connection is established, unlike the DSPORT.P"
+        },
+        {
+          "rank": 5,
+          "score": 20.029079,
+          "matched_terms": [
+            "usb",
+            "3.2",
+            "warm",
+            "reset",
+            "downstream",
+            "port",
+            "link",
+            "states"
+          ],
+          "chunk_id": "usb32:7.4.2:p.190:599:83f548c97232867961192b0eb15d617fb6eebfa9bee33f320e7c942620d57c28",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "7.4.2",
+          "page_or_anchor": "p.190",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb32:7.4.2:p.190:599:83f548c97232867961192b0eb15d617fb6eebfa9bee33f320e7c942620d57c28",
+          "content_preview": "1. If a Hot Reset fails due to an LFPS handshake timeout in U1 or U2, a\ndownstream port shall transition to eSS.Inactive until software intervention\nor upon detection of removal of an upstream port.\n2. If a Hot Reset fails due to a TS1/TS2 "
+        }
+      ],
+      "success_condition": "target_rank <= 5"
+    },
+    {
+      "id": "table_7_8_diagnosis",
+      "query": "Table 7-8 PM_LC_TIMER x1 x2 4 us 8 us",
+      "target_rank": null,
+      "target_hit": null,
+      "within_top5": false,
+      "diagnostics": [
+        {
+          "name": "caption",
+          "rank": 2
+        },
+        {
+          "name": "field",
+          "rank": 1
+        },
+        {
+          "name": "values",
+          "rank": 1
+        }
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "score": 25.130514,
+          "matched_terms": [
+            "table",
+            "7-8",
+            "pm_lc_timer",
+            "x1"
+          ],
+          "chunk_id": "usb32:7.2.4.2.1:p.174:528:1661d677b6398cffc24c43a1568b8a9432064bea1bfd1c967b72cde431155154",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "7.2.4.2.1",
+          "page_or_anchor": "p.174",
+          "chunk_kind": "table",
+          "citation_id": "usb32:7.2.4.2.1:p.174:528:1661d677b6398cffc24c43a1568b8a9432064bea1bfd1c967b72cde431155154",
+          "content_preview": "Timers | x1 operation\nPM_LC_TIMER | 4\nPM_ENTRY_TIMER | 8"
+        },
+        {
+          "rank": 2,
+          "score": 10.012359,
+          "matched_terms": [
+            "table",
+            "7-8",
+            "pm_lc_timer"
+          ],
+          "chunk_id": "usb32:7.2.4.2.1:p.173:526:397c7627d7755b1dc1b5c01baead4f7598c742952a8f2fe70573326cbec73681",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "7.2.4.2.1",
+          "page_or_anchor": "p.173",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb32:7.2.4.2.1:p.173:526:397c7627d7755b1dc1b5c01baead4f7598c742952a8f2fe70573326cbec73681",
+          "content_preview": "A port shall have three timers for link power management. First, a PM_LC_TIMER is used for\na port initiating an entry request to a low power link state. It is designed to ensure a prompt\nentry to a low power link state. Second, a PM_ENTRY_T"
+        },
+        {
+          "rank": 3,
+          "score": 9.41556,
+          "matched_terms": [
+            "table",
+            "us"
+          ],
+          "chunk_id": "usb32:10.1:p.403:1197:a3de218f2209a58f16e9645fd67d2bd114dda34afe7f19f333347306bec1cc13",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "10.1",
+          "page_or_anchor": "p.403",
+          "chunk_kind": "table",
+          "citation_id": "usb32:10.1:p.403:1197:a3de218f2209a58f16e9645fd67d2bd114dda34afe7f19f333347306bec1cc13",
+          "content_preview": "US Port\n"
+        },
+        {
+          "rank": 4,
+          "score": 9.264319,
+          "matched_terms": [
+            "table",
+            "us"
+          ],
+          "chunk_id": "usb32:6.9.4.1:p.136:289:35139d6b785430212ad8d27abeafe31189c4718b777b123b9049f699a216cd2e",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "6.9.4.1",
+          "page_or_anchor": "p.136",
+          "chunk_kind": "table",
+          "citation_id": "usb32:6.9.4.1:p.136:289:35139d6b785430212ad8d27abeafe31189c4718b777b123b9049f699a216cd2e",
+          "content_preview": "tRepeat (us) | Logic value\n6~9 | \u20180\u2019\n11~14 | \u20181\u2019\n9~11 | illegal"
+        },
+        {
+          "rank": 5,
+          "score": 9.231917,
+          "matched_terms": [
+            "table",
+            "us"
+          ],
+          "chunk_id": "usb32:10.1:p.403:1204:0ba4bde8b5b3f8942a30decfc88a8dc55be4bdcb4a37a31ba5ad075165198a0c",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "10.1",
+          "page_or_anchor": "p.403",
+          "chunk_kind": "table",
+          "citation_id": "usb32:10.1:p.403:1204:0ba4bde8b5b3f8942a30decfc88a8dc55be4bdcb4a37a31ba5ad075165198a0c",
+          "content_preview": "DS: Downstream\nUS: Upstream"
+        }
+      ],
+      "success_condition": "diagnosis only; no merge requirement"
+    },
+    {
+      "id": "regression_500_ps",
+      "query": "high-speed signaling rise fall time 500 ps",
+      "target_rank": 1,
+      "target_hit": {
+        "rank": 1,
+        "score": 21.02818,
+        "matched_terms": [
+          "high-speed",
+          "signaling",
+          "rise",
+          "fall",
+          "time",
+          "500",
+          "ps"
+        ],
+        "chunk_id": "usb20_se:7.1.2.2:p.167:260:6bfa715690351540000ebf95bb1f82b46dd770f357150754771ceb62553b29b8",
+        "source_id": "usb20_se",
+        "revision": "2.0",
+        "section": "7.1.2.2",
+        "page_or_anchor": "p.167",
+        "chunk_kind": "paragraph",
+        "citation_id": "usb20_se:7.1.2.2:p.167:260:6bfa715690351540000ebf95bb1f82b46dd770f357150754771ceb62553b29b8",
+        "content_preview": "High-speed Signaling Rise and Fall Times\nThe transition time of a high-speed driver must not be less than the specified minimum allowable differential\nrise and fall time (THSR and THSF). Transition times are measured when driving a referenc"
+      },
+      "within_top5": true,
+      "diagnostics": [],
+      "top_hits": [
+        {
+          "rank": 1,
+          "score": 21.02818,
+          "matched_terms": [
+            "high-speed",
+            "signaling",
+            "rise",
+            "fall",
+            "time",
+            "500",
+            "ps"
+          ],
+          "chunk_id": "usb20_se:7.1.2.2:p.167:260:6bfa715690351540000ebf95bb1f82b46dd770f357150754771ceb62553b29b8",
+          "source_id": "usb20_se",
+          "revision": "2.0",
+          "section": "7.1.2.2",
+          "page_or_anchor": "p.167",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb20_se:7.1.2.2:p.167:260:6bfa715690351540000ebf95bb1f82b46dd770f357150754771ceb62553b29b8",
+          "content_preview": "High-speed Signaling Rise and Fall Times\nThe transition time of a high-speed driver must not be less than the specified minimum allowable differential\nrise and fall time (THSR and THSF). Transition times are measured when driving a referenc"
+        },
+        {
+          "rank": 2,
+          "score": 17.612339,
+          "matched_terms": [
+            "high-speed",
+            "rise",
+            "fall",
+            "time",
+            "500",
+            "ps"
+          ],
+          "chunk_id": "usb20_se:7.3.2:p.208:507:2c5ead916c8bb31b84d34771dca54b43af0106fae474e79469425108718d3cc8",
+          "source_id": "usb20_se",
+          "revision": "2.0",
+          "section": "7.3.2",
+          "page_or_anchor": "p.208",
+          "chunk_kind": "table",
+          "citation_id": "usb20_se:7.3.2:p.208:507:2c5ead916c8bb31b84d34771dca54b43af0106fae474e79469425108718d3cc8",
+          "content_preview": "Parameter | Symbol | Conditions | Min. | Max. | Units\nDriver Characteristics: |  |  |  |  | \nRise Time (10% - 90%) | THSR | Section 7.1.2 | 500 |  | ps\nFall Time (10% - 90%) | THSF | Section 7.1.2 | 500 |  | ps\nDriver waveform requirements "
+        },
+        {
+          "rank": 3,
+          "score": 15.729165,
+          "matched_terms": [
+            "high-speed",
+            "signaling",
+            "rise",
+            "fall",
+            "time"
+          ],
+          "chunk_id": "usb20_se:7.1.2.2:p.159:225:5b45fa1984a85aea34769de6d49447f12b9e595e5e668c63669a584f0ecd95ec",
+          "source_id": "usb20_se",
+          "revision": "2.0",
+          "section": "7.1.2.2",
+          "page_or_anchor": "p.159",
+          "chunk_kind": "heading_only",
+          "citation_id": "usb20_se:7.1.2.2:p.159:225:5b45fa1984a85aea34769de6d49447f12b9e595e5e668c63669a584f0ecd95ec",
+          "content_preview": "7.1.2.2 High-speed Signaling Eye Patterns and Rise and Fall Time"
+        },
+        {
+          "rank": 4,
+          "score": 15.574569,
+          "matched_terms": [
+            "high-speed",
+            "signaling",
+            "rise",
+            "fall",
+            "time"
+          ],
+          "chunk_id": "usb20_se:7.1.2.2:p.159:227:a8fe319d5254ae5b1f2f44a8df351d38c6fe5c7076a7beff200f517475669ab6",
+          "source_id": "usb20_se",
+          "revision": "2.0",
+          "section": "7.1.2.2",
+          "page_or_anchor": "p.159",
+          "chunk_kind": "table",
+          "citation_id": "usb20_se:7.1.2.2:p.159:227:a8fe319d5254ae5b1f2f44a8df351d38c6fe5c7076a7beff200f517475669ab6",
+          "content_preview": "Traces | \n"
+        },
+        {
+          "rank": 5,
+          "score": 15.353704,
+          "matched_terms": [
+            "high-speed",
+            "signaling",
+            "rise",
+            "fall",
+            "time"
+          ],
+          "chunk_id": "usb20_se:7.1.2:p.157:213:c237f5618878431fc4bbf6ba954332c9216503c165efc6f088471bc62a15b3c9",
+          "source_id": "usb20_se",
+          "revision": "2.0",
+          "section": "7.1.2",
+          "page_or_anchor": "p.157",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb20_se:7.1.2:p.157:213:c237f5618878431fc4bbf6ba954332c9216503c165efc6f088471bc62a15b3c9",
+          "content_preview": "The following sections specify the data signal rise and fall times for full-speed and low-speed signaling, and the\nrise time and eye patterns for high-speed signaling."
+        }
+      ],
+      "success_condition": "target_rank <= 5"
+    },
+    {
+      "id": "regression_contact_capacitance",
+      "query": "Contact Capacitance",
+      "target_rank": 1,
+      "target_hit": {
+        "rank": 1,
+        "score": 10.029078,
+        "matched_terms": [
+          "contact",
+          "capacitance"
+        ],
+        "chunk_id": "usb20_se:6.7:p.135:122:30591e93e904fa897dab16e413a241c4e59f1e2059af3cf8e0c36e3678e68b8a",
+        "source_id": "usb20_se",
+        "revision": "2.0",
+        "section": "6.7",
+        "page_or_anchor": "p.135",
+        "chunk_kind": "table",
+        "citation_id": "usb20_se:6.7:p.135:122:30591e93e904fa897dab16e413a241c4e59f1e2059af3cf8e0c36e3678e68b8a",
+        "content_preview": "Test Description | Test Procedure | Performance Requirement\nLow Level\nContact Resistance | EIA 364-23\nThe object of this test is to detail a\nstandard method to measure the\nelectrical resistance across a pair\nof mated contacts such that the\n"
+      },
+      "within_top5": true,
+      "diagnostics": [],
+      "top_hits": [
+        {
+          "rank": 1,
+          "score": 10.029078,
+          "matched_terms": [
+            "contact",
+            "capacitance"
+          ],
+          "chunk_id": "usb20_se:6.7:p.135:122:30591e93e904fa897dab16e413a241c4e59f1e2059af3cf8e0c36e3678e68b8a",
+          "source_id": "usb20_se",
+          "revision": "2.0",
+          "section": "6.7",
+          "page_or_anchor": "p.135",
+          "chunk_kind": "table",
+          "citation_id": "usb20_se:6.7:p.135:122:30591e93e904fa897dab16e413a241c4e59f1e2059af3cf8e0c36e3678e68b8a",
+          "content_preview": "Test Description | Test Procedure | Performance Requirement\nLow Level\nContact Resistance | EIA 364-23\nThe object of this test is to detail a\nstandard method to measure the\nelectrical resistance across a pair\nof mated contacts such that the\n"
+        },
+        {
+          "rank": 2,
+          "score": 9.697144,
+          "matched_terms": [
+            "contact",
+            "capacitance"
+          ],
+          "chunk_id": "usb20_se:7.2.4.1:p.205:491:9e0617cb0125fa194ac724add92a35c079a492a6042397a029c11b0f2d45c063",
+          "source_id": "usb20_se",
+          "revision": "2.0",
+          "section": "7.2.4.1",
+          "page_or_anchor": "p.205",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb20_se:7.2.4.1:p.205:491:9e0617cb0125fa194ac724add92a35c079a492a6042397a029c11b0f2d45c063",
+          "content_preview": "When a function or hub is plugged into the network, it has a certain amount of on-board capacitance between\nVBUS and ground. In addition, the regulator on the device may supply current to its output bypass capacitance\nand to the function as"
+        },
+        {
+          "rank": 3,
+          "score": 9.200182,
+          "matched_terms": [
+            "contact",
+            "capacitance"
+          ],
+          "chunk_id": "usb20_fw:11.24.2.13:p.605:1970:97c8d0066e1c8295ec9dd49a338944536f2adf93a33e18061f4270218676ec91",
+          "source_id": "usb20_fw",
+          "revision": "2.0",
+          "section": "11.24.2.13",
+          "page_or_anchor": "p.605",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb20_fw:11.24.2.13:p.605:1970:97c8d0066e1c8295ec9dd49a338944536f2adf93a33e18061f4270218676ec91",
+          "content_preview": "cable delay (continued) capacitance (continued)\nskew delay, 6.7 Table 6-7, 7.1.3, 7.3.3 Figure lumped capacitance guidelines for\n7-53 transceivers, 7.1.6.2\ncables optional edge rate control capacitors, 7.1.6.1\nattenuation, 7.1.17 pull-up re"
+        },
+        {
+          "rank": 4,
+          "score": 9.120025,
+          "matched_terms": [
+            "capacitance"
+          ],
+          "chunk_id": "usb32:6.11.3:p.141:361:05fc9e5aeb60950b619b28afb9ef4432433b1fe8884b7220c95bc5c469182fad",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "6.11.3",
+          "page_or_anchor": "p.141",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb32:6.11.3:p.141:361:05fc9e5aeb60950b619b28afb9ef4432433b1fe8884b7220c95bc5c469182fad",
+          "content_preview": "The interconnect total capacitance to ground seen by the Receiver Detection circuit shall not\nexceed 3 nF to ground, including capacitance added by attached test instrumentation. This\nlimit is needed to guarantee proper operation during Rec"
+        },
+        {
+          "rank": 5,
+          "score": 8.790483,
+          "matched_terms": [
+            "capacitance"
+          ],
+          "chunk_id": "usb20_se:7.1.6.1:p.170:284:593e50e3e1397ad9cf146afb1d635c1101adfc4b238dcec5a441e69d3e2f469c",
+          "source_id": "usb20_se",
+          "revision": "2.0",
+          "section": "7.1.6.1",
+          "page_or_anchor": "p.170",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb20_se:7.1.6.1:p.170:284:593e50e3e1397ad9cf146afb1d635c1101adfc4b238dcec5a441e69d3e2f469c",
+          "content_preview": "The input impedance of D+ or D- without termination should be > 300 k\u2126 (ZINP). The input capacitance of a\nport is measured at the connector pins. Upstream facing and downstream facing ports are allowed different\nvalues of capacitance. The m"
+        }
+      ],
+      "success_condition": "target_rank <= 5"
+    },
+    {
+      "id": "regression_port_power",
+      "query": "PORT_POWER feature selector value",
+      "target_rank": 2,
+      "target_hit": {
+        "rank": 2,
+        "score": 16.413907,
+        "matched_terms": [
+          "port_power",
+          "feature",
+          "selector",
+          "value"
+        ],
+        "chunk_id": "usb32:10.16.2.10:p.483:1612:eccd6e3d104a0e44b5c1c94aea06ecffbcc051f74befd70a76476892e3bdaf2e",
+        "source_id": "usb32",
+        "revision": "Rev 1.1",
+        "section": "10.16.2.10",
+        "page_or_anchor": "p.483",
+        "chunk_kind": "paragraph",
+        "citation_id": "usb32:10.16.2.10:p.483:1612:eccd6e3d104a0e44b5c1c94aea06ecffbcc051f74befd70a76476892e3bdaf2e",
+        "content_preview": "The port number shall be a valid port number for that hub, greater than zero. The port\nnumber is in the least significant byte (bits 7..0) of the wIndex field. The most significant\nbyte of wIndex is zero, except when the feature selector is"
+      },
+      "within_top5": true,
+      "diagnostics": [],
+      "top_hits": [
+        {
+          "rank": 1,
+          "score": 16.682326,
+          "matched_terms": [
+            "feature",
+            "selector",
+            "value"
+          ],
+          "chunk_id": "usb32:10.16.2.10:p.483:1611:b7705c688fc41d15c12fe2612f68d41a757e45ebe68062d0c809e9b9babc972f",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "10.16.2.10",
+          "page_or_anchor": "p.483",
+          "chunk_kind": "table",
+          "citation_id": "usb32:10.16.2.10:p.483:1611:b7705c688fc41d15c12fe2612f68d41a757e45ebe68062d0c809e9b9babc972f",
+          "content_preview": "bmRequestType | bRequest | wValue | wIndex |  | wLength\nSET_ FEATURE | Feature\nSelector | Selector or\nTimeout Value\nor\nRemote Wake\nMask | Port | Zero"
+        },
+        {
+          "rank": 2,
+          "score": 16.413907,
+          "matched_terms": [
+            "port_power",
+            "feature",
+            "selector",
+            "value"
+          ],
+          "chunk_id": "usb32:10.16.2.10:p.483:1612:eccd6e3d104a0e44b5c1c94aea06ecffbcc051f74befd70a76476892e3bdaf2e",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "10.16.2.10",
+          "page_or_anchor": "p.483",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb32:10.16.2.10:p.483:1612:eccd6e3d104a0e44b5c1c94aea06ecffbcc051f74befd70a76476892e3bdaf2e",
+          "content_preview": "The port number shall be a valid port number for that hub, greater than zero. The port\nnumber is in the least significant byte (bits 7..0) of the wIndex field. The most significant\nbyte of wIndex is zero, except when the feature selector is"
+        },
+        {
+          "rank": 3,
+          "score": 14.033234,
+          "matched_terms": [
+            "feature",
+            "selector"
+          ],
+          "chunk_id": "usb32:9.4.1:p.364:1013:7671acd21038aea92c20a806e24b927bc9d2e3fe5c9918b1b90cf1dd5396fe86",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "9.4.1",
+          "page_or_anchor": "p.364",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb32:9.4.1:p.364:1013:7671acd21038aea92c20a806e24b927bc9d2e3fe5c9918b1b90cf1dd5396fe86",
+          "content_preview": "Feature selector values in wValue shall be appropriate to the recipient. Only device feature\nselector values may be used when the recipient is a device, only interface feature selector"
+        },
+        {
+          "rank": 4,
+          "score": 13.877846,
+          "matched_terms": [
+            "port_power",
+            "feature",
+            "selector"
+          ],
+          "chunk_id": "usb32:10.16.2.2:p.473:1563:05d785d6b3acfb8093c7c5c066245966fb498a156a28fd0a7ea96157d90b98ed",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "10.16.2.2",
+          "page_or_anchor": "p.473",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb32:10.16.2.2:p.473:1563:05d785d6b3acfb8093c7c5c066245966fb498a156a28fd0a7ea96157d90b98ed",
+          "content_preview": "The port number shall be a valid port number for that hub, greater than zero. The port field\nis located in bits 7..0 of the wIndex field.\nClearing a feature disables that feature or starts a process associated with the feature; refer\nto Tab"
+        },
+        {
+          "rank": 5,
+          "score": 13.379543,
+          "matched_terms": [
+            "feature",
+            "selector"
+          ],
+          "chunk_id": "usb32:10.16.2.2:p.472:1562:2d84614a8e562c122dacf484a5bb857ff81de71b99afe26620c1cf44fc4d2fcb",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "10.16.2.2",
+          "page_or_anchor": "p.472",
+          "chunk_kind": "table",
+          "citation_id": "usb32:10.16.2.2:p.472:1562:2d84614a8e562c122dacf484a5bb857ff81de71b99afe26620c1cf44fc4d2fcb",
+          "content_preview": "bmRequestType | bRequest | wValue | wIndex |  | wLength\nCLEAR_FEATURE | Feature Selector | Selector | Port | Zero"
+        }
+      ],
+      "success_condition": "target_rank <= 5"
+    },
+    {
+      "id": "regression_port_link_state",
+      "query": "PORT_LINK_STATE feature selector value",
+      "target_rank": 1,
+      "target_hit": {
+        "rank": 1,
+        "score": 17.899067,
+        "matched_terms": [
+          "port_link_state",
+          "feature",
+          "selector",
+          "value"
+        ],
+        "chunk_id": "usb32:10.16.2.10:p.483:1612:eccd6e3d104a0e44b5c1c94aea06ecffbcc051f74befd70a76476892e3bdaf2e",
+        "source_id": "usb32",
+        "revision": "Rev 1.1",
+        "section": "10.16.2.10",
+        "page_or_anchor": "p.483",
+        "chunk_kind": "paragraph",
+        "citation_id": "usb32:10.16.2.10:p.483:1612:eccd6e3d104a0e44b5c1c94aea06ecffbcc051f74befd70a76476892e3bdaf2e",
+        "content_preview": "The port number shall be a valid port number for that hub, greater than zero. The port\nnumber is in the least significant byte (bits 7..0) of the wIndex field. The most significant\nbyte of wIndex is zero, except when the feature selector is"
+      },
+      "within_top5": true,
+      "diagnostics": [],
+      "top_hits": [
+        {
+          "rank": 1,
+          "score": 17.899067,
+          "matched_terms": [
+            "port_link_state",
+            "feature",
+            "selector",
+            "value"
+          ],
+          "chunk_id": "usb32:10.16.2.10:p.483:1612:eccd6e3d104a0e44b5c1c94aea06ecffbcc051f74befd70a76476892e3bdaf2e",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "10.16.2.10",
+          "page_or_anchor": "p.483",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb32:10.16.2.10:p.483:1612:eccd6e3d104a0e44b5c1c94aea06ecffbcc051f74befd70a76476892e3bdaf2e",
+          "content_preview": "The port number shall be a valid port number for that hub, greater than zero. The port\nnumber is in the least significant byte (bits 7..0) of the wIndex field. The most significant\nbyte of wIndex is zero, except when the feature selector is"
+        },
+        {
+          "rank": 2,
+          "score": 16.682326,
+          "matched_terms": [
+            "feature",
+            "selector",
+            "value"
+          ],
+          "chunk_id": "usb32:10.16.2.10:p.483:1611:b7705c688fc41d15c12fe2612f68d41a757e45ebe68062d0c809e9b9babc972f",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "10.16.2.10",
+          "page_or_anchor": "p.483",
+          "chunk_kind": "table",
+          "citation_id": "usb32:10.16.2.10:p.483:1611:b7705c688fc41d15c12fe2612f68d41a757e45ebe68062d0c809e9b9babc972f",
+          "content_preview": "bmRequestType | bRequest | wValue | wIndex |  | wLength\nSET_ FEATURE | Feature\nSelector | Selector or\nTimeout Value\nor\nRemote Wake\nMask | Port | Zero"
+        },
+        {
+          "rank": 3,
+          "score": 14.033234,
+          "matched_terms": [
+            "feature",
+            "selector"
+          ],
+          "chunk_id": "usb32:9.4.1:p.364:1013:7671acd21038aea92c20a806e24b927bc9d2e3fe5c9918b1b90cf1dd5396fe86",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "9.4.1",
+          "page_or_anchor": "p.364",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb32:9.4.1:p.364:1013:7671acd21038aea92c20a806e24b927bc9d2e3fe5c9918b1b90cf1dd5396fe86",
+          "content_preview": "Feature selector values in wValue shall be appropriate to the recipient. Only device feature\nselector values may be used when the recipient is a device, only interface feature selector"
+        },
+        {
+          "rank": 4,
+          "score": 13.379543,
+          "matched_terms": [
+            "feature",
+            "selector"
+          ],
+          "chunk_id": "usb32:10.16.2.2:p.472:1562:2d84614a8e562c122dacf484a5bb857ff81de71b99afe26620c1cf44fc4d2fcb",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "10.16.2.2",
+          "page_or_anchor": "p.472",
+          "chunk_kind": "table",
+          "citation_id": "usb32:10.16.2.2:p.472:1562:2d84614a8e562c122dacf484a5bb857ff81de71b99afe26620c1cf44fc4d2fcb",
+          "content_preview": "bmRequestType | bRequest | wValue | wIndex |  | wLength\nCLEAR_FEATURE | Feature Selector | Selector | Port | Zero"
+        },
+        {
+          "rank": 5,
+          "score": 12.552477,
+          "matched_terms": [
+            "feature",
+            "selector"
+          ],
+          "chunk_id": "usb32:10.16.2:p.471:1552:cf9790a88bf021bde1e8846552ab78ee95f9177c9e4eb1a9fa4e03c155639ef5",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "10.16.2",
+          "page_or_anchor": "p.471",
+          "chunk_kind": "table",
+          "citation_id": "usb32:10.16.2:p.471:1552:cf9790a88bf021bde1e8846552ab78ee95f9177c9e4eb1a9fa4e03c155639ef5",
+          "content_preview": "Request | bmRequestType | bRequest | wValue | wIndex | wLength\nClearHubFeature | 00100000B | CLEAR_FEATURE | Feature\nSelector | Zero | Zero\nClearPortFeature | 00100011B | CLEAR_FEATURE | Feature\nSelector | Port | Zero\nGetHubDescriptor | 101"
+        }
+      ],
+      "success_condition": "target_rank <= 5"
+    },
+    {
+      "id": "regression_get_configuration",
+      "query": "Get Configuration request response",
+      "target_rank": 1,
+      "target_hit": {
+        "rank": 1,
+        "score": 11.479453,
+        "matched_terms": [
+          "get",
+          "configuration"
+        ],
+        "chunk_id": "usb20_fw:9.4.2:p.281:556:d7e264d0a7c80ddfdfe973bb68f9a3965c35719bc3e7967ffb994fc761bc858b",
+        "source_id": "usb20_fw",
+        "revision": "2.0",
+        "section": "9.4.2",
+        "page_or_anchor": "p.281",
+        "chunk_kind": "heading_only",
+        "citation_id": "usb20_fw:9.4.2:p.281:556:d7e264d0a7c80ddfdfe973bb68f9a3965c35719bc3e7967ffb994fc761bc858b",
+        "content_preview": "9.4.2 Get Configuration"
+      },
+      "within_top5": true,
+      "diagnostics": [],
+      "top_hits": [
+        {
+          "rank": 1,
+          "score": 11.479453,
+          "matched_terms": [
+            "get",
+            "configuration"
+          ],
+          "chunk_id": "usb20_fw:9.4.2:p.281:556:d7e264d0a7c80ddfdfe973bb68f9a3965c35719bc3e7967ffb994fc761bc858b",
+          "source_id": "usb20_fw",
+          "revision": "2.0",
+          "section": "9.4.2",
+          "page_or_anchor": "p.281",
+          "chunk_kind": "heading_only",
+          "citation_id": "usb20_fw:9.4.2:p.281:556:d7e264d0a7c80ddfdfe973bb68f9a3965c35719bc3e7967ffb994fc761bc858b",
+          "content_preview": "9.4.2 Get Configuration"
+        },
+        {
+          "rank": 2,
+          "score": 11.367884,
+          "matched_terms": [
+            "get",
+            "configuration"
+          ],
+          "chunk_id": "usb32:9.4.2:p.365:1015:fe211fd465ff58740cbf998b73adfdfec7ec5e23b036da42c72004ec2d30e93c",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "9.4.2",
+          "page_or_anchor": "p.365",
+          "chunk_kind": "heading_only",
+          "citation_id": "usb32:9.4.2:p.365:1015:fe211fd465ff58740cbf998b73adfdfec7ec5e23b036da42c72004ec2d30e93c",
+          "content_preview": "9.4.2 Get Configuration"
+        },
+        {
+          "rank": 3,
+          "score": 11.255821,
+          "matched_terms": [
+            "get",
+            "configuration"
+          ],
+          "chunk_id": "usb20_fw:9.4.2:p.281:558:4ceb4d6197a3291d1e3aa7f626d3b144d0eb8e0ff50da6b7ec46a2eea9818781",
+          "source_id": "usb20_fw",
+          "revision": "2.0",
+          "section": "9.4.2",
+          "page_or_anchor": "p.281",
+          "chunk_kind": "table",
+          "citation_id": "usb20_fw:9.4.2:p.281:558:4ceb4d6197a3291d1e3aa7f626d3b144d0eb8e0ff50da6b7ec46a2eea9818781",
+          "content_preview": "bmRequestType | bRequest | wValue | wIndex | wLength | Data\n10000000B | GET_CONFIGURATION | Zero | Zero | One | Configuration\nValue"
+        },
+        {
+          "rank": 4,
+          "score": 10.453503,
+          "matched_terms": [
+            "get",
+            "configuration"
+          ],
+          "chunk_id": "usb32:9.4.2:p.365:1017:687dc1e50ef35c962c3f7de4e8515ff30329a8ad7b1df0ad18d78ea7fbe2962d",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "9.4.2",
+          "page_or_anchor": "p.365",
+          "chunk_kind": "table",
+          "citation_id": "usb32:9.4.2:p.365:1017:687dc1e50ef35c962c3f7de4e8515ff30329a8ad7b1df0ad18d78ea7fbe2962d",
+          "content_preview": "bmRequestType | bRequest | wValue | wIndex | wLength\nGET_CONFIGURATION | Zero | Zero | One"
+        },
+        {
+          "rank": 5,
+          "score": 9.892522,
+          "matched_terms": [
+            "get",
+            "request"
+          ],
+          "chunk_id": "usb32:9.4.5:p.368:1034:3732c18bff0c7c07a2d0d6efb3fffb387f99c7d6641508438c3b02d5ec43fc1a",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "9.4.5",
+          "page_or_anchor": "p.368",
+          "chunk_kind": "table",
+          "citation_id": "usb32:9.4.5:p.368:1034:3732c18bff0c7c07a2d0d6efb3fffb387f99c7d6641508438c3b02d5ec43fc1a",
+          "content_preview": " |  |  |  |  |  |  | \n |  |  |  |  |  |  | \n |  |  |  |  |  |  | \n |  |  |  |  |  |  | "
+        }
+      ],
+      "success_condition": "target_rank <= 5"
+    },
+    {
+      "id": "regression_warm_reset_section",
+      "query": "6.9.3 Warm Reset downstream port link states",
+      "target_rank": 2,
+      "target_hit": {
+        "rank": 2,
+        "score": 22.683376,
+        "matched_terms": [
+          "6.9.3",
+          "warm",
+          "reset",
+          "downstream",
+          "port",
+          "link",
+          "states"
+        ],
+        "chunk_id": "usb32:6.9.3:p.135:283:e8b2172de6a7e24d8b4769f9692739de16a957a35a2026e6bdab68f3f8a96d06",
+        "source_id": "usb32",
+        "revision": "Rev 1.1",
+        "section": "6.9.3",
+        "page_or_anchor": "p.135",
+        "chunk_kind": "paragraph",
+        "citation_id": "usb32:6.9.3:p.135:283:e8b2172de6a7e24d8b4769f9692739de16a957a35a2026e6bdab68f3f8a96d06",
+        "content_preview": "A Warm Reset is a reset generated only by a downstream port to an upstream port. A\ndownstream port may issue a Warm Reset at any Link states except SS.Disabled. An\nupstream port is required to detect a Warm Reset at any link states except S"
+      },
+      "within_top5": true,
+      "diagnostics": [],
+      "top_hits": [
+        {
+          "rank": 1,
+          "score": 23.775307,
+          "matched_terms": [
+            "6.9.3",
+            "warm",
+            "reset",
+            "downstream",
+            "port",
+            "link",
+            "states"
+          ],
+          "chunk_id": "usb32:7.4.2:p.190:599:83f548c97232867961192b0eb15d617fb6eebfa9bee33f320e7c942620d57c28",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "7.4.2",
+          "page_or_anchor": "p.190",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb32:7.4.2:p.190:599:83f548c97232867961192b0eb15d617fb6eebfa9bee33f320e7c942620d57c28",
+          "content_preview": "1. If a Hot Reset fails due to an LFPS handshake timeout in U1 or U2, a\ndownstream port shall transition to eSS.Inactive until software intervention\nor upon detection of removal of an upstream port.\n2. If a Hot Reset fails due to a TS1/TS2 "
+        },
+        {
+          "rank": 2,
+          "score": 22.683376,
+          "matched_terms": [
+            "6.9.3",
+            "warm",
+            "reset",
+            "downstream",
+            "port",
+            "link",
+            "states"
+          ],
+          "chunk_id": "usb32:6.9.3:p.135:283:e8b2172de6a7e24d8b4769f9692739de16a957a35a2026e6bdab68f3f8a96d06",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "6.9.3",
+          "page_or_anchor": "p.135",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb32:6.9.3:p.135:283:e8b2172de6a7e24d8b4769f9692739de16a957a35a2026e6bdab68f3f8a96d06",
+          "content_preview": "A Warm Reset is a reset generated only by a downstream port to an upstream port. A\ndownstream port may issue a Warm Reset at any Link states except SS.Disabled. An\nupstream port is required to detect a Warm Reset at any link states except S"
+        },
+        {
+          "rank": 3,
+          "score": 19.422272,
+          "matched_terms": [
+            "6.9.3",
+            "warm",
+            "reset"
+          ],
+          "chunk_id": "usb32:6.9.3:p.135:282:b68cd6edb478954329eb16f58817e7ef50d9c54b1c96a3506cb89723ee9cb8cf",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "6.9.3",
+          "page_or_anchor": "p.135",
+          "chunk_kind": "heading_only",
+          "citation_id": "usb32:6.9.3:p.135:282:b68cd6edb478954329eb16f58817e7ef50d9c54b1c96a3506cb89723ee9cb8cf",
+          "content_preview": "6.9.3 Warm Reset"
+        },
+        {
+          "rank": 4,
+          "score": 19.388086,
+          "matched_terms": [
+            "6.9.3",
+            "warm",
+            "reset",
+            "downstream",
+            "port"
+          ],
+          "chunk_id": "usb32:7.5.3.3.2:p.197:660:d960d5631e07d8a58840ab368630cb6868bbd4aa1336f1690a8c50aa07b86dcc",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "7.5.3.3.2",
+          "page_or_anchor": "p.197",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb32:7.5.3.3.2:p.197:660:d960d5631e07d8a58840ab368630cb6868bbd4aa1336f1690a8c50aa07b86dcc",
+          "content_preview": "\u2022 The port shall transition directly to Rx.Detect.Active if the entry to Rx.Detect is not\ndue to a Warm Reset.\nNote: Warm Reset is not present during power-on.\n\u2022 A downstream port shall transition to Rx.Detect.Active after it transmits Warm"
+        },
+        {
+          "rank": 5,
+          "score": 17.980048,
+          "matched_terms": [
+            "6.9.3",
+            "warm",
+            "reset",
+            "downstream",
+            "port"
+          ],
+          "chunk_id": "usb32:7.5.3.3.1:p.197:658:b792eb49fb304a94d215e296213ad86c2f3c1d2c8327b8554faeaf2b51e9ad5a",
+          "source_id": "usb32",
+          "revision": "Rev 1.1",
+          "section": "7.5.3.3.1",
+          "page_or_anchor": "p.197",
+          "chunk_kind": "paragraph",
+          "citation_id": "usb32:7.5.3.3.1:p.197:658:b792eb49fb304a94d215e296213ad86c2f3c1d2c8327b8554faeaf2b51e9ad5a",
+          "content_preview": "If a port enters Rx.Detect upon a Warm Reset, the following requirements shall be applied.\nRefer to Section 6.9.3 for details.\n\u2022 A downstream port shall transmit Warm Reset for the duration of tReset as defined\nin Table 6-30.\nNote: This inc"
+        }
+      ],
+      "success_condition": "target_rank <= 5"
+    }
+  ],
+  "table_6_30_top5_pass": true,
+  "table_7_8": "diagnosis_only"
+}
