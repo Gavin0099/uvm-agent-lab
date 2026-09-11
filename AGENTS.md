@@ -539,3 +539,55 @@ repository root.
 - Non-trivial feature or bugfix work must not be reported with happy-path-only tests: reproducible bugs need regression tests when feasible, expected values must come from a spec/invariant/fixture rather than copied production logic, mock-only assertions are weak evidence unless observable behavior is asserted, and domain validators need pass/fail fixtures plus an execution harness before fixture evidence is treated as strong.
 - `test_signal_quality_audit` output is report-only reviewer evidence; it helps surface weak signals but does not prove industry-grade tests, domain correctness, or enforcement.
 - Required external contract surfaces: contract.yaml, governance/framework.lock.json, .git/hooks/pre-commit, .git/hooks/pre-push, .github/copilot-instructions.md.
+
+## Operator UI presentation workflow
+<!-- governance:key=operator_ui_presentation -->
+
+Operator UI (`gv100h/spec_qa/operator_ui/`) is a Machine B development
+shell. Skill files existing is not enough; follow this routing.
+
+When modifying `gv100h/spec_qa/operator_ui/static/**`:
+
+1. Read `.agents/skills/frontend-design/SKILL.md` and fill the
+   Frontend Thinking Gate before proposing. Audit the current
+   rendered page first; do not start with palette.
+2. Produce or update `docs/operator-ui-ia-ux-redesign.md` and keep
+   `docs/operator-ui/DESIGN.md` as the living language. Do not dump
+   those docs into this file.
+3. Do not modify `QAResponse`, `/api/qa`, retrieval, or
+   `GovernedQAService` contracts.
+4. After implementation, read `.agents/skills/ui-ux-review/SKILL.md`
+   (structure first, polish last).
+5. Read `.agents/skills/frontend-visual-qa/SKILL.md` and review
+   screenshot or rendered UI, not source code only. Viewports:
+   Desktop 1440×900, Laptop 1280×800, Mobile 390×844.
+
+```text
+UI change
+  → frontend-design (Thinking Gate)
+  → IA proposal + DESIGN.md
+  → implementation
+  → ui-ux-review
+  → frontend-visual-qa (screenshots)
+  → PR
+```
+
+First visual layer is only **Ask → Answer → Source**. Schema fields
+stay under Advanced / Evidence / Governance. Do not keep the 50/50
+schema-viewer layout.
+
+ALLOW: IA, typography, spacing, hierarchy, responsive, accessibility,
+CSS, HTML presentation, interaction.
+
+DENY: QAResponse, GovernedQAService, retrieval, React, Tailwind,
+shadcn, Vite, UI frameworks, `/api/qa` contract, fabricated PDF
+anchors.
+
+Keep HTML, CSS, vanilla JS, Python HTTP server. Fixture honesty
+strings stay unless tests change in the same slice.
+
+`tests/gv100h/test_operator_ui_presentation_workflow.py` locks that
+this routing exists. It does **not** prove UX quality.
+
+Do not mix this workflow freeze with a large `static/` rewrite. Next
+implementation branch: `feat/spec-qa-operator-ui-redesign`.
