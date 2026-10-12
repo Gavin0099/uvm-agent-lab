@@ -1,0 +1,20 @@
+{
+  "receipt_sha256": "408e05aa9ff8add647710f43cb77af1fb8c445bbefc9e5faddc7162b24155ac9",
+  "corpus_chunk_count": 4330,
+  "corpus_sha256": "8aef81aa6857d9107df56a1b14dbd0c1f1e83d8295018a7c41a9b99b87496293",
+  "corpus_lock": "gv100h/spec_qa/contracts/corpus.lock.yaml",
+  "corpus_lock_sha256": "ce319b2044178d02b12f79e2ebb5b6a113d9ae3ef28914f8473bf9c0021769a8",
+  "authoring_integration_commit": "2e58cecbbfe4be4435e931c920134d814a1ac479",
+  "authoring_pdf_ingestion_sha256": "fc4951ef8c4c83e2dea38eadf3a2dc6d1da324aeccfc52278d9b4693467716fe",
+  "chunk_identity_sha256": "194b3712981ee73e3b7d88096cbe4f7a8f40630a060f58b603ff36fd3f1ee353",
+  "chunk_identity_sha256_definition": "SHA-256 over, for each chunk in ingestion order, chunk_id, NUL, content_sha256, NUL. Measured on 2026-09-30 from the corpus that reproduced the receipt digest; it is not a value stored in the S56-C receipt, and it is independent of BM25 tokenization.",
+  "identity_schema": "spec_qa_frozen_corpus_identity.v0.1",
+  "corpus_version": "S56-C-2026-09-14",
+  "source_ids": [
+    "usb20_fw",
+    "usb20_se",
+    "usb32",
+    "superspeed_hub_lvs"
+  ],
+  "scope": "Archived benchmark corpus only; not the current product corpus or live model/answer qualification. Source PDFs and raw archival receipt stay private."
+}
