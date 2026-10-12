@@ -16,7 +16,21 @@ def match_quote(quote, source):
     """
     if not isinstance(quote, str) or not quote.strip():
         return None
-    pattern = r"\s+".join(re.escape(word) for word in quote.split())
+    # A literal continuous excerpt can retain paragraph separators as-is.
+    literal = source.find(quote)
+    if literal >= 0:
+        return {"original_quote": quote, "source_start": literal,
+                "source_end": literal + len(quote), "match_kind": "exact_whitespace",
+                "matcher_version": QUOTE_MATCHER_VERSION}
+    # Unicode space separators (Zs) and TAB; vertical/record controls are not
+    # horizontal whitespace even when Python str.split treats them as space.
+    horizontal = r"[\t \u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]"
+    # Layout normalization supports horizontal whitespace or one physical line
+    # wrap only. Paragraph/page separators must never be silently collapsed.
+    separator = r"(?:" + horizontal + r"+|" + horizontal + r"*\r?\n" + horizontal + r"*)"
+    if any(re.fullmatch(separator, gap) is None for gap in re.findall(r"\s+", quote)):
+        return None
+    pattern = separator.join(re.escape(word) for word in quote.split())
     match = re.search(pattern, source)
     if match:
         start, end, kind = match.start(), match.end(), "exact_whitespace"

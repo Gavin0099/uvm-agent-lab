@@ -129,3 +129,18 @@ def test_no_table_declaration_is_not_semantic_approval():
     trusted, sent, claims = specimen()
     result = verify_single_table_relation(claims[:1], sent_evidence=sent, trusted_chunks=trusted)
     assert result["status"] == "NOT_APPLICABLE"
+
+
+@pytest.mark.parametrize("ids", [[], [""], [" "], [None], [7]])
+def test_each_data_claim_needs_valid_nonempty_local_citations(ids):
+    trusted, sent, claims = specimen()
+    claims[0]["citation_ids"] = ids
+    with pytest.raises(TableProvenanceError):
+        verify_single_table_relation(claims, sent_evidence=sent, trusted_chunks=trusted)
+
+
+def test_flattening_must_not_hide_duplicate_claim_local_ids():
+    trusted, sent, claims = specimen()
+    claims[0]["citation_ids"] *= 2
+    with pytest.raises(TableProvenanceError):
+        verify_single_table_relation(claims, sent_evidence=sent, trusted_chunks=trusted)

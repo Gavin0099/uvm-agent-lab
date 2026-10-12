@@ -32,7 +32,10 @@ def verify_single_table_relation(claims, *, sent_evidence, trusted_chunks):
     if not isinstance(claims, (list, tuple)) or not claims:
         raise TableProvenanceError("TABLE_CLAIMS_INVALID", "explicit claims required")
     if any(not isinstance(c, Mapping) or not isinstance(c.get("value"), Mapping)
-           or not isinstance(c.get("citation_ids"), (list, tuple)) for c in claims):
+           or not isinstance(c.get("citation_ids"), (list, tuple))
+           or not c["citation_ids"]
+           or any(not isinstance(cid, str) or not cid.strip() for cid in c["citation_ids"])
+           or len(c["citation_ids"]) != len(set(c["citation_ids"])) for c in claims):
         raise TableProvenanceError("TABLE_CLAIMS_INVALID", "malformed claim")
     declarations = [c for c in claims if "table" in c["value"]]
     if not declarations:

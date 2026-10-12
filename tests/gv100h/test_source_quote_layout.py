@@ -43,3 +43,40 @@ def test_faithful_quote_does_not_check_claim_modality():
     assert result["original_quote"] == source
     assert "can" in result["original_quote"]
     # No claim input: separate semantic review must reject an always/must claim.
+
+
+@pytest.mark.parametrize("source", ["alpha\n\nbeta", "alpha\r\n\r\nbeta", "alpha\n \t\nbeta", "alpha\u2029beta"])
+def test_whitespace_matching_cannot_collapse_source_paragraph_boundaries(source):
+    assert match_quote("alpha beta", source) is None
+
+
+def test_verbatim_paragraph_separator_is_preserved_without_joining():
+    source = "prefix alpha\n\nbeta suffix"
+    result = match_quote("alpha\n\nbeta", source)
+    assert result["original_quote"] == "alpha\n\nbeta"
+    assert source[result["source_start"]:result["source_end"]] == result["original_quote"]
+
+
+def test_single_line_wrap_remains_supported():
+    assert match_quote("alpha beta", "alpha\n beta")["original_quote"] == "alpha\n beta"
+
+
+def test_model_bare_cr_paragraph_is_not_erased_by_tokenization():
+    assert match_quote("alpha\r\rbeta", "alpha beta") is None
+
+
+def test_verbatim_source_bare_cr_separator_is_preserved():
+    source = "alpha\r\rbeta"
+    result = match_quote(source, source)
+    assert result["original_quote"] == source
+    assert source[result["source_start"]:result["source_end"]] == source
+
+
+@pytest.mark.parametrize("gap", ["\x1c", "\x1d", "\x1e"])
+def test_other_record_separators_are_not_horizontal_layout_whitespace(gap):
+    assert match_quote("alpha" + gap + "beta", "alpha beta") is None
+    assert match_quote("alpha beta", "alpha" + gap + "beta") is None
+
+
+def test_unicode_horizontal_space_can_still_be_normalized():
+    assert match_quote("alpha beta", "alpha\u00a0beta")["original_quote"] == "alpha\u00a0beta"
