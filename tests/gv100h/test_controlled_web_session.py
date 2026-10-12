@@ -1,6 +1,8 @@
 """Synthetic lifecycle fixtures, not model/citation-semantic qualification."""
 import copy
 import json
+import os
+import stat
 import threading
 
 import pytest
@@ -166,3 +168,41 @@ def test_corrupt_ledger_is_not_reset_and_failed_init_releases_lock(tmp_path,chan
     assert read(tmp_path/"session.json") == invalid and not executor.calls
     persist(tmp_path/"session.json",original)
     session=ControlledSession(tmp_path,executor); session.close()
+
+
+def test_public_projection_omits_unvalidated_typed_extras_but_retains_internal(tmp_path):
+    result=fixture_result()
+    result["view"]["typed_claims"]={"claims":[{"value":{"raw_model_content":"private typed trace"}}],"private_trace":"private nested trace"}
+    executor=FixtureExecutor(result=result); session=ControlledSession(tmp_path,executor)
+    try:
+        session.submit("fixture","a"*32); finish(session)
+        public=session.job("a"*32)["result"]
+        assert "typed_claims" not in public["view"] and "private" not in json.dumps(public)
+        assert public["view"]["claims"]==["fixture claim"] and public["view"]["claim_evidence_ids"]==[["FIXTURE-1"]]
+        saved=read(tmp_path/("a"*32)/"result.json")
+        assert saved["view"]["typed_claims"]==result["view"]["typed_claims"]
+    finally: session.close()
+
+
+def test_new_ledger_job_and_raw_records_are_private_under_public_umask(tmp_path):
+    old=os.umask(0o022)
+    session=None
+    try:
+        ledger=tmp_path/"new-ledger"; session=ControlledSession(ledger,FixtureExecutor())
+        session.submit("fixture","a"*32); finish(session)
+        for path in (ledger,ledger/("a"*32)):
+            assert stat.S_IMODE(path.stat().st_mode)==0o700
+        for path in (ledger/"session.json",ledger/("a"*32)/"result.json"):
+            assert stat.S_IMODE(path.stat().st_mode)==0o600
+    finally:
+        if session is not None: session.close()
+        os.umask(old)
+
+
+def test_unsafe_existing_ledger_is_rejected_without_chmod_or_reset(tmp_path):
+    ledger=tmp_path/"shared"; ledger.mkdir(mode=0o755); ledger.chmod(0o755)
+    original=b'{"private":"preserved original"}\n'; (ledger/"session.json").write_bytes(original)
+    with pytest.raises(ValueError,match="0700"):
+        ControlledSession(ledger,FixtureExecutor())
+    assert (ledger/"session.json").read_bytes()==original
+    assert stat.S_IMODE(ledger.stat().st_mode)==0o755

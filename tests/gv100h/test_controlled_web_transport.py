@@ -2,6 +2,8 @@
 import json
 from pathlib import Path
 import fcntl
+import os
+import stat
 import threading
 
 import pytest
@@ -122,3 +124,16 @@ def test_initialization_cannot_overwrite_a_concurrently_consumed_journal(tmp_pat
     journal=read(tmp_path/"requests.json")
     assert journal["count"]==1 and journal["status"]=="AWAITING_REVIEW" and len(journal["requests"])==1
     assert read(tmp_path/"call-1/completion.json")["content"]=="fixture completion"
+
+
+def test_transport_request_raw_and_completion_records_are_owner_only(tmp_path):
+    old=os.umask(0o022)
+    try:
+        directory=tmp_path/"transport"
+        client=OneShotCapturedClient(directory,admission_check=lambda _b:None,connection_factory=lambda *_a,**_k:Connection())
+        client.complete(MESSAGES)
+        for p in (directory,directory/"call-1"):
+            assert stat.S_IMODE(p.stat().st_mode)==0o700
+        for p in (directory/"requests.json",directory/"call-1/body.json",directory/"call-1/raw-http.json",directory/"call-1/completion.json"):
+            assert stat.S_IMODE(p.stat().st_mode)==0o600
+    finally: os.umask(old)

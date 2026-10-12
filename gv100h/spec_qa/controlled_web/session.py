@@ -11,7 +11,7 @@ import threading
 import time
 
 from gv100h.spec_qa.operator_ui.contract import OperatorQAView
-from .storage import persist, read
+from .storage import persist, read, private_directory, open_private
 
 CAP = 6
 ID = re.compile(r"[a-f0-9]{32}\Z")
@@ -59,8 +59,6 @@ def public_result(result):
     allowed = {"preview", "mode", "free_question", "label", "question", "saved_date", "elapsed_seconds", "original_response_sha256", "job_id", "refusal_summary"}
     output = {k: v for k, v in result.items() if k in allowed}
     output["view"] = parsed.model_dump(mode="json")
-    if isinstance(view.get("typed_claims"), dict):
-        output["view"]["typed_claims"] = view["typed_claims"]
     output["inspection"] = {"stage": result.get("inspection", {}).get("stage")}
     return output
 
@@ -73,9 +71,9 @@ class ControlledSession:
     """
     def __init__(self, directory, executor, *, question_validator=validate_question):
         self.directory = Path(directory).resolve()
-        self.directory.mkdir(parents=True, exist_ok=True)
+        private_directory(self.directory)
         self.executor, self.question_validator = executor, question_validator
-        self.process_lock = (self.directory / "session.lock").open("a+")
+        self.process_lock = open_private(self.directory / "session.lock", "a+")
         self.lock, self.thread, self.closed = threading.Lock(), None, False
         self.path = self.directory / "session.json"
         try:
@@ -150,7 +148,7 @@ class ControlledSession:
                 return key
             if self.state["status"] != "READY" or self.state["active_job"] or self.state["count"] >= CAP:
                 raise TrialError("本輪正在處理、已停止或額度已用完；沒有追加請求。")
-            (self.directory / key).mkdir(exist_ok=False)
+            (self.directory / key).mkdir(mode=0o700, exist_ok=False)
             self.state["jobs"][key] = {"id": key, "question": question, "status": "RESERVED", "started_at": time.time()}
             self.state.update(count=self.state["count"] + 1, active_job=key, last_job=key)
             persist(self.path, self.state)

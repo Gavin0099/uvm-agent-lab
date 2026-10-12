@@ -57,8 +57,19 @@ route. The previous explicitly reviewed saved-response repair remains in the
 old host integration; it has not been generalized or automatically enabled.
 
 The HTTP job projection excludes raw model responses and private failure text.
+It also omits opaque `typed_claims`: the public `claims` and citation links keep
+the already-validated answer and conditions; original typed data stays internal.
+Typed detail/fact-card projection is not claimed by this infrastructure API.
 The internal result/failure records retain them for local review. Both valid
 refusals and answers remain distinct from runtime failure in the public status.
+
+New ledger/job/transport directories use mode 0700; records and locks use 0600
+even with umask 0022. A supplied existing ledger/transport directory must be
+owned and mode 0700, or startup fails without changing it or resetting its data.
+Existing non-private lock files are likewise rejected, unchanged. This requires
+an explicit host-side permission migration before adopting an unsafe historical
+directory; this PR performs no migration on the deployed website or its ledger.
+The private-directory protection targets the existing POSIX host model.
 
 For external HTTPS, `gateway.GatewayPolicy` and `external_gateway` keep the
 existing exact quick-tunnel origin, authentication, expiry and rate limit. Read

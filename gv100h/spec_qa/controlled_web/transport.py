@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 import time
 
-from .storage import persist, read
+from .storage import persist, read, private_directory, open_private
 
 MODEL = "mlx-community/Qwen3.8-27B-4bit"
 
@@ -31,20 +31,20 @@ class OneShotCapturedClient:
     """
     def __init__(self, directory, *, expected_body=None, connection_factory=HTTPConnection, admission_check=None):
         self.directory = Path(directory)
-        self.directory.mkdir(parents=True, exist_ok=True)
+        private_directory(self.directory)
         self.journal_path = self.directory / "requests.json"
         self.expected_body, self.connection_factory = expected_body, connection_factory
         self.admission_check = admission_check
         # Initialization participates in the same ownership as reservation.
         # Recheck existence *inside* the lock: a delayed initializer must not
         # overwrite a journal another client has already reserved or consumed.
-        with (self.directory / "transport.lock").open("a+") as lock:
+        with open_private(self.directory / "transport.lock", "a+") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             if not self.journal_path.exists():
                 persist(self.journal_path, {"status": "READY", "count": 0, "cap": 3, "retry": 0, "requests": []})
 
     def complete(self, messages):
-        with (self.directory / "transport.lock").open("a+") as lock:
+        with open_private(self.directory / "transport.lock", "a+") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             return self._complete(messages)
 
@@ -65,8 +65,8 @@ class OneShotCapturedClient:
             raise RuntimeError("Model budget/stop state forbids another call")
         number = journal["count"] + 1
         folder = self.directory / f"call-{number}"
-        folder.mkdir(exist_ok=False)
-        with (folder / "body.json").open("xb") as stream:
+        folder.mkdir(mode=0o700, exist_ok=False)
+        with open_private(folder / "body.json", "xb") as stream:
             stream.write(body); stream.flush(); os.fsync(stream.fileno())
         entry = {"number": number, "body_sha256": hashlib.sha256(body).hexdigest(), "retry": 0, "status": "RESERVED"}
         journal["requests"].append(entry)
@@ -82,7 +82,7 @@ class OneShotCapturedClient:
                 headers={"Content-Type": "application/json", "Content-Length": str(len(body))})
             response = connection.getresponse()
             raw = response.read()
-            with (folder / "raw-http.json").open("xb") as stream:
+            with open_private(folder / "raw-http.json", "xb") as stream:
                 stream.write(raw); stream.flush(); os.fsync(stream.fileno())
             if response.status != 200:
                 raise RuntimeError(f"HTTP status {response.status}; no redirect or resend")
