@@ -124,3 +124,57 @@ def test_verified_lock_bytes_are_the_bytes_given_to_ingestion(tmp_path, monkeypa
     assert result.get_chunk(synthetic_chunk().chunk_id).content == "alpha beta"
     assert result.get_chunk("missing") is None
     assert target.read_text() == "label: changed-after-verification\n"
+
+
+def loaded_synthetic_snapshot(tmp_path, monkeypatch):
+    fixture_pins(monkeypatch)
+    original = synthetic_chunk()
+    monkeypatch.setattr(rbc, "_load_frozen_ingestion", lambda: SimpleNamespace(
+        load_accepted_chunks=lambda *args, **kwargs: [original]))
+    return rbc.load_receipt_bound_corpus(raw_root=tmp_path), original
+
+
+@pytest.mark.parametrize("field, replacement", [
+    ("content", "changed evidence"), ("content_sha256", "b" * 64),
+    ("chunk_id", "changed-id"), ("document", "changed document"),
+    ("revision", "2"), ("section", "3.2"),
+])
+def test_loaded_receipt_chunks_reject_field_mutation(tmp_path, monkeypatch, field, replacement):
+    corpus, original = loaded_synthetic_snapshot(tmp_path, monkeypatch)
+    chunk = corpus.get_chunk(original.chunk_id)
+    assert chunk is corpus.chunks[0]
+    expected = original.model_dump()
+    with pytest.raises(ValueError, match="frozen_instance"):
+        setattr(chunk, field, replacement)
+    assert chunk.model_dump() == expected
+    assert corpus.corpus_sha256 == SYNTHETIC_CORPUS
+    assert corpus.chunk_identity_sha256 == SYNTHETIC_IDENTITY
+
+
+def test_loader_detached_snapshot_survives_input_alias_mutation(tmp_path, monkeypatch):
+    corpus, original = loaded_synthetic_snapshot(tmp_path, monkeypatch)
+    expected = original.model_dump()
+    original.content = "changed through the ingestion object's alias"
+    original.document = "different source"
+    assert corpus.chunks[0].model_dump() == expected
+    assert corpus.get_chunk(expected["chunk_id"]).content == "alpha beta"
+
+
+@pytest.mark.parametrize("operation", ["replace", "delete"])
+def test_loaded_receipt_index_rejects_mutation(tmp_path, monkeypatch, operation):
+    corpus, original = loaded_synthetic_snapshot(tmp_path, monkeypatch)
+    with pytest.raises(TypeError):
+        if operation == "replace":
+            corpus._by_id[original.chunk_id] = synthetic_chunk(1)
+        else:
+            del corpus._by_id[original.chunk_id]
+    assert corpus.get_chunk(original.chunk_id).model_dump() == original.model_dump()
+    assert corpus.get_chunk("unknown") is None
+
+
+def test_byte_pinned_checkout_files_have_explicit_lf_attributes():
+    rules = (ROOT / ".gitattributes").read_text().splitlines()
+    assert "gv100h/spec_qa/frozen_corpus/s56c_pdf_ingestion.py text eol=lf" in rules
+    assert "gv100h/spec_qa/contracts/corpus.lock.yaml text eol=lf" in rules
+    assert b"\r" not in FROZEN.read_bytes()
+    assert b"\r" not in rbc.DEFAULT_LOCK_PATH.read_bytes()

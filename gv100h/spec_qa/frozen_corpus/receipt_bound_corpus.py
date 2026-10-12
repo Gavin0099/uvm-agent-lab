@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Mapping, Optional, Sequence, Tuple
 
 import yaml
+from pydantic import ConfigDict
 
 from gv100h.spec_qa.contracts.governed_chunk import GovernedChunk
 from gv100h.spec_qa.retrieval.real_corpus_retriever import GovernedChunkBM25Retriever
@@ -51,6 +52,12 @@ DEFAULT_LOCK_PATH = Path(__file__).resolve().parents[1] / "contracts" / "corpus.
 
 class ReceiptBoundCorpusError(RuntimeError):
     """The receipt-bound corpus could not be reproduced exactly."""
+
+
+class _ReceiptBoundChunk(GovernedChunk):
+    """Detached, immutable scalar snapshot owned by a verified corpus."""
+
+    model_config = ConfigDict(frozen=True)
 
 
 @dataclass(frozen=True)
@@ -140,7 +147,8 @@ def load_receipt_bound_corpus(
     corpus_lock = yaml.safe_load(lock_bytes)
     try:
         chunks = tuple(
-            frozen_ingestion.load_accepted_chunks(
+            _ReceiptBoundChunk.model_validate(chunk.model_dump())
+            for chunk in frozen_ingestion.load_accepted_chunks(
                 PINNED_SOURCE_IDS, corpus_lock, raw_root=Path(raw_root)
             )
         )
@@ -151,5 +159,5 @@ def load_receipt_bound_corpus(
         chunks=chunks,
         corpus_sha256=corpus_sha256,
         chunk_identity_sha256=chunk_identity_sha256(chunks),
-        _by_id={chunk.chunk_id: chunk for chunk in chunks},
+        _by_id=types.MappingProxyType({chunk.chunk_id: chunk for chunk in chunks}),
     )

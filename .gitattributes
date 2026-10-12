@@ -1,0 +1,3 @@
+# These two files are checked against pins calculated from their LF blobs.
+gv100h/spec_qa/frozen_corpus/s56c_pdf_ingestion.py text eol=lf
+gv100h/spec_qa/contracts/corpus.lock.yaml text eol=lf
