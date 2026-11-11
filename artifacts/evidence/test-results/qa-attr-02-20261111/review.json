@@ -1,0 +1,217 @@
+{
+  "schema": "qa-attr-02-public-projection.v1",
+  "repository": "https://github.com/Gavin0099/uvm-agent-lab.git",
+  "original_path": "/Users/sw1/gv100h-poc/qa-attr-02-20261111/review.json",
+  "original_file_sha256": "39e7fc31e41a3a4ade570d7d94900e56d2d71ad70f715215fe63596f5599f899",
+  "projection_boundary": "Public metadata only; evidence text and long captured strings withheld. Original reports are unchanged in private staging.",
+  "data": {
+    "requirement_id": "QA-ATTR-02",
+    "verdict": "APPROVED",
+    "reviewer": "/root/independent_review",
+    "reviewed_at_utc": "2026-11-11T14:43:02.017080+00:00",
+    "independent_agent_review": true,
+    "human_usb_engineer_approval": false,
+    "review_scope": {
+      "withheld": true,
+      "sha256_utf8": "1876f859b04d2fbfa603ca3de255eb2572dab253337bfb423654c7288602d8d0",
+      "unicode_chars": 270,
+      "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+    },
+    "reviewed_input_manifest": {
+      "path": "/Users/sw1/gv100h-poc/qa-attr-02-20261111/review-input-manifest.json",
+      "sha256": "10a3ab81e2e6727ee6e20054b65f27119c7fe1e8900f85af50966c03b3c43d8c"
+    },
+    "actual_diff": {
+      "path": "/Users/sw1/gv100h-poc/qa-attr-02-20261111/review.diff",
+      "sha256": "d08a8b6302c0f4cdeea1d50d0a19e380ed48747ba351ccc1a8ecd27228bf0864"
+    },
+    "reviewed_hashes": {
+      "/Users/sw1/gv100h-poc/qa-attr-02-20261111/finalize_analysis.py": "ee46d2a37441156d879bec766fd2fde3708218e6f464062191190c62e6e7a322",
+      "/Users/sw1/gv100h-poc/qa-attr-02-20261111/check_pdf.py": "f3ff56c5f3c925611122551e33d71cb500104dce927f9ce05378b78f1d90e860",
+      "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replay.py": "d472e2dda94d047011bc086a950db9315c3d8c93b679289146b51d5a956b7f91",
+      "/Users/sw1/gv100h-poc/qa-attr-02-20261111/verify_artifacts.py": "233f3436e1bc4aa1a89addb6dc94b6bdedffcc5b33dd2cb9b44ba68fc85dfffd",
+      "/Users/sw1/gv100h-poc/qa-attr-02-20261111/analyze.py": "31f768d9223ffa7f9c4f9b523e4cc43464c7a835e342d5086d1cc4f37721cf16",
+      "/Users/sw1/gv100h-poc/qa-attr-02-20261111/task-contract.json": "0b9395a63a4e8a9ff74591f6bec76b9f05e304b9c5f46ec55b0d97914f273d31",
+      "/Users/sw1/gv100h-poc/qa-attr-02-20261111/qa-attr-02-case-selection.json": "5488b66ea63bfd50b9d0a0fef37033e82c7c8cddcc4bab9736dddc62ca11d066",
+      "/Users/sw1/gv100h-poc/qa-attr-02-20261111/qa-attr-02-evidence-diff.json": "4184e9794bd9cb396db085f53c3633a4fc21d29bc7cdef33640bf709635a4c2a",
+      "/Users/sw1/gv100h-poc/qa-attr-02-20261111/qa-attr-02-summary.md": "25fab7e93933f39d8d3f6aeaa34d0adac610c67ab906af235ac94fb8313d81ef",
+      "/Users/sw1/gv100h-poc/qa-attr-02-20261111/artifact-integrity.json": "159141dd80cda935cc73de925e9b2383f2213595136588106e1a169391f7df6c",
+      "/Users/sw1/gv100h-poc/qa-attr-02-20261111/planned-memory-record.json": "1e8f583dc2f5d58b0a65a5281826bda6fdc91fa387d5a3175207cac42bafdbaa",
+      "/Users/sw1/gv100h-poc/qa-attr-02-20261111/review-source-pass.json": "72f955b3ba57495ad9a2977ebcb91934645e4fc139be9339e26923635c8357ee",
+      "/Users/sw1/gv100h-poc/qa-attr-02-20261111/corpus-identity-bridge.json": "85316909b5ebd7fa035b5819fafbba10895caeab929b7c8fc89a046f0019ff6b",
+      "/Users/sw1/gv100h-poc/qa-attr-02-20261111/official-pdf-check.json": "682527b7e2209e500a634c4e2820c883863346cc6e4242cc792868fad8502284",
+      "/Users/sw1/gv100h-poc/qa-attr-02-20261111/pdf-visual-review.json": "8c93e21872d37be8f7775aef034663b0398acd4787ea7eb25dea7cc7357d5fd0",
+      "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replay-execution.json": "13cbf7698d0091bfd02342f5fb1e7c330bd9cede0ba1aae3a685644ada3dd62c",
+      "/Users/sw1/gv100h-poc/qa-attr-02-20261111/delivery-preservation.json": "a5e6ae6990595219411054eb83078b632f737a35fad14d59b4c8934b7d54f5a0",
+      "/Users/sw1/Desktop/uvm-agent-lab/memory/03_knowledge_base.md": "416f89ceab18ac0c2770849e45e6f4cad98b6a916d9c685cd7f14cf4f209e285"
+    },
+    "blocking_findings": [],
+    "nonblocking_findings": [],
+    "resolved_findings": [
+      {
+        "id": "ENUM_LITERAL_FALSE_REGRESSION",
+        "resolution": "Original scope clarification core E1-E5 is supported by independent exact alternate spans. Literal diagnostic retained separately; whole-slice/model approval not inferred.",
+        "evidence": "/Users/sw1/gv100h-poc/qa-attr-02-20261111/review-source-pass.json"
+      },
+      {
+        "id": "U20_03_FALSE_ROLE_ADDITION",
+        "resolution": "Old GET_INTERFACE table and selected-alternate-setting paragraph already support request_format. Source role unchanged-complete; Nov4 candidate scorer does not replace historical scores.",
+        "evidence": "/Users/sw1/gv100h-poc/qa-attr-02-20261111/review-source-pass.json"
+      },
+      {
+        "id": "DESCRIPTOR_LABEL",
+        "resolution": "Finalizer/JSON/summary now correctly identify9.6.6 endpoint descriptors rather than string descriptors."
+      },
+      {
+        "id": "RESET_WORDING",
+        "resolution": "PDF visual review now retains Reset(refer to Section7.3) or at powerup rather than narrowing it to Hot Reset."
+      },
+      {
+        "id": "SHORT_NATIVE_BINDING_NOT_RECORDED",
+        "resolution": {
+          "withheld": true,
+          "sha256_utf8": "2dcdb7ec189ea506087ad7f120b37f4954eb94aa656b06949c4b015ac64c99a4",
+          "unicode_chars": 339,
+          "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+        }
+      }
+    ],
+    "evidence_summary": {
+      "historical_model_questions": 16,
+      "retrieval_only_controls": 4,
+      "historical_primary_missing_necessary_evidence": 1,
+      "current_preview_fully_closes_primary_gaps": 1,
+      "current_actual_llm_prompt_gap_closure_verified": 0,
+      "current_preview_critical_regression_cases": 0,
+      "model_question_evidence_statuses": {
+        "EVIDENCE_IMPROVED": 1,
+        "EVIDENCE_UNCHANGED_COMPLETE": 15
+      },
+      "retrieval_control_evidence_statuses": {
+        "EVIDENCE_UNCHANGED_COMPLETE": 1,
+        "EVIDENCE_IMPROVED": 2,
+        "EVIDENCE_UNCHANGED_INCOMPLETE": 1
+      },
+      "primary_quality_failure_with_complete_sent_evidence": [
+        "Q011",
+        "P03",
+        "P04",
+        "P05",
+        "SHORT",
+        "WAKE"
+      ],
+      "additional_same_question_complete_input_refusal_control": "Q005 A1; not an extra independent sample",
+      "formal_current_prompt_not_comparable_cases": 16
+    },
+    "retrieval_control_disposition": {
+      "AIQUAL01-U20-03": "UNCHANGED_COMPLETE by source-role equivalence; original candidate-scorer dispute retained",
+      "AIQUAL01-U20-04": "IMPROVED periodic exclusion; original Gold transfer-type mapping limitation remains",
+      "AIQUAL01-U32-04": "PARTIAL_IMPROVEMENT count/reset; extracted format remains incomplete;PDF supplement separate",
+      "AIQUAL01-LVS-03": "UNCHANGED_INCOMPLETE both-enabled branch/tiered deadline; no causal fix assigned"
+    },
+    "verification": {
+      "actual_command": "python3 -B /Users/sw1/gv100h-poc/qa-attr-02-20261111/verify_artifacts.py",
+      "exit_code": 0,
+      "positive_invariant_groups": 6,
+      "negative_controls": 9,
+      "negative_control_scope": "Mutates real delivered reports in memory and checks actual rejection issues; not mock-only success or USB answer evaluation.",
+      "actual_verifier_report_sha256": "159141dd80cda935cc73de925e9b2383f2213595136588106e1a169391f7df6c",
+      "review_input_hashes_match": true,
+      "actual_diff_regenerates_byte_exact": true,
+      "five_tools_compile_without_execution": true,
+      "baseline_files_checked": 375,
+      "baseline_changes": [
+        "PLAN.md",
+        "memory/03_knowledge_base.md"
+      ],
+      "historical_source_hashes_checked": 463,
+      "historical_source_mismatches": 0,
+      "pre_slice_PLAN_prefix_preserved": true,
+      "preexisting_three_memory_snapshots_unchanged_before_canonical_finalization": true,
+      "selected_questions": 20,
+      "model_question_denominator": 16,
+      "retrieval_control_denominator": 4,
+      "max_observed_used_chunks": 20,
+      "max_observed_used_chars": 39722,
+      "budget_limits": {
+        "chunks": 20,
+        "serialized_chars": 39739
+      },
+      "canonical_chunks": 4330,
+      "projection_fingerprint_independently_recomputed": "4d8eec3202e2df3e0a87efcce61ba9079b9ef3d21c63d46b3ac2991e90a8d980",
+      "native_sent_aliases_verified": 120,
+      "official_pdf_pins_checked": 3,
+      "saved_full_page_text_hashes_checked": 32,
+      "full_page_images_independently_inspected": 4,
+      "Q006_column_relationship_visually_verified": true,
+      "native_requests_independently_verified": 6,
+      "native_binding_check": "Actual saved request bytes, canonical messages wire SHA, original-prepared SHA and each sent alias content/section/page were independently checked; SHORT uses prepared-sidecar.json.",
+      "pre_slice_KB_prefix_preserved": true,
+      "SHORT_omission_negative_control": {
+        "mutation": "SHORT_sidecar_omission_regression",
+        "observed_rejection": "native_alias_binding_missing",
+        "pass": true
+      }
+    },
+    "claim_boundaries": [
+      "16current LLM Prompt comparisons remain NOT_COMPARABLE_NO_CURRENT_LLM_PROMPT; actual current Prompt evidence closure verified=0.",
+      "Complete-input quality/contract failure does not imply USB falsehood; P03 specifically retains the per-claim selected-quotation distinction.",
+      "Source-role completeness is limited to selected questions and declared roles. U20-04 Gold mapping remains incomplete; no pooled/general answer accuracy.",
+      "Current worktree EvidenceService.query was replayed; running Tunnel process code/version was not verified,queried,restarted or changed.",
+      "No pure algorithm causality,current model answer improvement,human engineering certification or formal trial qualification.",
+      "The three pinned PDFs and saved page checks are source review evidence; existing physical-page/citation conventions remain unchanged."
+    ],
+    "reviewer_execution": {
+      "new_EvidenceService_queries": 0,
+      "model_calls": 0,
+      "Apple_calls": 0,
+      "network_requests": 0,
+      "product_or_historical_source_changes": 0,
+      "new_review_artifacts": [
+        "/Users/sw1/gv100h-poc/qa-attr-02-20261111/review.json",
+        "/Users/sw1/gv100h-poc/qa-attr-02-20261111/qa-attr-02-review.md"
+      ],
+      "additional_artifact_write": "Only authorized external artifact-integrity.json refresh and source-equivalence review file"
+    },
+    "approved_finalization": [
+      {
+        "withheld": true,
+        "sha256_utf8": "0cb312cf2b6dd3a1a86efea51063bd0c19e318633956f3cb2feecb38e40a1cec",
+        "unicode_chars": 365,
+        "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+      },
+      {
+        "withheld": true,
+        "sha256_utf8": "2b043a6d1d16c2008777cc4928c3b8a2b04fe73a0c30d6f9278420c4acd7d347",
+        "unicode_chars": 384,
+        "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+      },
+      "Project actual approval status and review references into pending delivery artifacts/envelope only; do not alter observations, historical scores, source definitions, replay results or conclusions.",
+      "Run the required canonical memory workflow/guard after writing records. Claim record completion only from actual results; retain any UNCOMMITTED, provenance or unbound warnings and do not claim global-clean memory.",
+      "Generate a facts-only final manifest/scope verification that binds reviewed pre-finalization hashes and allowed final status/record projections. Preserve375baseline non-record files,463historical source files and all20raw replay artifacts.",
+      "No further product/query/model/Apple/download work,03/04 execution,service/Tunnel/AccessCode actions,commit,push,deploy or governance update is authorized by this review."
+    ],
+    "completion_boundary": {
+      "withheld": true,
+      "sha256_utf8": "75556fc7dbd251be903256961a12e751cffaacf9b985e366ed2e6e444f489460",
+      "unicode_chars": 275,
+      "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+    },
+    "review_markdown": {
+      "path": "/Users/sw1/gv100h-poc/qa-attr-02-20261111/qa-attr-02-review.md",
+      "sha256": "66c211aa6e45cf912405df6e11c4691001122cad4d1f687397d5032edaff81bb"
+    },
+    "review_status_history": [
+      {
+        "verdict": "WITHDRAWN_TEMPORARY_APPROVAL",
+        "sha256": "b7ead49f738cd7c45976d786b12f1d70cd15f301abf08f4b40dc51638280251f",
+        "reason": "Before final delivery, independent native-binding audit found missing SHORT metadata."
+      },
+      {
+        "verdict": "CHANGES_REQUESTED",
+        "sha256": "a450b5ab79c7201606fdce30d20381332b7dae1ac76c7937ea546d03e6b3c66f",
+        "reason": "SHORT filename/hash-key binding omission; corrected and bounded re-reviewed before this approval."
+      }
+    ]
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "schema": "qa-attr-02-public-projection.v1",
+  "repository": "https://github.com/Gavin0099/uvm-agent-lab.git",
+  "original_path": "/Users/sw1/gv100h-poc/qa-attr-02-20261111/delivery-preservation.json",
+  "original_file_sha256": "c2c389fc5ff0e51c94c489e1621d67bb07c3ff1c6baadad5680c92fabd8aa3d2",
+  "projection_boundary": "Public metadata only; evidence text and long captured strings withheld. Original reports are unchanged in private staging.",
+  "data": {
+    "status": "PASS",
+    "protected_baseline_files": 375,
+    "unchanged_non_record_baseline_files": 369,
+    "historical_source_files_checked": 463,
+    "raw_replays_preserved": 20,
+    "changed_repo_paths": [
+      "memory/2026-11-11.md",
+      "memory/01_active_task.md",
+      "memory/03_knowledge_base.md",
+      "memory/04_review_log.md",
+      "memory/archive/active_task_projection_history.md",
+      "PLAN.md"
+    ],
+    "all_changes_are_required_records": true,
+    "pre_slice_PLAN_and_memory_prefixes_preserved": true,
+    "previous_active_projection_archived_exactly": true,
+    "head_unchanged": true,
+    "staged_unchanged": true,
+    "product_or_history_edits": false,
+    "code_sources_compile": 5,
+    "new_model_Apple_download_calls": 0,
+    "commit_push_deploy": false,
+    "memory_guard": {
+      "repo_root_resolved": true,
+      "canonical_writer_required": true,
+      "guard_ran": true,
+      "completion_claim_allowed": true,
+      "active_non_canonical_writer": 0,
+      "authority_override_rejected": 0,
+      "authority_override_used_current_diff": 0,
+      "current_diff_b0_blocker_count": 0,
+      "missing_canonical_memory": 1,
+      "non_canonical_writer": 0,
+      "non_daily_session_shaped_memory_entry": 0,
+      "repo_state_b0_blocker_count": 0,
+      "session_like_non_session_memory_type": 0,
+      "test_evidence_artifact_metadata_invalid": 5,
+      "test_evidence_artifact_metadata_missing": 31,
+      "test_evidence_artifact_not_durable": 0,
+      "test_evidence_exit_code_contradicts_claim": 0,
+      "test_evidence_linked_commit_mismatch": 3,
+      "test_evidence_provenance_not_found": 52,
+      "unbound_memory": 180,
+      "exit_code": 0
+    },
+    "reviewed_observations_unchanged": true,
+    "allowed_status_finalization": [
+      "evidence-diff status/review reference",
+      "summary approval/guard footer",
+      "envelope/packet completion state",
+      "requiredPLAN/memory/archive records"
+    ]
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "schema": "qa-attr-02-public-projection.v1",
+  "repository": "https://github.com/Gavin0099/uvm-agent-lab.git",
+  "original_path": "/Users/sw1/gv100h-poc/qa-attr-02-20261111/artifact-integrity.json",
+  "original_file_sha256": "159141dd80cda935cc73de925e9b2383f2213595136588106e1a169391f7df6c",
+  "projection_boundary": "Public metadata only; evidence text and long captured strings withheld. Original reports are unchanged in private staging.",
+  "data": {
+    "status": "PASS",
+    "positive_invariant_groups": 6,
+    "positive_controls": [
+      "Q005 old lacks continuedcaption/row while current owns both",
+      "Q005 A1,B,reconnect same-question controls all retain required source witnesses",
+      "Native fingerprint independently bridges canonical corpus",
+      "Six native requests including prepared-sidecar SHORT bind all120 aliases/request/wire/originalprepared",
+      "20 actual replay receipts zero generation/answer and bound by hash",
+      "All cited historical source files unchanged"
+    ],
+    "negative_mutations": [
+      {
+        "mutation": "current_prompt_false_claim",
+        "expected_rejection": "fabricated_current_sent",
+        "observed": [
+          "fabricated_current_sent"
+        ],
+        "pass": true
+      },
+      {
+        "mutation": "wrong_revision",
+        "expected_rejection": "source_identity",
+        "observed": [
+          "source_identity"
+        ],
+        "pass": true
+      },
+      {
+        "mutation": "quote_number_corruption",
+        "expected_rejection": "quote_identity",
+        "observed": [
+          "quote_identity"
+        ],
+        "pass": true
+      },
+      {
+        "mutation": "source_hash_corruption",
+        "expected_rejection": "hash_identity",
+        "observed": [
+          "hash_identity"
+        ],
+        "pass": true
+      },
+      {
+        "mutation": "duplicate_question_weight",
+        "expected_rejection": "independent_case_count",
+        "observed": [
+          "independent_case_count"
+        ],
+        "pass": true
+      },
+      {
+        "mutation": "budget_widened",
+        "expected_rejection": "budget_exceeded",
+        "observed": [
+          "budget_exceeded"
+        ],
+        "pass": true
+      },
+      {
+        "mutation": "retrieval_control_as_model",
+        "expected_rejection": "model_denominator",
+        "observed": [
+          "contract_comparability",
+          "model_denominator"
+        ],
+        "pass": true
+      },
+      {
+        "mutation": "false_equivalence_quote",
+        "expected_rejection": "equivalence_span_identity",
+        "observed": [
+          "equivalence_span_identity"
+        ],
+        "pass": true
+      },
+      {
+        "mutation": "SHORT_sidecar_omission_regression",
+        "expected_rejection": "native_alias_binding_missing",
+        "observed": [
+          "native_alias_binding_missing"
+        ],
+        "pass": true
+      }
+    ],
+    "scope": "Report correspondence and safety guards; not USB answer correctness or product qualification."
+  }
+}

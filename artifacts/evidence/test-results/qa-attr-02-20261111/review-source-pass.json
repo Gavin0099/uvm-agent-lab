@@ -1,0 +1,641 @@
+{
+  "schema": "qa-attr-02-public-projection.v1",
+  "repository": "https://github.com/Gavin0099/uvm-agent-lab.git",
+  "original_path": "/Users/sw1/gv100h-poc/qa-attr-02-20261111/review-source-pass.json",
+  "original_file_sha256": "72f955b3ba57495ad9a2977ebcb91934645e4fc139be9339e26923635c8357ee",
+  "projection_boundary": "Public metadata only; evidence text and long captured strings withheld. Original reports are unchanged in private staging.",
+  "data": {
+    "slice": "QA-ATTR-02",
+    "reviewer": "/root/independent_review",
+    "review_kind": "INDEPENDENT_AGENT_SOURCE_EQUIVALENCE; not human engineering approval",
+    "created_at_utc": "2026-11-11T14:21:58.149156+00:00",
+    "verdict": "APPROVED_SOURCE_EQUIVALENCE",
+    "approval_scope": "ENUM E1-E5 original scope-clarification core in current preview, and U20-03 request_format in old preview only; not whole QA-ATTR-02 or answer/model/product approval",
+    "inputs_sha256": {
+      "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replays/ENUM.json": "b8b3cc4131b2608b93c737a54db43bf88916bf71a2b021e72fe049efd355a181",
+      "/Users/sw1/gv100h-poc/qa-attr-02-20261111/current-corpus-readonly.json": "02e8cac3e87127c1e0e6de06e14ad11a79a1f6c49e91fd663570951052998514",
+      "/Users/sw1/Desktop/uvm-agent-lab/artifacts/evidence/test-results/spec-qa-performance-ab-live-20261016/rubric-scope-clarification.json": "c1cf66fd21d3d14dc8ccad8a665f5814de30d77a0bbf60ecf3e69dbb28133458",
+      "/Users/sw1/Desktop/uvm-agent-lab/artifacts/evidence/test-results/evidence-first-poc01/AIQUAL01-20261028/search/AIQUAL01-U20-03.response.raw.json": "e04f476243f77dda59f3719fc991bac1f290dee782c9679a6bd1b27ed11b88e0"
+    },
+    "literal_diagnostic_boundary": "Original illustrative literal witnesses may remain false; this source equivalence does not rewrite those measurements or historical scores.",
+    "formal_bundle_status_as_saved": "CANDIDATE_UNREVIEWED",
+    "formal_bundle_boundary": "This source-core review does not override the saved formal bundle status or prove arbitrary completeness.",
+    "roles": [
+      {
+        "role_id": "E1",
+        "verdict": "APPROVED_SOURCE_EQUIVALENCE",
+        "core_must_cover": "Host 主導 bus enumeration；由 hub/port 的連接事件得知裝置接上。",
+        "source_proof_ids": [
+          "hub",
+          "reset"
+        ],
+        "boundary": "Core attachment notification/Host-led process supported; exact status-change-pipe/API detail is optional."
+      },
+      {
+        "role_id": "E2",
+        "verdict": "APPROVED_SOURCE_EQUIVALENCE",
+        "core_must_cover": "Host 控制 port enable/reset，使裝置進入可用 default address 通訊的 Default state，之後再指派唯一位址。",
+        "source_proof_ids": [
+          "reset",
+          "unique"
+        ],
+        "boundary": "Core host enable/reset, default-address communication and subsequent unique assignment supported; formal state names/electrical timings are not added as requirements."
+      },
+      {
+        "role_id": "E3",
+        "verdict": "APPROVED_SOURCE_EQUIVALENCE",
+        "core_must_cover": "Host 可先在 default address 經 Default Control Pipe 讀 device descriptor，取得裝置資訊；未有唯一位址仍可控制通訊。",
+        "source_proof_ids": [
+          "defaultpipe",
+          "default_valid",
+          "descriptor",
+          "mandatory_descriptors",
+          "get_descriptor_row"
+        ],
+        "boundary": {
+          "withheld": true,
+          "sha256_utf8": "7e144ca31d2c2e2402b9ec67b534c8c8ab6df21e34997fa7be81679a198f8514",
+          "unicode_chars": 245,
+          "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+        }
+      },
+      {
+        "role_id": "E4",
+        "verdict": "APPROVED_SOURCE_EQUIVALENCE",
+        "core_must_cover": "由 Host 指派唯一裝置位址，後續以該位址識別及存取裝置。",
+        "source_proof_ids": [
+          "unique",
+          "defaultpipe"
+        ],
+        "boundary": "Host assignment and use of default/unique addressing supported; no address-selection algorithm, range or SET_ADDRESS timing claim."
+      },
+      {
+        "role_id": "E5",
+        "verdict": "APPROVED_SOURCE_EQUIVALENCE",
+        "core_must_cover": "Host 讀取 descriptor/configuration 資訊來了解裝置提供的配置。",
+        "source_proof_ids": [
+          "descriptor",
+          "mandatory_descriptors",
+          "get_descriptor_row"
+        ],
+        "boundary": "Core reading of descriptor/configuration information supported by combined request/descriptor facts. Full configuration-index loop or every descriptor field is not newly required or established."
+      }
+    ],
+    "exact_source_proofs": {
+      "hub": {
+        "chunk_id": "usb20_fw:9.2.1:p.272:493:27a15e77fb087e83f63f4626ff2e7610b002112af9292472a8a0c16e5aca3e64",
+        "source_id": "usb20_fw",
+        "revision": "2.0",
+        "section": "9.2.1",
+        "page_or_anchor": "p.272",
+        "content_sha256": "a666a6857d4322b7fee01f60c35ceb7f4b8faf3456fa8229cf687e3c99f3414d",
+        "start": 53,
+        "end": 169,
+        "offset_unit": "unicode_codepoint_half_open",
+        "quote": {
+          "withheld": true,
+          "sha256_utf8": "3bd5809c3cb0fba291a65af94f6a6ff7bc86a7a444380303aa7a0795aaf279c5",
+          "unicode_chars": 116,
+          "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+        },
+        "exact_in_saved_bundle_and_canonical": true
+      },
+      "reset": {
+        "chunk_id": "usb20_fw:9.2.1:p.272:493:27a15e77fb087e83f63f4626ff2e7610b002112af9292472a8a0c16e5aca3e64",
+        "source_id": "usb20_fw",
+        "revision": "2.0",
+        "section": "9.2.1",
+        "page_or_anchor": "p.272",
+        "content_sha256": "a666a6857d4322b7fee01f60c35ceb7f4b8faf3456fa8229cf687e3c99f3414d",
+        "start": 170,
+        "end": 404,
+        "offset_unit": "unicode_codepoint_half_open",
+        "quote": {
+          "withheld": true,
+          "sha256_utf8": "bef9c50ff57c55e085c49f1af002df0871dbc8f30200428fa2524ce2f14b4ef6",
+          "unicode_chars": 234,
+          "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+        },
+        "exact_in_saved_bundle_and_canonical": true
+      },
+      "unique": {
+        "chunk_id": "usb20_fw:9.1.1.4:p.270:482:a58236ca9a2e472c67f9728b9df832290eefbf530e2476e7cc4221555d7185b0",
+        "source_id": "usb20_fw",
+        "revision": "2.0",
+        "section": "9.1.1.4",
+        "page_or_anchor": "p.270",
+        "content_sha256": "d36e513576f7fa7edafdbd7029e6733a5d3ded96dce3d176f1d43e97a4f860dc",
+        "start": 99,
+        "end": 188,
+        "offset_unit": "unicode_codepoint_half_open",
+        "quote": {
+          "withheld": true,
+          "sha256_utf8": "6ae28d6f14ad4893650986f00539e95b30f0fa88a1cafc31e670c70c0d5acc86",
+          "unicode_chars": 89,
+          "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+        },
+        "exact_in_saved_bundle_and_canonical": true
+      },
+      "defaultpipe": {
+        "chunk_id": "usb20_fw:9.1.1.4:p.270:482:a58236ca9a2e472c67f9728b9df832290eefbf530e2476e7cc4221555d7185b0",
+        "source_id": "usb20_fw",
+        "revision": "2.0",
+        "section": "9.1.1.4",
+        "page_or_anchor": "p.270",
+        "content_sha256": "d36e513576f7fa7edafdbd7029e6733a5d3ded96dce3d176f1d43e97a4f860dc",
+        "start": 250,
+        "end": 394,
+        "offset_unit": "unicode_codepoint_half_open",
+        "quote": {
+          "withheld": true,
+          "sha256_utf8": "95b7559ce5e8e856df2875c1ff701bfc77d822f07c7d383a60e8c65606121d13",
+          "unicode_chars": 144,
+          "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+        },
+        "exact_in_saved_bundle_and_canonical": true
+      },
+      "descriptor": {
+        "chunk_id": "usb20_fw:9.4.3:p.281:561:b18b853a276cdbc1e018a7e838c7e387f2d73bb688264a4bd7bd321818caff6d",
+        "source_id": "usb20_fw",
+        "revision": "2.0",
+        "section": "9.4.3",
+        "page_or_anchor": "p.281",
+        "content_sha256": "cee3417a3a4e3d260408411ed6b28efbfd7d60e2d2ebe6e4b38087db7a7d5814",
+        "start": 0,
+        "end": 71,
+        "offset_unit": "unicode_codepoint_half_open",
+        "quote": {
+          "withheld": true,
+          "sha256_utf8": "cee3417a3a4e3d260408411ed6b28efbfd7d60e2d2ebe6e4b38087db7a7d5814",
+          "unicode_chars": 71,
+          "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+        },
+        "exact_in_saved_bundle_and_canonical": true
+      },
+      "mandatory_descriptors": {
+        "chunk_id": "usb20_fw:9.4.3:p.282:564:df15fcc9f55149df82779dc59f42650ec7097552738231524820a87e82858b68",
+        "source_id": "usb20_fw",
+        "revision": "2.0",
+        "section": "9.4.3",
+        "page_or_anchor": "p.282",
+        "content_sha256": "9826e6c2c3ecbd867e9bdfa3a2bb5095d7a3c027234d1091a97aca73f3e1f433",
+        "start": 433,
+        "end": 520,
+        "offset_unit": "unicode_codepoint_half_open",
+        "quote": {
+          "withheld": true,
+          "sha256_utf8": "8c5546691e0a596e4760cda689c46986540cf46ba546613886cf84d55d80b63c",
+          "unicode_chars": 87,
+          "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+        },
+        "exact_in_saved_bundle_and_canonical": true
+      },
+      "default_valid": {
+        "chunk_id": "usb20_fw:9.4.3:p.282:564:df15fcc9f55149df82779dc59f42650ec7097552738231524820a87e82858b68",
+        "source_id": "usb20_fw",
+        "revision": "2.0",
+        "section": "9.4.3",
+        "page_or_anchor": "p.282",
+        "content_sha256": "9826e6c2c3ecbd867e9bdfa3a2bb5095d7a3c027234d1091a97aca73f3e1f433",
+        "start": 608,
+        "end": 687,
+        "offset_unit": "unicode_codepoint_half_open",
+        "quote": {
+          "withheld": true,
+          "sha256_utf8": "9e7afa1bc9f4df5a2aa15b9016c5dd0f736e202b8b440ac52319a2b1a94d2307",
+          "unicode_chars": 79,
+          "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+        },
+        "exact_in_saved_bundle_and_canonical": true
+      },
+      "get_descriptor_row": {
+        "chunk_id": "usb20_fw:9.4:p.278:543:a3e2c960be15b1b08e7b215cb66105ee4d0ef35d284dc4c41d4ece0ad26f1f83",
+        "source_id": "usb20_fw",
+        "revision": "2.0",
+        "section": "9.4",
+        "page_or_anchor": "p.278",
+        "content_sha256": "2bbe3e2b5c9a9c309b4b08c7714ba6fff1e3a096098caf39d9bd1ea2c2ff872d",
+        "start": 237,
+        "end": 357,
+        "offset_unit": "unicode_codepoint_half_open",
+        "quote": {
+          "withheld": true,
+          "sha256_utf8": "dc1262dcb3a0f7e0d1666f25d55d1efff83533a539764f5d05c214184f41ffb5",
+          "unicode_chars": 120,
+          "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+        },
+        "exact_in_saved_bundle_and_canonical": true
+      }
+    },
+    "evidence_plane_disposition": "No demonstrated loss of ENUM E1-E5 core role support versus the primary saved full packet; the literal mismatch alone cannot justify EVIDENCE_REGRESSED.",
+    "comparison_boundary": "Current evidence-only preview is not an LLM Prompt; answer_contract_comparable=false; no model answer improvement or controlled algorithm causation established.",
+    "other_cases_review_status": "Other cases retain scoped observations pending final delivery diff; no whole-slice APPROVED verdict",
+    "new_queries": 0,
+    "model_or_Apple_calls": 0,
+    "network_requests": 0,
+    "source_changes": 0,
+    "equivalence_decisions": [
+      {
+        "case_key": "ENUM",
+        "stage": "current_packed_preview",
+        "role_id": "E1",
+        "retained": true,
+        "support_spans": [
+          {
+            "chunk_id": "usb20_fw:9.2.1:p.272:493:27a15e77fb087e83f63f4626ff2e7610b002112af9292472a8a0c16e5aca3e64",
+            "source_id": "usb20_fw",
+            "revision": "2.0",
+            "section": "9.2.1",
+            "page_or_anchor": "p.272",
+            "content_sha256": "a666a6857d4322b7fee01f60c35ceb7f4b8faf3456fa8229cf687e3c99f3414d",
+            "start": 53,
+            "end": 169,
+            "offset_unit": "unicode_codepoint_half_open",
+            "quote": {
+              "withheld": true,
+              "sha256_utf8": "3bd5809c3cb0fba291a65af94f6a6ff7bc86a7a444380303aa7a0795aaf279c5",
+              "unicode_chars": 116,
+              "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+            },
+            "exact_in_saved_bundle_and_canonical": true
+          },
+          {
+            "chunk_id": "usb20_fw:9.2.1:p.272:493:27a15e77fb087e83f63f4626ff2e7610b002112af9292472a8a0c16e5aca3e64",
+            "source_id": "usb20_fw",
+            "revision": "2.0",
+            "section": "9.2.1",
+            "page_or_anchor": "p.272",
+            "content_sha256": "a666a6857d4322b7fee01f60c35ceb7f4b8faf3456fa8229cf687e3c99f3414d",
+            "start": 170,
+            "end": 404,
+            "offset_unit": "unicode_codepoint_half_open",
+            "quote": {
+              "withheld": true,
+              "sha256_utf8": "bef9c50ff57c55e085c49f1af002df0871dbc8f30200428fa2524ce2f14b4ef6",
+              "unicode_chars": 234,
+              "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+            },
+            "exact_in_saved_bundle_and_canonical": true
+          }
+        ],
+        "rationale": "Core attachment notification/Host-led process supported; exact status-change-pipe/API detail is optional. Evaluated against original scope clarification core, not optional illustrative details."
+      },
+      {
+        "case_key": "ENUM",
+        "stage": "current_packed_preview",
+        "role_id": "E2",
+        "retained": true,
+        "support_spans": [
+          {
+            "chunk_id": "usb20_fw:9.2.1:p.272:493:27a15e77fb087e83f63f4626ff2e7610b002112af9292472a8a0c16e5aca3e64",
+            "source_id": "usb20_fw",
+            "revision": "2.0",
+            "section": "9.2.1",
+            "page_or_anchor": "p.272",
+            "content_sha256": "a666a6857d4322b7fee01f60c35ceb7f4b8faf3456fa8229cf687e3c99f3414d",
+            "start": 170,
+            "end": 404,
+            "offset_unit": "unicode_codepoint_half_open",
+            "quote": {
+              "withheld": true,
+              "sha256_utf8": "bef9c50ff57c55e085c49f1af002df0871dbc8f30200428fa2524ce2f14b4ef6",
+              "unicode_chars": 234,
+              "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+            },
+            "exact_in_saved_bundle_and_canonical": true
+          },
+          {
+            "chunk_id": "usb20_fw:9.1.1.4:p.270:482:a58236ca9a2e472c67f9728b9df832290eefbf530e2476e7cc4221555d7185b0",
+            "source_id": "usb20_fw",
+            "revision": "2.0",
+            "section": "9.1.1.4",
+            "page_or_anchor": "p.270",
+            "content_sha256": "d36e513576f7fa7edafdbd7029e6733a5d3ded96dce3d176f1d43e97a4f860dc",
+            "start": 99,
+            "end": 188,
+            "offset_unit": "unicode_codepoint_half_open",
+            "quote": {
+              "withheld": true,
+              "sha256_utf8": "6ae28d6f14ad4893650986f00539e95b30f0fa88a1cafc31e670c70c0d5acc86",
+              "unicode_chars": 89,
+              "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+            },
+            "exact_in_saved_bundle_and_canonical": true
+          }
+        ],
+        "rationale": {
+          "withheld": true,
+          "sha256_utf8": "beb985dccc9c6b928451fdbb61886f5a4ac509dedfbe10d65d4ff638f23fcabd",
+          "unicode_chars": 254,
+          "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+        }
+      },
+      {
+        "case_key": "ENUM",
+        "stage": "current_packed_preview",
+        "role_id": "E3",
+        "retained": true,
+        "support_spans": [
+          {
+            "chunk_id": "usb20_fw:9.1.1.4:p.270:482:a58236ca9a2e472c67f9728b9df832290eefbf530e2476e7cc4221555d7185b0",
+            "source_id": "usb20_fw",
+            "revision": "2.0",
+            "section": "9.1.1.4",
+            "page_or_anchor": "p.270",
+            "content_sha256": "d36e513576f7fa7edafdbd7029e6733a5d3ded96dce3d176f1d43e97a4f860dc",
+            "start": 250,
+            "end": 394,
+            "offset_unit": "unicode_codepoint_half_open",
+            "quote": {
+              "withheld": true,
+              "sha256_utf8": "95b7559ce5e8e856df2875c1ff701bfc77d822f07c7d383a60e8c65606121d13",
+              "unicode_chars": 144,
+              "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+            },
+            "exact_in_saved_bundle_and_canonical": true
+          },
+          {
+            "chunk_id": "usb20_fw:9.4.3:p.282:564:df15fcc9f55149df82779dc59f42650ec7097552738231524820a87e82858b68",
+            "source_id": "usb20_fw",
+            "revision": "2.0",
+            "section": "9.4.3",
+            "page_or_anchor": "p.282",
+            "content_sha256": "9826e6c2c3ecbd867e9bdfa3a2bb5095d7a3c027234d1091a97aca73f3e1f433",
+            "start": 608,
+            "end": 687,
+            "offset_unit": "unicode_codepoint_half_open",
+            "quote": {
+              "withheld": true,
+              "sha256_utf8": "9e7afa1bc9f4df5a2aa15b9016c5dd0f736e202b8b440ac52319a2b1a94d2307",
+              "unicode_chars": 79,
+              "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+            },
+            "exact_in_saved_bundle_and_canonical": true
+          },
+          {
+            "chunk_id": "usb20_fw:9.4.3:p.281:561:b18b853a276cdbc1e018a7e838c7e387f2d73bb688264a4bd7bd321818caff6d",
+            "source_id": "usb20_fw",
+            "revision": "2.0",
+            "section": "9.4.3",
+            "page_or_anchor": "p.281",
+            "content_sha256": "cee3417a3a4e3d260408411ed6b28efbfd7d60e2d2ebe6e4b38087db7a7d5814",
+            "start": 0,
+            "end": 71,
+            "offset_unit": "unicode_codepoint_half_open",
+            "quote": {
+              "withheld": true,
+              "sha256_utf8": "cee3417a3a4e3d260408411ed6b28efbfd7d60e2d2ebe6e4b38087db7a7d5814",
+              "unicode_chars": 71,
+              "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+            },
+            "exact_in_saved_bundle_and_canonical": true
+          },
+          {
+            "chunk_id": "usb20_fw:9.4.3:p.282:564:df15fcc9f55149df82779dc59f42650ec7097552738231524820a87e82858b68",
+            "source_id": "usb20_fw",
+            "revision": "2.0",
+            "section": "9.4.3",
+            "page_or_anchor": "p.282",
+            "content_sha256": "9826e6c2c3ecbd867e9bdfa3a2bb5095d7a3c027234d1091a97aca73f3e1f433",
+            "start": 433,
+            "end": 520,
+            "offset_unit": "unicode_codepoint_half_open",
+            "quote": {
+              "withheld": true,
+              "sha256_utf8": "8c5546691e0a596e4760cda689c46986540cf46ba546613886cf84d55d80b63c",
+              "unicode_chars": 87,
+              "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+            },
+            "exact_in_saved_bundle_and_canonical": true
+          },
+          {
+            "chunk_id": "usb20_fw:9.4:p.278:543:a3e2c960be15b1b08e7b215cb66105ee4d0ef35d284dc4c41d4ece0ad26f1f83",
+            "source_id": "usb20_fw",
+            "revision": "2.0",
+            "section": "9.4",
+            "page_or_anchor": "p.278",
+            "content_sha256": "2bbe3e2b5c9a9c309b4b08c7714ba6fff1e3a096098caf39d9bd1ea2c2ff872d",
+            "start": 237,
+            "end": 357,
+            "offset_unit": "unicode_codepoint_half_open",
+            "quote": {
+              "withheld": true,
+              "sha256_utf8": "dc1262dcb3a0f7e0d1666f25d55d1efff83533a539764f5d05c214184f41ffb5",
+              "unicode_chars": 120,
+              "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+            },
+            "exact_in_saved_bundle_and_canonical": true
+          }
+        ],
+        "rationale": {
+          "withheld": true,
+          "sha256_utf8": "f67de75327ca9ce0580754d0886c5a17631dbfe482a51d5020842e12fbb4dcf3",
+          "unicode_chars": 333,
+          "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+        }
+      },
+      {
+        "case_key": "ENUM",
+        "stage": "current_packed_preview",
+        "role_id": "E4",
+        "retained": true,
+        "support_spans": [
+          {
+            "chunk_id": "usb20_fw:9.1.1.4:p.270:482:a58236ca9a2e472c67f9728b9df832290eefbf530e2476e7cc4221555d7185b0",
+            "source_id": "usb20_fw",
+            "revision": "2.0",
+            "section": "9.1.1.4",
+            "page_or_anchor": "p.270",
+            "content_sha256": "d36e513576f7fa7edafdbd7029e6733a5d3ded96dce3d176f1d43e97a4f860dc",
+            "start": 99,
+            "end": 188,
+            "offset_unit": "unicode_codepoint_half_open",
+            "quote": {
+              "withheld": true,
+              "sha256_utf8": "6ae28d6f14ad4893650986f00539e95b30f0fa88a1cafc31e670c70c0d5acc86",
+              "unicode_chars": 89,
+              "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+            },
+            "exact_in_saved_bundle_and_canonical": true
+          },
+          {
+            "chunk_id": "usb20_fw:9.1.1.4:p.270:482:a58236ca9a2e472c67f9728b9df832290eefbf530e2476e7cc4221555d7185b0",
+            "source_id": "usb20_fw",
+            "revision": "2.0",
+            "section": "9.1.1.4",
+            "page_or_anchor": "p.270",
+            "content_sha256": "d36e513576f7fa7edafdbd7029e6733a5d3ded96dce3d176f1d43e97a4f860dc",
+            "start": 250,
+            "end": 394,
+            "offset_unit": "unicode_codepoint_half_open",
+            "quote": {
+              "withheld": true,
+              "sha256_utf8": "95b7559ce5e8e856df2875c1ff701bfc77d822f07c7d383a60e8c65606121d13",
+              "unicode_chars": 144,
+              "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+            },
+            "exact_in_saved_bundle_and_canonical": true
+          }
+        ],
+        "rationale": "Host assignment and use of default/unique addressing supported; no address-selection algorithm, range or SET_ADDRESS timing claim. Evaluated against original scope clarification core, not optional illustrative details."
+      },
+      {
+        "case_key": "ENUM",
+        "stage": "current_packed_preview",
+        "role_id": "E5",
+        "retained": true,
+        "support_spans": [
+          {
+            "chunk_id": "usb20_fw:9.4.3:p.281:561:b18b853a276cdbc1e018a7e838c7e387f2d73bb688264a4bd7bd321818caff6d",
+            "source_id": "usb20_fw",
+            "revision": "2.0",
+            "section": "9.4.3",
+            "page_or_anchor": "p.281",
+            "content_sha256": "cee3417a3a4e3d260408411ed6b28efbfd7d60e2d2ebe6e4b38087db7a7d5814",
+            "start": 0,
+            "end": 71,
+            "offset_unit": "unicode_codepoint_half_open",
+            "quote": {
+              "withheld": true,
+              "sha256_utf8": "cee3417a3a4e3d260408411ed6b28efbfd7d60e2d2ebe6e4b38087db7a7d5814",
+              "unicode_chars": 71,
+              "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+            },
+            "exact_in_saved_bundle_and_canonical": true
+          },
+          {
+            "chunk_id": "usb20_fw:9.4.3:p.282:564:df15fcc9f55149df82779dc59f42650ec7097552738231524820a87e82858b68",
+            "source_id": "usb20_fw",
+            "revision": "2.0",
+            "section": "9.4.3",
+            "page_or_anchor": "p.282",
+            "content_sha256": "9826e6c2c3ecbd867e9bdfa3a2bb5095d7a3c027234d1091a97aca73f3e1f433",
+            "start": 433,
+            "end": 520,
+            "offset_unit": "unicode_codepoint_half_open",
+            "quote": {
+              "withheld": true,
+              "sha256_utf8": "8c5546691e0a596e4760cda689c46986540cf46ba546613886cf84d55d80b63c",
+              "unicode_chars": 87,
+              "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+            },
+            "exact_in_saved_bundle_and_canonical": true
+          },
+          {
+            "chunk_id": "usb20_fw:9.4:p.278:543:a3e2c960be15b1b08e7b215cb66105ee4d0ef35d284dc4c41d4ece0ad26f1f83",
+            "source_id": "usb20_fw",
+            "revision": "2.0",
+            "section": "9.4",
+            "page_or_anchor": "p.278",
+            "content_sha256": "2bbe3e2b5c9a9c309b4b08c7714ba6fff1e3a096098caf39d9bd1ea2c2ff872d",
+            "start": 237,
+            "end": 357,
+            "offset_unit": "unicode_codepoint_half_open",
+            "quote": {
+              "withheld": true,
+              "sha256_utf8": "dc1262dcb3a0f7e0d1666f25d55d1efff83533a539764f5d05c214184f41ffb5",
+              "unicode_chars": 120,
+              "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+            },
+            "exact_in_saved_bundle_and_canonical": true
+          }
+        ],
+        "rationale": {
+          "withheld": true,
+          "sha256_utf8": "132e86a273a459fb8523f8281f5f95b85c89522d3ce6e31e8745d2b537a60cee",
+          "unicode_chars": 282,
+          "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+        }
+      },
+      {
+        "case_key": "AIQUAL01-U20-03",
+        "stage": "old_actual_sent_or_control_preview",
+        "role_id": "request_format",
+        "retained": true,
+        "support_spans": [
+          {
+            "chunk_id": "usb20_fw:9.4.4:p.282:567:a24189f474e83cd4a6ca49d74fe54af5fb6d69f15ba968dc4428752828307ce7",
+            "source_id": "usb20_fw",
+            "revision": "2.0",
+            "section": "9.4.4",
+            "page_or_anchor": "p.282",
+            "content_sha256": "5f2ac74e175a7ede711e4866116a38710f20df7c77cc8568ad0cf3313dbf82e5",
+            "start": 0,
+            "end": 130,
+            "quote": {
+              "withheld": true,
+              "sha256_utf8": "5f2ac74e175a7ede711e4866116a38710f20df7c77cc8568ad0cf3313dbf82e5",
+              "unicode_chars": 130,
+              "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+            },
+            "offset_unit": "unicode_codepoint_half_open",
+            "exact_in_saved_preview_and_canonical": true
+          },
+          {
+            "chunk_id": "usb20_fw:9.4.4:p.282:568:8bc58bb6156a9f6d9d9aea558682193b3cea0fc67149a979187d5f26a9122888",
+            "source_id": "usb20_fw",
+            "revision": "2.0",
+            "section": "9.4.4",
+            "page_or_anchor": "p.282",
+            "content_sha256": "5fa8aea5c16c9316520e0f259bb2226e3fb1714379a79c1820a879ca4eb04d3a",
+            "start": 92,
+            "end": 175,
+            "quote": {
+              "withheld": true,
+              "sha256_utf8": "472572d7b587c65c5dc4979fb64c4a8828f04e63d377bf539c338ddbfc7afc6a",
+              "unicode_chars": 83,
+              "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+            },
+            "offset_unit": "unicode_codepoint_half_open",
+            "exact_in_saved_preview_and_canonical": true
+          }
+        ],
+        "rationale": {
+          "withheld": true,
+          "sha256_utf8": "c6f2cc5d0b0efd44ab7a1e6aedc3a7d9612d266161717df71ccce658c39b5a09",
+          "unicode_chars": 433,
+          "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+        }
+      }
+    ],
+    "previous_version_sha256": "14da8f60b084bbc190fe70d22a842dd67cca6922d1193f271e8962524cf4c10b",
+    "updated_at_utc": "2026-11-11T14:25:55.564152+00:00",
+    "other_source_observations": {
+      "AIQUAL01-U32-04": {
+        "old_count_reset_equivalence": "NOT_ESTABLISHED",
+        "reason": {
+          "withheld": true,
+          "sha256_utf8": "0f540b3b0c43b4e410f583bfca84e961a250bee25d94815926812882ed8b2da3",
+          "unicode_chars": 395,
+          "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+        }
+      },
+      "AIQUAL01-LVS-03": {
+        "both_enabled_and_tiered_deadline_equivalence": "NOT_ESTABLISHED_IN_OLD_OR_CURRENT_PREVIEW",
+        "reason": {
+          "withheld": true,
+          "sha256_utf8": "9b87e5e7df16d64c290cf5ba10f689ca75aa2bcad58415cfc2aec9aa72a2c99f",
+          "unicode_chars": 241,
+          "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+        }
+      },
+      "Q002": {
+        "current_loss": "NONE_FOUND",
+        "boundary": {
+          "withheld": true,
+          "sha256_utf8": "a148596bcc1bbb6dcb72a68509cc85b05101cde8a9d1ca8cabc6b7af3659fb8b",
+          "unicode_chars": 296,
+          "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+        }
+      },
+      "Q005": {
+        "boundary": {
+          "withheld": true,
+          "sha256_utf8": "a41ff69c5e5a2fb79d275097dfddcc8293bfeb0c3c9c3d947031e6cdd3570481",
+          "unicode_chars": 283,
+          "reason": "Original evidence text retained in private staging; this public projection cannot reverify its semantics."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,210 @@
+{
+  "schema": "qa-attr-02-publication.v1",
+  "repository": "https://github.com/Gavin0099/uvm-agent-lab.git",
+  "analysis_base_commit": "873c2061836fb39059e5d8289a4ecda4c820a2ee",
+  "publication_base_commit": "71aeb028f95d814505f66be262ae404f22d9ed96",
+  "owner_authority": "2026-11-11 Owner: 推上去才能給別的agent review; authorizes scoped commit/push, superseding earlier no-commit/push for delivery only.",
+  "source_policy": "PLAN section0: official raw bytes remain in operator-controlled private staging and are not committed to this public repository.",
+  "original_artifacts": {
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/qa-attr-02-case-selection.json": {
+      "public_path": "qa-attr-02-case-selection.json",
+      "original_file_sha256": "5488b66ea63bfd50b9d0a0fef37033e82c7c8cddcc4bab9736dddc62ca11d066",
+      "projection_file_sha256": "e93af1e87df4fa37ae98a4085c51e5d1edcfac9d38b63f8576e8d367a74e645a"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/qa-attr-02-evidence-diff.json": {
+      "public_path": "qa-attr-02-evidence-diff.json",
+      "original_file_sha256": "edd1455e1453538808eaebf1e000693368b930c6ec9611ac21b98670eba10ea9",
+      "projection_file_sha256": "2d63d0b90bc7f954c111c855c86091f442b9afb477f46c11c85cf5835ff00456"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/review.json": {
+      "public_path": "review.json",
+      "original_file_sha256": "39e7fc31e41a3a4ade570d7d94900e56d2d71ad70f715215fe63596f5599f899",
+      "projection_file_sha256": "2b9898445f3bb9727c7b504d4d8cc29871f04f319fd3b4037e0fe7747c39f8d4"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/review-source-pass.json": {
+      "public_path": "review-source-pass.json",
+      "original_file_sha256": "72f955b3ba57495ad9a2977ebcb91934645e4fc139be9339e26923635c8357ee",
+      "projection_file_sha256": "289f7b759b4d8085f4fbd977f2ff367819162df68d34f16b509ed8091174afd0"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/artifact-integrity.json": {
+      "public_path": "artifact-integrity.json",
+      "original_file_sha256": "159141dd80cda935cc73de925e9b2383f2213595136588106e1a169391f7df6c",
+      "projection_file_sha256": "3b6c61d0cf61110abef820046e958be2430b4ce47a4b0a9e2c05a73bc536c2c0"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replay-execution.json": {
+      "public_path": "replay-execution.json",
+      "original_file_sha256": "13cbf7698d0091bfd02342f5fb1e7c330bd9cede0ba1aae3a685644ada3dd62c",
+      "projection_file_sha256": "5e79d9e6ab7b6a32dbcc689b5a540c7789d835707234b52e8df98e39d8b1740a"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/corpus-identity-bridge.json": {
+      "public_path": "corpus-identity-bridge.json",
+      "original_file_sha256": "85316909b5ebd7fa035b5819fafbba10895caeab929b7c8fc89a046f0019ff6b",
+      "projection_file_sha256": "624366f67ddfc8ba566aa669f24a13f2fed2ae3378b49d74add0803aed374444"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/delivery-preservation.json": {
+      "public_path": "delivery-preservation.json",
+      "original_file_sha256": "c2c389fc5ff0e51c94c489e1621d67bb07c3ff1c6baadad5680c92fabd8aa3d2",
+      "projection_file_sha256": "4e945718161aa3388a2fb0d819375c3ae7d448fc0a36d5f06bf71f2f9822acec"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/qa-attr-02-summary.md": {
+      "public_path": "qa-attr-02-summary.md",
+      "original_file_sha256": "97eb2c5b045e364388731b48c3c380341f606c3ce0ee6a13abffa941b2655f90",
+      "exact_original_bytes": false,
+      "projection": "Original report plus explicit public-evidence boundary banner."
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/qa-attr-02-review.md": {
+      "public_path": "qa-attr-02-review.md",
+      "original_file_sha256": "66c211aa6e45cf912405df6e11c4691001122cad4d1f687397d5032edaff81bb",
+      "exact_original_bytes": false,
+      "projection": "Original report plus explicit public-evidence boundary banner."
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replays/P01.json": {
+      "public_path": "replays/P01.json",
+      "original_file_sha256": "9913b7e92da5801643a11783b9b6fef224a4525acb10501a9df645eead5f36d8",
+      "projection_file_sha256": "4841c90a50578785416b050206d16f9f8870f0d5dcc9d11b0f9887066dd3d9e0"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replays/Q007.json": {
+      "public_path": "replays/Q007.json",
+      "original_file_sha256": "0bd245f0635780c28ab1a753e48f4e8e6cfb4e486ea8e6471b78474281dd8428",
+      "projection_file_sha256": "75e6008624a88017fec5c2e17fca23f62de5006aa39d6525344d6a83bf1492f8"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replays/Q011.json": {
+      "public_path": "replays/Q011.json",
+      "original_file_sha256": "15480d1e14dbfdf7362e2bcad6ab1b89cb8602cc053e30b23d4f66d116c1b9b5",
+      "projection_file_sha256": "67913446a81c722581de18afd1dc786efcf8b68c9a152ec898ec4467ecefc338"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replays/Q010.json": {
+      "public_path": "replays/Q010.json",
+      "original_file_sha256": "382ca4ff5c134a647600867513e9d47024a7918ea94b206a8b70d2560bf0e232",
+      "projection_file_sha256": "aac764deee9f9baf089b5b3c65b9cbcc39bc391d3d9a55c7799a362d32d1d2f5"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replays/Q006.json": {
+      "public_path": "replays/Q006.json",
+      "original_file_sha256": "871914c059faffef460f5c3e8af1eafdcf38bca3679dab2f051e55e9e5297355",
+      "projection_file_sha256": "ee7c565213f1aa3e7dfa9f3e4427b1c9212b969f10e220782c69ca7c0eb360f1"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replays/ENUM.json": {
+      "public_path": "replays/ENUM.json",
+      "original_file_sha256": "b8b3cc4131b2608b93c737a54db43bf88916bf71a2b021e72fe049efd355a181",
+      "projection_file_sha256": "cf9af6d9ef9429c8a1b30862c36149195f2ef2394ee72e8a22ffc9b958fc2fcb"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replays/SPEED.json": {
+      "public_path": "replays/SPEED.json",
+      "original_file_sha256": "b59e95faf8421347b07ef55ba5d0162b4af5cd82e4c40e8f82823c0ddf998d6b",
+      "projection_file_sha256": "c05e3c37ab29a370b7ab4eae7aed24f44a532b751e75f6dd85428a8d0d00e150"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replays/P05.json": {
+      "public_path": "replays/P05.json",
+      "original_file_sha256": "da0578f1f3f12d56df9d1f5915f3dc47c8559840672dd3124b5d5159dc6671e0",
+      "projection_file_sha256": "1513ec322264cb73fe3a06d3aac3a0c30e7982237694c411a8e3fb3e6bdc4f31"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replays/WAKE.json": {
+      "public_path": "replays/WAKE.json",
+      "original_file_sha256": "02d95ad35077236346a860203915e93cb0694618633678f8013f4566cf100079",
+      "projection_file_sha256": "09160186d83c9ab2f8d51acf9271aa6ac549cf8835b6987077b58c46ec3ffa23"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replays/AIQUAL01-U20-03.json": {
+      "public_path": "replays/AIQUAL01-U20-03.json",
+      "original_file_sha256": "91b8aeea68d84a8e48e32d948b0c771a602d31170c1cf13d06810a9b8995368a",
+      "projection_file_sha256": "472902aee6d9bfcee2d5a1754fbdf364bc54d751aa8cab16e4c66c127add9a33"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replays/AIQUAL01-LVS-03.json": {
+      "public_path": "replays/AIQUAL01-LVS-03.json",
+      "original_file_sha256": "8c3becfbc338eb2dbde3d0c825db78482d98066d685586ff792abc5fdce47e0a",
+      "projection_file_sha256": "f014aa6622dedf94ce539cf4d54fc95ccc83743800d2596c651fb7c22fab68e7"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replays/AIQUAL01-U32-04.json": {
+      "public_path": "replays/AIQUAL01-U32-04.json",
+      "original_file_sha256": "23444bc85b78d535b0dd710b4bc1b30ea45851cc43b187e18ae8175c1ea17297",
+      "projection_file_sha256": "6a06caff43bb318a3d4684f19f1088baccc09fd052568f04f7fcdb445e937240"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replays/SHORT.json": {
+      "public_path": "replays/SHORT.json",
+      "original_file_sha256": "4ac9e7e1c25de5fb540f11a02cc86a3eb5709410017c283bce8228863ebd5966",
+      "projection_file_sha256": "7af8bff30041b6fdebc40f36892b7ebe85489b9a49a36bb3942eeecbe0cf9ffb"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replays/P04.json": {
+      "public_path": "replays/P04.json",
+      "original_file_sha256": "f3366711ba558aaa59903b84581d4c4c25ba792ffe6da24c539f3c2f7f0eacfa",
+      "projection_file_sha256": "e430c9c90445344c4b9ebf53168f532b0f667ba629b737fa8f6a3f0e476c6757"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replays/Q002.json": {
+      "public_path": "replays/Q002.json",
+      "original_file_sha256": "93ad9a6806cdcb8c0b975093241ea094d949b70925031b2a1e7be33847728450",
+      "projection_file_sha256": "2cfe50d67241b1e303d0c73f18259dee63d4f617f43441ff22fcdd2077337ba1"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replays/Q005.json": {
+      "public_path": "replays/Q005.json",
+      "original_file_sha256": "ce9f7258d62d14c537157b487d77862831ea2247cbb662430a0f1633cbcbabf2",
+      "projection_file_sha256": "beafcc364bef51f3fff10fbb2d2097d7f03432931ef04a2f85d6e951c733871f"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replays/P03.json": {
+      "public_path": "replays/P03.json",
+      "original_file_sha256": "d80e7098ea5870f1477fddebd5f456a3e44ad5a1f1e23af7d04636147083335b",
+      "projection_file_sha256": "09fbda367ab2bd322388d787aeffc7cb37d041ca71f2b688084bc65e00d5156e"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replays/P02.json": {
+      "public_path": "replays/P02.json",
+      "original_file_sha256": "da4b03afde6e8177a5fb47613ab8b25df2ee76d671cbf9ec9efa38e9fd6a9f19",
+      "projection_file_sha256": "213662dcb13902af80cd7c5df29e8a20fd05f687b7685c1ce97ec009c515b780"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replays/Q012.json": {
+      "public_path": "replays/Q012.json",
+      "original_file_sha256": "82645ed94942a055a26ffb8af4b3e79f772ffcbd02bedcb4da7da9ee0e5e0049",
+      "projection_file_sha256": "b1906a75b74e38065a98855adafe705c39af4b31353af22b0cd2f5267a740138"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replays/AIQUAL01-U20-04.json": {
+      "public_path": "replays/AIQUAL01-U20-04.json",
+      "original_file_sha256": "7b6db7bf9c98af7fddef49f817c9d8ae38fdd19d3cff23c4683dcf82500d3ce0",
+      "projection_file_sha256": "035d999795b01fc74e6fc25694152dfdd01ba53563cd319d5bd109f76aecd4b5"
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/finalize_analysis.py": {
+      "public_path": "analysis-tools/finalize_analysis.py",
+      "original_file_sha256": "ee46d2a37441156d879bec766fd2fde3708218e6f464062191190c62e6e7a322",
+      "exact_original_bytes": true
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/check_pdf.py": {
+      "public_path": "analysis-tools/check_pdf.py",
+      "original_file_sha256": "f3ff56c5f3c925611122551e33d71cb500104dce927f9ce05378b78f1d90e860",
+      "exact_original_bytes": true
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/replay.py": {
+      "public_path": "analysis-tools/replay.py",
+      "original_file_sha256": "d472e2dda94d047011bc086a950db9315c3d8c93b679289146b51d5a956b7f91",
+      "exact_original_bytes": true
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/verify_artifacts.py": {
+      "public_path": "analysis-tools/verify_artifacts.py",
+      "original_file_sha256": "233f3436e1bc4aa1a89addb6dc94b6bdedffcc5b33dd2cb9b44ba68fc85dfffd",
+      "exact_original_bytes": true
+    },
+    "/Users/sw1/gv100h-poc/qa-attr-02-20261111/analyze.py": {
+      "public_path": "analysis-tools/analyze.py",
+      "original_file_sha256": "31f768d9223ffa7f9c4f9b523e4cc43464c7a835e342d5086d1cc4f37721cf16",
+      "exact_original_bytes": true
+    }
+  },
+  "withheld": [
+    "Official PDF bytes/page text/rendered page images",
+    "Full corpus contents",
+    "Raw prompts/completions and source files with official evidence text",
+    "Credentials and unrelated dirty working-tree files"
+  ],
+  "remote_review_can_verify": [
+    "Analysis implementation",
+    "Question grouping/denominators",
+    "Metadata/source identity consistency",
+    "Recorded budgets and no-model-call receipts",
+    "Claim boundaries and existing review findings"
+  ],
+  "remote_review_cannot_reverify": [
+    "Verbatim source fidelity",
+    "Meaning of withheld official evidence",
+    "Original complete request/wire bytes",
+    "A fresh RAG run or improved LLM answers"
+  ],
+  "new_model_calls": 0,
+  "Apple_calls": 0,
+  "new_retrieval_queries": 0,
+  "semantic_rereview_claimed": false
+}

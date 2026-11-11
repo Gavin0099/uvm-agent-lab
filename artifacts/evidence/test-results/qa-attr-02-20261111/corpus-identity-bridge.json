@@ -1,0 +1,15 @@
+{
+  "schema": "qa-attr-02-public-projection.v1",
+  "repository": "https://github.com/Gavin0099/uvm-agent-lab.git",
+  "original_path": "/Users/sw1/gv100h-poc/qa-attr-02-20261111/corpus-identity-bridge.json",
+  "original_file_sha256": "85316909b5ebd7fa035b5819fafbba10895caeab929b7c8fc89a046f0019ff6b",
+  "projection_boundary": "Public metadata only; evidence text and long captured strings withheld. Original reports are unchanged in private staging.",
+  "data": {
+    "current_corpus_sha256": "8aef81aa6857d9107df56a1b14dbd0c1f1e83d8295018a7c41a9b99b87496293",
+    "projection_session_fingerprint": "4d8eec3202e2df3e0a87efcce61ba9079b9ef3d21c63d46b3ac2991e90a8d980",
+    "matches_saved_native": true,
+    "chunk_count": 4330,
+    "algorithm_source": "artifacts/evidence/test-results/metadata-projection-v02-20261019/projection.py Session.__init__; sorted id/canonical model_dump pairs",
+    "boundary": "Different hash namespaces independently recomputed; no Session/model/retrieval invocation."
+  }
+}
