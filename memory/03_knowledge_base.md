@@ -41,3 +41,10 @@
 ### 6. Model Context Protocol (MCP) JSON-RPC 2.0 Contract
 - **Problem**: Free-form vector embeddings frequently hallucinate unapproved draft specs or outdated register maps.
 - **Solution**: The `spec-reference-kit` MCP Server acts as an authoritative, version-locked knowledge layer. Agent requests must use JSON-RPC 2.0 tool calls (`query_spec`, `search_spec_symbols`) which provide cryptographic provenance metadata with each retrieval.
+
+
+### QA-ATTR-02 public projection raw-field omission — CANDIDATE / UNREVIEWED
+
+CANDIDATE / UNREVIEWED: Public evidence projection omitted alternate short raw-body keys and table payloads; a length threshold alone could not protect them. Fix: withhold original_content, caption_lines, source_text, source_excerpt and tables, validate every projected JSON, and test each missed field plus valid withheld descriptors. Fix commit: fbc9c644d42d135675ab13e24c8f99aa687b384c. Test evidence: portable verifier11 negative controls, exact-value scan PASS; paired canonical daily record for the same commit. This does not certify all secret or source-text absence.
+
+Daily record: `memory/2026-11-11.md` (canonical writer, session `2026-11-11-qa-attr-02-publish`).

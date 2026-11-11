@@ -105,3 +105,5 @@
 3. **Build the Spec QA admission chain**: acquire official raw sources, produce the corpus binding receipt, and bind it to QA evaluation results.
 4. **Complete profile-aware Coding Agent admission** for the canonical lightweight cases.
 5. **Run bounded hardware bring-up** only after runtime/model trust-root evidence is available; keep formal qualification `NO_GO` until all required evidence exists.
+
+- QA-ATTR-02 scoped public review bundle committed and independently reviewed; canonical companion precedes authorized Push. Public evidence is metadata only; no new model/retrieval calls or QA-ATTR-03/04. <!-- memory_record_projection:active-task-summary:4a287c4bf3a6f4c3d3c61d4b28276389123a3c2dc14ea7b3da1870e0b68663d7 -->

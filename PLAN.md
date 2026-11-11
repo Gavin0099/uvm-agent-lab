@@ -1,6 +1,6 @@
 # UVM Agent Lab — Master Project Plan (PLAN.md)
 
-> **最後更新**: 2026-08-24
+> **最後更新**: 2026-11-11
 > **Owner**: Gavin0099
 > **Freshness**: Phase (30d)
 > **Status**: Active (v1 Local AI Agent Qualification Harness)
@@ -184,3 +184,11 @@ EDA compile/simulate/coverage remains an explicit Phase 2 `EDAValidator` plugin.
 4. **Coding Agent admission**: implement the profile-aware live runner and required CI admission for `AGENT-CODE-001` through `AGENT-CODE-005`.
 5. **Hardware identity**: verify dual GV100, 32GB memory, and NVLink with `nvidia-smi` and `nvidia-smi topo -m`; this is bring-up evidence only.
 6. **Final qualification**: require real model, endpoint, corpus, coding, hardware, and human-review evidence before changing `NO_GO`.
+
+## QA-ATTR-02 remote review delivery (2026-11-11)
+
+- Owner authorizes scoped Commit/Push so another agent can review QA-ATTR-02. This supersedes the prior no-commit/push boundary for delivery only; it does not authorize QA-ATTR-03/04, model/Apple calls, Merge, Deploy or a governance update.
+- Publish from an isolated branch based on main `71aeb02`. Preserve the original dirty worktree and index. Delivery contains only `artifacts/evidence/test-results/qa-attr-02-20261111` and necessary PLAN/canonical memory records. Source snapshots are inert audit copies, not installed product changes.
+- Public repository policy keeps official raw Spec in private staging. Public JSON retains original hashes and metadata while withholding evidence bodies, table payloads and long captured strings. Do not publish PDFs, page images, full corpus, raw Prompt/wire/completion or credentials. Remote review can verify method, counts, metadata, budgets and claim boundaries; USB source semantics and actual wire bytes require the private originals.
+- Validation covers 165 records, 108 complete Prompt records, 39 exact wordings, 16 model questions plus 4 retrieval controls, 120 alias metadata entries, 20 zero-generation receipts and 11 negative controls. This does not re-run or qualify the private analysis or LLM answers. Independent publication review and commit-bound canonical records precede Push; remote-ref verification determines actual delivery status.
+- Inherited review-worktree active-task memory is CRITICAL (107 lines / 11,299 Unicode characters before recording). This delivery adds only the required short canonical projection; memory cleanup remains a separate option, outside this delivery. The original worktree remains unchanged.
